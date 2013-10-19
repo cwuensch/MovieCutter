@@ -1,0 +1,8 @@
+#ifndef __MOVIECUTTERTAPCOMH__
+#define __MOVIECUTTERTAPCOMH__
+
+#define MOVIECUTTERTAPID                0x8E0A4247
+
+#define TAPCOM_SERVICE_ISOSDVISIBLE     0
+
+#endif

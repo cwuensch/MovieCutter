@@ -1,0 +1,103 @@
+# To add a new language, copy a block and translate it
+# the following codes are supported:
+#
+# LAN_Arab          ar
+# LAN_Czech         cs
+# LAN_Danish        da
+# LAN_Dutch         nl
+# LAN_English       en
+# LAN_French        fr
+# LAN_German        de
+# LAN_Greek         el
+# LAN_Italy         it
+# LAN_Norwegian     no
+# LAN_Persian       fa
+# LAN_Polish        pl
+# LAN_Russian       ru
+# LAN_Slovak        sk
+# LAN_Spain         es
+# LAN_Suomi         fi
+# LAN_Swedish       sv
+# LAN_Thai          th
+# LAN_Turk          tr
+
+
+#Deutsch
+de_000= Neu
+de_001= Löschen
+de_002= Beenden
+de_003= Verschieben
+de_004= Pause/Menü
+de_005= Auswählen
+de_006=.nav fehlt
+de_007=Ausgewählte Segmente löschen
+de_008=Diese Datei löschen
+de_009=MovieCutter beenden
+de_010=Konnte F/W-Funktion _bookmarkTime nicht finden
+de_011=Nächster Bookmark
+de_012=Vorhergehender Bookmark
+de_013=Importiere Bookmarks
+de_014=OK
+de_015=Vor-/Nachlauf entfernen
+de_016=Ausgewählte Segmente speichern
+de_017=Segmente
+de_018=Funktion auswählen
+de_019=Der Schnitt ist fehlgeschlagen\nBitte das Log prüfen.
+de_020=Die Aufnahme ist (teilweise) verschlüsselt
+de_021=Schneide Aufnahme
+de_022=Ungerade Segmente löschen
+de_023=Gerade Segmente löschen
+
+
+#English
+en_000= Add
+en_001= Delete
+en_002= Exit
+en_003= Move
+en_004= Pause/Menu
+en_005= Select
+en_006=.nav does not exist
+en_007=Delete the selected segments
+en_008=Delete this file
+en_009=Exit MovieCutter
+en_010=Failed to resolve f/w variable _bookmarkTime
+en_011=Goto next bookmark
+en_012=Goto prev. bookmark
+en_013=Import bookmarks
+en_014=OK
+en_015=Remove padding
+en_016=Save the selected segments
+en_017=Segments
+en_018=Select a function
+en_019=The cut has failed\nplease check the log.
+en_020=The file is (partly) crypted
+en_021=Cutting recoding
+en_022=Delete odd segments
+en_023=Delete even segments
+
+
+#French
+fr_000= Ajouter
+fr_001= Effacer
+fr_002= Quitter
+fr_003= Déplacer
+fr_004= Pause/Menu
+fr_005= Sélectionner
+fr_006=.nav non disponible
+fr_007=Supprimer segments sélectionnés
+fr_008=Effacer ce fichier
+fr_009=Quitter MovieCutter
+fr_010=Fonction F/W _bookmarkTime introuvable
+fr_011=Aller au signet suivant
+fr_012=Aller au signet précédent
+fr_013=Importer les signets
+fr_014=OK
+fr_015=Supprimer premier/dernier segment
+fr_016=Sauvegarder segments sélectionnés
+fr_017=Segments
+fr_018=Sélectionner une fonction :
+fr_019=Le découpage a échoué\nConsulter le log.
+fr_020=Le fichier est (partiellement) encrypté
+fr_021=Découpage en cours
+fr_022=Supprimer segments impairs
+fr_023=Supprimer segments pairs

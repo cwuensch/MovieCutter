@@ -1,0 +1,35 @@
+2011-01-29 V0.1   * First internal alpha release
+2011-01-29 V0.2   * TAP is now a TSR
+                  * Exit hides the OSD
+                  * >|< while the search bar is visible brings back the OSD
+                  * New action item "Remove padding"
+                  * Button text
+                  * Bugfix: defective nav due to API bug. Using fread() instead of TAP_Hdd_Fread()
+                  * A rec is not accepted if the inf time and the pcr time differs for more than 150 seconds
+                  * Several other fixes
+2011-02-06 V0.3   * File date of all files will be set to the recording time stamp
+                  * Checks if a .nav exists
+                  * More stringent search for a pcr
+                  * Rearranged the menu
+                  * Support für TMSCommander
+                  * Support for 188 byte files
+                  * Packet-Check von TC auf 188/192 packets umstellen
+                  * Better error handling
+                  * Automatic switching between PCR and linear timing modes
+                  * Added a .lng file
+                  * Added an ini file
+                  * ini key AutoOSDPolicy
+2011-02-19 V1.0   * Do not accept crypted files
+                  * Cleanup stray .cut file in DataFiles
+                  * German .lng
+2011-02-20 V1.1   * Fixed a typo in the lng
+                  * Added a TAPCOM server so that the ScreenSaver TAP can check if the MC OSD menu is visible
+2011-03-14 V1.2   * Bugfix: MovieCutter won't jump in during the creation of the preview images
+                  * Bugfix: unable to create segments if the byte 0x47 is located within the first time code
+                  * Bugfix: On some occasions, a bookmark has been ignored during bookmark importing
+2011-04-15 V1.3   * Added: hooks a firmware function so that new bookmarks are recognized during a playback
+2011-04-18 V1.3a  * Bugfix: fixed the TS offset detection, which might have created E0807 faults
+2011-08-13 V1.3b  * Fixed: a special kind of extended event description might be destroyed (see FBLib)
+2011-08-14 V1.3c  * Fixed a reboot if green is pressed without a running playback
+2011-08-26 V1.3d  * Added the French translations (Thanks to LAL)
+2012-06-23 V1.4   * Added action menu items "Delete event segments" and "Delete odd segments"
