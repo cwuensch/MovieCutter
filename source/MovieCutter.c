@@ -144,7 +144,7 @@ int                     NrSegmentMarker;
 int                     ActiveSegment;
 tSegmentMarker          SegmentMarker[NRSEGMENTMARKER];       //[0]=Start of file, [x]=End of file
 int                     NrBookmarks;
-dword                  *Bookmarks;
+dword                   Bookmarks[144];
 
 TYPE_PlayInfo           PlayInfo;
 char                    PlaybackName[MAX_FILE_NAME_SIZE + 1];
@@ -159,23 +159,28 @@ word                    PCRPID;
 dword                   FirstPCR;
 bool                    NoPlaybackCheck;                      //Used to circumvent a race condition during the cutting process
 
-extern tFontData        Calibri_14_FontData;
-extern tFontData        Calibri_12_FontData;
+tFontDataUC             Calibri_10_FontDataUC;
+tFontDataUC             Calibri_12_FontDataUC;
+tFontDataUC             Calibri_14_FontDataUC;
 word                    rgnSegmentList = 0;
 word                    rgnInfo = 0;
 word                    rgnActionMenu = 0;
 int                     ActionMenuItem;
 bool                    AutoOSDPolicy = TRUE;
 
-dword                  *pCurTAPTask;
-byte                    OurTAPTask;
-
 char                    LogString[512];
 
 int fseeko64 (FILE *__stream, __off64_t __off, int __whence);
+void ReadBookmarksNG(void);
 
 int TAP_Main(void)
 {
+  CallTraceInit();
+  CallTraceEnable(TRUE);
+  #if STACKTRACE == TRUE
+    CallTraceEnter("TAP_Main");
+  #endif
+
   CreateSettingsDir();
   LoadINI();
   KeyTranslate(TRUE, &TAP_EventHandler);
@@ -190,9 +195,20 @@ int TAP_Main(void)
       OSDMenuEvent(NULL, NULL, NULL);
     }while(OSDMenuInfoBoxIsVisible());
     OSDMenuInfoBoxDestroy();
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
     return 0;
   }
 
+  FMUC_LoadFontFile("Calibri_10.ufnt", &Calibri_10_FontDataUC);
+  FMUC_LoadFontFile("Calibri_12.ufnt", &Calibri_12_FontDataUC);
+  FMUC_LoadFontFile("Calibri_14.ufnt", &Calibri_14_FontDataUC);
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
   return 1;
 }
 
@@ -204,7 +220,23 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
   (void) param2;
 
-  if(event == EVT_TMSCommander) return TMSCommander_handler(param1);
+  if(DoNotReenter) return param1;
+  DoNotReenter = TRUE;
+
+  #if STACKTRACE == TRUE
+    CallTraceEnter("TAP_EventHandler");
+  #endif
+
+  if(event == EVT_TMSCommander)
+  {
+    dword ret = TMSCommander_handler(param1);
+
+    DoNotReenter = FALSE;
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return ret;
+  }
 
   if(event == EVT_TAPCOM)
   {
@@ -220,16 +252,26 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
   if(event == EVT_STOP)
   {
-    HookBookmarkFunction(FALSE);
     CutFileSave();
     Cleanup();
     LangUnloadStrings();
+    FMUC_FreeFontFile(&Calibri_10_FontDataUC);
+    FMUC_FreeFontFile(&Calibri_12_FontDataUC);
+    FMUC_FreeFontFile(&Calibri_14_FontDataUC);
     TAP_Exit();
+    DoNotReenter = FALSE;
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
     return param1;
   }
 
-  if(DoNotReenter) return param1;
-  DoNotReenter = TRUE;
+  if(OSDMenuMessageBoxIsVisible())
+  {
+    OSDMenuEvent(&event, &param1, &param2);
+    if(event == EVT_KEY && param1 == RKEY_Ok) OSDMenuMessageBoxDestroy();
+  }
 
   TAP_GetState(&SysState, &SysSubState);
 
@@ -238,12 +280,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     case ST_Init:             //Executed once upon TAP start
     {
       CleanupCut();
-
-      //Remember the current TAP ID. We need it for the bookmark hook
-      pCurTAPTask = (dword*)FIS_vCurTapTask();
-      OurTAPTask = *pCurTAPTask;
-
-      HookBookmarkFunction(TRUE);
       State = AutoOSDPolicy ? ST_IdleNoPlayback : ST_IdleInvisible;
       break;
     }
@@ -297,7 +333,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           //Check if it is crypted
           if(isCrypted())
           {
-            WriteLogMC(PROGRAM_NAME, "file is crpted");
+            WriteLogMC(PROGRAM_NAME, "file is crypted");
             OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_IsCrypted));
             OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
             OSDMenuMessageBoxShow();
@@ -339,8 +375,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           CreateOSD();
           Playback_Normal();
           Calc10Seconds();
-          //ReadBookmarks();
-          ReadBookmarks_old();
+          ReadBookmarksNG();
           if(!CutFileLoad()) AddDefaultSegmentMarker();
           OSDRedrawEverything();
           State = ST_Idle;
@@ -391,6 +426,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
             //Exit immediately so that other functions can not interfere with the cleanup
             DoNotReenter = FALSE;
+            #if STACKTRACE == TRUE
+              CallTraceExit(NULL);
+            #endif
             return 0;
           }
 
@@ -561,16 +599,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
     case ST_IdleUnacceptedFile: //Playback is active but MC can't use that file and is inactive
     {
-      if(OSDMenuMessageBoxIsVisible())
-      {
-        OSDMenuEvent(&event, &param1, &param2);
-        if(event == EVT_KEY && param1 == RKEY_Ok) OSDMenuMessageBoxDestroy();
-      }
-      else
-      {
-        if(!isPlaybackRunning() || LastTotalBlocks != PlayInfo.totalBlock) State = AutoOSDPolicy ? ST_IdleNoPlayback : ST_IdleInvisible;
-      }
-
+      if(!isPlaybackRunning() || LastTotalBlocks != PlayInfo.totalBlock) State = AutoOSDPolicy ? ST_IdleNoPlayback : ST_IdleInvisible;
       break;
     }
 
@@ -638,10 +667,12 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
     case ST_Exit:             //Preparing to terminate the TAP
     {
-      HookBookmarkFunction(FALSE);
       CutFileSave();
       Cleanup();
       LangUnloadStrings();
+      FMUC_FreeFontFile(&Calibri_10_FontDataUC);
+      FMUC_FreeFontFile(&Calibri_12_FontDataUC);
+      FMUC_FreeFontFile(&Calibri_14_FontDataUC);
       TAP_Exit();
       break;
     }
@@ -651,41 +682,69 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
   LastTotalBlocks = PlayInfo.totalBlock;
 
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
   return param1;
 }
 
 dword TMSCommander_handler(dword param1)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("TMSCommander_handler");
+  #endif
+
   switch (param1)
   {
     case TMSCMDR_Capabilities:
     {
+      #if STACKTRACE == TRUE
+        CallTraceExit(NULL);
+      #endif
       return (dword)(TMSCMDR_CanBeStopped | TMSCMDR_HaveUserEvent);
     }
 
     case TMSCMDR_UserEvent:
     {
       if(State == ST_IdleInvisible) State = ST_IdleNoPlayback;
+
+      #if STACKTRACE == TRUE
+        CallTraceExit(NULL);
+      #endif
       return TMSCMDR_OK;
     }
 
     case TMSCMDR_Menu:
     {
+      #if STACKTRACE == TRUE
+        CallTraceExit(NULL);
+      #endif
       return TMSCMDR_NotOK;
     }
 
     case TMSCMDR_Stop:
     {
       State = ST_Exit;
+
+      #if STACKTRACE == TRUE
+        CallTraceExit(NULL);
+      #endif
       return TMSCMDR_OK;
     }
   }
 
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
   return TMSCMDR_UnknownFunction;
 }
 
 void ClearOSD(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("ClearOSD");
+  #endif
+
   if(rgnSegmentList)
   {
     TAP_Osd_Delete(rgnSegmentList);
@@ -700,21 +759,31 @@ void ClearOSD(void)
 
   TAP_Osd_Sync();
   TAP_EnterNormal();
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void Cleanup(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("Cleanup");
+  #endif
+
   ClearOSD();
 
-  if(Bookmarks)
-  {
-    TAP_MemFree(Bookmarks);
-    Bookmarks = NULL;
-  }
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void CleanupCut(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("CleanupCut");
+  #endif
+
   int                   NrFiles, i;
   TYPE_FolderEntry      FolderEntry;
   char                  RecFileName[MAX_FILE_NAME_SIZE + 1];
@@ -732,20 +801,36 @@ void CleanupCut(void)
     }
     TAP_Hdd_FindNext(&FolderEntry);
   }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void CreateSettingsDir(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("CreateSettingsDir");
+  #endif
+
   HDD_TAP_PushDir();
   HDD_ChangeDir("/ProgramFiles");
   if(!TAP_Hdd_Exist("Settings")) TAP_Hdd_Create("Settings", ATTR_FOLDER);
   HDD_ChangeDir("Settings");
   if(!TAP_Hdd_Exist("MovieCutter")) TAP_Hdd_Create("MovieCutter", ATTR_FOLDER);
   HDD_TAP_PopDir();
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void LoadINI(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("LoadINI");
+  #endif
+
   INILOCATION IniFileState;
 
   HDD_TAP_PushDir();
@@ -759,10 +844,18 @@ void LoadINI(void)
   if(IniFileState == INILOCATION_NewFile)
     SaveINI();
   HDD_TAP_PopDir();
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void SaveINI(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("SaveINI");
+  #endif
+
   HDD_TAP_PushDir();
   HDD_ChangeDir(LOGDIR);
   INIOpenFile(INIFILENAME, PROGRAM_NAME);
@@ -770,12 +863,20 @@ void SaveINI(void)
   INISaveFile(INIFILENAME, INILOCATION_AtCurrentDir, NULL);
   INICloseFile();
   HDD_TAP_PopDir();
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 
 //Segment marker functions
 void AddBookmarksToSegmentList(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("AddBookmarksToSegmentList");
+  #endif
+
   int i;
 
   // first, delete all present segment markers (*CW*)
@@ -791,16 +892,32 @@ void AddBookmarksToSegmentList(void)
     WriteLogMC(PROGRAM_NAME, LogString);
     AddSegmentMarker(Bookmarks[i]);
   }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void AddDefaultSegmentMarker(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("AddDefaultSegmentMarker");
+  #endif
+
   AddSegmentMarker(0);
   AddSegmentMarker(PlayInfo.totalBlock);
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 bool AddSegmentMarker(dword Block)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("AddSegmentMarker");
+  #endif
+
   int                   i, j;
   dword                 CurPCR;
   char                  StartTime[10];
@@ -811,10 +928,20 @@ bool AddSegmentMarker(dword Block)
     OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_ListIsFull));  //***CW***
     OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
     OSDMenuMessageBoxShow();
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
     return FALSE;
   }
 
-  if(!GetPCR(PlaybackName, Block, PacketSize, PCRPID, &CurPCR)) return FALSE;
+  if(!GetPCR(PlaybackName, Block, PacketSize, PCRPID, &CurPCR))
+  {
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return FALSE;
+  }
 
   //Find the point where to insert the new marker so that the list stays sorted
   if(NrSegmentMarker < 2)
@@ -848,11 +975,19 @@ bool AddSegmentMarker(dword Block)
     }
     NrSegmentMarker++;
   }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
   return TRUE;
 }
 
 int FindNearestSegmentMarker(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("FindNearestSegmentMarker");
+  #endif
+
   int                   NearestMarkerIndex;
   int                   MinDelta;
   int                   i;
@@ -870,29 +1005,58 @@ int FindNearestSegmentMarker(void)
       }
     }
   }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
   return NearestMarkerIndex;
 }
 
 void MoveSegmentMarker(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("MoveSegmentMarker");
+  #endif
+
   dword CurPCR;
   int NearestMarkerIndex = FindNearestSegmentMarker();
 
   if(NearestMarkerIndex != -1)
   {
-    if(!GetPCR(PlaybackName, PlayInfo.currentBlock, PacketSize, PCRPID, &CurPCR)) return;
+    if(!GetPCR(PlaybackName, PlayInfo.currentBlock, PacketSize, PCRPID, &CurPCR))
+    {
+      #if STACKTRACE == TRUE
+        CallTraceExit(NULL);
+      #endif
+      return;
+    }
+
     SegmentMarker[NearestMarkerIndex].Block = PlayInfo.currentBlock;
 //    SegmentMarker[NearestMarkerIndex].Time  = (dword)((float)PlayInfo.currentBlock * (PlayInfo.duration * 60 + PlayInfo.durationSec) / PlayInfo.totalBlock);
     SegmentMarker[NearestMarkerIndex].Time  = (dword)(DeltaPCR(FirstPCR, CurPCR) / 1000);
     SegmentMarker[NearestMarkerIndex].Percent = (float)PlayInfo.currentBlock * 100 / PlayInfo.totalBlock;
   }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void DeleteSegmentMarker(int MarkerIndex)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("DeleteSegmentMarker");
+  #endif
+
   int i;
 
-  if((MarkerIndex <= 0) || (MarkerIndex >= (NrSegmentMarker - 1))) return;
+  if((MarkerIndex <= 0) || (MarkerIndex >= (NrSegmentMarker - 1)))
+  {
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return;
+  }
 
   for(i = MarkerIndex; i < NrSegmentMarker - 1; i++)
     memcpy(&SegmentMarker[i], &SegmentMarker[i + 1], sizeof(tSegmentMarker));
@@ -903,10 +1067,18 @@ void DeleteSegmentMarker(int MarkerIndex)
   SegmentMarker[NrSegmentMarker - 1].Selected = FALSE;        // the very last marker (no segment)
   if(NrSegmentMarker < 3) SegmentMarker[0].Selected = FALSE;  // there is only one segment (from start to end)
   if(ActiveSegment >= NrSegmentMarker - 1) ActiveSegment = NrSegmentMarker - 2;
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void DeleteAllSegmentMarkers(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("DeleteAllSegmentMarkers");
+  #endif
+
   int i;
 
   if (NrSegmentMarker > 2) {
@@ -918,13 +1090,27 @@ void DeleteAllSegmentMarkers(void)
   }
   SegmentMarker[0].Selected = FALSE;
   ActiveSegment = 0;
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void SetCurrentSegment(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("SetCurrentSegment");
+  #endif
+
   int                   i;
 
-  if(NrSegmentMarker < 3) return;
+  if(NrSegmentMarker < 3)
+  {
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return;
+  }
 
   for(i = 1; i < NrSegmentMarker; i++)
   {
@@ -939,217 +1125,64 @@ void SetCurrentSegment(void)
       break;
     }
   }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void SelectSegmentMarker(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("SelectSegmentMarker");
+  #endif
+
   SegmentMarker[ActiveSegment].Selected = !SegmentMarker[ActiveSegment].Selected;
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
-void ReadBookmarks_old(void)
+//Bookmarks werden jetzt aus dem inf-Cache der Firmware aus dem Speicher ausgelesen.
+//Das geschieht beim Einblenden des MC-OSDs, da sie sonst nicht benötigt werden
+void ReadBookmarksNG(void)
 {
-  tRECHeaderInfo        RECHeaderInfo;
-  byte                 *Buffer;
-  TYPE_File            *f;
-  dword                 fs;
-  int                   i;
+  #if STACKTRACE == TRUE
+    CallTraceEnter("ReadBookmarksNG");
+  #endif
 
-  NrBookmarks = 0;
-  Bookmarks = NULL;
+  dword                *PlayInfoBookmarkStruct;
 
-  f = TAP_Hdd_Fopen(PlayInfo.file->name);
-  if(!f)
+  //TODO: Herausfinden, wie man die Konstante berechnen kann
+  PlayInfoBookmarkStruct = (dword*)(FIS_vPvrRecTsPlayInfo() + 0x1dd0);
+  if(PlayInfoBookmarkStruct)
   {
-    WriteLogMC(PROGRAM_NAME, "ReadBookmarks_old: failed to open the inf file");
-    return;
-  }
-
-  fs = TAP_Hdd_Flen(f);
-  Buffer = TAP_MemAlloc(fs);
-  TAP_Hdd_Fread(Buffer, fs, 1, f);
-  TAP_Hdd_Fclose(f);
-  HDD_DecodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN);
-  TAP_MemFree(Buffer);
-
-  //Count the number of bookmarks (not all systems are using the NrBookmarks field)
-  for(i = 0; i < 177; i++)
-  {
-    if(RECHeaderInfo.Bookmark[i])
-      NrBookmarks++;
-    else
-      break;
-  }
-  Bookmarks = TAP_MemAlloc(NrBookmarks * sizeof(dword));
-  if(!Bookmarks) NrBookmarks = 0;
-  for(i = 0; i < NrBookmarks; i++)
-    Bookmarks[i] = RECHeaderInfo.Bookmark[i];
-}
-
-// *CW* TODO: Bugfix - Beim Setzen eines Bookmarks wird die Ordnung nicht beachtet - beim Springen zum nächsten wird sie vorausgesetzt.
-//            d.h. wenn man ein Bookmark zwischen 2 bereits vorhandene setzt, und sich vor dem neuen BM befindet, und zum nächsten springt, springt MC zum übernächsten
-// *CW* TODO: Bugfix - Das Setzen eines Bookmarks kriegt der Topf nicht mit, da er die INF nicht neu ausliest
-// *CW* Idee: Bookmarks im Speicher halten, bei Hook alle neu auslesen (alternativ bei grüner Taste im Idle-Modus)
-//            AddBookmark leitet grüne Taste an den Topf weiter (alternativ setzt BM im Speicher, mit Ordnung, Speicher wird beim Beenden in INF geschrieben)
-void AddBookmark(dword Block)
-{
-  //Read inf
-  //decode inf
-  //add new Bookmarks
-  //enconde inf
-  //write inf
-
-  tRECHeaderInfo        RECHeaderInfo;
-  byte                 *Buffer;
-  TYPE_File            *f;
-  dword                 fs, BufferSize;
-  int                   i;
-
-  if(PlayInfo.file == NULL) return;
-
-  f = TAP_Hdd_Fopen(PlayInfo.file->name);
-  if(!f)
-  {
-    WriteLogMC(PROGRAM_NAME, "AddBookmark: failed to open the inf file");
-    return;
-  }
-
-  fs = TAP_Hdd_Flen(f);
-  BufferSize = (fs < 8192 ? 8192 : fs);
-  Buffer = TAP_MemAlloc(BufferSize);
-  memset(Buffer, 0, BufferSize);
-  TAP_Hdd_Fread(Buffer, fs, 1, f);
-
-  HDD_DecodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN);
-
-  //Count the number of bookmarks (not all systems are using the NrBookmarks field)
-  i = 0;
-  while(RECHeaderInfo.Bookmark[i]) i++;
-  RECHeaderInfo.Bookmark[i] = Block;
-  RECHeaderInfo.NrBookmarks = i;
-
-  HDD_EncodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN);
-
-  TAP_Hdd_Fseek(f, 0, SEEK_SET);
-  TAP_Hdd_Fwrite(Buffer, fs, 1, f);
-  TAP_Hdd_Fclose(f);
-  TAP_MemFree(Buffer);
-}
-
-void ReadBookmarks(void)
-{
-  int                   i;
-  static dword         *___bookmarkTime = NULL;
-
-  if(!___bookmarkTime)
-  {
-    ___bookmarkTime = (dword*)FIS_vbookmarkTime();
-    if(!___bookmarkTime)
-    {
-      WriteLogMC(PROGRAM_NAME, LangGetString(LS_FailedResolve));
-      return;
-    }
-  }
-
-  NrBookmarks = 0;
-  Bookmarks = NULL;
-
-  //Count the number of bookmarks
-  //The firmware has 0x240 bytes reserved which equals 144 bookmarks
-  for(i = 0; i < 144; i++)
-  {
-    if(___bookmarkTime[i])
-      NrBookmarks++;
-  //  else
-    //  break;
-  }
-#ifdef FULLDEBUG
-  TAP_PrintNet("Bookmark-Import from Firmware: %d\n", NrBookmarks);
-  TAP_SPrint(LogString, "Bookmark-Import from Firmware: %d", NrBookmarks);
-  WriteLogMC(PROGRAM_NAME, LogString);
-#endif
-  Bookmarks = TAP_MemAlloc(NrBookmarks * sizeof(dword));
-  if(Bookmarks)
-  {
-    int p = 0;
-    for(i = 0; i < 144; i++)
-    {
-      if(___bookmarkTime[i]) {
-        Bookmarks[p] = ___bookmarkTime[i];
-        p++;
-        if (p > NrBookmarks-1) break;
-      }
-    }
+    NrBookmarks = PlayInfoBookmarkStruct[0];
+    memset(Bookmarks, 0, sizeof(Bookmarks));
+    memcpy(Bookmarks, &PlayInfoBookmarkStruct[1], NrBookmarks * sizeof(dword));
+    TAP_PrintNet("inf cache: %d bookmarks\n", NrBookmarks);
   }
   else
+  {
+    //TODO: Fehlermeldung, falls der Pointer zum inf-Cache nicht gefunden wurde
     NrBookmarks = 0;
-}
-
-bool (*__Appl_SetBookmark)(void) = NULL;
-
-bool Hooked_Appl_SetBookmark(void)
-{
-  bool ret = __Appl_SetBookmark();
-
-  if(ret)
-  {
-    switch(State)
-    {
-      case ST_Init:
-      case ST_IdleNoPlayback:
-      case ST_IdleUnacceptedFile:
-      case ST_ActionDialog:
-      case ST_CutFailDialog:
-      case ST_Exit:
-        break;
-
-      case ST_Idle:
-      case ST_IdleInvisible:
-      {
-        dword           OrigTAPTask;
-
-        OrigTAPTask = *pCurTAPTask;
-        *pCurTAPTask = OurTAPTask;
-        //AddSegmentMarker(PlayInfo.currentBlock);
-        AddBookmark(PlayInfo.currentBlock);
-#ifdef FULLDEBUG
-  TAP_PrintNet("Bookmark-Hook event catched!\n", FirstPCR);
-  TAP_SPrint(LogString, "Bookmark-Hook event catched!", FirstPCR);
-  WriteLogMC(PROGRAM_NAME, LogString);
-#endif
-        *pCurTAPTask = OrigTAPTask;
-        break;
-      }
-    }
+    TAP_PrintNet("inf cache entry point not found\n");
   }
 
-  return ret;
-}
-
-void HookBookmarkFunction(bool SetHook)
-{
-  if(SetHook && !__Appl_SetBookmark)
-  {
-    if(!HookFirmware("_Z16Appl_SetBookmarkv", Hooked_Appl_SetBookmark, (void*)&__Appl_SetBookmark))
-    {
-      WriteLogMC(PROGRAM_NAME, "Failed to hook Appl_SetBookmark()");
-    }
-  }
-
-  if(!SetHook && __Appl_SetBookmark)
-  {
-    if(!UnhookFirmware("_Z16Appl_SetBookmarkv", Hooked_Appl_SetBookmark, (void*)&__Appl_SetBookmark))
-    {
-      WriteLogMC(PROGRAM_NAME, "Failed to unhook Appl_SetBookmark()");
-    }
-    else
-      __Appl_SetBookmark = NULL;
-  }
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 
 //Cut file functions
 bool CutFileLoad(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("CutFileLoad");
+  #endif
+
   char                  Name[MAX_FILE_NAME_SIZE + 1];
   byte                  Version;
   TYPE_File            *fCut, *fRec;
@@ -1160,7 +1193,10 @@ bool CutFileLoad(void)
   if(!fRec)
   {
     WriteLogMC(PROGRAM_NAME, "CutFileLoad: couldn't open .rec for file size verification");
-    HDD_TAP_PopDir();
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
     return FALSE;
   }
   TAP_Hdd_Fclose(fRec);
@@ -1173,18 +1209,10 @@ bool CutFileLoad(void)
   if(!TAP_Hdd_Exist(Name))
   {
     WriteLogMC(PROGRAM_NAME, "CutFileLoad: .cut doesn't exist");
-#ifdef FULLDEBUG
-  TAP_PrintNet("CutFileLoad: HDD_TAP_PopDir() ohne HDD_TAP_PushDir()!\nvorher:");
-  HDD_TAP_GetCurrentDir(LogString);
-  TAP_PrintNet(LogString);
-#endif
-    HDD_TAP_PopDir();
-#ifdef FULLDEBUG
-  TAP_PrintNet("\nnachher:");
-  HDD_TAP_GetCurrentDir(LogString);
-  TAP_PrintNet(LogString);
-  TAP_PrintNet("\n");
-#endif
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
     return FALSE;
   }
 
@@ -1193,7 +1221,10 @@ bool CutFileLoad(void)
   if(!fCut)
   {
     WriteLogMC(PROGRAM_NAME, "CutFileLoad: failed to open .cut");
-    HDD_TAP_PopDir();
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
     return FALSE;
   }
 
@@ -1203,7 +1234,10 @@ bool CutFileLoad(void)
   {
     WriteLogMC(PROGRAM_NAME, "CutFileLoad: .cut version mismatch");
     TAP_Hdd_Fclose(fCut);
-    HDD_TAP_PopDir();
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
     return FALSE;
   }
 
@@ -1213,7 +1247,10 @@ bool CutFileLoad(void)
   {
     WriteLogMC(PROGRAM_NAME, "CutFileLoad: .cut file size mismatch");
     TAP_Hdd_Fclose(fCut);
-    HDD_TAP_PopDir();
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
     return FALSE;
   }
 
@@ -1237,11 +1274,18 @@ bool CutFileLoad(void)
   if(NrSegmentMarker < 3) SegmentMarker[0].Selected = FALSE;  // there is only one segment (from start to end)
   if(ActiveSegment >= NrSegmentMarker - 1) ActiveSegment = NrSegmentMarker - 2;
 
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
   return TRUE;
 }
 
 void CutFileSave(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("CutFileSave");
+  #endif
+
   char                  Name[MAX_FILE_NAME_SIZE + 1];
   byte                  Version;
   TYPE_File            *fCut, *fRec;
@@ -1249,7 +1293,14 @@ void CutFileSave(void)
 
   //Save the file size to check if the file didn't change
   fRec = TAP_Hdd_Fopen(PlaybackName);
-  if(!fRec) return;
+  if(!fRec)
+  {
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return;
+  }
+
   FileSize = fRec->size;
   TAP_Hdd_Fclose(fRec);
 
@@ -1263,7 +1314,9 @@ void CutFileSave(void)
   fCut = TAP_Hdd_Fopen(Name);
   if(!fCut)
   {
-    HDD_TAP_PopDir();
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
     return;
   }
 
@@ -1276,20 +1329,36 @@ void CutFileSave(void)
   TAP_Hdd_Fwrite(&ActiveSegment, sizeof(int), 1, fCut);
   TAP_Hdd_Fwrite(SegmentMarker, sizeof(tSegmentMarker), NrSegmentMarker, fCut);
   TAP_Hdd_Fclose(fCut);
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void CutFileDelete(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("CutFileDelete");
+  #endif
+
   char                  Name[MAX_FILE_NAME_SIZE + 1];
 
   strcpy(Name, PlaybackName);
   Name[strlen(Name) - 4] = '\0';
   strcat(Name, ".cut");
   TAP_Hdd_Delete(Name);
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void CutDumpList(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("CutDumpList");
+  #endif
+
   char                  TimeString[12];
   int                   i;
 
@@ -1300,12 +1369,20 @@ void CutDumpList(void)
     TAP_SPrint(LogString, "%02d: %010d %s %03d %3s %3s", i, SegmentMarker[i].Block, TimeString, (int)SegmentMarker[i].Percent, SegmentMarker[i].Selected ? "yes" : "no", (i == ActiveSegment ? "*" : ""));
     WriteLogMC(PROGRAM_NAME, LogString);
   }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 
 //OSD functions
 void CreateOSD(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("CreateOSD");
+  #endif
+
   if(!rgnSegmentList)
   {
     TAP_ExitNormal();
@@ -1314,10 +1391,18 @@ void CreateOSD(void)
     rgnSegmentList = TAP_Osd_Create(28, 85, _SegmentList_Background_Gd.width, _SegmentList_Background_Gd.height, 0, 0);
   }
   if(!rgnInfo) rgnInfo = TAP_Osd_Create(0, 576 - _Info_Background_Gd.height, _Info_Background_Gd.width, _Info_Background_Gd.height, 0, 0);
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void OSDRedrawEverything(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("OSDRedrawEverything");
+  #endif
+
   CreateOSD();
   OSDSegmentListDrawList();
   OSDInfoDrawBackground();
@@ -1328,10 +1413,18 @@ void OSDRedrawEverything(void)
   OSDInfoDrawCurrentPosition(TRUE);
   OSDInfoDrawClock(TRUE);
   OSDInfoDrawMinuteJump();
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void OSDSegmentListDrawList(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("OSDSegmentListDrawList");
+  #endif
+
   int                   i, p;
   char                  StartTime[10], EndTime[10], TimeStr[24];
   char                  PageStr[15];
@@ -1344,7 +1437,7 @@ void OSDSegmentListDrawList(void)
   if(rgnSegmentList)
   {
     TAP_Osd_PutGd(rgnSegmentList, 0, 0, &_SegmentList_Background_Gd, FALSE);
-    FM_PutString(rgnSegmentList, 5, 3, 80, LangGetString(LS_Segments), COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_LEFT);
+    FMUC_PutString(rgnSegmentList, 5, 3, 80, LangGetString(LS_Segments), COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
     TAP_Osd_PutGd(rgnSegmentList, 62, 23, &_Button_Up_Gd, TRUE);
     TAP_Osd_PutGd(rgnSegmentList, 88, 23, &_Button_Down_Gd, TRUE);
 
@@ -1355,7 +1448,7 @@ void OSDSegmentListDrawList(void)
       if((ActiveSegment < 10) && (NrSegmentMarker>11)) TAP_Osd_PutGd(rgnSegmentList, 88, 23, &_Button_Down2_Gd, TRUE);
 
       TAP_SPrint(PageStr, "%s%d/%d", LangGetString(LS_PageStr), (ActiveSegment/10)+1, ((NrSegmentMarker-2)/10)+1);
-      FM_PutString(rgnSegmentList, 60, 3, 114, PageStr, COLOR_White, COLOR_None, &Calibri_12_FontData, FALSE, ALIGN_RIGHT);
+      FMUC_PutString(rgnSegmentList, 60, 3, 114, PageStr, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_RIGHT);
 
       p = (ActiveSegment / 10) * 10;
       for(i = 0; i < min(10, (NrSegmentMarker - p) - 1); i++)
@@ -1371,15 +1464,23 @@ void OSDSegmentListDrawList(void)
         SecToTimeString(SegmentMarker[p+i].Time - SegmentMarker[0].Time, StartTime);
         SecToTimeString(SegmentMarker[p+i + 1].Time - SegmentMarker[0].Time, EndTime);
         TAP_SPrint(TimeStr, "%2d. %s-%s", (p+i + 1), StartTime, EndTime);
-        fw = FM_GetStringWidth(TimeStr, &Calibri_12_FontData);            // 250
-        FM_PutString(rgnSegmentList, max(0, 58 - (int)(fw >> 1)), 45 + 28*i, 116, TimeStr, (SegmentMarker[p+i].Selected ? C1 : C2), COLOR_None, &Calibri_12_FontData, FALSE, ALIGN_LEFT);
+        fw = FMUC_GetStringWidth(TimeStr, &Calibri_10_FontDataUC);            // 250
+        FMUC_PutString(rgnSegmentList, max(0, 58 - (int)(fw >> 1)), 45 + 28*i, 116, TimeStr, (SegmentMarker[p+i].Selected ? C1 : C2), COLOR_None, &Calibri_10_FontDataUC, FALSE, ALIGN_LEFT);
       }
     }
   }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void OSDInfoDrawBackground(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("OSDInfoDrawBackground");
+  #endif
+
   int                   x;
   char                  s[50];
 
@@ -1391,54 +1492,70 @@ void OSDInfoDrawBackground(void)
     TAP_Osd_PutGd(rgnInfo, x, 48, &_Button_Red_Gd, TRUE);
     x += _Button_Red_Gd.width;
     TAP_SPrint(s, LangGetString(LS_Delete));
-    FM_PutString(rgnInfo, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_LEFT);
-    x += FM_GetStringWidth(s, &Calibri_12_FontData);
+    FMUC_PutString(rgnInfo, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
+    x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
 
     TAP_Osd_PutGd(rgnInfo, x, 48, &_Button_Green_Gd, TRUE);
     x += _Button_Green_Gd.width;
     TAP_SPrint(s, LangGetString(LS_Add));
-    FM_PutString(rgnInfo, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_LEFT);
-    x += FM_GetStringWidth(s, &Calibri_12_FontData);
+    FMUC_PutString(rgnInfo, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
+    x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
 
     TAP_Osd_PutGd(rgnInfo, x, 48, &_Button_Yellow_Gd, TRUE);
     x += _Button_Yellow_Gd.width;
     TAP_SPrint(s, LangGetString(LS_Move));
-    FM_PutString(rgnInfo, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_LEFT);
-    x += FM_GetStringWidth(s, &Calibri_12_FontData);
+    FMUC_PutString(rgnInfo, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
+    x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
 
     TAP_Osd_PutGd(rgnInfo, x, 48, &_Button_Blue_Gd, TRUE);
     x += _Button_Blue_Gd.width;
     TAP_SPrint(s, LangGetString(LS_Select));
-    FM_PutString(rgnInfo, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_LEFT);
+    FMUC_PutString(rgnInfo, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
 
     x = 350;
     TAP_Osd_PutGd(rgnInfo, x, 68, &_Button_Ok_Gd, TRUE);
     x += _Button_Ok_Gd.width;
     TAP_SPrint(s, LangGetString(LS_Pause));
-    FM_PutString(rgnInfo, x, 67, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_LEFT);
-    x += FM_GetStringWidth(s, &Calibri_12_FontData);
+    FMUC_PutString(rgnInfo, x, 67, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
+    x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
 
     TAP_Osd_PutGd(rgnInfo, x, 68, &_Button_Exit_Gd, TRUE);
     x += _Button_Exit_Gd.width;
     TAP_SPrint(s, LangGetString(LS_Exit));
-    FM_PutString(rgnInfo, x, 67, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_LEFT);
+    FMUC_PutString(rgnInfo, x, 67, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
   }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void OSDInfoDrawRecName(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("OSDInfoDrawRecName");
+  #endif
+
   char                  Name[MAX_FILE_NAME_SIZE + 1];
 
   if(rgnInfo)
   {
     strcpy(Name, PlaybackName);
     Name[strlen(Name) - 4] = '\0';
-    FM_PutString(rgnInfo, 65, 11, 490, Name, COLOR_White, COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT);
+    FMUC_PutString(rgnInfo, 65, 11, 490, Name, COLOR_White, COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT);
   }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void OSDInfoDrawProgressbar(bool Force)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("OSDInfoDrawProgressbar");
+  #endif
+
   int                   y, i;
   dword                 pos = 0;
   dword                 x1, x2;
@@ -1516,10 +1633,18 @@ void OSDInfoDrawProgressbar(bool Force)
       LastDraw = TAP_GetTick();
     }
   }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void OSDInfoDrawPlayIcons(bool Force)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("OSDInfoDrawPlayIcons");
+  #endif
+
   TYPE_GrData          *Btn_Play, *Btn_Pause, *Btn_Fwd, *Btn_Rwd, *Btn_Slow;
   static tTrickMode     LastTrickMode = TM_Slow;
   static byte           LastTrickModeSwitch = 0;
@@ -1567,32 +1692,40 @@ void OSDInfoDrawPlayIcons(bool Force)
       TAP_Osd_FillBox(rgnInfo, 552, 26, 145, 19, RGB(51, 51, 51));
       switch(TrickModeSwitch)
       {
-        case 0x11: FM_PutString(rgnInfo, 657, 26, 697, "2x", COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_CENTER); break;
-        case 0x12: FM_PutString(rgnInfo, 657, 26, 697, "4x", COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_CENTER); break;
-        case 0x13: FM_PutString(rgnInfo, 657, 26, 697, "8x", COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_CENTER); break;
-        case 0x14: FM_PutString(rgnInfo, 657, 26, 697, "16x", COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_CENTER); break;
-        case 0x15: FM_PutString(rgnInfo, 657, 26, 697, "32x", COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_CENTER); break;
-        case 0x16: FM_PutString(rgnInfo, 657, 26, 697, "64x", COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_CENTER); break;
-        case 0x21: FM_PutString(rgnInfo, 549, 26, 589, "2x", COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_CENTER); break;
-        case 0x22: FM_PutString(rgnInfo, 549, 26, 589, "4x", COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_CENTER); break;
-        case 0x23: FM_PutString(rgnInfo, 549, 26, 589, "8x", COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_CENTER); break;
-        case 0x24: FM_PutString(rgnInfo, 549, 26, 589, "16x", COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_CENTER); break;
-        case 0x25: FM_PutString(rgnInfo, 549, 26, 589, "32x", COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_CENTER); break;
-        case 0x26: FM_PutString(rgnInfo, 549, 26, 589, "64x", COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_CENTER); break;
-        case 0x31: FM_PutString(rgnInfo, 602, 26, 642, "1/2x", COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_CENTER); break;
-        case 0x32: FM_PutString(rgnInfo, 602, 26, 642, "1/4x", COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_CENTER); break;
-        case 0x33: FM_PutString(rgnInfo, 602, 26, 642, "1/8x", COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_CENTER); break;
-        case 0x34: FM_PutString(rgnInfo, 602, 26, 642, "1/16x", COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_CENTER); break;
+        case 0x11: FMUC_PutString(rgnInfo, 657, 26, 697, "2x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x12: FMUC_PutString(rgnInfo, 657, 26, 697, "4x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x13: FMUC_PutString(rgnInfo, 657, 26, 697, "8x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x14: FMUC_PutString(rgnInfo, 657, 26, 697, "16x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x15: FMUC_PutString(rgnInfo, 657, 26, 697, "32x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x16: FMUC_PutString(rgnInfo, 657, 26, 697, "64x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x21: FMUC_PutString(rgnInfo, 549, 26, 589, "2x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x22: FMUC_PutString(rgnInfo, 549, 26, 589, "4x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x23: FMUC_PutString(rgnInfo, 549, 26, 589, "8x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x24: FMUC_PutString(rgnInfo, 549, 26, 589, "16x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x25: FMUC_PutString(rgnInfo, 549, 26, 589, "32x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x26: FMUC_PutString(rgnInfo, 549, 26, 589, "64x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x31: FMUC_PutString(rgnInfo, 602, 26, 642, "1/2x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x32: FMUC_PutString(rgnInfo, 602, 26, 642, "1/4x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x33: FMUC_PutString(rgnInfo, 602, 26, 642, "1/8x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x34: FMUC_PutString(rgnInfo, 602, 26, 642, "1/16x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
       }
       LastTrickModeSwitch = TrickModeSwitch;
 
       TAP_Osd_Sync();
     }
   }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void OSDInfoDrawCurrentPosition(bool Force)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("OSDInfoDrawCurrentPosition");
+  #endif
+
   int                   Time;
   float                 Percent;
   char                  TimeString[10];
@@ -1617,16 +1750,24 @@ void OSDInfoDrawCurrentPosition(bool Force)
 #endif
       strcat(TimeString, PercentString);
       TAP_Osd_FillBox(rgnInfo, 60, 48, 283, 31, RGB(30, 30, 30));
-      fw = FM_GetStringWidth(TimeString, &Calibri_14_FontData);
-      FM_PutString(rgnInfo, max(0, 200 - (int)(fw >> 1)), 52, 660, TimeString, COLOR_White, COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT);
+      fw = FMUC_GetStringWidth(TimeString, &Calibri_14_FontDataUC);
+      FMUC_PutString(rgnInfo, max(0, 200 - (int)(fw >> 1)), 52, 660, TimeString, COLOR_White, COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT);
       LastSec = Time % 60;
       TAP_Osd_Sync();
     }
   }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void OSDInfoDrawClock(bool Force)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("OSDInfoDrawClock");
+  #endif
+
   word                  mjd;
   byte                  hour, min, sec;
   static byte           LastMin = 99;
@@ -1639,15 +1780,23 @@ void OSDInfoDrawClock(bool Force)
     {
       TAP_SPrint(Time, "%2.2d:%2.2d", hour, min);
       TAP_Osd_FillBox(rgnInfo, 638, 65, 60, 25, RGB(16, 16, 16));
-      FM_PutString(rgnInfo, 638, 65, 710, Time, COLOR_White, COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT);
+      FMUC_PutString(rgnInfo, 638, 65, 710, Time, COLOR_White, COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT);
       LastMin = min;
       TAP_Osd_Sync();
     }
   }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void OSDInfoDrawMinuteJump(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("OSDInfoDrawMinuteJump");
+  #endif
+
   char                  Time[4];
 
   if(rgnInfo)
@@ -1660,16 +1809,24 @@ void OSDInfoDrawMinuteJump(void)
 
       TAP_SPrint(Time, "%d'", MinuteJump);
 
-      FM_PutString(rgnInfo, 508, 26, 555, Time, COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_CENTER);
+      FMUC_PutString(rgnInfo, 508, 26, 555, Time, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER);
     }
     TAP_Osd_Sync();
   }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 
 //Playback functions
 void Playback_Faster(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("Playback_Faster");
+  #endif
+
   switch(TrickMode)
   {
     case TM_Pause:
@@ -1731,10 +1888,18 @@ void Playback_Faster(void)
       break;
     }
   }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void Playback_Slower(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("Playback_Slower");
+  #endif
+
   switch(TrickMode)
   {
     case TM_Fwd:
@@ -1790,24 +1955,48 @@ void Playback_Slower(void)
       break;
     }
   }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void Playback_Normal(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("Playback_Normal");
+  #endif
+
   Appl_SetPlaybackSpeed(0, 1, TRUE);
   TrickMode = TM_Play;
   TrickModeSpeed = 0;
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void Playback_Pause(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("Playback_Pause");
+  #endif
+
   Appl_SetPlaybackSpeed(4, 0, TRUE);
   TrickMode = TM_Pause;
   TrickModeSpeed = 0;
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void Playback_FFWD(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("Playback_FFWD");
+  #endif
+
   //Appl_SetPlaybackSpeed(1, 1, true) 2x FFWD
   //Appl_SetPlaybackSpeed(1, 2, true) 4x FFWD
   //Appl_SetPlaybackSpeed(1, 3, true) 8x FFWD
@@ -1818,10 +2007,18 @@ void Playback_FFWD(void)
   if(TrickModeSpeed < 6) TrickModeSpeed++;
   Appl_SetPlaybackSpeed(1, TrickModeSpeed, TRUE);
   TrickMode = TM_Fwd;
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void Playback_RWD(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("Playback_RWD");
+  #endif
+
   //Appl_SetPlaybackSpeed(2, 1, true) 2x RWD
   //Appl_SetPlaybackSpeed(2, 2, true) 4x RWD
   //Appl_SetPlaybackSpeed(2, 3, true) 8x RWD
@@ -1832,10 +2029,18 @@ void Playback_RWD(void)
   if(TrickModeSpeed < 6) TrickModeSpeed++;
   Appl_SetPlaybackSpeed(2, TrickModeSpeed, TRUE);
   TrickMode = TM_Rwd;
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void Playback_Slow(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("Playback_Slow");
+  #endif
+
   //Appl_SetPlaybackSpeed(3, 1, true) 1/2x Slow
   //Appl_SetPlaybackSpeed(3, 2, true) 1/4x Slow
   //Appl_SetPlaybackSpeed(3, 3, true) 1/8x Slow
@@ -1844,35 +2049,62 @@ void Playback_Slow(void)
   if(TrickModeSpeed < 4) TrickModeSpeed++;
   Appl_SetPlaybackSpeed(3, TrickModeSpeed, TRUE);
   TrickMode = TM_Slow;
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void Playback_JumpForward(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("Playback_JumpForward");
+  #endif
+
   dword                 JumpBlock;
   JumpBlock = min(PlayInfo.currentBlock + MinuteJumpBlocks, BlockNrLast10Seconds);
 
   if(TrickMode == TM_Pause) Playback_Normal();
   TAP_Hdd_ChangePlaybackPos(JumpBlock);
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void Playback_JumpBackward(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("Playback_JumpBackward");
+  #endif
+
   dword                 JumpBlock;
   JumpBlock = max(PlayInfo.currentBlock - MinuteJumpBlocks, 0);
 
   if(TrickMode == TM_Pause) Playback_Normal();
   TAP_Hdd_ChangePlaybackPos(JumpBlock);
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
-// *CW* ACHTUNG!! Setzt Ordnung der Bookmarks voraus! -> durch AddBookmark() derzeit nicht gegeben
 void Playback_JumpNextBookmark(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("Playback_JumpNextBookmark");
+  #endif
+
   int i;
 
   if ((NrBookmarks > 0) && (PlayInfo.currentBlock > Bookmarks[NrBookmarks-1]))
   {
     if(TrickMode != TM_Play) Playback_Normal();
     TAP_Hdd_ChangePlaybackPos(Bookmarks[0]);
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
     return;
   }
   
@@ -1882,13 +2114,25 @@ void Playback_JumpNextBookmark(void)
     {
       if(TrickMode != TM_Play) Playback_Normal();
       TAP_Hdd_ChangePlaybackPos(Bookmarks[i]);
+
+      #if STACKTRACE == TRUE
+        CallTraceExit(NULL);
+      #endif
       return;
     }
   }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void Playback_JumpPrevBookmark(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("Playback_JumpPrevBookmark");
+  #endif
+
   int                   i;
   dword                 ThirtySeconds;
 
@@ -1896,6 +2140,10 @@ void Playback_JumpPrevBookmark(void)
   {
     if(TrickMode != TM_Play) Playback_Normal();
     TAP_Hdd_ChangePlaybackPos(Bookmarks[NrBookmarks-1]);
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
     return;
   }
   
@@ -1906,25 +2154,45 @@ void Playback_JumpPrevBookmark(void)
     {
       if(TrickMode != TM_Play) Playback_Normal();
       TAP_Hdd_ChangePlaybackPos(Bookmarks[i]);
+
+      #if STACKTRACE == TRUE
+        CallTraceExit(NULL);
+      #endif
       return;
     }
   }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 
 //Some generic functions
 void SecToTimeString(dword Time, char *TimeString)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("SecToTimeString");
+  #endif
+
   dword                 Hour, Min, Sec;
 
   Hour = (int)(Time / 3600);
   Min = (int)(Time / 60) % 60;
   Sec = Time % 60;
   TAP_SPrint(TimeString, "%d:%2.2d:%2.2d", Hour, Min, Sec);
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 bool isPlaybackRunning(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("isPlaybackRunning");
+  #endif
+
   TAP_Hdd_GetPlayInfo(&PlayInfo);
 #ifdef FULLDEBUG
   if((int)PlayInfo.currentBlock < 0) {
@@ -1934,29 +2202,62 @@ bool isPlaybackRunning(void)
 #endif
   if((int)PlayInfo.currentBlock < 0) PlayInfo.currentBlock = 0;
 
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
   return ((PlayInfo.playMode == PLAYMODE_Playing) || NoPlaybackCheck);
 }
 
 void Calc10Seconds(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("Calc10Seconds");
+  #endif
+
   BlockNrLast10Seconds = PlayInfo.totalBlock - PlayInfo.totalBlock * 10 / (60*PlayInfo.duration + PlayInfo.durationSec);
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void CheckLast10Seconds(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("CheckLast10Seconds");
+  #endif
+
   if((PlayInfo.currentBlock > BlockNrLast10Seconds)  && (TrickMode != TM_Pause)) Playback_Pause();
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 bool isNavAvailable(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("isNavAvailable");
+  #endif
+
   char                  NavFileName[MAX_FILE_NAME_SIZE + 1];
+  bool                  ret;
 
   TAP_SPrint(NavFileName, "%s.nav", PlaybackName);
-  return TAP_Hdd_Exist(NavFileName);
+  ret = TAP_Hdd_Exist(NavFileName);
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+  return ret;
 }
 
 bool isCrypted(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("isCrypted");
+  #endif
+
   TYPE_File            *f;
   byte                  CryptFlag = 2;
   char                  InfFileName[MAX_FILE_NAME_SIZE + 1];
@@ -1970,6 +2271,9 @@ bool isCrypted(void)
     TAP_Hdd_Fclose(f);
   }
 
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
   return ((CryptFlag & 1) != 0);
 }
 
@@ -1977,6 +2281,10 @@ bool isCrypted(void)
 //Action Menu
 void ActionMenuDraw(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("ActionMenuDraw");
+  #endif
+
   dword  C1, C2, C3, C4;
   int    x, y, i;
 
@@ -2011,66 +2319,114 @@ void ActionMenuDraw(void)
   {
     switch(i)
     {
-      case MI_SelectFunction:     FM_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_SelectFunction), (ActionMenuItem == MI_SelectFunction ? C1 : C2), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT); break;
-      case MI_SaveSegment:        FM_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_SaveSegments), (ActionMenuItem == MI_SaveSegment ? C1 : C2), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT); break;
-      case MI_DeleteSegment:      FM_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_DeleteSegments), (ActionMenuItem == MI_DeleteSegment ? C1 : C2), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT); break;
-      case MI_SelectOddSegments:  FM_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_SelectOddSegments), (ActionMenuItem == MI_SelectOddSegments ? C1 : C2), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT); break;
-      case MI_SelectEvenSegments: FM_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_SelectEvenSegments), (ActionMenuItem == MI_SelectEvenSegments ? C1 : C2), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT); break;
-      case MI_SelectPadding:      FM_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_SelectPadding), (ActionMenuItem == MI_SelectPadding ? C1 : (NrSegmentMarker == 4 ? C2 : C4)), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT); break;
-      case MI_DeleteFile:         FM_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_DeleteFile), (ActionMenuItem == MI_DeleteFile ? C1 : C3), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT); break;
-      case MI_ImportBookmarks:    FM_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_ImportBM), (ActionMenuItem == MI_ImportBookmarks ? C1 : C2), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT); break;
-      case MI_GotoNextBM:         FM_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_GotoNextBM), (ActionMenuItem == MI_GotoNextBM ? C1 : C2), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT); break;
-      case MI_GotoPrevBM:         FM_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_GotoPrevBM), (ActionMenuItem == MI_GotoPrevBM ? C1 : C2), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT); break;
-      case MI_ExitMC:             FM_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_ExitMC), (ActionMenuItem == MI_ExitMC ? C1 : C2), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT); break;
+      case MI_SelectFunction:     FMUC_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_SelectFunction), (ActionMenuItem == MI_SelectFunction ? C1 : C2), COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT); break;
+      case MI_SaveSegment:        FMUC_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_SaveSegments), (ActionMenuItem == MI_SaveSegment ? C1 : C2), COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT); break;
+      case MI_DeleteSegment:      FMUC_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_DeleteSegments), (ActionMenuItem == MI_DeleteSegment ? C1 : C2), COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT); break;
+      case MI_SelectOddSegments:  FMUC_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_SelectOddSegments), (ActionMenuItem == MI_SelectOddSegments ? C1 : C2), COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT); break;
+      case MI_SelectEvenSegments: FMUC_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_SelectEvenSegments), (ActionMenuItem == MI_SelectEvenSegments ? C1 : C2), COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT); break;
+      case MI_SelectPadding:      FMUC_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_SelectPadding), (ActionMenuItem == MI_SelectPadding ? C1 : (NrSegmentMarker == 4 ? C2 : C4)), COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT); break;
+      case MI_DeleteFile:         FMUC_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_DeleteFile), (ActionMenuItem == MI_DeleteFile ? C1 : C3), COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT); break;
+      case MI_ImportBookmarks:    FMUC_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_ImportBM), (ActionMenuItem == MI_ImportBookmarks ? C1 : C2), COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT); break;
+      case MI_GotoNextBM:         FMUC_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_GotoNextBM), (ActionMenuItem == MI_GotoNextBM ? C1 : C2), COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT); break;
+      case MI_GotoPrevBM:         FMUC_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_GotoPrevBM), (ActionMenuItem == MI_GotoPrevBM ? C1 : C2), COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT); break;
+      case MI_ExitMC:             FMUC_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_ExitMC), (ActionMenuItem == MI_ExitMC ? C1 : C2), COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT); break;
       case MI_NrMenuItems:        break;
     }
   }
 
   TAP_Osd_Sync();
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void ActionMenuDown(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("ActionMenuDown");
+  #endif
+
   if(ActionMenuItem >= (MI_NrMenuItems - 1))
     ActionMenuItem = 1;
   else
     ActionMenuItem++;
 
   ActionMenuDraw();
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void ActionMenuUp(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("ActionMenuUp");
+  #endif
+
   if(ActionMenuItem > 1)
     ActionMenuItem--;
   else
     ActionMenuItem = MI_NrMenuItems - 1;
 
   ActionMenuDraw();
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void ActionMenuRemove(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("ActionMenuRemove");
+  #endif
+
   TAP_Osd_Delete(rgnActionMenu);
   rgnActionMenu = 0;
   OSDRedrawEverything();
   TAP_Osd_Sync();
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 
 //MovieCutter functions
 void MovieCutterSaveSegments(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("MovieCutterSaveSegments");
+  #endif
+
   MovieCutterProcess(TRUE, TRUE);
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void MovieCutterDeleteSegments(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("MovieCutterDeleteSegments");
+  #endif
+
   MovieCutterProcess(TRUE, FALSE);
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void MovieCutterSelectOddSegments(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("MovieCutterSelectOddSegments");
+  #endif
+
   int                   i;
 
   for(i = 0; i < NrSegmentMarker-1; i++)
@@ -2080,10 +2436,18 @@ void MovieCutterSelectOddSegments(void)
   OSDInfoDrawProgressbar(TRUE);
 //  OSDRedrawEverything();
 //  MovieCutterProcess(TRUE, FALSE);
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void MovieCutterSelectEvenSegments(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("MovieCutterSelectEvenSegments");
+  #endif
+
   int                   i;
 
   for(i = 0; i < NrSegmentMarker-1; i++)
@@ -2093,10 +2457,18 @@ void MovieCutterSelectEvenSegments(void)
   OSDInfoDrawProgressbar(TRUE);
 //  OSDRedrawEverything();
 //  MovieCutterProcess(TRUE, FALSE);
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void MovieCutterSelectPadding(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("MovieCutterSelectPadding");
+  #endif
+
   if(NrSegmentMarker == 4)
   {
     SegmentMarker[0].Selected = TRUE;
@@ -2110,19 +2482,35 @@ void MovieCutterSelectPadding(void)
 //    TAP_Osd_Sync();
 //    MovieCutterProcess(TRUE, FALSE);
   }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void MovieCutterDeleteFile(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("MovieCutterDeleteFile");
+  #endif
+
   NoPlaybackCheck = TRUE;
   TAP_Hdd_StopTs();
   CutFileDelete();
   HDD_Delete(PlaybackName);
   NoPlaybackCheck = FALSE;
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void MovieCutterProcess(bool KeepSource, bool KeepCut)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("MovieCutterProcess");
+  #endif
+
   int                   i, j;
   dword                 SelectedBlock;
   dword                 DeltaTime, DeltaBlock;
@@ -2206,8 +2594,7 @@ void MovieCutterProcess(bool KeepSource, bool KeepCut)
       }
 
       Calc10Seconds();
-      //ReadBookmarks();
-      ReadBookmarks_old();
+      ReadBookmarksNG();
       CutFileSave();
       CutDumpList();
     }
@@ -2220,4 +2607,8 @@ void MovieCutterProcess(bool KeepSource, bool KeepCut)
   TAP_Hdd_ChangePlaybackPos(SegmentMarker[ActiveSegment].Block);
   OSDRedrawEverything();
   NoPlaybackCheck = FALSE;
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }

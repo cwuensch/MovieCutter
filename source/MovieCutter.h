@@ -13,6 +13,7 @@
 #define LOGDIR                "/ProgramFiles/Settings/MovieCutter"
 #define LNGFILENAME           PROGRAM_NAME ".lng"
 #define INIFILENAME           PROGRAM_NAME ".ini"
+#define STACKTRACE            FALSE
 
 int   TAP_Main(void);
 dword TAP_EventHandler(word event, dword param1, dword param2);

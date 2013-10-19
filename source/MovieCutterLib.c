@@ -1099,7 +1099,7 @@ bool GetPCRPID(char *FileName, word *Result)
     WriteLogMC("MovieCutterLib", "GetPCRPID() E0802.");
     return FALSE;
   }
-  TAP_Hdd_Fread(Buffer, FileSize, 1, fInf);
+  TAP_Hdd_Fread(Buffer, (FileSize > INFSIZE) ? INFSIZE : FileSize, 1, fInf);
   TAP_Hdd_Fclose(fInf);
 
   //Decode the source .inf
