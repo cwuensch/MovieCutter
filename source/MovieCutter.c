@@ -25,7 +25,9 @@
 #include                "Graphics/Button_Left.gd"
 #include                "Graphics/Button_Right.gd"
 #include                "Graphics/Button_Up.gd"
+#include                "Graphics/Button_Up2.gd"
 #include                "Graphics/Button_Down.gd"
+#include                "Graphics/Button_Down2.gd"
 #include                "Graphics/Button_Red.gd"
 #include                "Graphics/Button_Green.gd"
 #include                "Graphics/Button_Yellow.gd"
@@ -58,14 +60,14 @@ typedef struct
 
 typedef enum
 {
-  ST_Init,
-  ST_IdleNoPlayback,
-  ST_Idle,
-  ST_IdleInvisible,
-  ST_IdleUnacceptedFile,
-  ST_ActionDialog,
-  ST_CutFailDialog,
-  ST_Exit
+  ST_Init,               // TAP start (executed only once)
+  ST_IdleNoPlayback,     // TAP inactive, no file is being played back
+  ST_Idle,               // OSD is active (playback running)
+  ST_IdleInvisible,      // OSD is currently not active, but can be entered (playback running)
+  ST_IdleUnacceptedFile, // TAP is not active and cannot be entered (playback of unsupported file)
+  ST_ActionDialog,       // Action Menu is open, navigation only within menu
+  ST_CutFailDialog,      // Failure Dialog is open, no other actions possible
+  ST_Exit                // Preparing to exit TAP
 }tState;
 
 typedef enum
@@ -80,11 +82,11 @@ typedef enum
 typedef enum
 {
   MI_SelectFunction,
-  MI_RemovePadding,
+  MI_SelectPadding,
   MI_SaveSegment,
   MI_DeleteSegment,
-  MI_DeleteOddSegments,
-  MI_DeleteEvenSegments,
+  MI_SelectOddSegments,
+  MI_SelectEvenSegments,
   MI_ImportBookmarks,
   MI_GotoNextBM,
   MI_GotoPrevBM,
@@ -95,30 +97,45 @@ typedef enum
 
 typedef enum
 {
+ // Symbols in info bar
   LS_Add,
   LS_Delete,
   LS_Exit,
   LS_Move,
   LS_Pause,
   LS_Select,
-  LS_MissingNav,
+  LS_MissingNav,     // error message
+ // Menu entries (1)
   LS_DeleteSegments,
   LS_DeleteFile,
   LS_ExitMC,
-  LS_FailedResolve,
+  LS_FailedResolve,  // error message
+ // Menu entries (2)
   LS_GotoNextBM,
   LS_GotoPrevBM,
   LS_ImportBM,
-  LS_OK,
+  LS_OK,             // dialog button
+ // Menu entries (3)
   LS_RemovePadding,
   LS_SaveSegments,
   LS_Segments,
   LS_SelectFunction,
-  LS_CutHasFailed,
-  LS_IsCrypted,
+  LS_CutHasFailed,   // error message
+  LS_IsCrypted,      // error message
   LS_Cutting,
+ // Menu entries (4)
   LS_DeleteOddSegments,
   LS_DeleteEvenSegments,
+  // new language strings V1.5
+  LS_SelectOddSegments,
+  LS_SelectEvenSegments,
+  LS_SelectPadding,
+  LS_InvertSelection,
+  LS_PageStr,
+  LS_ListIsFull,
+  LS_ErrorPcrPid,
+  LS_ErrorPcr,
+  LS_WrongNavLength,
   LS_NrStrings
 }tLngStrings;
 
@@ -128,10 +145,6 @@ int                     ActiveSegment;
 tSegmentMarker          SegmentMarker[NRSEGMENTMARKER];       //[0]=Start of file, [x]=End of file
 int                     NrBookmarks;
 dword                  *Bookmarks;
-word                    rgnSegmentList = 0;
-word                    rgnInfo = 0;
-extern tFontData        Calibri_14_FontData;
-extern tFontData        Calibri_12_FontData;
 
 TYPE_PlayInfo           PlayInfo;
 char                    PlaybackName[MAX_FILE_NAME_SIZE + 1];
@@ -140,11 +153,18 @@ tTrickMode              TrickMode;
 dword                   TrickModeSpeed;
 dword                   BlockNrLast10Seconds;
 dword                   MinuteJump;                           //Seconds or 0 if deactivated
+dword                   MinuteJumpBlocks;                     //Number of blocks, which shall be added
 int                     PacketSize;
+word                    PCRPID;
+dword                   FirstPCR;
+bool                    NoPlaybackCheck;                      //Used to circumvent a race condition during the cutting process
 
+extern tFontData        Calibri_14_FontData;
+extern tFontData        Calibri_12_FontData;
+word                    rgnSegmentList = 0;
+word                    rgnInfo = 0;
 word                    rgnActionMenu = 0;
 int                     ActionMenuItem;
-bool                    NoPlaybackCheck;                      //Used to circumvent a race condition during the cutting process
 bool                    AutoOSDPolicy = TRUE;
 
 dword                  *pCurTAPTask;
@@ -152,8 +172,6 @@ byte                    OurTAPTask;
 
 char                    LogString[512];
 
-void (*Appl_PvrPause)(bool) = NULL;
-void (*Appl_SetPlaybackSpeed)(unsigned char, int, bool) = NULL;
 int fseeko64 (FILE *__stream, __off64_t __off, int __whence);
 
 int TAP_Main(void)
@@ -220,8 +238,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     case ST_Init:             //Executed once upon TAP start
     {
       CleanupCut();
-      Appl_PvrPause = (void*)TryResolve("_Z13Appl_PvrPauseb");
-      Appl_SetPlaybackSpeed = (void*)TryResolve("_Z21Appl_SetPlaybackSpeedhib");
 
       //Remember the current TAP ID. We need it for the bookmark hook
       pCurTAPTask = (dword*)FIS_vCurTapTask();
@@ -267,6 +283,17 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             break;
           }
 
+          // TODO: Check if nav has correct length! ***CW***
+          if(FALSE)
+          {
+            WriteLogMC(PROGRAM_NAME, ".nav file length not matching duration");
+            OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_WrongNavLength));
+            OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
+            OSDMenuMessageBoxShow();
+            State = ST_IdleUnacceptedFile;
+            break;
+          }
+
           //Check if it is crypted
           if(isCrypted())
           {
@@ -278,10 +305,36 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             break;
           }
 
+          // detect first PCR (for precise detection of marker time)
           PacketSize = is192ByteTS(PlaybackName) ? 192 : 188;
+          if (!GetPCRPID(PlaybackName, &PCRPID))
+          {
+            WriteLogMC(PROGRAM_NAME, "Could not detect PCR-PID");
+            OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_ErrorPcrPid));  //***CW***
+            OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
+            OSDMenuMessageBoxShow();
+            State = ST_IdleUnacceptedFile;
+            break;
+          }
+          if (!GetPCR(PlaybackName, 0, PacketSize, PCRPID, &FirstPCR))
+          {
+            WriteLogMC(PROGRAM_NAME, "Could not detect first PCR");
+            OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_ErrorPcr));  //***CW***
+            OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
+            OSDMenuMessageBoxShow();
+            State = ST_IdleUnacceptedFile;
+            break;
+          }
+#ifdef FULLDEBUG
+  TAP_PrintNet("First PCR neu ermittelt: %d\n", FirstPCR);
+  TAP_SPrint(LogString, "First PCR neu ermittelt: %d", FirstPCR);
+  WriteLogMC(PROGRAM_NAME, LogString);
+#endif
+          
           NrSegmentMarker = 0;
           ActiveSegment = 0;
           MinuteJump = 0;
+          MinuteJumpBlocks = 0;  // nicht unbedingt nötig
           NoPlaybackCheck = FALSE;
           CreateOSD();
           Playback_Normal();
@@ -299,8 +352,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
     case ST_IdleInvisible:    //Playback is active but OSD is hidden
     {
+      // if progress-bar is enabled and cut-key is pressed -> show MovieCutter OSD (ST_IdleNoPlayback)
       if(SysSubState == SUBSTATE_PvrPlayingSearch && (event == EVT_KEY) && ((param1 == RKEY_Ab) || (param1 == RKEY_Option))) State = ST_IdleNoPlayback;
 
+      // if playback-file changed or playback stopped -> show MovieCutter as soon as next playback is started (ST_IdleNoPlayback)
       if(AutoOSDPolicy && (LastTotalBlocks != PlayInfo.totalBlock)) State = ST_IdleNoPlayback;
       if(AutoOSDPolicy && !isPlaybackRunning()) State = ST_IdleNoPlayback;
 
@@ -341,9 +396,12 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
           case RKEY_Down:
           {
-            if((NrSegmentMarker > 2) && (ActiveSegment < (NrSegmentMarker - 2)))
+            if(NrSegmentMarker > 2)
             {
-              ActiveSegment++;
+              if (ActiveSegment < (NrSegmentMarker - 2))
+                ActiveSegment++;
+              else
+                ActiveSegment = 0;
               OSDSegmentListDrawList();
               if(TrickMode == TM_Pause) Playback_Normal();
               TAP_Hdd_ChangePlaybackPos(SegmentMarker[ActiveSegment].Block);
@@ -353,9 +411,12 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
           case RKEY_Up:
           {
-            if((NrSegmentMarker > 2) && (ActiveSegment > 0))
+            if(NrSegmentMarker > 2)
             {
-              ActiveSegment--;
+              if (ActiveSegment > 0)
+                ActiveSegment--;
+              else
+                ActiveSegment = NrSegmentMarker - 2;
               OSDSegmentListDrawList();
               if(TrickMode == TM_Pause) Playback_Normal();
               TAP_Hdd_ChangePlaybackPos(SegmentMarker[ActiveSegment].Block);
@@ -365,30 +426,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
           case RKEY_Red:
           {
-            int         NearestMarkerIndex;
-            int         MinDelta;
-            int         i;
-
-            //Delete nearest marker
-            if(NrSegmentMarker > 2)
+            int NearestMarkerIndex = FindNearestSegmentMarker();
+            if(NearestMarkerIndex != -1)
             {
-              NearestMarkerIndex = -1;
-
-              MinDelta = 0x7fffffff;
-              for(i = 1; i < NrSegmentMarker - 1; i++)
-              {
-                if(abs(SegmentMarker[i].Block - PlayInfo.currentBlock) < MinDelta)
-                {
-                  MinDelta = abs(SegmentMarker[i].Block - PlayInfo.currentBlock);
-                  NearestMarkerIndex = i;
-                }
-              }
-
-              if(NearestMarkerIndex != -1)
-              {
-                DeleteSegmentMarker(NearestMarkerIndex);
-                OSDRedrawEverything();
-              }
+              DeleteSegmentMarker(NearestMarkerIndex);
+              OSDRedrawEverything();
             }
             break;
           }
@@ -418,6 +460,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             if(MinuteJump)
             {
               MinuteJump = 0;
+              MinuteJumpBlocks = 0;
               OSDInfoDrawMinuteJump();
             }
             else if(TrickMode != TM_Pause)
@@ -497,8 +540,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           case RKEY_8:
           case RKEY_9:
           {
-            MinuteJump = 60 * (param1 & 0x0f);
-            if(MinuteJump == 0) MinuteJump = 600;
+            MinuteJump = (param1 & 0x0f);
+            if(MinuteJump == 0) MinuteJump = 10;
+            MinuteJumpBlocks = (PlayInfo.totalBlock / (60 * PlayInfo.duration + PlayInfo.durationSec)) * MinuteJump*60;
             OSDInfoDrawMinuteJump();
             break;
           }
@@ -546,9 +590,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               {
                 case MI_SaveSegment:        MovieCutterSaveSegments(); break;
                 case MI_DeleteSegment:      MovieCutterDeleteSegments(); break;
-                case MI_DeleteOddSegments:  MovieCutterDeleteOddSegments(); break;
-                case MI_DeleteEvenSegments: MovieCutterDeleteEvenSegments(); break;
-                case MI_RemovePadding:      MovieCutterDeletePadding(); break;
+                case MI_SelectOddSegments:  MovieCutterSelectOddSegments(); break;
+                case MI_SelectEvenSegments: MovieCutterSelectEvenSegments(); break;
+                case MI_SelectPadding:      MovieCutterSelectPadding(); break;
                 case MI_DeleteFile:         MovieCutterDeleteFile(); break;
                 case MI_ImportBookmarks:    AddBookmarksToSegmentList(); OSDRedrawEverything(); break;
                 case MI_GotoNextBM:         Playback_JumpNextBookmark(); break;
@@ -627,8 +671,8 @@ dword TMSCommander_handler(dword param1)
 
     case TMSCMDR_Menu:
     {
-		  return TMSCMDR_NotOK;
-	  }
+      return TMSCMDR_NotOK;
+    }
 
     case TMSCMDR_Stop:
     {
@@ -638,18 +682,6 @@ dword TMSCommander_handler(dword param1)
   }
 
   return TMSCMDR_UnknownFunction;
-}
-
-void CreateOSD(void)
-{
-  if(!rgnSegmentList)
-  {
-    TAP_ExitNormal();
-    TAP_EnterNormal();
-    TAP_ExitNormal();
-    rgnSegmentList = TAP_Osd_Create(28, 85, _SegmentList_Background_Gd.width, _SegmentList_Background_Gd.height, 0, 0);
-  }
-  if(!rgnInfo) rgnInfo = TAP_Osd_Create(0, 576 - _Info_Background_Gd.height, _Info_Background_Gd.width, _Info_Background_Gd.height, 0, 0);
 }
 
 void ClearOSD(void)
@@ -706,22 +738,26 @@ void CreateSettingsDir(void)
 {
   HDD_TAP_PushDir();
   HDD_ChangeDir("/ProgramFiles");
-  TAP_Hdd_Create("Settings", ATTR_FOLDER);
+  if(!TAP_Hdd_Exist("Settings")) TAP_Hdd_Create("Settings", ATTR_FOLDER);
   HDD_ChangeDir("Settings");
-  TAP_Hdd_Create("MovieCutter", ATTR_FOLDER);
+  if(!TAP_Hdd_Exist("MovieCutter")) TAP_Hdd_Create("MovieCutter", ATTR_FOLDER);
   HDD_TAP_PopDir();
 }
 
 void LoadINI(void)
 {
+  INILOCATION IniFileState;
+
   HDD_TAP_PushDir();
   HDD_ChangeDir(LOGDIR);
-  if(INIOpenFile(INIFILENAME, PROGRAM_NAME) != INILOCATION_NewFile)
+  IniFileState = INIOpenFile(INIFILENAME, PROGRAM_NAME);
+  if((IniFileState != INILOCATION_NotFound) && (IniFileState != INILOCATION_NewFile))
   {
     AutoOSDPolicy = INIGetInt("AutoOSDPolicy", 1, 0, 1) != 0;
   }
   INICloseFile();
-  SaveINI();
+  if(IniFileState == INILOCATION_NewFile)
+    SaveINI();
   HDD_TAP_PopDir();
 }
 
@@ -742,16 +778,19 @@ void AddBookmarksToSegmentList(void)
 {
   int i;
 
-  TAP_SPrint(LogString, "Importing %d bookmarks", NrBookmarks);
+  // first, delete all present segment markers (*CW*)
+  DeleteAllSegmentMarkers();
+
+  // second, add a segment marker for each bookmark
+  TAP_SPrint(LogString, "Importing %d of %d bookmarks", min(NrBookmarks, NRSEGMENTMARKER-2), NrBookmarks);
   WriteLogMC(PROGRAM_NAME, LogString);
 
-  if(NrBookmarks <= 10)
-    for(i = 0; i < NrBookmarks; i++)
-    {
-      TAP_SPrint(LogString, "Bookmark %d @ %d", i + 1, Bookmarks[i]);
-      WriteLogMC(PROGRAM_NAME, LogString);
-      AddSegmentMarker(Bookmarks[i]);
-    }
+  for(i = 0; i < min(NrBookmarks, NRSEGMENTMARKER-2); i++)
+  { 
+    TAP_SPrint(LogString, "Bookmark %d @ %d", i + 1, Bookmarks[i]);
+    WriteLogMC(PROGRAM_NAME, LogString);
+    AddSegmentMarker(Bookmarks[i]);
+  }
 }
 
 void AddDefaultSegmentMarker(void)
@@ -763,63 +802,64 @@ void AddDefaultSegmentMarker(void)
 bool AddSegmentMarker(dword Block)
 {
   int                   i, j;
-  dword                 PCR1, PCR2;
-  char                  StartTime[12];
+  dword                 CurPCR;
+  char                  StartTime[10];
 
-  if(NrSegmentMarker == (NRSEGMENTMARKER - 1))
+  if(NrSegmentMarker >= NRSEGMENTMARKER)
   {
     WriteLogMC(PROGRAM_NAME, "SegmentMarker list is full");
+    OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_ListIsFull));  //***CW***
+    OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
+    OSDMenuMessageBoxShow();
     return FALSE;
   }
 
-  if(!GetPCR(PlaybackName, 0, PacketSize, &PCR1)) return FALSE;
-  if(!GetPCR(PlaybackName, Block, PacketSize, &PCR2)) return FALSE;
+  if(!GetPCR(PlaybackName, Block, PacketSize, PCRPID, &CurPCR)) return FALSE;
 
   //Find the point where to insert the new marker so that the list stays sorted
   if(NrSegmentMarker < 2)
   {
-    //The first two markers will always be from the beginning and the end of the current file
+    //If less than 2 markers present, then set marker for start and end of file (called from AddDefaultSegmentMarker)
     SegmentMarker[NrSegmentMarker].Block = Block;
-    SegmentMarker[NrSegmentMarker].Time  = (dword)(DeltaPCR(PCR1, PCR2) / 1000);
+    SegmentMarker[NrSegmentMarker].Time  = (dword)(DeltaPCR(FirstPCR, CurPCR) / 1000);
     SegmentMarker[NrSegmentMarker].Percent = (float)Block * 100 / PlayInfo.totalBlock;
+    SegmentMarker[NrSegmentMarker].Selected = FALSE;
     NrSegmentMarker++;
   }
   else
   {
-    for(i = 0; i < NrSegmentMarker; i++)
+    for(i = 1; i < NrSegmentMarker; i++)
     {
       if(Block < SegmentMarker[i].Block)
       {
-        for(j = NRSEGMENTMARKER - 1; j > i; j--)
+        for(j = NrSegmentMarker; j > i; j--)
           memcpy(&SegmentMarker[j], &SegmentMarker[j - 1], sizeof(tSegmentMarker));
 
         SegmentMarker[i].Block = Block;
-        SegmentMarker[i].Time  = (dword)(DeltaPCR(PCR1, PCR2) / 1000);
+        SegmentMarker[i].Time  = (dword)(DeltaPCR(FirstPCR, CurPCR) / 1000);
         SegmentMarker[i].Percent = (float)Block * 100 / PlayInfo.totalBlock;
+        SegmentMarker[i].Selected = FALSE;
 
         SecToTimeString(SegmentMarker[i].Time - SegmentMarker[0].Time, StartTime);
         TAP_SPrint(LogString, "New marker @ block = %d, time = %s, percent = %1.1f%%", Block, StartTime, SegmentMarker[i].Percent);
         WriteLogMC(PROGRAM_NAME, LogString);
-
         break;
       }
     }
     NrSegmentMarker++;
   }
-
   return TRUE;
 }
 
-void MoveSegmentMarker(void)
+int FindNearestSegmentMarker(void)
 {
   int                   NearestMarkerIndex;
   int                   MinDelta;
   int                   i;
 
-  //MoveSegmentMarker nearest marker
-  if(NrSegmentMarker > 2)
+  NearestMarkerIndex = -1;
+  if(NrSegmentMarker > 2)   // at least one segment marker present
   {
-    NearestMarkerIndex = -1;
     MinDelta = 0x7fffffff;
     for(i = 1; i < NrSegmentMarker - 1; i++)
     {
@@ -829,13 +869,22 @@ void MoveSegmentMarker(void)
         NearestMarkerIndex = i;
       }
     }
+  }
+  return NearestMarkerIndex;
+}
 
-    if(NearestMarkerIndex != -1)
-    {
-      SegmentMarker[NearestMarkerIndex].Block = PlayInfo.currentBlock;
-      SegmentMarker[NearestMarkerIndex].Time  = (dword)((float)PlayInfo.currentBlock * (PlayInfo.duration * 60 + PlayInfo.durationSec) / PlayInfo.totalBlock);
-      SegmentMarker[NearestMarkerIndex].Percent = (float)PlayInfo.currentBlock * 100 / PlayInfo.totalBlock;
-    }
+void MoveSegmentMarker(void)
+{
+  dword CurPCR;
+  int NearestMarkerIndex = FindNearestSegmentMarker();
+
+  if(NearestMarkerIndex != -1)
+  {
+    if(!GetPCR(PlaybackName, PlayInfo.currentBlock, PacketSize, PCRPID, &CurPCR)) return;
+    SegmentMarker[NearestMarkerIndex].Block = PlayInfo.currentBlock;
+//    SegmentMarker[NearestMarkerIndex].Time  = (dword)((float)PlayInfo.currentBlock * (PlayInfo.duration * 60 + PlayInfo.durationSec) / PlayInfo.totalBlock);
+    SegmentMarker[NearestMarkerIndex].Time  = (dword)(DeltaPCR(FirstPCR, CurPCR) / 1000);
+    SegmentMarker[NearestMarkerIndex].Percent = (float)PlayInfo.currentBlock * 100 / PlayInfo.totalBlock;
   }
 }
 
@@ -845,12 +894,30 @@ void DeleteSegmentMarker(int MarkerIndex)
 
   if((MarkerIndex <= 0) || (MarkerIndex >= (NrSegmentMarker - 1))) return;
 
-  for(i = MarkerIndex; i < NRSEGMENTMARKER - 1; i++)
+  for(i = MarkerIndex; i < NrSegmentMarker - 1; i++)
     memcpy(&SegmentMarker[i], &SegmentMarker[i + 1], sizeof(tSegmentMarker));
 
-  memset(&SegmentMarker[NRSEGMENTMARKER - 1], 0, sizeof(tSegmentMarker));
+  memset(&SegmentMarker[NrSegmentMarker - 1], 0, sizeof(tSegmentMarker));
   NrSegmentMarker--;
-  if(ActiveSegment >= NrSegmentMarker - 1) ActiveSegment--;
+
+  SegmentMarker[NrSegmentMarker - 1].Selected = FALSE;        // the very last marker (no segment)
+  if(NrSegmentMarker < 3) SegmentMarker[0].Selected = FALSE;  // there is only one segment (from start to end)
+  if(ActiveSegment >= NrSegmentMarker - 1) ActiveSegment = NrSegmentMarker - 2;
+}
+
+void DeleteAllSegmentMarkers(void)
+{
+  int i;
+
+  if (NrSegmentMarker > 2) {
+    memcpy(&SegmentMarker[1], &SegmentMarker[NrSegmentMarker-1], sizeof(tSegmentMarker));
+    for(i = 2; i < NrSegmentMarker; i++) {
+      memset(&SegmentMarker[i], 0, sizeof(tSegmentMarker));
+    }
+    NrSegmentMarker = 2;
+  }
+  SegmentMarker[0].Selected = FALSE;
+  ActiveSegment = 0;
 }
 
 void SetCurrentSegment(void)
@@ -859,7 +926,7 @@ void SetCurrentSegment(void)
 
   if(NrSegmentMarker < 3) return;
 
-  for(i = 0; i < NrSegmentMarker; i++)
+  for(i = 1; i < NrSegmentMarker; i++)
   {
     if(SegmentMarker[i].Block > PlayInfo.currentBlock)
     {
@@ -918,6 +985,11 @@ void ReadBookmarks_old(void)
     Bookmarks[i] = RECHeaderInfo.Bookmark[i];
 }
 
+// *CW* TODO: Bugfix - Beim Setzen eines Bookmarks wird die Ordnung nicht beachtet - beim Springen zum nächsten wird sie vorausgesetzt.
+//            d.h. wenn man ein Bookmark zwischen 2 bereits vorhandene setzt, und sich vor dem neuen BM befindet, und zum nächsten springt, springt MC zum übernächsten
+// *CW* TODO: Bugfix - Das Setzen eines Bookmarks kriegt der Topf nicht mit, da er die INF nicht neu ausliest
+// *CW* Idee: Bookmarks im Speicher halten, bei Hook alle neu auslesen (alternativ bei grüner Taste im Idle-Modus)
+//            AddBookmark leitet grüne Taste an den Topf weiter (alternativ setzt BM im Speicher, mit Ordnung, Speicher wird beim Beenden in INF geschrieben)
 void AddBookmark(dword Block)
 {
   //Read inf
@@ -970,7 +1042,7 @@ void ReadBookmarks(void)
 
   if(!___bookmarkTime)
   {
-    ___bookmarkTime = (dword*)TryResolve("_bookmarkTime");
+    ___bookmarkTime = (dword*)FIS_vbookmarkTime();
     if(!___bookmarkTime)
     {
       WriteLogMC(PROGRAM_NAME, LangGetString(LS_FailedResolve));
@@ -990,12 +1062,23 @@ void ReadBookmarks(void)
   //  else
     //  break;
   }
-  TAP_PrintNet("NrBookmarks=%d\n", NrBookmarks);
+#ifdef FULLDEBUG
+  TAP_PrintNet("Bookmark-Import from Firmware: %d\n", NrBookmarks);
+  TAP_SPrint(LogString, "Bookmark-Import from Firmware: %d", NrBookmarks);
+  WriteLogMC(PROGRAM_NAME, LogString);
+#endif
   Bookmarks = TAP_MemAlloc(NrBookmarks * sizeof(dword));
   if(Bookmarks)
   {
-    for(i = 0; i < NrBookmarks; i++)
-      Bookmarks[i] = ___bookmarkTime[i];
+    int p = 0;
+    for(i = 0; i < 144; i++)
+    {
+      if(___bookmarkTime[i]) {
+        Bookmarks[p] = ___bookmarkTime[i];
+        p++;
+        if (p > NrBookmarks-1) break;
+      }
+    }
   }
   else
     NrBookmarks = 0;
@@ -1028,6 +1111,11 @@ bool Hooked_Appl_SetBookmark(void)
         *pCurTAPTask = OurTAPTask;
         //AddSegmentMarker(PlayInfo.currentBlock);
         AddBookmark(PlayInfo.currentBlock);
+#ifdef FULLDEBUG
+  TAP_PrintNet("Bookmark-Hook event catched!\n", FirstPCR);
+  TAP_SPrint(LogString, "Bookmark-Hook event catched!", FirstPCR);
+  WriteLogMC(PROGRAM_NAME, LogString);
+#endif
         *pCurTAPTask = OrigTAPTask;
         break;
       }
@@ -1064,7 +1152,7 @@ bool CutFileLoad(void)
 {
   char                  Name[MAX_FILE_NAME_SIZE + 1];
   byte                  Version;
-  TYPE_File            *f, *fRec;
+  TYPE_File            *fCut, *fRec;
   long64                FileSize;
 
   //Load the file size to check if the file didn't change
@@ -1081,46 +1169,73 @@ bool CutFileLoad(void)
   Name[strlen(Name) - 4] = '\0';
   strcat(Name, ".cut");
 
+  // Check, if cut-File exists
   if(!TAP_Hdd_Exist(Name))
   {
     WriteLogMC(PROGRAM_NAME, "CutFileLoad: .cut doesn't exist");
+#ifdef FULLDEBUG
+  TAP_PrintNet("CutFileLoad: HDD_TAP_PopDir() ohne HDD_TAP_PushDir()!\nvorher:");
+  HDD_TAP_GetCurrentDir(LogString);
+  TAP_PrintNet(LogString);
+#endif
     HDD_TAP_PopDir();
+#ifdef FULLDEBUG
+  TAP_PrintNet("\nnachher:");
+  HDD_TAP_GetCurrentDir(LogString);
+  TAP_PrintNet(LogString);
+  TAP_PrintNet("\n");
+#endif
     return FALSE;
   }
 
-  f = TAP_Hdd_Fopen(Name);
-  if(!f)
+  // Try to open cut-File
+  fCut = TAP_Hdd_Fopen(Name);
+  if(!fCut)
   {
     WriteLogMC(PROGRAM_NAME, "CutFileLoad: failed to open .cut");
     HDD_TAP_PopDir();
     return FALSE;
   }
 
-  TAP_Hdd_Fread(&Version, sizeof(byte), 1, f);
+  // Check correct version of cut-File
+  TAP_Hdd_Fread(&Version, sizeof(byte), 1, fCut);
   if(Version != CUTFILEVERSION)
   {
     WriteLogMC(PROGRAM_NAME, "CutFileLoad: .cut version mismatch");
-    TAP_Hdd_Fclose(f);
+    TAP_Hdd_Fclose(fCut);
     HDD_TAP_PopDir();
     return FALSE;
   }
 
-  TAP_Hdd_Fread(&FileSize, sizeof(long64), 1, f);
+  // Check, if size of cut-File has been changed
+  TAP_Hdd_Fread(&FileSize, sizeof(long64), 1, fCut);
   if(fRec->size != FileSize)
   {
     WriteLogMC(PROGRAM_NAME, "CutFileLoad: .cut file size mismatch");
-    TAP_Hdd_Fclose(f);
+    TAP_Hdd_Fclose(fCut);
     HDD_TAP_PopDir();
     return FALSE;
   }
 
-  TAP_Hdd_Fread(&NrSegmentMarker, sizeof(int), 1, f);
-  TAP_Hdd_Fread(&ActiveSegment, sizeof(int), 1, f);
-  TAP_Hdd_Fread(SegmentMarker, sizeof(tSegmentMarker), NRSEGMENTMARKER, f);
-  TAP_Hdd_Fclose(f);
+  TAP_Hdd_Fread(&NrSegmentMarker, sizeof(int), 1, fCut);
+  if (NrSegmentMarker > NRSEGMENTMARKER) NrSegmentMarker = NRSEGMENTMARKER;
+  TAP_Hdd_Fread(&ActiveSegment, sizeof(int), 1, fCut);
+  TAP_Hdd_Fread(SegmentMarker, sizeof(tSegmentMarker), NrSegmentMarker, fCut);
+  TAP_Hdd_Fclose(fCut);
 
-  SegmentMarker[NrSegmentMarker - 1].Selected = FALSE;
-  if(NrSegmentMarker < 3)SegmentMarker[0].Selected = FALSE;
+  if (SegmentMarker[NrSegmentMarker - 1].Block != PlayInfo.totalBlock) {
+#ifdef FULLDEBUG
+  TAP_PrintNet("CutFileLoad: Letzter Segment-Marker %d ist ungleich TotalBlock %d!\n", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
+  TAP_SPrint(LogString, "CutFileLoad: Letzter Segment-Marker %d ist ungleich TotalBlock %d!\n", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
+  WriteLogMC(PROGRAM_NAME, LogString);
+#endif
+    SegmentMarker[NrSegmentMarker - 1].Block = PlayInfo.totalBlock;
+    SegmentMarker[NrSegmentMarker - 1].Time = 60*PlayInfo.duration + PlayInfo.durationSec;
+    SegmentMarker[NrSegmentMarker - 1].Percent = 100;
+  }
+  SegmentMarker[NrSegmentMarker - 1].Selected = FALSE;        // the very last marker (no segment)
+  if(NrSegmentMarker < 3) SegmentMarker[0].Selected = FALSE;  // there is only one segment (from start to end)
+  if(ActiveSegment >= NrSegmentMarker - 1) ActiveSegment = NrSegmentMarker - 2;
 
   return TRUE;
 }
@@ -1129,7 +1244,7 @@ void CutFileSave(void)
 {
   char                  Name[MAX_FILE_NAME_SIZE + 1];
   byte                  Version;
-  TYPE_File            *f, *fRec;
+  TYPE_File            *fCut, *fRec;
   long64                FileSize;
 
   //Save the file size to check if the file didn't change
@@ -1145,8 +1260,8 @@ void CutFileSave(void)
   Version = CUTFILEVERSION;
   TAP_Hdd_Delete(Name);
   TAP_Hdd_Create(Name, ATTR_NORMAL);
-  f = TAP_Hdd_Fopen(Name);
-  if(!f)
+  fCut = TAP_Hdd_Fopen(Name);
+  if(!fCut)
   {
     HDD_TAP_PopDir();
     return;
@@ -1155,12 +1270,12 @@ void CutFileSave(void)
   SegmentMarker[NrSegmentMarker - 1].Selected = FALSE;
   if(NrSegmentMarker < 3)SegmentMarker[0].Selected = FALSE;
 
-  TAP_Hdd_Fwrite(&Version, sizeof(byte), 1, f);
-  TAP_Hdd_Fwrite(&FileSize, sizeof(long64), 1, f);
-  TAP_Hdd_Fwrite(&NrSegmentMarker, sizeof(int), 1, f);
-  TAP_Hdd_Fwrite(&ActiveSegment, sizeof(int), 1, f);
-  TAP_Hdd_Fwrite(SegmentMarker, sizeof(tSegmentMarker), NRSEGMENTMARKER, f);
-  TAP_Hdd_Fclose(f);
+  TAP_Hdd_Fwrite(&Version, sizeof(byte), 1, fCut);
+  TAP_Hdd_Fwrite(&FileSize, sizeof(long64), 1, fCut);
+  TAP_Hdd_Fwrite(&NrSegmentMarker, sizeof(int), 1, fCut);
+  TAP_Hdd_Fwrite(&ActiveSegment, sizeof(int), 1, fCut);
+  TAP_Hdd_Fwrite(SegmentMarker, sizeof(tSegmentMarker), NrSegmentMarker, fCut);
+  TAP_Hdd_Fclose(fCut);
 }
 
 void CutFileDelete(void)
@@ -1189,6 +1304,18 @@ void CutDumpList(void)
 
 
 //OSD functions
+void CreateOSD(void)
+{
+  if(!rgnSegmentList)
+  {
+    TAP_ExitNormal();
+    TAP_EnterNormal();
+    TAP_ExitNormal();
+    rgnSegmentList = TAP_Osd_Create(28, 85, _SegmentList_Background_Gd.width, _SegmentList_Background_Gd.height, 0, 0);
+  }
+  if(!rgnInfo) rgnInfo = TAP_Osd_Create(0, 576 - _Info_Background_Gd.height, _Info_Background_Gd.width, _Info_Background_Gd.height, 0, 0);
+}
+
 void OSDRedrawEverything(void)
 {
   CreateOSD();
@@ -1205,8 +1332,9 @@ void OSDRedrawEverything(void)
 
 void OSDSegmentListDrawList(void)
 {
-  int                   i;
-  char                  StartTime[12], EndTime[12], Time[24];
+  int                   i, p;
+  char                  StartTime[10], EndTime[10], TimeStr[24];
+  char                  PageStr[15];
   dword                 fw;
   dword                 C1, C2;
 
@@ -1216,28 +1344,35 @@ void OSDSegmentListDrawList(void)
   if(rgnSegmentList)
   {
     TAP_Osd_PutGd(rgnSegmentList, 0, 0, &_SegmentList_Background_Gd, FALSE);
-    FM_PutString(rgnSegmentList, 5, 3, 100, LangGetString(LS_Segments), COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_LEFT);
+    FM_PutString(rgnSegmentList, 5, 3, 80, LangGetString(LS_Segments), COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_LEFT);
     TAP_Osd_PutGd(rgnSegmentList, 62, 23, &_Button_Up_Gd, TRUE);
     TAP_Osd_PutGd(rgnSegmentList, 88, 23, &_Button_Down_Gd, TRUE);
 
     if(NrSegmentMarker > 2)
     {
-      if(ActiveSegment >= NrSegmentMarker) ActiveSegment = NrSegmentMarker - 1;
-      for(i = 0; i < NrSegmentMarker - 1; i++)
+      if(ActiveSegment >= NrSegmentMarker-1)           ActiveSegment = NrSegmentMarker - 2;
+      if(ActiveSegment >= 10)                          TAP_Osd_PutGd(rgnSegmentList, 62, 23, &_Button_Up2_Gd, TRUE);
+      if((ActiveSegment < 10) && (NrSegmentMarker>11)) TAP_Osd_PutGd(rgnSegmentList, 88, 23, &_Button_Down2_Gd, TRUE);
+
+      TAP_SPrint(PageStr, "%s%d/%d", LangGetString(LS_PageStr), (ActiveSegment/10)+1, ((NrSegmentMarker-2)/10)+1);
+      FM_PutString(rgnSegmentList, 60, 3, 114, PageStr, COLOR_White, COLOR_None, &Calibri_12_FontData, FALSE, ALIGN_RIGHT);
+
+      p = (ActiveSegment / 10) * 10;
+      for(i = 0; i < min(10, (NrSegmentMarker - p) - 1); i++)
       {
-        if(i == ActiveSegment)
+        if((p+i) == ActiveSegment)
         {
-          if((SegmentMarker[i + 1].Time - SegmentMarker[i].Time) < 61)
+          if((SegmentMarker[p+i + 1].Time - SegmentMarker[p+i].Time) < 61)
             TAP_Osd_PutGd(rgnSegmentList, 3, 44 + 28*i, &_Selection_Red_Gd, FALSE);
           else
             TAP_Osd_PutGd(rgnSegmentList, 3, 44 + 28*i, &_Selection_Blue_Gd, FALSE);
         }
 
-        SecToTimeString(SegmentMarker[i].Time - SegmentMarker[0].Time, StartTime);
-        SecToTimeString(SegmentMarker[i + 1].Time - SegmentMarker[0].Time, EndTime);
-        TAP_SPrint(Time, "%s-%s", StartTime, EndTime);
-        fw = FM_GetStringWidth(Time, &Calibri_12_FontData);
-        FM_PutString(rgnSegmentList, 58 - (fw >> 1), 45 + 28*i, 250, Time, (SegmentMarker[i].Selected ? C1 : C2), COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_LEFT);
+        SecToTimeString(SegmentMarker[p+i].Time - SegmentMarker[0].Time, StartTime);
+        SecToTimeString(SegmentMarker[p+i + 1].Time - SegmentMarker[0].Time, EndTime);
+        TAP_SPrint(TimeStr, "%2d. %s-%s", (p+i + 1), StartTime, EndTime);
+        fw = FM_GetStringWidth(TimeStr, &Calibri_12_FontData);            // 250
+        FM_PutString(rgnSegmentList, max(0, 58 - (int)(fw >> 1)), 45 + 28*i, 116, TimeStr, (SegmentMarker[p+i].Selected ? C1 : C2), COLOR_None, &Calibri_12_FontData, FALSE, ALIGN_LEFT);
       }
     }
   }
@@ -1305,22 +1440,22 @@ void OSDInfoDrawRecName(void)
 void OSDInfoDrawProgressbar(bool Force)
 {
   int                   y, i;
-  dword                 p = 0;
+  dword                 pos = 0;
   dword                 x1, x2;
   dword                 totalBlock;
-  static dword          NextDraw = 0;
-  static dword          Lastp = 999;
+  static dword          LastDraw = 0;
+  static dword          LastPos = 999;
 
   totalBlock = PlayInfo.totalBlock;
   if(rgnInfo)
   {
-    if((TAP_GetTick() > NextDraw) || Force)
+    if((abs(TAP_GetTick() - LastDraw) > 30) || Force)
     {
-      if(totalBlock) p = (dword)((float)PlayInfo.currentBlock * 653 / totalBlock);
+      if(totalBlock) pos = (dword)((float)PlayInfo.currentBlock * 653 / totalBlock);
 
-      if(Force || (p != Lastp))
+      if(Force || (pos != LastPos))
       {
-        Lastp = p;
+        LastPos = pos;
 
         //The background
         TAP_Osd_PutGd(rgnInfo, 28, 90, &_Info_Progressbar_Gd, FALSE);
@@ -1354,31 +1489,31 @@ void OSDInfoDrawProgressbar(bool Force)
 
           //Draw the segment marker
           if(totalBlock)
-            p = (dword)((float)SegmentMarker[i].Block * 653 / totalBlock);
+            pos = (dword)((float)SegmentMarker[i].Block * 653 / totalBlock);
           else
-            p = 0;
-          TAP_Osd_PutGd(rgnInfo, 31 + p, 93, &_SegmentMarker_Gd, TRUE);
+            pos = 0;
+          TAP_Osd_PutGd(rgnInfo, 31 + pos, 93, &_SegmentMarker_Gd, TRUE);
         }
 
         //Bookmarks: 0% = 31/112, 100% = 683/112
         for(i = 0; i < NrBookmarks; i++)
         {
           if(totalBlock)
-            p = (dword)((float)Bookmarks[i] * 653 / totalBlock);
+            pos = (dword)((float)Bookmarks[i] * 653 / totalBlock);
           else
-            p = 0;
-          TAP_Osd_PutGd(rgnInfo, 31 + p, 112, &_BookmarkMarker_Gd, TRUE);
+            pos = 0;
+          TAP_Osd_PutGd(rgnInfo, 31 + pos, 112, &_BookmarkMarker_Gd, TRUE);
         }
 
         //Draw the current position
         //0% = X34, 100% = X686
         for(y = 102; y < 112; y++)
-          TAP_Osd_PutPixel(rgnInfo, 34 + Lastp, y, COLOR_DarkRed);
+          TAP_Osd_PutPixel(rgnInfo, 34 + LastPos, y, COLOR_DarkRed);
 
         TAP_Osd_Sync();
       }
 
-      NextDraw = TAP_GetTick() + 20;
+      LastDraw = TAP_GetTick();
     }
   }
 }
@@ -1460,8 +1595,8 @@ void OSDInfoDrawCurrentPosition(bool Force)
 {
   int                   Time;
   float                 Percent;
-  char                  TimeString[20];
-  char                  PercentString[20];
+  char                  TimeString[10];
+  char                  PercentString[10];
   dword                 fw;
   static byte           LastSec = 99;
   static dword          LastBlock = 9;
@@ -1477,10 +1612,13 @@ void OSDInfoDrawCurrentPosition(bool Force)
     {
       SecToTimeString(Time, TimeString);
       TAP_SPrint(PercentString, " (%1.1f%%)", Percent * 100);
+#ifdef FULLDEBUG
+//  TAP_PrintNet("Time Refresh: CurrentBlock %d, CurrentTime %s\n", PlayInfo.currentBlock, TimeString);
+#endif
       strcat(TimeString, PercentString);
       TAP_Osd_FillBox(rgnInfo, 60, 48, 283, 31, RGB(30, 30, 30));
       fw = FM_GetStringWidth(TimeString, &Calibri_14_FontData);
-      FM_PutString(rgnInfo, 200 - (fw >> 1), 52, 660, TimeString, COLOR_White, COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT);
+      FM_PutString(rgnInfo, max(0, 200 - (int)(fw >> 1)), 52, 660, TimeString, COLOR_White, COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT);
       LastSec = Time % 60;
       TAP_Osd_Sync();
     }
@@ -1510,7 +1648,7 @@ void OSDInfoDrawClock(bool Force)
 
 void OSDInfoDrawMinuteJump(void)
 {
-  char                  Time[20];
+  char                  Time[4];
 
   if(rgnInfo)
   {
@@ -1520,7 +1658,7 @@ void OSDInfoDrawMinuteJump(void)
       TAP_Osd_PutGd(rgnInfo, 507, 8, &_Button_Left_Gd, TRUE);
       TAP_Osd_PutGd(rgnInfo, 507 + 1 + _Button_Left_Gd.width, 8, &_Button_Right_Gd, TRUE);
 
-      TAP_SPrint(Time, "%d'", (int)(MinuteJump / 60));
+      TAP_SPrint(Time, "%d'", MinuteJump);
 
       FM_PutString(rgnInfo, 508, 26, 555, Time, COLOR_White, COLOR_None, &Calibri_12_FontData, TRUE, ALIGN_CENTER);
     }
@@ -1538,7 +1676,7 @@ void Playback_Faster(void)
     {
       // 1/16xFWD
       TrickModeSpeed = 4;
-      if(Appl_SetPlaybackSpeed) Appl_SetPlaybackSpeed(3, TrickModeSpeed, TRUE);
+      Appl_SetPlaybackSpeed(3, TrickModeSpeed, TRUE);
       TrickMode = TM_Slow;
       break;
     }
@@ -1549,13 +1687,13 @@ void Playback_Faster(void)
       {
         // 64xRWD down to 2xRWD
         TrickModeSpeed--;
-        if(Appl_SetPlaybackSpeed) Appl_SetPlaybackSpeed(2, TrickModeSpeed, TRUE);
+        Appl_SetPlaybackSpeed(2, TrickModeSpeed, TRUE);
       }
       else
       {
         // 1/16xFWD
         TrickModeSpeed = 4;
-        if(Appl_SetPlaybackSpeed) Appl_SetPlaybackSpeed(3, TrickModeSpeed, TRUE);
+        Appl_SetPlaybackSpeed(3, TrickModeSpeed, TRUE);
         TrickMode = TM_Slow;
       }
 
@@ -1568,7 +1706,7 @@ void Playback_Faster(void)
       {
         // 1/16xFWD up to 1/2xFWD
         TrickModeSpeed--;
-        if(Appl_SetPlaybackSpeed) Appl_SetPlaybackSpeed(3, TrickModeSpeed, TRUE);
+        Appl_SetPlaybackSpeed(3, TrickModeSpeed, TRUE);
       }
       else
       {
@@ -1605,7 +1743,7 @@ void Playback_Slower(void)
       {
         // 64xFWD down to 2xFWD
         TrickModeSpeed--;
-        if(Appl_SetPlaybackSpeed) Appl_SetPlaybackSpeed(1, TrickModeSpeed, TRUE);
+        Appl_SetPlaybackSpeed(1, TrickModeSpeed, TRUE);
       }
       else
       {
@@ -1656,14 +1794,14 @@ void Playback_Slower(void)
 
 void Playback_Normal(void)
 {
-  if(Appl_SetPlaybackSpeed) Appl_SetPlaybackSpeed(0, 1, TRUE);
+  Appl_SetPlaybackSpeed(0, 1, TRUE);
   TrickMode = TM_Play;
   TrickModeSpeed = 0;
 }
 
 void Playback_Pause(void)
 {
-  if(Appl_SetPlaybackSpeed) Appl_SetPlaybackSpeed(4, 0, TRUE);
+  Appl_SetPlaybackSpeed(4, 0, TRUE);
   TrickMode = TM_Pause;
   TrickModeSpeed = 0;
 }
@@ -1678,7 +1816,7 @@ void Playback_FFWD(void)
   //Appl_SetPlaybackSpeed(1, 6, true) 64x FFWD
 
   if(TrickModeSpeed < 6) TrickModeSpeed++;
-  if(Appl_SetPlaybackSpeed) Appl_SetPlaybackSpeed(1, TrickModeSpeed, TRUE);
+  Appl_SetPlaybackSpeed(1, TrickModeSpeed, TRUE);
   TrickMode = TM_Fwd;
 }
 
@@ -1692,7 +1830,7 @@ void Playback_RWD(void)
   //Appl_SetPlaybackSpeed(2, 6, true) 64x RWD
 
   if(TrickModeSpeed < 6) TrickModeSpeed++;
-  if(Appl_SetPlaybackSpeed) Appl_SetPlaybackSpeed(2, TrickModeSpeed, TRUE);
+  Appl_SetPlaybackSpeed(2, TrickModeSpeed, TRUE);
   TrickMode = TM_Rwd;
 }
 
@@ -1704,19 +1842,14 @@ void Playback_Slow(void)
   //Appl_SetPlaybackSpeed(3, 4, true) 1/16x Slow
 
   if(TrickModeSpeed < 4) TrickModeSpeed++;
-  if(Appl_SetPlaybackSpeed) Appl_SetPlaybackSpeed(3, TrickModeSpeed, TRUE);
+  Appl_SetPlaybackSpeed(3, TrickModeSpeed, TRUE);
   TrickMode = TM_Slow;
 }
 
 void Playback_JumpForward(void)
 {
-  float                 CurrentTime, JumpTime;
   dword                 JumpBlock;
-
-  CurrentTime = (float)(60 * PlayInfo.duration + PlayInfo.durationSec) * PlayInfo.currentBlock / PlayInfo.totalBlock;
-  JumpTime = CurrentTime + MinuteJump;
-  JumpBlock = (dword)(JumpTime * PlayInfo.totalBlock / (60 * PlayInfo.duration + PlayInfo.durationSec));
-  if(JumpBlock > BlockNrLast10Seconds) JumpBlock = BlockNrLast10Seconds;
+  JumpBlock = min(PlayInfo.currentBlock + MinuteJumpBlocks, BlockNrLast10Seconds);
 
   if(TrickMode == TM_Pause) Playback_Normal();
   TAP_Hdd_ChangePlaybackPos(JumpBlock);
@@ -1724,29 +1857,32 @@ void Playback_JumpForward(void)
 
 void Playback_JumpBackward(void)
 {
-  float                 CurrentTime, JumpTime;
   dword                 JumpBlock;
-
-  CurrentTime = (float)(60 * PlayInfo.duration + PlayInfo.durationSec) * PlayInfo.currentBlock / PlayInfo.totalBlock;
-  JumpTime = CurrentTime - MinuteJump;
-  if(JumpTime < 0) JumpTime = 0;
-  JumpBlock = (dword)(JumpTime * PlayInfo.totalBlock / (60 * PlayInfo.duration + PlayInfo.durationSec));
+  JumpBlock = max(PlayInfo.currentBlock - MinuteJumpBlocks, 0);
 
   if(TrickMode == TM_Pause) Playback_Normal();
   TAP_Hdd_ChangePlaybackPos(JumpBlock);
 }
 
+// *CW* ACHTUNG!! Setzt Ordnung der Bookmarks voraus! -> durch AddBookmark() derzeit nicht gegeben
 void Playback_JumpNextBookmark(void)
 {
   int i;
 
+  if ((NrBookmarks > 0) && (PlayInfo.currentBlock > Bookmarks[NrBookmarks-1]))
+  {
+    if(TrickMode != TM_Play) Playback_Normal();
+    TAP_Hdd_ChangePlaybackPos(Bookmarks[0]);
+    return;
+  }
+  
   for(i = 0; i < NrBookmarks; i++)
   {
     if(PlayInfo.currentBlock < Bookmarks[i])
     {
       if(TrickMode != TM_Play) Playback_Normal();
       TAP_Hdd_ChangePlaybackPos(Bookmarks[i]);
-      break;
+      return;
     }
   }
 }
@@ -1756,15 +1892,21 @@ void Playback_JumpPrevBookmark(void)
   int                   i;
   dword                 ThirtySeconds;
 
+  if ((NrBookmarks > 0) && (PlayInfo.currentBlock < Bookmarks[0]))
+  {
+    if(TrickMode != TM_Play) Playback_Normal();
+    TAP_Hdd_ChangePlaybackPos(Bookmarks[NrBookmarks-1]);
+    return;
+  }
+  
   ThirtySeconds = PlayInfo.totalBlock * 30 / (60*PlayInfo.duration + PlayInfo.durationSec);
-
   for(i = NrBookmarks - 1; i >= 0; i--)
   {
     if(Bookmarks[i] < (PlayInfo.currentBlock - ThirtySeconds))
     {
       if(TrickMode != TM_Play) Playback_Normal();
       TAP_Hdd_ChangePlaybackPos(Bookmarks[i]);
-      break;
+      return;
     }
   }
 }
@@ -1784,6 +1926,12 @@ void SecToTimeString(dword Time, char *TimeString)
 bool isPlaybackRunning(void)
 {
   TAP_Hdd_GetPlayInfo(&PlayInfo);
+#ifdef FULLDEBUG
+  if((int)PlayInfo.currentBlock < 0) {
+    TAP_PrintNet("!!First bit of currentBlock is 1!\n");
+    WriteLogMC(PROGRAM_NAME, "!!First bit of currentBlock is 1!");
+  }
+#endif
   if((int)PlayInfo.currentBlock < 0) PlayInfo.currentBlock = 0;
 
   return ((PlayInfo.playMode == PLAYMODE_Playing) || NoPlaybackCheck);
@@ -1866,9 +2014,9 @@ void ActionMenuDraw(void)
       case MI_SelectFunction:     FM_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_SelectFunction), (ActionMenuItem == MI_SelectFunction ? C1 : C2), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT); break;
       case MI_SaveSegment:        FM_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_SaveSegments), (ActionMenuItem == MI_SaveSegment ? C1 : C2), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT); break;
       case MI_DeleteSegment:      FM_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_DeleteSegments), (ActionMenuItem == MI_DeleteSegment ? C1 : C2), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT); break;
-      case MI_DeleteOddSegments:  FM_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_DeleteOddSegments), (ActionMenuItem == MI_DeleteOddSegments ? C1 : C2), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT); break;
-      case MI_DeleteEvenSegments: FM_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_DeleteEvenSegments), (ActionMenuItem == MI_DeleteEvenSegments ? C1 : C2), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT); break;
-      case MI_RemovePadding:      FM_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_RemovePadding), (ActionMenuItem == MI_RemovePadding ? C1 : (NrSegmentMarker == 4 ? C2 : C4)), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT); break;
+      case MI_SelectOddSegments:  FM_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_SelectOddSegments), (ActionMenuItem == MI_SelectOddSegments ? C1 : C2), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT); break;
+      case MI_SelectEvenSegments: FM_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_SelectEvenSegments), (ActionMenuItem == MI_SelectEvenSegments ? C1 : C2), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT); break;
+      case MI_SelectPadding:      FM_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_SelectPadding), (ActionMenuItem == MI_SelectPadding ? C1 : (NrSegmentMarker == 4 ? C2 : C4)), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT); break;
       case MI_DeleteFile:         FM_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_DeleteFile), (ActionMenuItem == MI_DeleteFile ? C1 : C3), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT); break;
       case MI_ImportBookmarks:    FM_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_ImportBM), (ActionMenuItem == MI_ImportBookmarks ? C1 : C2), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT); break;
       case MI_GotoNextBM:         FM_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_GotoNextBM), (ActionMenuItem == MI_GotoNextBM ? C1 : C2), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT); break;
@@ -1921,24 +2069,56 @@ void MovieCutterDeleteSegments(void)
   MovieCutterProcess(TRUE, FALSE);
 }
 
-void MovieCutterDeleteOddSegments(void)
+void MovieCutterSelectOddSegments(void)
 {
   int                   i;
 
-  for(i = 0; i < NRSEGMENTMARKER; i++)
+  for(i = 0; i < NrSegmentMarker-1; i++)
     SegmentMarker[i].Selected = ((i & 1) == 0);
 
-  MovieCutterProcess(TRUE, FALSE);
+  OSDSegmentListDrawList();
+  OSDInfoDrawProgressbar(TRUE);
+//  OSDRedrawEverything();
+//  MovieCutterProcess(TRUE, FALSE);
 }
 
-void MovieCutterDeleteEvenSegments(void)
+void MovieCutterSelectEvenSegments(void)
 {
   int                   i;
 
-  for(i = 0; i < NRSEGMENTMARKER; i++)
+  for(i = 0; i < NrSegmentMarker-1; i++)
     SegmentMarker[i].Selected = ((i & 1) == 1);
 
-  MovieCutterProcess(TRUE, FALSE);
+  OSDSegmentListDrawList();
+  OSDInfoDrawProgressbar(TRUE);
+//  OSDRedrawEverything();
+//  MovieCutterProcess(TRUE, FALSE);
+}
+
+void MovieCutterSelectPadding(void)
+{
+  if(NrSegmentMarker == 4)
+  {
+    SegmentMarker[0].Selected = TRUE;
+    SegmentMarker[1].Selected = FALSE;
+    SegmentMarker[2].Selected = TRUE;
+    SegmentMarker[3].Selected = FALSE;
+
+    OSDSegmentListDrawList();
+    OSDInfoDrawProgressbar(TRUE);
+//    OSDRedrawEverything();
+//    TAP_Osd_Sync();
+//    MovieCutterProcess(TRUE, FALSE);
+  }
+}
+
+void MovieCutterDeleteFile(void)
+{
+  NoPlaybackCheck = TRUE;
+  TAP_Hdd_StopTs();
+  CutFileDelete();
+  HDD_Delete(PlaybackName);
+  NoPlaybackCheck = FALSE;
 }
 
 void MovieCutterProcess(bool KeepSource, bool KeepCut)
@@ -1947,37 +2127,39 @@ void MovieCutterProcess(bool KeepSource, bool KeepCut)
   dword                 SelectedBlock;
   dword                 DeltaTime, DeltaBlock;
   bool                  isMultiSelect;
+  unsigned int          NrSelectedSegments;
   int                   WorkingSegment;
   bool                  ret;
 
   NoPlaybackCheck = TRUE;
   isMultiSelect = FALSE;
-  for(i = 0; i < NRSEGMENTMARKER; i++)
+  NrSelectedSegments = 0;
+  for(i = 0; i < NrSegmentMarker - 1; i++)
+  {
     if(SegmentMarker[i].Selected)
-    {
-      isMultiSelect = TRUE;
-      break;
-    }
+      NrSelectedSegments++;
+  }
+  isMultiSelect = (NrSelectedSegments > 0);
 
-  //If one or more segments have been selected, work with them.
-  //If no segment has been selected, use the active segment and break the loop
   CutDumpList();
   //ClearOSD();
 
-  for(i = NrSegmentMarker - 1; i >= 0; i--)
+  for(i = NrSegmentMarker - 2; i >= 0; i--)
   {
     //OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), NrSegmentMarker - i - 1, NrSegmentMarker, NULL);
 
     if(isMultiSelect)
+      //If one or more segments have been selected, work with them.
       WorkingSegment = i;
     else
+      //If no segment has been selected, use the active segment and break the loop
       WorkingSegment = ActiveSegment;
 
     if(!isMultiSelect || SegmentMarker[i].Selected)
     {
       TAP_SPrint(LogString, "Processing segment %d", WorkingSegment);
       WriteLogMC(PROGRAM_NAME, LogString);
-      ret = MovieCutter(PlaybackName, SegmentMarker[WorkingSegment].Block, SegmentMarker[WorkingSegment + 1].Block, KeepSource, KeepCut);
+      ret = MovieCutter(PlaybackName, SegmentMarker[WorkingSegment].Block, SegmentMarker[WorkingSegment + 1].Block, KeepSource, KeepCut, NrSelectedSegments-1);
       TAP_Hdd_PlayTs(PlaybackName);
       do
       {
@@ -1995,10 +2177,11 @@ void MovieCutterProcess(bool KeepSource, bool KeepCut)
       DeltaBlock = SegmentMarker[WorkingSegment + 1].Block - SelectedBlock;
       DeltaTime = SegmentMarker[WorkingSegment + 1].Time - SegmentMarker[WorkingSegment].Time;
       DeleteSegmentMarker(WorkingSegment);
+      NrSelectedSegments--;
 
       TAP_SPrint(LogString, "Reported new totalBlock = %d", PlayInfo.totalBlock);
       WriteLogMC(PROGRAM_NAME, LogString);
-      for(j = NrSegmentMarker - 1; j > 0; j--)
+      for(j = NrSegmentMarker - 1; j >= WorkingSegment; j--)
       {
         if(SegmentMarker[j].Block > SelectedBlock)
         {
@@ -2006,7 +2189,16 @@ void MovieCutterProcess(bool KeepSource, bool KeepCut)
           SegmentMarker[j].Time -= DeltaTime;
         }
 
-        if(j == NrSegmentMarker - 1) SegmentMarker[j].Block = PlayInfo.totalBlock;
+        if((j == NrSegmentMarker - 1) && (SegmentMarker[j].Block != PlayInfo.totalBlock))
+        {
+#ifdef FULLDEBUG
+  TAP_PrintNet("MovieCutterProcess: Letzter Segment-Marker %d ist ungleich TotalBlock %d!\n", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
+  TAP_SPrint(LogString, "MovieCutterProcess: Letzter Segment-Marker %d ist ungleich TotalBlock %d!\n", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
+  WriteLogMC(PROGRAM_NAME, LogString);
+#endif
+          SegmentMarker[j].Block = PlayInfo.totalBlock;
+          SegmentMarker[j].Time = 60*PlayInfo.duration + PlayInfo.durationSec;
+        }
         SegmentMarker[j].Percent = (float)SegmentMarker[j].Block * 100 / SegmentMarker[NrSegmentMarker - 1].Block;
 
         //If the first marker has moved to block 0, delete it
@@ -2021,33 +2213,11 @@ void MovieCutterProcess(bool KeepSource, bool KeepCut)
     }
     if(!isMultiSelect) break;
   }
+
   //OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), 1, 1, NULL);
   //OSDMenuProgressBarDestroy();
   Playback_Normal();
   TAP_Hdd_ChangePlaybackPos(SegmentMarker[ActiveSegment].Block);
   OSDRedrawEverything();
-  NoPlaybackCheck = FALSE;
-}
-
-void MovieCutterDeletePadding(void)
-{
-  if(NrSegmentMarker == 4)
-  {
-    SegmentMarker[0].Selected = TRUE;
-    SegmentMarker[1].Selected = FALSE;
-    SegmentMarker[2].Selected = TRUE;
-    SegmentMarker[3].Selected = FALSE;
-    OSDRedrawEverything();
-    TAP_Osd_Sync();
-    MovieCutterProcess(TRUE, FALSE);
-  }
-}
-
-void MovieCutterDeleteFile(void)
-{
-  NoPlaybackCheck = TRUE;
-  TAP_Hdd_StopTs();
-  CutFileDelete();
-  HDD_Delete(PlaybackName);
   NoPlaybackCheck = FALSE;
 }

@@ -2,12 +2,12 @@
 #define __MOVIECUTTERH__
 
 #define PROGRAM_NAME          "MovieCutter"
-#define VERSION               "V1.4"
+#define VERSION               "V1.5"
 #define TAPID                 0x8E0A4247
 #define AUTHOR                "FireBird"
 #define DESCRIPTION           "MovieCutter"
 
-#define NRSEGMENTMARKER       12            //this number does include start of file and end of file markers
+#define NRSEGMENTMARKER       14            // max. number of file markers +1 (marker for the end of file)
 #define RECBUFFERENTRIES      3000
 #define CUTFILEVERSION        1
 #define LOGDIR                "/ProgramFiles/Settings/MovieCutter"
@@ -35,18 +35,20 @@ void  CutFileDelete(void);
 bool  CutFileLoad(void);
 void  CutFileSave(void);
 void  DeleteSegmentMarker(int MarkerIndex);
+void  DeleteAllSegmentMarkers(void);
 void  HookBookmarkFunction(bool SetHook);
 bool  Hooked_Appl_SetBookmark(void);
 bool  isNavAvailable(void);
 bool  isCrypted(void);
 bool  isPlaybackRunning(void);
 void  LoadINI(void);
+int   FindNearestSegmentMarker(void);
 void  MoveSegmentMarker(void);
 void  MovieCutterDeleteFile(void);
-void  MovieCutterDeletePadding(void);
+void  MovieCutterSelectPadding(void);
 void  MovieCutterDeleteSegments(void);
-void  MovieCutterDeleteOddSegments(void);
-void  MovieCutterDeleteEvenSegments(void);
+void  MovieCutterSelectOddSegments(void);
+void  MovieCutterSelectEvenSegments(void);
 void  MovieCutterProcess(bool KeepSource, bool KeepCut);
 void  MovieCutterSaveSegments(void);
 void  OSDInfoDrawBackground(void);
