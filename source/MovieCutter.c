@@ -1157,20 +1157,13 @@ void ReadBookmarksNG(void)
 
   PlayInfoBookmarkStruct = NULL;
   TempRecSlot = (byte*)FIS_vTempRecSlot();
-  TAP_PrintNet("TempRecSlot->%p\n", TempRecSlot)
-  if(TempRecSlot)
-  {
-    TAP_PrintNet("TempRecSlot=%d\n", *TempRecSlot)
-    PlayInfoBookmarkStruct = (dword*)HDD_GetPvrRecTsPlayInfoPointer(*TempRecSlot);
-    TAP_PrintNet("PlayInfoBookmarkStruct->%p\n", PlayInfoBookmarkStruct)
-  }
+  if(TempRecSlot) PlayInfoBookmarkStruct = (dword*)HDD_GetPvrRecTsPlayInfoPointer(*TempRecSlot);
 
   if(PlayInfoBookmarkStruct)
   {
     NrBookmarks = PlayInfoBookmarkStruct[0];
     memset(Bookmarks, 0, sizeof(Bookmarks));
     memcpy(Bookmarks, &PlayInfoBookmarkStruct[1], NrBookmarks * sizeof(dword));
-    TAP_PrintNet("inf cache: %d bookmarks\n", NrBookmarks);
   }
   else
   {
