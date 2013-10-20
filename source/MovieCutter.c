@@ -1153,9 +1153,18 @@ void ReadBookmarksNG(void)
   #endif
 
   dword                *PlayInfoBookmarkStruct;
+  byte                 *TempRecSlot;
 
-  //TODO: Herausfinden, wie man die Konstante berechnen kann
-  PlayInfoBookmarkStruct = (dword*)(FIS_vPvrRecTsPlayInfo() + 0x1dd0);
+  PlayInfoBookmarkStruct = NULL;
+  TempRecSlot = (byte*)FIS_vTempRecSlot();
+  TAP_PrintNet("TempRecSlot->%p\n", TempRecSlot)
+  if(TempRecSlot)
+  {
+    TAP_PrintNet("TempRecSlot=%d\n", *TempRecSlot)
+    PlayInfoBookmarkStruct = (dword*)HDD_GetPvrRecTsPlayInfoPointer(*TempRecSlot);
+    TAP_PrintNet("PlayInfoBookmarkStruct->%p\n", PlayInfoBookmarkStruct)
+  }
+
   if(PlayInfoBookmarkStruct)
   {
     NrBookmarks = PlayInfoBookmarkStruct[0];
