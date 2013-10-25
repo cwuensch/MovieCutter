@@ -8,12 +8,12 @@
 #define DESCRIPTION           "MovieCutter"
 
 #define NRSEGMENTMARKER       14            // max. number of file markers +1 (marker for the end of file)
+#define NRBOOKMARKS           144
 #define RECBUFFERENTRIES      3000
 #define CUTFILEVERSION        1
 #define LOGDIR                "/ProgramFiles/Settings/MovieCutter"
 #define LNGFILENAME           PROGRAM_NAME ".lng"
 #define INIFILENAME           PROGRAM_NAME ".ini"
-#define STACKTRACE            FALSE
 
 int   TAP_Main(void);
 dword TAP_EventHandler(word event, dword param1, dword param2);
@@ -21,6 +21,7 @@ void  ActionMenuDown(void);
 void  ActionMenuDraw(void);
 void  ActionMenuRemove(void);
 void  ActionMenuUp(void);
+bool  AddBookmark(dword Block);
 void  AddBookmarksToSegmentList(void);
 void  AddDefaultSegmentMarker(void);
 bool  AddSegmentMarker(dword Block);
@@ -35,15 +36,18 @@ void  CutDumpList(void);
 void  CutFileDelete(void);
 bool  CutFileLoad(void);
 void  CutFileSave(void);
+void  DeleteBookmark(int BookmarkIndex, bool IsChange);
 void  DeleteSegmentMarker(int MarkerIndex);
 void  DeleteAllSegmentMarkers(void);
+int   FindNearestBookmark(void);
+int   FindNearestSegmentMarker(void);
 void  HookBookmarkFunction(bool SetHook);
 bool  Hooked_Appl_SetBookmark(void);
 bool  isNavAvailable(void);
 bool  isCrypted(void);
 bool  isPlaybackRunning(void);
 void  LoadINI(void);
-int   FindNearestSegmentMarker(void);
+void  MoveBookmark(dword Block);
 void  MoveSegmentMarker(void);
 void  MovieCutterDeleteFile(void);
 void  MovieCutterSelectPadding(void);
@@ -73,7 +77,7 @@ void  Playback_RWD(void);
 void  Playback_Slow(void);
 void  Playback_Slower(void);
 void  ReadBookmarks(void);
-void  ReadBookmarks_old(void);
+void  SaveBookmarks(void);
 void  SaveINI(void);
 void  SecToTimeString(dword Time, char *TimeString);
 void  SelectSegmentMarker(void);
