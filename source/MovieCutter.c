@@ -58,6 +58,12 @@ typedef struct
   bool                  Selected;
 }tSegmentMarker;
 
+typedef struct
+{
+  dword                 BlockNr;
+  dword                 Timems;
+}tTimeStamps;
+
 typedef enum
 {
   ST_Init,               // TAP start (executed only once)
@@ -146,6 +152,10 @@ int                     ActiveSegment;
 tSegmentMarker          SegmentMarker[NRSEGMENTMARKER];       //[0]=Start of file, [x]=End of file
 int                     NrBookmarks;
 dword                   Bookmarks[NRBOOKMARKS];
+tTimeStamps            *TimeStamps, *CurrentTimeStamp;
+dword                   NrTimeStamps;
+dword                   CurrentTimeStampBlock;
+
 
 TYPE_PlayInfo           PlayInfo;
 char                    PlaybackName[MAX_FILE_NAME_SIZE + 1];
@@ -205,6 +215,11 @@ int TAP_Main(void)
     #endif
     return 0;
   }
+
+  TimeStamps = NULL;
+  CurrentTimeStamp = NULL;
+  NrTimeStamps = 0;
+  CurrentTimeStampBlock = 0;
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
@@ -318,6 +333,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             State = ST_IdleUnacceptedFile;
             break;
           }
+          NavLoad();
 
           //Check if it is crypted
           if(isCrypted())
@@ -1180,6 +1196,7 @@ void SelectSegmentMarker(void)
   #endif
 }
 
+
 //Bookmarks werden jetzt aus dem inf-Cache der Firmware aus dem Speicher ausgelesen.
 //Das geschieht bei jedem Einblenden des MC-OSDs, da sie sonst nicht benötigt werden
 void ReadBookmarks(void)
@@ -1373,6 +1390,330 @@ void DeleteBookmark(int BookmarkIndex)
 
   NrBookmarks--;
   SaveBookmarks();
+}
+
+
+//.nav functions
+bool NavLoad(void)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("NavLoad");
+  #endif
+
+  bool ret;
+
+  if(isHDVideo())
+    ret = NavLoadHD();
+  else
+    ret = NavLoadSD();
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+  return ret;
+}
+
+bool NavLoadSD(void)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("NavLoadSD");
+  #endif
+
+  typedef struct
+  {
+    dword               SHOffset; // = (FrameType shl 24) or SHOffset
+    byte                MPEGType;
+    byte                FrameIndex;
+    byte                Field5;
+    byte                Zero1;
+    dword               PHOffsetHigh;
+    dword               PHOffset;
+    dword               PTS2;
+    dword               NextPH;
+    dword               Timems;
+    dword               Zero5;
+  } tnavSD;
+
+  #define SDBUFFERSIZE  20000
+
+  char                  Name[MAX_FILE_NAME_SIZE + 1];
+  TYPE_File            *fNav;
+  tnavSD                navBuffer[SDBUFFERSIZE], *pnavBuffer;
+  dword                 ret, i;
+  dword                 FirstTime;
+  dword                 LastTimeStamp;
+  tTimeStamps         *pBlockTiming;
+  ulong64               AbsPos;
+
+  //Free the old timing array, so that it is empty (NULL pointer) if something goes wrong
+  if(TimeStamps)
+  {
+    TAP_MemFree(TimeStamps);
+    TimeStamps = NULL;
+  }
+  CurrentTimeStamp = NULL;
+  NrTimeStamps = 0;
+  CurrentTimeStampBlock = 0;
+
+  TAP_SPrint(Name, "%s.nav", PlaybackName);
+  fNav = TAP_Hdd_Fopen(Name);
+  if(!fNav)
+  {
+    WriteLogMC(PROGRAM_NAME, "NavLoad: couldn't open .nav");
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return FALSE;
+  }
+
+  //Count all the different time stamps in the .nav
+  LastTimeStamp = 0;
+  FirstTime = 0;
+  do
+  {
+    ret = TAP_Hdd_Fread(navBuffer, sizeof(tnavSD), SDBUFFERSIZE, fNav);
+    pnavBuffer = navBuffer;
+    for(i = 0; i < ret; i++)
+    {
+      if(FirstTime == 0) FirstTime = pnavBuffer->Timems;
+      if(LastTimeStamp != pnavBuffer->Timems)
+      {
+        NrTimeStamps++;
+        LastTimeStamp = pnavBuffer->Timems;
+      }
+      pnavBuffer++;
+    }
+  } while(ret == SDBUFFERSIZE);
+
+  TimeStamps = TAP_MemAlloc(NrTimeStamps * sizeof(tTimeStamps));
+  if(TimeStamps == NULL)
+  {
+    TAP_SPrint(LogString, "NavLoad: failed to reserve memory for %d time stamps", NrTimeStamps);
+    WriteLogMC(PROGRAM_NAME, LogString);
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return FALSE;
+  }
+
+  TAP_Hdd_Fseek(fNav, 0, SEEK_SET);
+  pBlockTiming = TimeStamps;
+  LastTimeStamp = 0;
+  do
+  {
+    ret = TAP_Hdd_Fread(navBuffer, sizeof(tnavSD), SDBUFFERSIZE, fNav);
+    pnavBuffer = navBuffer;
+    for(i = 0; i < ret; i++)
+    {
+      if(LastTimeStamp != pnavBuffer->Timems)
+      {
+        //TODO: check for time stamp overflows!!
+
+        AbsPos = ((ulong64)(pnavBuffer->PHOffsetHigh) << 32) | pnavBuffer->PHOffset;
+        pBlockTiming->BlockNr = (dword)(AbsPos >> 6) / 141;
+        pBlockTiming->Timems = pnavBuffer->Timems - FirstTime;
+        LastTimeStamp = pnavBuffer->Timems;
+        //TAP_PrintNet("Block %d @ %d\n", pBlockTiming->BlockNr, pBlockTiming->Timems/1000);
+        pBlockTiming++;
+      }
+      pnavBuffer++;
+    }
+
+  } while(ret == SDBUFFERSIZE);
+  TAP_Hdd_Fclose(fNav);
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+  return TRUE;
+}
+
+bool NavLoadHD(void)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("NavLoadHD");
+  #endif
+
+  typedef struct
+  {
+    dword                 LastPPS;
+    byte                  MPEGType;
+    byte                  FrameIndex;
+    byte                  PPS_FirstSEI;
+    byte                  Zero1;
+    dword                 SEIOffsetHigh;
+    dword                 SEIOffsetLow;
+    dword                 PTS2;
+    dword                 NextAUD;
+    dword                 Timems;
+    dword                 Zero2;
+    dword                 LastSPS;
+    dword                 PictFormat;
+    dword                 IFrame;
+    dword                 Zero4;
+    dword                 Zero5;
+    dword                 Zero6;
+    dword                 Zero7;
+    dword                 Zero8;
+  } tnavHD;
+
+  #define HDBUFFERSIZE    10000
+
+  char                  Name[MAX_FILE_NAME_SIZE + 1];
+  TYPE_File            *fNav;
+  tnavHD                navBuffer[HDBUFFERSIZE], *pnavBuffer;
+  dword                 ret, i;
+  dword                 FirstTime;
+  dword                 LastTimeStamp;
+  tTimeStamps         *pBlockTiming;
+  ulong64               AbsPos;
+
+  //Free the old timing array, so that it is empty (NULL pointer) if something goes wrong
+  if(TimeStamps)
+  {
+    TAP_MemFree(TimeStamps);
+    TimeStamps = NULL;
+  }
+  CurrentTimeStamp = NULL;
+  NrTimeStamps = 0;
+  CurrentTimeStampBlock = 0;
+
+  TAP_SPrint(Name, "%s.nav", PlaybackName);
+  fNav = TAP_Hdd_Fopen(Name);
+  if(!fNav)
+  {
+    WriteLogMC(PROGRAM_NAME, "NavLoad: couldn't open .nav");
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return FALSE;
+  }
+
+  //Count all the different time stamps in the .nav
+  LastTimeStamp = 0;
+  FirstTime = 0;
+  do
+  {
+    ret = TAP_Hdd_Fread(navBuffer, sizeof(tnavHD), HDBUFFERSIZE, fNav);
+    pnavBuffer = navBuffer;
+    for(i = 0; i < ret; i++)
+    {
+      if(FirstTime == 0) FirstTime = pnavBuffer->Timems;
+      if(LastTimeStamp != pnavBuffer->Timems)
+      {
+        NrTimeStamps++;
+        LastTimeStamp = pnavBuffer->Timems;
+      }
+      pnavBuffer++;
+    }
+  } while(ret == HDBUFFERSIZE);
+
+  TimeStamps = TAP_MemAlloc(NrTimeStamps * sizeof(tTimeStamps));
+  if(TimeStamps == NULL)
+  {
+    TAP_PrintNet(LogString, "NavLoad: failed to reserve memory for %d time stamps", NrTimeStamps);
+    WriteLogMC(PROGRAM_NAME, LogString);
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return FALSE;
+  }
+
+  TAP_Hdd_Fseek(fNav, 0, SEEK_SET);
+  pBlockTiming = TimeStamps;
+  LastTimeStamp = 0;
+  do
+  {
+    ret = TAP_Hdd_Fread(navBuffer, sizeof(tnavHD), HDBUFFERSIZE, fNav);
+    pnavBuffer = navBuffer;
+    for(i = 0; i < ret; i++)
+    {
+      if(LastTimeStamp != pnavBuffer->Timems)
+      {
+        //TODO: check for time stamp overflows!!
+
+        AbsPos = ((ulong64)(pnavBuffer->SEIOffsetHigh) << 32) | pnavBuffer->SEIOffsetLow;
+        pBlockTiming->BlockNr = (dword)(AbsPos >> 6) / 141;
+        pBlockTiming->Timems = pnavBuffer->Timems - FirstTime;
+        LastTimeStamp = pnavBuffer->Timems;
+        pBlockTiming++;
+      }
+      pnavBuffer++;
+    }
+
+  } while(ret == HDBUFFERSIZE);
+  TAP_Hdd_Fclose(fNav);
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+  return TRUE;
+}
+
+dword NavGetBlockTimeStamp(dword PlaybackBlockNr)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("NavGetBlockTimeStamp");
+  #endif
+
+  if(TimeStamps == NULL)
+  {
+    WriteLogMC(PROGRAM_NAME, "Someone is trying to get a timestamp while the array is empty");
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return 0;
+  }
+
+  if(TimeStamps && !CurrentTimeStamp)
+  {
+    CurrentTimeStamp = TimeStamps;
+    CurrentTimeStampBlock = 0;
+  }
+
+  if(PlaybackBlockNr > CurrentTimeStampBlock)
+  {
+    do
+    {
+      if(CurrentTimeStampBlock >= NrTimeStamps)
+      {
+        TAP_PrintNet("Exit @ %d of %d\n", CurrentTimeStampBlock, NrTimeStamps);
+        #if STACKTRACE == TRUE
+          CallTraceExit(NULL);
+        #endif
+        return CurrentTimeStamp->Timems;
+      }
+      CurrentTimeStampBlock++;
+      CurrentTimeStamp++;
+
+    }while(CurrentTimeStamp->BlockNr < PlaybackBlockNr);
+  }
+  else if(PlaybackBlockNr < CurrentTimeStampBlock)
+  {
+    do
+    {
+      if(CurrentTimeStampBlock == 0)
+      {
+        #if STACKTRACE == TRUE
+          CallTraceExit(NULL);
+        #endif
+        return CurrentTimeStamp->Timems;
+      }
+      CurrentTimeStampBlock--;
+      CurrentTimeStamp--;
+
+    }while(CurrentTimeStamp->BlockNr > PlaybackBlockNr);
+  }
+
+  CurrentTimeStampBlock = CurrentTimeStamp->BlockNr;
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+  return CurrentTimeStamp->Timems;
 }
 
 
@@ -1966,7 +2307,7 @@ void OSDInfoDrawCurrentPosition(bool Force)
         TAP_Osd_Sync();
       }
     }
-    currentBlock = 0;
+    //currentBlock = 0;
     LastDraw = TAP_GetTick();
   }
 
@@ -2488,6 +2829,31 @@ bool isCrypted(void)
     CallTraceExit(NULL);
   #endif
   return ((CryptFlag & 1) != 0);
+}
+
+bool isHDVideo(void)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("isHDVideo");
+  #endif
+
+  TYPE_File            *f;
+  byte                  StreamType = STREAM_UNKNOWN;
+  char                  InfFileName[MAX_FILE_NAME_SIZE + 1];
+
+  TAP_SPrint(InfFileName, "%s.inf", PlaybackName);
+  f = TAP_Hdd_Fopen(InfFileName);
+  if(f)
+  {
+    TAP_Hdd_Fseek(f, 0x0042, SEEK_SET);
+    TAP_Hdd_Fread(&StreamType, 1, 1, f);
+    TAP_Hdd_Fclose(f);
+  }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+  return (StreamType == STREAM_VIDEO_MPEG4_H263) || (StreamType == STREAM_VIDEO_MPEG4_H264);
 }
 
 
