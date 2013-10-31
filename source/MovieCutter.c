@@ -384,6 +384,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           ReadBookmarks();
           if(!CutFileLoad()) AddDefaultSegmentMarker();
           OSDRedrawEverything();
+          LastTotalBlocks = PlayInfo.totalBlock;  // *CW*
           State = ST_Idle;
         }
       }
@@ -398,7 +399,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       {
         if (LastTotalBlocks != PlayInfo.totalBlock)
           State = ST_IdleNoPlayback;
-        else
+        else {
           // beim erneuten Einblenden könnte man sich das Neu-Berechnen aller Werte sparen (NUR wenn keine 2 Aufnahmen gleiche Blockzahl haben!!)
           BookmarkMode = FALSE;
           MinuteJump = 0;
@@ -409,6 +410,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           ReadBookmarks();
           OSDRedrawEverything();
           State = ST_Idle;
+        }
       }
 
       // if playback-file changed -> show MovieCutter as soon as next playback is started (ST_IdleNoPlayback)
@@ -624,7 +626,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           case RKEY_8:
           case RKEY_9:
           {
-            if ((MinuteJump > 0) && (MinuteJump < 10) && (abs(LastMinuteKey - TAP_GetTick()) < 300))
+            if ((MinuteJump > 0) && (MinuteJump < 10) && (abs(LastMinuteKey - TAP_GetTick()) < 200))
               // We are already in minute jump mode, but only one digit already entered
               MinuteJump = 10 * MinuteJump + (param1 & 0x0f);
             else
@@ -732,7 +734,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   }
 
   DoNotReenter = FALSE;
-  LastTotalBlocks = PlayInfo.totalBlock;
+//*CW*  LastTotalBlocks = PlayInfo.totalBlock;
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
