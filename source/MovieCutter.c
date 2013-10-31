@@ -384,7 +384,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           ReadBookmarks();
           if(!CutFileLoad()) AddDefaultSegmentMarker();
           OSDRedrawEverything();
-          LastTotalBlocks = PlayInfo.totalBlock;
           State = ST_Idle;
         }
       }
@@ -733,6 +732,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   }
 
   DoNotReenter = FALSE;
+  LastTotalBlocks = PlayInfo.totalBlock;
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
@@ -2307,7 +2307,7 @@ void OSDInfoDrawCurrentPosition(bool Force)
         TAP_Osd_Sync();
       }
     }
-    //currentBlock = 0;
+    maxBlock = 0;
     LastDraw = TAP_GetTick();
   }
 
