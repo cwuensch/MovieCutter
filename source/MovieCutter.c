@@ -58,12 +58,6 @@ typedef struct
   bool                  Selected;
 }tSegmentMarker;
 
-typedef struct
-{
-  dword                 BlockNr;
-  dword                 Timems;
-}tTimeStamps;
-
 typedef enum
 {
   ST_Init,               // TAP start (executed only once)
@@ -141,6 +135,7 @@ typedef enum
   LS_ListIsFull,
   LS_ErrorPcrPid,
   LS_ErrorPcr,
+  LS_NavLoadFailed,
   LS_WrongNavLength,
   LS_NrStrings
 }tLngStrings;
@@ -152,7 +147,7 @@ int                     ActiveSegment;
 tSegmentMarker          SegmentMarker[NRSEGMENTMARKER];       //[0]=Start of file, [x]=End of file
 int                     NrBookmarks;
 dword                   Bookmarks[NRBOOKMARKS];
-tTimeStamps            *TimeStamps, *CurrentTimeStamp;
+tTimeStamp             *TimeStamps, *CurrentTimeStamp;
 dword                   NrTimeStamps;
 dword                   CurrentTimeStampBlock;
 
@@ -160,6 +155,7 @@ dword                   CurrentTimeStampBlock;
 TYPE_PlayInfo           PlayInfo;
 char                    PlaybackName[MAX_FILE_NAME_SIZE + 1];
 char                    PlaybackDirectory[512];
+dword                   LastTotalBlocks;
 tTrickMode              TrickMode;
 dword                   TrickModeSpeed;
 dword                   BlockNrLast10Seconds;
@@ -207,7 +203,7 @@ int TAP_Main(void)
     do
     {
       OSDMenuEvent(NULL, NULL, NULL);
-    }while(OSDMenuInfoBoxIsVisible());
+    } while(OSDMenuInfoBoxIsVisible());
     OSDMenuInfoBoxDestroy();
 
     #if STACKTRACE == TRUE
@@ -216,9 +212,10 @@ int TAP_Main(void)
     return 0;
   }
 
+  LastTotalBlocks = 0;
+  NrTimeStamps = 0;
   TimeStamps = NULL;
   CurrentTimeStamp = NULL;
-  NrTimeStamps = 0;
   CurrentTimeStampBlock = 0;
 
   #if STACKTRACE == TRUE
@@ -231,8 +228,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 {
   dword                 SysState, SysSubState;
   static bool           DoNotReenter = FALSE;
-  static dword          LastTotalBlocks = 0;
   static dword          LastMinuteKey = 0;
+  static dword          LastDraw = 0;
 
   (void) param2;
 
@@ -313,7 +310,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           WriteLogMC(PROGRAM_NAME, LogString);
 
           //Check if a nav is available
-          if(!isNavAvailable())
+          if(!isNavAvailable(PlaybackName))
           {
             WriteLogMC(PROGRAM_NAME, ".nav is missing");
             OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_MissingNav));
@@ -323,8 +320,33 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             break;
           }
 
-          // TODO: Check if nav has correct length! ***CW***
-          if(FALSE)
+          //Free the old timing array, so that it is empty (NULL pointer) if something goes wrong
+          if(TimeStamps)
+          {
+            TAP_MemFree(TimeStamps);
+            TimeStamps = NULL;
+          }
+          NrTimeStamps = 0;
+          CurrentTimeStamp = NULL;
+          CurrentTimeStampBlock = 0;
+
+          // Try to load the nav
+          TimeStamps = NavLoad(PlaybackName, &NrTimeStamps);
+          if (!TimeStamps)
+          {
+            WriteLogMC(PROGRAM_NAME, "error loading the .nav file");
+            OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_NavLoadFailed));
+            OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
+            OSDMenuMessageBoxShow();
+            State = ST_IdleUnacceptedFile;
+            break;
+          }
+          printf("FirstTime: %d\n", TimeStamps[0].Timems);
+          printf("LastTime: %d\n", TimeStamps[NrTimeStamps-1].Timems);
+          printf("NrTimeStamps: %d\n", NrTimeStamps);
+
+          // Check if nav has correct length! ***CW***
+          if(abs(TimeStamps[NrTimeStamps-1].Timems - 1000*(60*PlayInfo.duration+PlayInfo.durationSec)) > 3000)
           {
             WriteLogMC(PROGRAM_NAME, ".nav file length not matching duration");
             OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_WrongNavLength));
@@ -333,10 +355,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             State = ST_IdleUnacceptedFile;
             break;
           }
-          NavLoad();
 
           //Check if it is crypted
-          if(isCrypted())
+          if(isCrypted(PlaybackName))
           {
             WriteLogMC(PROGRAM_NAME, "file is crypted");
             OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_IsCrypted));
@@ -394,19 +415,26 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
     case ST_IdleInvisible:    //Playback is active but OSD is hidden
     {
+      // if playback stopped
+      if (!isPlaybackRunning()) {
+        Cleanup(FALSE);
+        if(AutoOSDPolicy) State = ST_IdleNoPlayback;
+        break;
+      }
+
       // if progress-bar is enabled and cut-key is pressed -> show MovieCutter OSD (ST_IdleNoPlayback)
       if(SysSubState == SUBSTATE_PvrPlayingSearch && (event == EVT_KEY) && ((param1 == RKEY_Ab) || (param1 == RKEY_Option)))
       {
         if (LastTotalBlocks != PlayInfo.totalBlock)
           State = ST_IdleNoPlayback;
         else {
-          // beim erneuten Einblenden könnte man sich das Neu-Berechnen aller Werte sparen (NUR wenn keine 2 Aufnahmen gleiche Blockzahl haben!!)
+          // beim erneuten Einblenden kann man sich das Neu-Berechnen aller Werte sparen (AUCH wenn 2 Aufnahmen gleiche Blockzahl haben!!)
           BookmarkMode = FALSE;
           MinuteJump = 0;
           MinuteJumpBlocks = 0;
-          NoPlaybackCheck = FALSE;
+//          NoPlaybackCheck = FALSE;
           CreateOSD();
-          Playback_Normal();
+//          Playback_Normal();
           ReadBookmarks();
           OSDRedrawEverything();
           State = ST_Idle;
@@ -415,10 +443,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
       // if playback-file changed -> show MovieCutter as soon as next playback is started (ST_IdleNoPlayback)
       if(AutoOSDPolicy && (LastTotalBlocks != PlayInfo.totalBlock)) State = ST_IdleNoPlayback;
-
-      // if playback stopped
-      if (!isPlaybackRunning())
-        if(AutoOSDPolicy) State = ST_IdleNoPlayback;
       break;
     }
 
@@ -427,7 +451,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       if(!isPlaybackRunning())
       {
         CutFileSave();
-        Cleanup();
+        Cleanup(TRUE);
         State = AutoOSDPolicy ? ST_IdleNoPlayback : ST_IdleInvisible;
         break;
       }
@@ -442,7 +466,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           case RKEY_Option:
           {
             BookmarkMode = !BookmarkMode;
-            OSDRedrawEverything();
+            OSDInfoDrawPlayIcons(TRUE);
+//            OSDRedrawEverything();
             break;
           }
         
@@ -454,7 +479,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           case RKEY_Exit:
           {
             CutFileSave();
-            Cleanup();
+            ClearOSD();
             State = ST_IdleInvisible;
 
             //Exit immediately so that other functions can not interfere with the cleanup
@@ -502,14 +527,17 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               if(NearestBookmarkIndex != -1)
               {
                 DeleteBookmark(NearestBookmarkIndex);
-                OSDRedrawEverything();
+                OSDInfoDrawProgressbar(TRUE);
+//                OSDRedrawEverything();
               }
             } else {
               int NearestMarkerIndex = FindNearestSegmentMarker();
               if(NearestMarkerIndex != -1)
               {
                 DeleteSegmentMarker(NearestMarkerIndex);
-                OSDRedrawEverything();
+                OSDSegmentListDrawList();
+                OSDInfoDrawProgressbar(TRUE);
+//                OSDRedrawEverything();
               }
             } 
             break;
@@ -518,9 +546,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           case RKEY_Green:
           {
             if (BookmarkMode) {
-              if(AddBookmark(PlayInfo.currentBlock)) OSDRedrawEverything();
+              if(AddBookmark(PlayInfo.currentBlock)) OSDInfoDrawProgressbar(TRUE); // OSDRedrawEverything();
             } else {
-              if(AddSegmentMarker(PlayInfo.currentBlock)) OSDRedrawEverything();
+              if(AddSegmentMarker(PlayInfo.currentBlock)) {OSDSegmentListDrawList(); OSDInfoDrawProgressbar(TRUE);}; // OSDRedrawEverything();
             }
             break;
           }
@@ -532,14 +560,18 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             } else {
               MoveSegmentMarker();
             }
-            OSDRedrawEverything();
+            OSDSegmentListDrawList();
+            OSDInfoDrawProgressbar(TRUE);
+//            OSDRedrawEverything();
             break;
           }
 
           case RKEY_Blue:
           {
             SelectSegmentMarker();
-            OSDRedrawEverything();
+            OSDSegmentListDrawList();
+            OSDInfoDrawProgressbar(TRUE);
+//            OSDRedrawEverything();
             break;
           }
 
@@ -640,12 +672,16 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         param1 = 0;
       }
 
-      CheckLast10Seconds();
-      OSDInfoDrawProgressbar(FALSE);
-      OSDInfoDrawPlayIcons(FALSE);
-      SetCurrentSegment();
-      OSDInfoDrawCurrentPosition(FALSE);
-      OSDInfoDrawClock(FALSE);
+      // VORSICHT!!! Das hier wird interaktiv ausgeführt
+      if(abs(TAP_GetTick() - LastDraw) > 10) {
+        CheckLast10Seconds();
+        OSDInfoDrawProgressbar(FALSE);
+        OSDInfoDrawPlayIcons(FALSE);
+        SetCurrentSegment();
+        OSDInfoDrawCurrentPosition(FALSE);
+        OSDInfoDrawClock(FALSE);
+        LastDraw = TAP_GetTick();
+      }
       break;
     }
 
@@ -720,7 +756,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     case ST_Exit:             //Preparing to terminate the TAP
     {
       CutFileSave();
-      Cleanup();
+      Cleanup(TRUE);
       LangUnloadStrings();
       FMUC_FreeFontFile(&Calibri_10_FontDataUC);
       FMUC_FreeFontFile(&Calibri_12_FontDataUC);
@@ -734,7 +770,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   }
 
   DoNotReenter = FALSE;
-//*CW*  LastTotalBlocks = PlayInfo.totalBlock;
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
@@ -819,13 +854,18 @@ void ClearOSD(void)
   #endif
 }
 
-void Cleanup(void)
+void Cleanup(bool DoClearOSD)
 {
   #if STACKTRACE == TRUE
     CallTraceEnter("Cleanup");
   #endif
-
-  ClearOSD();
+  LastTotalBlocks = 0;
+  if(TimeStamps) {
+    TAP_MemFree(TimeStamps);
+    TimeStamps = NULL;
+  }
+//  NrTimeStamps = 0;
+  if (DoClearOSD) ClearOSD();
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
@@ -1264,7 +1304,7 @@ void SaveBookmarks(void)
   #endif
 }
 
-void SaveBookmarks_old(void)
+void SaveBookmarksToInf(void)
 {
   char                  InfFileName[MAX_FILE_NAME_SIZE + 1];
   tRECHeaderInfo        RECHeaderInfo;
@@ -1291,7 +1331,7 @@ void SaveBookmarks_old(void)
 
   FileSize = TAP_Hdd_Flen(fInf);
   BufferSize = (FileSize < 8192 ? 8192 : FileSize);
-  Buffer = TAP_MemAlloc(BufferSize);
+  Buffer = (byte*) TAP_MemAlloc(BufferSize);
   memset(Buffer, 0, BufferSize);
   TAP_Hdd_Fread(Buffer, FileSize, 1, fInf);
 
@@ -1396,18 +1436,25 @@ void DeleteBookmark(int BookmarkIndex)
 
 
 //.nav functions
-bool NavLoad(void)
+tTimeStamp* NavLoad(char *SourceFileName, dword *NrTimeStamps)
 {
+  bool isHD;
+  tTimeStamp* ret;
+
   #if STACKTRACE == TRUE
     CallTraceEnter("NavLoad");
   #endif
 
-  bool ret;
+  if (!isHDVideo(PlaybackName, &isHD))
+  {
+    WriteLogMC("MovieCutterLib", "NavLoad() E0d01.");
+    return NULL;
+  }
 
-  if(isHDVideo())
-    ret = NavLoadHD();
+  if(isHD)
+    ret = NavLoadHD(SourceFileName, NrTimeStamps);
   else
-    ret = NavLoadSD();
+    ret = NavLoadSD(SourceFileName, NrTimeStamps);
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
@@ -1415,7 +1462,7 @@ bool NavLoad(void)
   return ret;
 }
 
-bool NavLoadSD(void)
+tTimeStamp* NavLoadSD(char *SourceFileName, dword *NrTimeStamps)
 {
   #if STACKTRACE == TRUE
     CallTraceEnter("NavLoadSD");
@@ -1439,99 +1486,122 @@ bool NavLoadSD(void)
   #define SDBUFFERSIZE  20000
 
   char                  Name[MAX_FILE_NAME_SIZE + 1];
-  TYPE_File            *fNav;
-  tnavSD                navBuffer[SDBUFFERSIZE], *pnavBuffer;
+  TYPE_File            *fNav = NULL;
+  tnavSD               *navBuffer = NULL;
+  tTimeStamp           *TimeStampBuffer = NULL;
+  tTimeStamp           *TimeStamps = NULL;
   dword                 ret, i;
   dword                 FirstTime;
   dword                 LastTimeStamp;
-  tTimeStamps         *pBlockTiming;
   ulong64               AbsPos;
+  dword                 NavSize;
 
-  //Free the old timing array, so that it is empty (NULL pointer) if something goes wrong
-  if(TimeStamps)
-  {
-    TAP_MemFree(TimeStamps);
-    TimeStamps = NULL;
-  }
-  CurrentTimeStamp = NULL;
-  NrTimeStamps = 0;
-  CurrentTimeStampBlock = 0;
-
-  TAP_SPrint(Name, "%s.nav", PlaybackName);
+  // Open the nav file
+  TAP_SPrint(Name, "%s.nav", SourceFileName);
   fNav = TAP_Hdd_Fopen(Name);
   if(!fNav)
   {
-    WriteLogMC(PROGRAM_NAME, "NavLoad: couldn't open .nav");
-
+    WriteLogMC("MovieCutterLib", "NavLoadSD() E0d01");
     #if STACKTRACE == TRUE
       CallTraceExit(NULL);
     #endif
-    return FALSE;
+    return(NULL);
   }
 
-  //Count all the different time stamps in the .nav
+  // Reserve a (temporary) buffer to hold the entire file
+  NavSize = TAP_Hdd_Flen(fNav);
+  TimeStampBuffer = (tTimeStamp*) TAP_MemAlloc(sizeof(tTimeStamp) * (NavSize / sizeof(tnavSD)));
+  if (!TimeStampBuffer)
+  {
+    TAP_Hdd_Fclose(fNav);
+    WriteLogMC("MovieCutterLib", "LoadNavSD() E0d02");
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return(NULL);
+  }
+
+  printf("NavSize: %d\t\tBufSize: %d\n", NavSize, sizeof(tTimeStamp) * (NavSize / sizeof(tnavSD)));
+  printf("Expected Nav-Records: %d\n", NavSize / sizeof(tnavSD));
+
+  //Count and save all the _different_ time stamps in the .nav
   LastTimeStamp = 0;
   FirstTime = 0;
-  do
+  navBuffer = (tnavSD*) TAP_MemAlloc(SDBUFFERSIZE * sizeof(tnavSD));
+  if (!navBuffer)
   {
-    ret = TAP_Hdd_Fread(navBuffer, sizeof(tnavSD), SDBUFFERSIZE, fNav);
-    pnavBuffer = navBuffer;
-    for(i = 0; i < ret; i++)
-    {
-      if(FirstTime == 0) FirstTime = pnavBuffer->Timems;
-      if(LastTimeStamp != pnavBuffer->Timems)
-      {
-        NrTimeStamps++;
-        LastTimeStamp = pnavBuffer->Timems;
-      }
-      pnavBuffer++;
-    }
-  } while(ret == SDBUFFERSIZE);
-
-  TimeStamps = TAP_MemAlloc(NrTimeStamps * sizeof(tTimeStamps));
-  if(TimeStamps == NULL)
-  {
-    TAP_SPrint(LogString, "NavLoad: failed to reserve memory for %d time stamps", NrTimeStamps);
-    WriteLogMC(PROGRAM_NAME, LogString);
+    TAP_Hdd_Fclose(fNav);
+    TAP_MemFree(TimeStampBuffer);
+    WriteLogMC("MovieCutterLib", "LoadNavSD() E0d03");
     #if STACKTRACE == TRUE
       CallTraceExit(NULL);
     #endif
-    return FALSE;
+    return(NULL);
   }
-
-  TAP_Hdd_Fseek(fNav, 0, SEEK_SET);
-  pBlockTiming = TimeStamps;
-  LastTimeStamp = 0;
   do
   {
     ret = TAP_Hdd_Fread(navBuffer, sizeof(tnavSD), SDBUFFERSIZE, fNav);
-    pnavBuffer = navBuffer;
-    for(i = 0; i < ret; i++)
+    printf("Returned Nav-Records: %d\n", ret);
+// WARUM liest Fread immer 20000 Werte ein!? (auch wenn die Datei viel kürzer ist)
+
+    for(i = 0; i < min(ret, (NavSize / sizeof(tnavSD))); i++)
     {
-      if(LastTimeStamp != pnavBuffer->Timems)
+      if(FirstTime == 0) FirstTime = navBuffer[i].Timems;
+      if(LastTimeStamp != navBuffer[i].Timems)
       {
-        //TODO: check for time stamp overflows!!
+        AbsPos = ((ulong64)(navBuffer[i].PHOffsetHigh) << 32) | navBuffer[i].PHOffset;
+        TimeStampBuffer[*NrTimeStamps].BlockNr = (dword)(AbsPos >> 6) / 141;
 
-        AbsPos = ((ulong64)(pnavBuffer->PHOffsetHigh) << 32) | pnavBuffer->PHOffset;
-        pBlockTiming->BlockNr = (dword)(AbsPos >> 6) / 141;
-        pBlockTiming->Timems = pnavBuffer->Timems - FirstTime;
-        LastTimeStamp = pnavBuffer->Timems;
-        //TAP_PrintNet("Block %d @ %d\n", pBlockTiming->BlockNr, pBlockTiming->Timems/1000);
-        pBlockTiming++;
+        if (navBuffer[i].Timems >= FirstTime)
+          // Timems ist größer als FirstTime -> kein Überlauf
+          TimeStampBuffer[*NrTimeStamps].Timems = navBuffer[i].Timems - FirstTime;
+        else if (FirstTime - navBuffer[i].Timems <= 3000)
+          // Timems ist kaum kleiner als FirstTime -> liegt vermutlich am Anfang der Aufnahme
+          TimeStampBuffer[*NrTimeStamps].Timems = 0;
+        else
+          // Timems ist (deutlich) kleiner als FirstTime -> ein Überlauf liegt vor
+          TimeStampBuffer[*NrTimeStamps].Timems = (0xffffffff - FirstTime) + navBuffer[i].Timems + 1;
+
+        (*NrTimeStamps)++;
+        LastTimeStamp = navBuffer[i].Timems;
+//printf("%d. \t %d \t %d \n", *NrTimeStamps, TimeStampBuffer[(*NrTimeStamps)-1].BlockNr, TimeStampBuffer[(*NrTimeStamps)-1].Timems);
       }
-      pnavBuffer++;
     }
-
   } while(ret == SDBUFFERSIZE);
+  printf("FirstTime: %d\n", FirstTime);
+  printf("NrTimeStamps: %d\n", *NrTimeStamps);
+
+  // Free the nav-Buffer and close the file
   TAP_Hdd_Fclose(fNav);
+  TAP_MemFree(navBuffer);
+
+  // Reserve a new buffer of the correct size to hold only the different time stamps
+  TimeStamps = (tTimeStamp*) TAP_MemAlloc(*NrTimeStamps * sizeof(tTimeStamp));
+  if(!TimeStamps)
+  {
+    TAP_MemFree(TimeStampBuffer);
+    WriteLogMC("MovieCutterLib", "LoadNavSD() E0d04");
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return(NULL);
+  }
+
+  // Copy the time stamps to the new array
+  memcpy(TimeStamps, TimeStampBuffer, *NrTimeStamps * sizeof(tTimeStamp));  
+  TAP_MemFree(TimeStampBuffer);
+
+#ifdef FULLDEBUG
+  TAP_PrintNet("NrTimeStamps: %d\n", *NrTimeStamps);
+#endif
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
   #endif
-  return TRUE;
+  return(TimeStamps);
 }
 
-bool NavLoadHD(void)
+tTimeStamp* NavLoadHD(char *SourceFileName, dword *NrTimeStamps)
 {
   #if STACKTRACE == TRUE
     CallTraceEnter("NavLoadHD");
@@ -1568,7 +1638,7 @@ bool NavLoadHD(void)
   dword                 ret, i;
   dword                 FirstTime;
   dword                 LastTimeStamp;
-  tTimeStamps         *pBlockTiming;
+  tTimeStamp           *pBlockTiming;
   ulong64               AbsPos;
 
   //Free the old timing array, so that it is empty (NULL pointer) if something goes wrong
@@ -1577,11 +1647,9 @@ bool NavLoadHD(void)
     TAP_MemFree(TimeStamps);
     TimeStamps = NULL;
   }
-  CurrentTimeStamp = NULL;
-  NrTimeStamps = 0;
-  CurrentTimeStampBlock = 0;
+  *NrTimeStamps = 0;
 
-  TAP_SPrint(Name, "%s.nav", PlaybackName);
+  TAP_SPrint(Name, "%s.nav", SourceFileName);
   fNav = TAP_Hdd_Fopen(Name);
   if(!fNav)
   {
@@ -1605,17 +1673,17 @@ bool NavLoadHD(void)
       if(FirstTime == 0) FirstTime = pnavBuffer->Timems;
       if(LastTimeStamp != pnavBuffer->Timems)
       {
-        NrTimeStamps++;
+        *NrTimeStamps++;
         LastTimeStamp = pnavBuffer->Timems;
       }
       pnavBuffer++;
     }
   } while(ret == HDBUFFERSIZE);
 
-  TimeStamps = TAP_MemAlloc(NrTimeStamps * sizeof(tTimeStamps));
+  TimeStamps = TAP_MemAlloc(*NrTimeStamps * sizeof(tTimeStamp));
   if(TimeStamps == NULL)
   {
-    TAP_PrintNet(LogString, "NavLoad: failed to reserve memory for %d time stamps", NrTimeStamps);
+    TAP_SPrint(LogString, "NavLoad: failed to reserve memory for %d time stamps", *NrTimeStamps);
     WriteLogMC(PROGRAM_NAME, LogString);
     #if STACKTRACE == TRUE
       CallTraceExit(NULL);
@@ -2725,24 +2793,6 @@ void Playback_JumpPrevBookmark(void)
 
 
 //Some generic functions
-void SecToTimeString(dword Time, char *TimeString)
-{
-  #if STACKTRACE == TRUE
-    CallTraceEnter("SecToTimeString");
-  #endif
-
-  dword                 Hour, Min, Sec;
-
-  Hour = (int)(Time / 3600);
-  Min = (int)(Time / 60) % 60;
-  Sec = Time % 60;
-  TAP_SPrint(TimeString, "%d:%2.2d:%2.2d", Hour, Min, Sec);
-
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
-}
-
 bool isPlaybackRunning(void)
 {
   #if STACKTRACE == TRUE
@@ -2789,75 +2839,6 @@ void CheckLast10Seconds(void)
     CallTraceExit(NULL);
   #endif
 }
-
-bool isNavAvailable(void)
-{
-  #if STACKTRACE == TRUE
-    CallTraceEnter("isNavAvailable");
-  #endif
-
-  char                  NavFileName[MAX_FILE_NAME_SIZE + 1];
-  bool                  ret;
-
-  TAP_SPrint(NavFileName, "%s.nav", PlaybackName);
-  ret = TAP_Hdd_Exist(NavFileName);
-
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
-  return ret;
-}
-
-bool isCrypted(void)
-{
-  #if STACKTRACE == TRUE
-    CallTraceEnter("isCrypted");
-  #endif
-
-  TYPE_File            *f;
-  byte                  CryptFlag = 2;
-  char                  InfFileName[MAX_FILE_NAME_SIZE + 1];
-
-  TAP_SPrint(InfFileName, "%s.inf", PlaybackName);
-  f = TAP_Hdd_Fopen(InfFileName);
-  if(f)
-  {
-    TAP_Hdd_Fseek(f, 0x0010, 0);
-    TAP_Hdd_Fread(&CryptFlag, 1, 1, f);
-    TAP_Hdd_Fclose(f);
-  }
-
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
-  return ((CryptFlag & 1) != 0);
-}
-
-bool isHDVideo(void)
-{
-  #if STACKTRACE == TRUE
-    CallTraceEnter("isHDVideo");
-  #endif
-
-  TYPE_File            *f;
-  byte                  StreamType = STREAM_UNKNOWN;
-  char                  InfFileName[MAX_FILE_NAME_SIZE + 1];
-
-  TAP_SPrint(InfFileName, "%s.inf", PlaybackName);
-  f = TAP_Hdd_Fopen(InfFileName);
-  if(f)
-  {
-    TAP_Hdd_Fseek(f, 0x0042, SEEK_SET);
-    TAP_Hdd_Fread(&StreamType, 1, 1, f);
-    TAP_Hdd_Fclose(f);
-  }
-
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
-  return (StreamType == STREAM_VIDEO_MPEG4_H263) || (StreamType == STREAM_VIDEO_MPEG4_H264);
-}
-
 
 //Action Menu
 void ActionMenuDraw(void)
@@ -3101,6 +3082,13 @@ void MovieCutterProcess(bool KeepSource, bool KeepCut)
   bool                  ret;
 
   NoPlaybackCheck = TRUE;
+
+  // *CW* FRAGE: Werden die Bookmarks von der Firmware sowieso vor dem Schneiden in die inf gespeichert?
+  // -> sonst könnte man der Schnittroutine auch das Bookmark-Array übergeben
+  SaveBookmarksToInf();
+  CutDumpList();
+  //ClearOSD();
+
   isMultiSelect = FALSE;
   NrSelectedSegments = 0;
   for(i = 0; i < NrSegmentMarker - 1; i++)
@@ -3109,9 +3097,6 @@ void MovieCutterProcess(bool KeepSource, bool KeepCut)
       NrSelectedSegments++;
   }
   isMultiSelect = (NrSelectedSegments > 0);
-
-  CutDumpList();
-  //ClearOSD();
 
   for(i = NrSegmentMarker - 2; i >= 0; i--)
   {
@@ -3173,14 +3158,12 @@ void MovieCutterProcess(bool KeepSource, bool KeepCut)
         //If the first marker has moved to block 0, delete it
         if(SegmentMarker[j].Block == 0) DeleteSegmentMarker(j);
       }
-
-      Calc10Seconds();
-      ReadBookmarks();
-      CutFileSave();
-      CutDumpList();
     }
     if(!isMultiSelect) break;
   }
+  CutFileSave();
+  CutDumpList();
+  Calc10Seconds();
 
   //OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), 1, 1, NULL);
   //OSDMenuProgressBarDestroy();

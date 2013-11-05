@@ -15,6 +15,12 @@
 #define LNGFILENAME           PROGRAM_NAME ".lng"
 #define INIFILENAME           PROGRAM_NAME ".ini"
 
+typedef struct
+{
+  dword                 BlockNr;
+  dword                 Timems;
+}tTimeStamp;
+
 int   TAP_Main(void);
 dword TAP_EventHandler(word event, dword param1, dword param2);
 void  ActionMenuDown(void);
@@ -27,7 +33,7 @@ void  AddDefaultSegmentMarker(void);
 bool  AddSegmentMarker(dword Block);
 void  Calc10Seconds(void);
 void  CheckLast10Seconds(void);
-void  Cleanup(void);
+void  Cleanup(bool DoClearOSD);
 void  CleanupCut(void);
 void  CreateOSD(void);
 void  CreateSettingsDir(void);
@@ -43,9 +49,6 @@ int   FindNearestBookmark(void);
 int   FindNearestSegmentMarker(void);
 void  HookBookmarkFunction(bool SetHook);
 bool  Hooked_Appl_SetBookmark(void);
-bool  isNavAvailable(void);
-bool  isCrypted(void);
-bool  isHDVideo(void);
 bool  isPlaybackRunning(void);
 void  LoadINI(void);
 void  MoveBookmark(dword Block);
@@ -58,9 +61,9 @@ void  MovieCutterSelectEvenSegments(void);
 void  MovieCutterProcess(bool KeepSource, bool KeepCut);
 void  MovieCutterSaveSegments(void);
 dword NavGetBlockTimeStamp(dword PlaybackBlockNr);
-bool  NavLoad(void);
-bool  NavLoadSD(void);
-bool  NavLoadHD(void);
+tTimeStamp* NavLoad(char *SourceFileName, dword *NrTimeStamps);
+tTimeStamp* NavLoadSD(char *SourceFileName, dword *NrTimeStamps);
+tTimeStamp* NavLoadHD(char *SourceFileName, dword *NrTimeStamps);
 void  OSDInfoDrawBackground(void);
 void  OSDInfoDrawClock(bool Force);
 void  OSDInfoDrawCurrentPosition(bool Force);
@@ -83,6 +86,7 @@ void  Playback_Slow(void);
 void  Playback_Slower(void);
 void  ReadBookmarks(void);
 void  SaveBookmarks(void);
+void  SaveBookmarksToInf(void);
 void  SaveINI(void);
 void  SecToTimeString(dword Time, char *TimeString);
 void  SelectSegmentMarker(void);
