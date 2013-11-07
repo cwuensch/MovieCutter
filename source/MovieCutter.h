@@ -10,16 +10,12 @@
 #define NRSEGMENTMARKER       14            // max. number of file markers +1 (marker for the end of file)
 #define NRBOOKMARKS           144
 #define RECBUFFERENTRIES      3000
-#define CUTFILEVERSION        1
+#define CUTFILEVERSION        2
 #define LOGDIR                "/ProgramFiles/Settings/MovieCutter"
 #define LNGFILENAME           PROGRAM_NAME ".lng"
 #define INIFILENAME           PROGRAM_NAME ".ini"
 
-typedef struct
-{
-  dword                 BlockNr;
-  dword                 Timems;
-}tTimeStamp;
+int fseeko64 (FILE *__stream, __off64_t __off, int __whence);
 
 int   TAP_Main(void);
 dword TAP_EventHandler(word event, dword param1, dword param2);
@@ -31,8 +27,8 @@ bool  AddBookmark(dword Block);
 void  AddBookmarksToSegmentList(void);
 void  AddDefaultSegmentMarker(void);
 bool  AddSegmentMarker(dword Block);
-void  Calc10Seconds(void);
-void  CheckLast10Seconds(void);
+void  CalcLastSeconds(void);
+void  CheckLastSeconds(void);
 void  Cleanup(bool DoClearOSD);
 void  CleanupCut(void);
 void  CreateOSD(void);
@@ -47,8 +43,7 @@ void  DeleteSegmentMarker(int MarkerIndex);
 void  DeleteAllSegmentMarkers(void);
 int   FindNearestBookmark(void);
 int   FindNearestSegmentMarker(void);
-void  HookBookmarkFunction(bool SetHook);
-bool  Hooked_Appl_SetBookmark(void);
+dword NavGetBlockTimeStamp(dword PlaybackBlockNr);
 bool  isPlaybackRunning(void);
 void  LoadINI(void);
 void  MoveBookmark(dword Block);
@@ -60,10 +55,6 @@ void  MovieCutterSelectOddSegments(void);
 void  MovieCutterSelectEvenSegments(void);
 void  MovieCutterProcess(bool KeepSource, bool KeepCut);
 void  MovieCutterSaveSegments(void);
-dword NavGetBlockTimeStamp(dword PlaybackBlockNr);
-tTimeStamp* NavLoad(char *SourceFileName, dword *NrTimeStamps);
-tTimeStamp* NavLoadSD(char *SourceFileName, dword *NrTimeStamps);
-tTimeStamp* NavLoadHD(char *SourceFileName, dword *NrTimeStamps);
 void  OSDInfoDrawBackground(void);
 void  OSDInfoDrawClock(bool Force);
 void  OSDInfoDrawCurrentPosition(bool Force);

@@ -30,85 +30,17 @@ typedef enum
   RC_Error
 }tResultCode;
 
-bool        FillTimeCodeArray(char const *SourceFileName, dword Block, int PacketSize, tTimeCodeArray *TimeCodeArray);
 bool        FileCut(char *SourceFileName, dword StartBlock, dword EndBlock);
 void        GetNextFreeCutName(char const *SourceFileName, char *CutFileName, unsigned int LeaveNamesOut);
-bool        GetFirstAndLastTSPacket(char const *FileName, int PacketSize, byte *FirstTSPacket, byte *LastTSPacket);
 tResultCode PatchInfFiles(char *SourceFileName, char *CutFileName, dword CutPointA, dword CutPointB, int PacketSize);
 bool        PatchNavFiles(char *SourceFileName, char *CutFileName, tTimeCodeArray *P2, tTimeCodeArray *P5, tTimeCodeArray *P6);
 bool        PatchNavFilesSD(char *SourceFileName, char *CutFileName, tTimeCodeArray *P2, tTimeCodeArray *P5, tTimeCodeArray *P6);
 bool        PatchNavFilesHD(char *SourceFileName, char *CutFileName, tTimeCodeArray *P2, tTimeCodeArray *P5, tTimeCodeArray *P6);
 dword       GetTimeStampFromInf(char *FileName, dword *TimeStamp);
 bool        HDD_RepairTimeStamp(char *Directory, char *FileName, dword NewTimeStamp);
+bool        GetFirstAndLastTSPacket(char const *FileName, int PacketSize, byte *FirstTSPacket, byte *LastTSPacket);
+bool        FillTimeCodeArray(char const *SourceFileName, dword Block, int PacketSize, tTimeCodeArray *TimeCodeArray);
 
-//These will prevent the compiler from complaining
-//We've to use the 64-bit version of lstat() else it will fail with files >= 4GB
-typedef struct
-{
-  __dev_t               st_dev;
-  long int              st_pad1[2];
-  __ino64_t             st_ino;
-  __mode_t              st_mode;
-  __nlink_t             st_nlink;
-  __uid_t               st_uid;
-  __gid_t               st_gid;
-  __dev_t               st_rdev;
-  long int              st_pad2[2];
-  __off64_t             st_size;
-  __time_t              st_atime;
-  long int              __reserved0;
-  __time_t              st_mtime;
-  long int              __reserved1;
-  __time_t              st_ctime;
-  long int              __reserved2;
-  __blksize_t           st_blksize;
-  long int              st_pad4;
-  __blkcnt64_t          st_blocks;
-  long int              st_pad5[14];
-} tstat64;
-
-extern int lstat64(__const char *__restrict __file, tstat64 *__restrict __buf) __THROW;
-int fseeko64 (FILE *__stream, __off64_t __off, int __whence);
-__off64_t ftello64(FILE *__stream);
-
-
-typedef struct
-{
-  dword                 SHOffset; // = (FrameType shl 24) or SHOffset
-  byte                  MPEGType;
-  byte                  FrameIndex;
-  byte                  Field5;
-  byte                  Zero1;
-  dword                 PHOffsetHigh;
-  dword                 PHOffset;
-  dword                 PTS2;
-  dword                 NextPH;
-  dword                 Timems;
-  dword                 Zero5;
-} tnavSD;
-
-typedef struct
-{
-  dword                 LastPPS;
-  byte                  MPEGType;
-  byte                  FrameIndex;
-  byte                  PPS_FirstSEI;
-  byte                  Zero1;
-  dword                 SEIOffsetHigh;
-  dword                 SEIOffsetLow;
-  dword                 PTS2;
-  dword                 NextAUD;
-  dword                 Timems;
-  dword                 Zero2;
-  dword                 LastSPS;
-  dword                 PictFormat;
-  dword                 IFrame;
-  dword                 Zero4;
-  dword                 Zero5;
-  dword                 Zero6;
-  dword                 Zero7;
-  dword                 Zero8;
-} tnavHD;
 
 char                    LogString[512];
 word                    PCRPID;
@@ -164,14 +96,14 @@ bool MovieCutter(char *SourceFileName, dword CutPointA, dword CutPointB, bool Ke
     return FALSE;
   }
 
-  TAP_SPrint(LogString, "Size        = %d blocks", (dword)(SourceSize / 9024));
+  TAP_SPrint(LogString, "Size        = %u blocks", (dword)(SourceSize / 9024));
   WriteLogMC("MovieCutterLib", LogString);
   TAP_SPrint(LogString, "Dir         = '%s'", CurrentDir);
   WriteLogMC("MovieCutterLib", LogString);
   TAP_SPrint(LogString, "Packet size = %d", PacketSize);
   WriteLogMC("MovieCutterLib", LogString);
 
-  TAP_SPrint(LogString, "CutPointA   = %d, CutPointB = %d, KeepSource = %s, KeepCut = %s", CutPointA, CutPointB, KeepSource ? "yes" : "no", KeepCut ? "yes" : "no");
+  TAP_SPrint(LogString, "CutPointA   = %u, CutPointB = %u, KeepSource = %s, KeepCut = %s", CutPointA, CutPointB, KeepSource ? "yes" : "no", KeepCut ? "yes" : "no");
   WriteLogMC("MovieCutterLib", LogString);
 
   if(!FillTimeCodeArray(SourceFileName, CutPointA, PacketSize, TimeCodeArrayA))
@@ -296,7 +228,7 @@ bool FillTimeCodeArray(char const *SourceFileName, dword Block, int PacketSize, 
   //Open the rec for read access
   HDD_TAP_GetCurrentDir(CurrentDir);
   TAP_SPrint(AbsFileName, "%s%s/%s", TAPFSROOT, CurrentDir, SourceFileName);
-  f = fopen(AbsFileName, "r");
+  f = fopen(AbsFileName, "rb");
   if(f == 0)
   {
     WriteLogMC("MovieCutterLib", "FillTimeCodeArray() E0101.");
@@ -413,7 +345,7 @@ bool GetFirstAndLastTSPacket(char const *FileName, int PacketSize, byte *FirstTS
   //Open the rec for read access
   HDD_TAP_GetCurrentDir(CurrentDir);
   TAP_SPrint(AbsFileName, "%s%s/%s", TAPFSROOT, CurrentDir, FileName);
-  f = fopen(AbsFileName, "r");
+  f = fopen(AbsFileName, "rb");
   if(f == 0)
   {
     WriteLogMC("MovieCutterLib", "GetFirstAndLastTSPacket() E0301.");
@@ -551,6 +483,8 @@ tResultCode PatchInfFiles(char *SourceFileName, char *CutFileName, dword CutPoin
   tResultCode           ResultCode = RC_Ok;
 
   #define INFSIZE       499572
+  #define NAVRECS_SD    2000
+  #define NAVRECS_HD    1000
 
   #ifdef FULLDEBUG
     WriteLogMC("MovieCutterLib", "PatchInfFiles()");
@@ -584,7 +518,7 @@ tResultCode PatchInfFiles(char *SourceFileName, char *CutFileName, dword CutPoin
     NoBlockInfo = TRUE;
   }
 
-  TAP_SPrint(LogString, "New size: Cut = %d blocks, Source = %d blocks", CutBlocks, SourceBlocks);
+  TAP_SPrint(LogString, "New size: Cut = %u blocks, Source = %u blocks", CutBlocks, SourceBlocks);
   WriteLogMC("MovieCutterLib", LogString);
 
   //Read the source .inf
@@ -597,7 +531,7 @@ tResultCode PatchInfFiles(char *SourceFileName, char *CutFileName, dword CutPoin
   }
 
   fs = TAP_Hdd_Flen(f);
-  Buffer = TAP_MemAlloc(INFSIZE);
+  Buffer = (byte*) TAP_MemAlloc(INFSIZE);
   if(!Buffer)
   {
     TAP_Hdd_Fclose(f);
@@ -684,7 +618,7 @@ tResultCode PatchInfFiles(char *SourceFileName, char *CutFileName, dword CutPoin
   RECHeaderInfo.HeaderDurationSec = SourcePlayTime % 60;
 
   //Save all bookmarks to a temporary array
-  Bookmarks = TAP_MemAlloc(177 * sizeof(dword));
+  Bookmarks = (dword*) TAP_MemAlloc(177 * sizeof(dword));
   if(Bookmarks)
   {
     memcpy(Bookmarks, RECHeaderInfo.Bookmark, 177 * sizeof(dword));
@@ -692,7 +626,7 @@ tResultCode PatchInfFiles(char *SourceFileName, char *CutFileName, dword CutPoin
     for(i = 0; i < 177; i++)
     {
       if(Bookmarks[i] == 0) break;
-      TAP_SPrint(&LogString[strlen(LogString)], "%d ", Bookmarks[i]);
+      TAP_SPrint(&LogString[strlen(LogString)], "%u ", Bookmarks[i]);
     }
     WriteLogMC("MovieCutterLib", LogString);
   }
@@ -717,7 +651,7 @@ tResultCode PatchInfFiles(char *SourceFileName, char *CutFileName, dword CutPoin
           RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks] = Bookmarks[i];
         else
           RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks] = Bookmarks[i] - (CutPointB - CutPointA);
-        TAP_SPrint(&LogString[strlen(LogString)], "%d ", Bookmarks[i]);
+        TAP_SPrint(&LogString[strlen(LogString)], "%u ", Bookmarks[i]);
         RECHeaderInfo.NrBookmarks++;
       }
     }
@@ -776,7 +710,7 @@ tResultCode PatchInfFiles(char *SourceFileName, char *CutFileName, dword CutPoin
       if(Bookmarks[i] >= CutPointA && Bookmarks[i] < CutPointB)
       {
         RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks] = Bookmarks[i] - CutPointA;
-        TAP_SPrint(&LogString[strlen(LogString)], "%d ", Bookmarks[i]);
+        TAP_SPrint(&LogString[strlen(LogString)], "%u ", Bookmarks[i]);
         RECHeaderInfo.NrBookmarks++;
       }
     }
@@ -840,8 +774,6 @@ bool PatchNavFilesSD(char *SourceFileName, char *CutFileName, tTimeCodeArray *P2
   char                  CurrentDir[512];
   char                  AbsFileName[512];
 
-  #define NAVRECS       1000
-
   #ifdef FULLDEBUG
     WriteLogMC("MovieCutterLib", "PatchNavFilesSD()");
   #endif
@@ -849,7 +781,7 @@ bool PatchNavFilesSD(char *SourceFileName, char *CutFileName, tTimeCodeArray *P2
   //Open the original nav
   HDD_TAP_GetCurrentDir(CurrentDir);
   TAP_SPrint(AbsFileName, "%s%s/%s.nav", TAPFSROOT, CurrentDir, SourceFileName);
-  fSourceNav = fopen(AbsFileName, "r");
+  fSourceNav = fopen(AbsFileName, "rb");
   if(!fSourceNav)
   {
     WriteLogMC("MovieCutterLib", "PatchNavFilesSD() E0601.");
@@ -882,9 +814,9 @@ bool PatchNavFilesSD(char *SourceFileName, char *CutFileName, tTimeCodeArray *P2
   }
 
   //Loop through the nav
-  navSource = TAP_MemAlloc(NAVRECS * sizeof(tnavSD));
-  navSourceNew = TAP_MemAlloc(NAVRECS * sizeof(tnavSD));
-  navCut = TAP_MemAlloc(NAVRECS * sizeof(tnavSD));
+  navSource = (tnavSD*) TAP_MemAlloc(NAVRECS_SD * sizeof(tnavSD));
+  navSourceNew = (tnavSD*) TAP_MemAlloc(NAVRECS_SD * sizeof(tnavSD));
+  navCut = (tnavSD*) TAP_MemAlloc(NAVRECS_SD * sizeof(tnavSD));
 
   navRecsSourceNew = 0;
   navRecsCut = 0;
@@ -892,7 +824,7 @@ bool PatchNavFilesSD(char *SourceFileName, char *CutFileName, tTimeCodeArray *P2
   IFrameCut = FALSE;
   while(TRUE)
   {
-    navsRead = fread(navSource, sizeof(tnavSD), NAVRECS, fSourceNav);
+    navsRead = fread(navSource, sizeof(tnavSD), NAVRECS_SD, fSourceNav);
     if(navsRead == 0) break;
 
     for(i = 0; i < navsRead; i++)
@@ -902,7 +834,7 @@ bool PatchNavFilesSD(char *SourceFileName, char *CutFileName, tTimeCodeArray *P2
       if((PictureHeaderOffset >= P2->OrigFilePos) && (PictureHeaderOffset <= P5->OrigFilePos))
       {
         //nav entries for the cut file
-        if(navRecsCut >= NAVRECS)
+        if(navRecsCut >= NAVRECS_SD)
         {
           TAP_Hdd_Fwrite(navCut, sizeof(tnavSD), navRecsCut, fCutNav);
           navRecsCut = 0;
@@ -923,7 +855,7 @@ bool PatchNavFilesSD(char *SourceFileName, char *CutFileName, tTimeCodeArray *P2
       else
       {
         //nav entries for the source file
-        if(navRecsSourceNew >= NAVRECS)
+        if(navRecsSourceNew >= NAVRECS_SD)
         {
           TAP_Hdd_Fwrite(navSourceNew, sizeof(tnavSD), navRecsSourceNew, fSourceNavNew);
           navRecsSourceNew = 0;
@@ -982,8 +914,6 @@ bool PatchNavFilesHD(char *SourceFileName, char *CutFileName, tTimeCodeArray *P2
   char                  CurrentDir[512];
   char                  AbsFileName[512];
 
-  #define NAVRECS       1000
-
   #ifdef FULLDEBUG
     WriteLogMC("MovieCutterLib", "PatchNavFilesHD()");
   #endif
@@ -991,7 +921,7 @@ bool PatchNavFilesHD(char *SourceFileName, char *CutFileName, tTimeCodeArray *P2
   //Open the original nav
   HDD_TAP_GetCurrentDir(CurrentDir);
   TAP_SPrint(AbsFileName, "%s%s/%s.nav", TAPFSROOT, CurrentDir, SourceFileName);
-  fSourceNav = fopen(AbsFileName, "r");
+  fSourceNav = fopen(AbsFileName, "rb");
   if(!fSourceNav)
   {
     WriteLogMC("MovieCutterLib", "PatchNavFilesHD() E0701.");
@@ -1024,9 +954,9 @@ bool PatchNavFilesHD(char *SourceFileName, char *CutFileName, tTimeCodeArray *P2
   }
 
   //Loop through the nav
-  navSource = TAP_MemAlloc(NAVRECS * sizeof(tnavHD));
-  navSourceNew = TAP_MemAlloc(NAVRECS * sizeof(tnavHD));
-  navCut = TAP_MemAlloc(NAVRECS * sizeof(tnavHD));
+  navSource = (tnavHD*) TAP_MemAlloc(NAVRECS_HD * sizeof(tnavHD));
+  navSourceNew = (tnavHD*) TAP_MemAlloc(NAVRECS_HD * sizeof(tnavHD));
+  navCut = (tnavHD*) TAP_MemAlloc(NAVRECS_HD * sizeof(tnavHD));
 
   navRecsSourceNew = 0;
   navRecsCut = 0;
@@ -1034,7 +964,7 @@ bool PatchNavFilesHD(char *SourceFileName, char *CutFileName, tTimeCodeArray *P2
   IFrameCut = FALSE;
   while(TRUE)
   {
-    navsRead = fread(navSource, sizeof(tnavHD), NAVRECS, fSourceNav);
+    navsRead = fread(navSource, sizeof(tnavHD), NAVRECS_HD, fSourceNav);
     if(navsRead == 0) break;
 
     for(i = 0; i < navsRead; i++)
@@ -1044,7 +974,7 @@ bool PatchNavFilesHD(char *SourceFileName, char *CutFileName, tTimeCodeArray *P2
       if((PictureHeaderOffset >= P2->OrigFilePos) && (PictureHeaderOffset <= P5->OrigFilePos))
       {
         //nav entries for the cut file
-        if(navRecsCut >= NAVRECS)
+        if(navRecsCut >= NAVRECS_HD)
         {
           TAP_Hdd_Fwrite(navCut, sizeof(tnavHD), navRecsCut, fCutNav);
           navRecsCut = 0;
@@ -1065,7 +995,7 @@ bool PatchNavFilesHD(char *SourceFileName, char *CutFileName, tTimeCodeArray *P2
       else
       {
         //nav entries for the source file
-        if(navRecsSourceNew >= NAVRECS)
+        if(navRecsSourceNew >= NAVRECS_HD)
         {
           TAP_Hdd_Fwrite(navSourceNew, sizeof(tnavHD), navRecsSourceNew, fSourceNavNew);
           navRecsSourceNew = 0;
@@ -1118,7 +1048,7 @@ void SecToTimeString(dword Time, char *TimeString)
   Hour = (int)(Time / 3600);
   Min = (int)(Time / 60) % 60;
   Sec = Time % 60;
-  TAP_SPrint(TimeString, "%d:%2.2d:%2.2d", Hour, Min, Sec);
+  TAP_SPrint(TimeString, "%u:%2.2u:%2.2u", Hour, Min, Sec);
 }
 void MSecToTimeString(dword Timems, char *TimeString)
 {
@@ -1128,7 +1058,7 @@ void MSecToTimeString(dword Timems, char *TimeString)
   Min = (int)(Timems / 60000) % 60;
   Sec = (int)(Timems / 1000) % 60;
   Millisec = Timems % 1000;
-  TAP_SPrint(TimeString, "%d:%2.2d:%2.2d.%2d", Hour, Min, Sec, Millisec);
+  TAP_SPrint(TimeString, "%u:%2.2u:%2.2u.%03u", Hour, Min, Sec, Millisec);
 }
 
 bool GetPCRPID(char *FileName, word *Result)
@@ -1138,8 +1068,6 @@ bool GetPCRPID(char *FileName, word *Result)
   byte                 *Buffer;
   dword                 FileSize;
   tRECHeaderInfo        RECHeaderInfo;
-
-  #define INFSIZE       499572
 
   //Read the source .inf
   TAP_SPrint(InfFileName, "%s.inf", FileName);
@@ -1151,7 +1079,7 @@ bool GetPCRPID(char *FileName, word *Result)
   }
 
   FileSize = TAP_Hdd_Flen(fInf);
-  Buffer = TAP_MemAlloc(INFSIZE);
+  Buffer = (byte*) TAP_MemAlloc(INFSIZE);
   if(!Buffer)
   {
     TAP_Hdd_Fclose(fInf);
@@ -1191,7 +1119,7 @@ bool GetPCR(char *FileName, dword Block, int PacketSize, word PCRPID, dword *PCR
   //Open the rec for read access
   HDD_TAP_GetCurrentDir(CurrentDir);
   TAP_SPrint(AbsFileName, "%s%s/%s", TAPFSROOT, CurrentDir, FileName);
-  fRec = fopen(AbsFileName, "r");
+  fRec = fopen(AbsFileName, "rb");
   if(fRec == 0)
   {
     WriteLogMC("MovieCutterLib", "GetPCR() E0901.");
@@ -1199,7 +1127,7 @@ bool GetPCR(char *FileName, dword Block, int PacketSize, word PCRPID, dword *PCR
   }
 
   //Reserve a buffer which holds about 512kB
-  Buffer = TAP_MemAlloc(BUFFERSIZE);
+  Buffer = (byte*) TAP_MemAlloc(BUFFERSIZE);
   if(!Buffer)
   {
     fclose(fRec);
@@ -1273,7 +1201,7 @@ bool is192ByteTS(char *FileName)
   f = TAP_Hdd_Fopen(FileName);
   if(f)
   {
-    Buffer = TAP_MemAlloc(11 * 192);
+    Buffer = (byte*) TAP_MemAlloc(11 * 192);
     if(Buffer)
     {
       TAP_Hdd_Fread(Buffer, 192, 11, f);
@@ -1322,4 +1250,281 @@ bool HDD_RepairTimeStamp(char *Directory, char *FileName, dword NewTimeStamp)
 
   WriteLogMC("MovieCutterLib", "HDD_RepairTimeStamp() E0a02.");
   return FALSE;
+}
+
+
+//.nav functions
+tTimeStamp* NavLoad(char *SourceFileName, dword *NrTimeStamps, bool isHD)
+{
+  tTimeStamp* ret;
+
+  #if STACKTRACE == TRUE
+    CallTraceEnter("NavLoad");
+  #endif
+
+  if(isHD)
+    ret = NavLoadHD(SourceFileName, NrTimeStamps);
+  else
+    ret = NavLoadSD(SourceFileName, NrTimeStamps);
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+  return ret;
+}
+
+tTimeStamp* NavLoadSD(char *SourceFileName, dword *NrTimeStamps)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("NavLoadSD");
+  #endif
+
+  char                  CurrentDir[512];
+  char                  AbsFileName[512];
+  FILE                 *fNav = NULL;
+  tnavSD               *navBuffer = NULL;
+  tTimeStamp           *TimeStampBuffer = NULL;
+  tTimeStamp           *TimeStamps = NULL;
+  dword                 ret, i;
+  dword                 FirstTime;
+  dword                 LastTimeStamp;
+  ulong64               AbsPos;
+  dword                 NavSize;
+
+  *NrTimeStamps = 0;
+  
+  // Open the nav file
+  HDD_TAP_GetCurrentDir(CurrentDir);
+  TAP_SPrint(AbsFileName, "%s%s/%s.nav", TAPFSROOT, CurrentDir, SourceFileName);
+  fNav = fopen(AbsFileName, "rb");
+  if(!fNav)
+  {
+    WriteLogMC("MovieCutterLib", "NavLoadSD() E0d01");
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return(NULL);
+  }
+
+  // Reserve a (temporary) buffer to hold the entire file
+  fseek(fNav, 0, SEEK_END);
+  NavSize = ftell(fNav);
+  rewind(fNav);
+  TimeStampBuffer = (tTimeStamp*) TAP_MemAlloc(sizeof(tTimeStamp) * (NavSize / sizeof(tnavSD)));
+  if (!TimeStampBuffer)
+  {
+    fclose(fNav);
+    WriteLogMC("MovieCutterLib", "NavLoadSD() E0d02");
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return(NULL);
+  }
+
+#ifdef FULLDEBUG
+  TAP_PrintNet("NavSize: %u\t\tBufSize: %u\n", NavSize, sizeof(tTimeStamp) * (NavSize / sizeof(tnavSD)));
+  TAP_PrintNet("Expected Nav-Records: %u\n", NavSize / sizeof(tnavSD));
+#endif
+
+  //Count and save all the _different_ time stamps in the .nav
+  LastTimeStamp = 0;
+  FirstTime = 0;
+  navBuffer = (tnavSD*) TAP_MemAlloc(NAVRECS_SD * sizeof(tnavSD));
+  if (!navBuffer)
+  {
+    fclose(fNav);
+    TAP_MemFree(TimeStampBuffer);
+    WriteLogMC("MovieCutterLib", "NavLoadSD() E0d03");
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return(NULL);
+  }
+  do
+  {
+    ret = fread(navBuffer, sizeof(tnavSD), NAVRECS_SD, fNav);
+#ifdef FULLDEBUG
+  TAP_PrintNet("Returned Nav-Records: %u\n", ret);
+#endif
+
+    for(i = 0; i < ret; i++)
+    {
+      if(FirstTime == 0) FirstTime = navBuffer[i].Timems;
+      if(LastTimeStamp != navBuffer[i].Timems)
+      {
+        AbsPos = ((ulong64)(navBuffer[i].PHOffsetHigh) << 32) | navBuffer[i].PHOffset;
+        TimeStampBuffer[*NrTimeStamps].BlockNr = (dword)(AbsPos >> 6) / 141;
+
+        if (navBuffer[i].Timems >= FirstTime)
+          // Timems ist größer als FirstTime -> kein Überlauf
+          TimeStampBuffer[*NrTimeStamps].Timems = navBuffer[i].Timems - FirstTime;
+        else if (FirstTime - navBuffer[i].Timems <= 3000)
+          // Timems ist kaum kleiner als FirstTime -> liegt vermutlich am Anfang der Aufnahme
+          TimeStampBuffer[*NrTimeStamps].Timems = 0;
+        else
+          // Timems ist (deutlich) kleiner als FirstTime -> ein Überlauf liegt vor
+          TimeStampBuffer[*NrTimeStamps].Timems = (0xffffffff - FirstTime) + navBuffer[i].Timems + 1;
+
+        (*NrTimeStamps)++;
+        LastTimeStamp = navBuffer[i].Timems;
+      }
+    }
+  } while(ret == NAVRECS_SD);
+#ifdef FULLDEBUG
+  TAP_PrintNet("FirstTime: %u\n", FirstTime);
+  TAP_PrintNet("NrTimeStamps: %u\n", *NrTimeStamps);
+#endif
+
+  // Free the nav-Buffer and close the file
+  fclose(fNav);
+  TAP_MemFree(navBuffer);
+
+  // Reserve a new buffer of the correct size to hold only the different time stamps
+  TimeStamps = (tTimeStamp*) TAP_MemAlloc(*NrTimeStamps * sizeof(tTimeStamp));
+  if(!TimeStamps)
+  {
+    TAP_MemFree(TimeStampBuffer);
+    WriteLogMC("MovieCutterLib", "NavLoadSD() E0d04");
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return(NULL);
+  }
+
+  // Copy the time stamps to the new array
+  memcpy(TimeStamps, TimeStampBuffer, *NrTimeStamps * sizeof(tTimeStamp));  
+  TAP_MemFree(TimeStampBuffer);
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+  return(TimeStamps);
+}
+
+tTimeStamp* NavLoadHD(char *SourceFileName, dword *NrTimeStamps)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("NavLoadHD");
+  #endif
+
+  char                  CurrentDir[512];
+  char                  AbsFileName[512];
+  FILE                 *fNav = NULL;
+  tnavHD               *navBuffer = NULL;
+  tTimeStamp           *TimeStampBuffer = NULL;
+  tTimeStamp           *TimeStamps = NULL;
+  dword                 ret, i;
+  dword                 FirstTime;
+  dword                 LastTimeStamp;
+  ulong64               AbsPos;
+  dword                 NavSize;
+
+  *NrTimeStamps = 0;
+
+  // Open the nav file
+  HDD_TAP_GetCurrentDir(CurrentDir);
+  TAP_SPrint(AbsFileName, "%s%s/%s.nav", TAPFSROOT, CurrentDir, SourceFileName);
+  fNav = fopen(AbsFileName, "rb");
+  if(!fNav)
+  {
+    WriteLogMC("MovieCutterLib", "NavLoadHD() E0d01");
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return(NULL);
+  }
+
+  // Reserve a (temporary) buffer to hold the entire file
+  fseek(fNav, 0, SEEK_END);
+  NavSize = ftell(fNav);
+  rewind(fNav);
+  TimeStampBuffer = (tTimeStamp*) TAP_MemAlloc(sizeof(tTimeStamp) * (NavSize / sizeof(tnavHD)));
+  if (!TimeStampBuffer)
+  {
+    fclose(fNav);
+    WriteLogMC("MovieCutterLib", "NavLoadHD() E0d02");
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return(NULL);
+  }
+
+#ifdef FULLDEBUG
+  TAP_PrintNet("NavSize: %u\t\tBufSize: %u\n", NavSize, sizeof(tTimeStamp) * (NavSize / sizeof(tnavHD)));
+  TAP_PrintNet("Expected Nav-Records: %u\n", NavSize / sizeof(tnavHD));
+#endif
+
+  //Count and save all the _different_ time stamps in the .nav
+  LastTimeStamp = 0;
+  FirstTime = 0;
+  navBuffer = (tnavHD*) TAP_MemAlloc(NAVRECS_HD * sizeof(tnavHD));
+  if (!navBuffer)
+  {
+    fclose(fNav);
+    TAP_MemFree(TimeStampBuffer);
+    WriteLogMC("MovieCutterLib", "NavLoadHD() E0d03");
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return(NULL);
+  }
+  do
+  {
+    ret = fread(navBuffer, sizeof(tnavHD), NAVRECS_HD, fNav);
+#ifdef FULLDEBUG
+  TAP_PrintNet("Returned Nav-Records: %u\n", ret);
+#endif
+
+    for(i = 0; i < ret; i++)
+    {
+      if(FirstTime == 0) FirstTime = navBuffer[i].Timems;
+      if(LastTimeStamp != navBuffer[i].Timems)
+      {
+        AbsPos = ((ulong64)(navBuffer[i].SEIOffsetHigh) << 32) | navBuffer[i].SEIOffsetLow;
+        TimeStampBuffer[*NrTimeStamps].BlockNr = (dword)(AbsPos >> 6) / 141;
+
+        if (navBuffer[i].Timems >= FirstTime)
+          // Timems ist größer als FirstTime -> kein Überlauf
+          TimeStampBuffer[*NrTimeStamps].Timems = navBuffer[i].Timems - FirstTime;
+        else if (FirstTime - navBuffer[i].Timems <= 3000)
+          // Timems ist kaum kleiner als FirstTime -> liegt vermutlich am Anfang der Aufnahme
+          TimeStampBuffer[*NrTimeStamps].Timems = 0;
+        else
+          // Timems ist (deutlich) kleiner als FirstTime -> ein Überlauf liegt vor
+          TimeStampBuffer[*NrTimeStamps].Timems = (0xffffffff - FirstTime) + navBuffer[i].Timems + 1;
+
+        (*NrTimeStamps)++;
+        LastTimeStamp = navBuffer[i].Timems;
+      }
+    }
+  } while(ret == NAVRECS_HD);
+#ifdef FULLDEBUG
+  TAP_PrintNet("FirstTime: %u\n", FirstTime);
+  TAP_PrintNet("NrTimeStamps: %u\n", *NrTimeStamps);
+#endif
+
+  // Free the nav-Buffer and close the file
+  fclose(fNav);
+  TAP_MemFree(navBuffer);
+
+  // Reserve a new buffer of the correct size to hold only the different time stamps
+  TimeStamps = (tTimeStamp*) TAP_MemAlloc(*NrTimeStamps * sizeof(tTimeStamp));
+  if(!TimeStamps)
+  {
+    TAP_MemFree(TimeStampBuffer);
+    WriteLogMC("MovieCutterLib", "NavLoadHD() E0d04");
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return(NULL);
+  }
+
+  // Copy the time stamps to the new array
+  memcpy(TimeStamps, TimeStampBuffer, *NrTimeStamps * sizeof(tTimeStamp));  
+  TAP_MemFree(TimeStampBuffer);
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+  return(TimeStamps);
 }
