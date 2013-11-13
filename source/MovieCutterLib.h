@@ -1,15 +1,19 @@
 #ifndef __MOVIECUTTERLIB__
 #define __MOVIECUTTERLIB__
 
-#define TIMECODEARRAYSIZE  94         // 94 packets = 2 blocks a 47 packets (9024 Bytes per block, 192 Bytes per packet)
-#define TEMPCUTNAME        "__tempcut__.ts"
-//#define FULLDEBUG        1
+#define INFSIZE               499572
+#define NAVRECS_SD              2000
+#define NAVRECS_HD              1000
+#define BLOCKSIZE               9024
+#define CUTPOINTSEARCHRADIUS    9024   // in both directions
+#define PACKETSIZE               192   // number of bytes to compare (in fact the actual packet size doesn't matter)
+//#define TEMPCUTNAME        "__tempcut__.ts"
 
 typedef struct
 {
   dword                 BlockNr;
   dword                 Timems;
-}tTimeStamp;
+} tTimeStamp;
 
 typedef struct
 {
@@ -49,23 +53,14 @@ typedef struct
   dword                 Zero8;
 } tnavHD;
 
-bool        MovieCutter(char *SourceFileName, dword CutPointA, dword CutPointB, bool KeepSource, bool KeepCut, unsigned int LeaveNamesOut);
+bool        MovieCutter(char *SourceFileName, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepSource, bool KeepCut, bool isHD, word LeaveNamesOut);
 void        WriteLogMC(char *ProgramName, char *s);
-void        SecToTimeString(dword Time, char *TimeString);
-void        MSecToTimeString(dword Timems, char *TimeString);
-bool        isCrypted(char *SourceFileName);
-bool        isHDVideo(char *SourceFileName, bool *isHD);
-bool        isNavAvailable(char *SourceFileName);
-dword       NavGetBlockTimeStamp(dword PlaybackBlockNr);
-tTimeStamp* NavLoad(char *SourceFileName, dword *NrTimeStamps, bool isHDVideo);
-tTimeStamp* NavLoadSD(char *SourceFileName, dword *NrTimeStamps);
-tTimeStamp* NavLoadHD(char *SourceFileName, dword *NrTimeStamps);
-
-//old
-bool        GetPCRPID(char *FileName, word *PCRPID);
-bool        GetPCR(char *FileName, dword Block, int PacketSize, word PCRPID, dword *PCR);
-dword       DeltaPCR(dword FirstPCR, dword SecondPCR);
-bool        is192ByteTS(char *FileName);
+void        SecToTimeString(dword Time, char *const TimeString);
+void        MSecToTimeString(dword Timems, char *const TimeString);
+bool        isCrypted(char const *SourceFileName);
+bool        isHDVideo(char const *SourceFileName, bool *const isHD);
+bool        isNavAvailable(char const *SourceFileName);
+tTimeStamp* NavLoad(char const *SourceFileName, dword *const NrTimeStamps, bool isHDVideo);
 
 
 //These will prevent the compiler from complaining

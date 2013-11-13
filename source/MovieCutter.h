@@ -2,14 +2,13 @@
 #define __MOVIECUTTERH__
 
 #define PROGRAM_NAME          "MovieCutter"
-#define VERSION               "V1.5"
+#define VERSION               "V2.0 (alpha)"
 #define TAPID                 0x8E0A4247
-#define AUTHOR                "FireBird"
+#define AUTHOR                "FireBird / Christian Wünsch"
 #define DESCRIPTION           "MovieCutter"
 
 #define NRSEGMENTMARKER       14            // max. number of file markers +1 (marker for the end of file)
 #define NRBOOKMARKS           144
-#define RECBUFFERENTRIES      3000
 #define CUTFILEVERSION        2
 #define LOGDIR                "/ProgramFiles/Settings/MovieCutter"
 #define LNGFILENAME           PROGRAM_NAME ".lng"
@@ -79,10 +78,9 @@ void  ReadBookmarks(void);
 void  SaveBookmarks(void);
 void  SaveBookmarksToInf(void);
 void  SaveINI(void);
-void  SecToTimeString(dword Time, char *TimeString);
 void  SelectSegmentMarker(void);
 void  SetCurrentSegment(void);
-bool  TimeCodeCheck(void);
 dword TMSCommander_handler(dword param1);
+bool PatchOldNavFile(char *SourceFileName, bool isHD);
 
 #endif
