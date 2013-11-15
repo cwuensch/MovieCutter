@@ -316,7 +316,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           // Detect size of rec file
 //          RecFileSize = HDD_GetFileSize(PlaybackName);
 //          if(RecFileSize <= 0)
-          if(!HDD_GetFileSizeAndInode(PlaybackDirectory, PlaybackName, NULL, &RecFileSize))
+          if(!HDD_GetFileSizeAndInode(&PlaybackDirectory[strlen(TAPFSROOT)], PlaybackName, NULL, &RecFileSize))
           {
             WriteLogMC(PROGRAM_NAME, ".rec size could not be detected");
             OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_NoRecSize));
@@ -1654,7 +1654,7 @@ void CutFileSave(void)
 
 //  RecFileSize = HDD_GetFileSize(PlaybackName);
 //  if(RecFileSize <= 0)
-  if(!HDD_GetFileSizeAndInode(PlaybackDirectory, PlaybackName, NULL, &RecFileSize))
+  if(!HDD_GetFileSizeAndInode(&PlaybackDirectory[strlen(TAPFSROOT)], PlaybackName, NULL, &RecFileSize))
   {
     #if STACKTRACE == TRUE
       CallTraceExit(NULL);
@@ -2905,13 +2905,14 @@ void MovieCutterProcess(bool KeepSource, bool KeepCut)
 
       TAP_SPrint(LogString, "Reported new totalBlock = %u", PlayInfo.totalBlock);
       WriteLogMC(PROGRAM_NAME, LogString);
-      for(j = NrSegmentMarker - 1; j >= WorkingSegment; j--)
+      for(j = NrSegmentMarker - 1; j >= 1; j--)
       {
         if(SegmentMarker[j].Block > SelectedBlock)
         {
           SegmentMarker[j].Block -= DeltaBlock;
           SegmentMarker[j].Timems -= DeltaTime;
         }
+        else break;
 
         if((j == NrSegmentMarker - 1) && (SegmentMarker[j].Block != PlayInfo.totalBlock))
         {
