@@ -206,7 +206,7 @@ bool MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPo
   if (!SuppressNavGeneration)
   {
     CutStartPoint->BlockNr = (dword)((CutStartPos + CutStartPosOffset) / BLOCKSIZE);
-    CutStartPoint->BlockNr = (dword)((BehindCutPos + BehindCutPosOffset) / BLOCKSIZE);
+    BehindCutPoint->BlockNr = (dword)((BehindCutPos + BehindCutPosOffset) / BLOCKSIZE);
   }
 
   // Rename old nav file to bak
