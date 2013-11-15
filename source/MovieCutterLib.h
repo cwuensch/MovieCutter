@@ -53,13 +53,18 @@ typedef struct
   dword                 Zero8;
 } tnavHD;
 
-bool        MovieCutter(char *SourceFileName, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepSource, bool KeepCut, bool isHD, word LeaveNamesOut);
 void        WriteLogMC(char *ProgramName, char *s);
-void        SecToTimeString(dword Time, char *const TimeString);
-void        MSecToTimeString(dword Timems, char *const TimeString);
+bool        MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepSource, bool KeepCut, bool isHD);
+void        GetNextFreeCutName(char const *SourceFileName, char *CutFileName, word LeaveNamesOut);
+void        SecToTimeString(dword Time, char *const TimeString);     // needs max. 4 + 1 + 2 + 1 + 2 + 1 = 11 chars
+void        MSecToTimeString(dword Timems, char *const TimeString);  // needs max. 4 + 1 + 2 + 1 + 2 + 1 + 3 + 1 = 15 chars
+void        Print64BitLong(ulong64 Number, char *const OutString);     // needs max. 16 + 2 + 1 = 19 chars
 bool        isCrypted(char const *SourceFileName);
 bool        isHDVideo(char const *SourceFileName, bool *const isHD);
 bool        isNavAvailable(char const *SourceFileName);
+dword       GetRecDateFromInf(char const *FileName, dword *const DateTime);
+long64      HDD_GetFileSize(char const *FileName);
+bool        HDD_SetFileDateTime(char const *Directory, char const *FileName, dword NewDateTime);
 tTimeStamp* NavLoad(char const *SourceFileName, dword *const NrTimeStamps, bool isHDVideo);
 
 

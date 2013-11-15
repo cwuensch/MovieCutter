@@ -2,7 +2,7 @@
 #define __MOVIECUTTERH__
 
 #define PROGRAM_NAME          "MovieCutter"
-#define VERSION               "V2.0 (alpha)"
+#define VERSION               "V2.0alp"
 #define TAPID                 0x8E0A4247
 #define AUTHOR                "FireBird / Christian Wünsch"
 #define DESCRIPTION           "MovieCutter"
@@ -37,8 +37,8 @@ void  CutDumpList(void);
 void  CutFileDelete(void);
 bool  CutFileLoad(void);
 void  CutFileSave(void);
-void  DeleteBookmark(int BookmarkIndex);
-void  DeleteSegmentMarker(int MarkerIndex);
+void  DeleteBookmark(word BookmarkIndex);
+void  DeleteSegmentMarker(word MarkerIndex);
 void  DeleteAllSegmentMarkers(void);
 int   FindNearestBookmark(void);
 int   FindNearestSegmentMarker(void);

@@ -9,32 +9,15 @@
 #include                "libFireBird.h"
 #include                "MovieCutterLib.h"
 
-//Time code pointers:
-//P1 = last packet in the source file before the cut (=P2 - 1)
-//P2 = first packet of the cut file (real)
-//P3 = requested cut in (first packet of the cut file)
-//P4 = requested cut out (first packet after the cut)
-//P5 = last packet of the cut file (real)
-//P6 = first packet in the source file after the cut (=P5 + 1)
-
-/*typedef enum
-{
-  RC_Ok,
-  RC_Warning,
-  RC_Error
-} tResultCode;*/
 
 bool        FileCut(char *SourceFileName, char *CutFileName, dword StartBlock, dword NrBlocks);
-void        GetNextFreeCutName(char const *SourceFileName, char *CutFileName, word LeaveNamesOut);
 bool        ReadCutPointArea(char const *SourceFileName, off_t CutPosition, byte CutPointArray[]);
 bool        ReadFirstAndLastCutPacket(char const *FileName, byte FirstCutPacket[], byte LastCutPacket[]);
-bool        FindCutPointOffset(const byte CutPacket[], const byte CutPointArray[], long int *const Offset);
+bool        FindCutPointOffset(const byte CutPacket[], const byte CutPointArray[], long *const Offset);
 bool        PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint);
 bool        PatchNavFiles(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, bool isHD, dword *const CutStartTime, dword *const BehindCutTime);
-bool        PatchNavFilesSD(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, dword *const CutStartTime, dword *const BehindCutTime);
-bool        PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, dword *const CutStartTime, dword *const BehindCutTime);
-dword       GetRecDateFromInf(char const *FileName, dword *const DateTime);
-bool        HDD_SetFileDateTime(char const *Directory, char const *FileName, dword NewDateTime);
+bool        PatchNavFilesSD(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, dword *const OutCutStartTime, dword *const OutBehindCutTime);
+bool        PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, dword *const OutCutStartTime, dword *const OutBehindCutTime);
 tTimeStamp* NavLoadSD(char const *SourceFileName, dword *const NrTimeStamps);
 tTimeStamp* NavLoadHD(char const *SourceFileName, dword *const NrTimeStamps);
 
@@ -61,16 +44,17 @@ void WriteLogMC(char *ProgramName, char *s)
   HDD_TAP_PopDir();
 }
 
-void SecToTimeString(dword Time, char *const TimeString)
+void SecToTimeString(dword Time, char *const TimeString)  // needs max. 4 + 1 + 2 + 1 + 2 + 1 = 11 chars
 {
   dword                 Hour, Min, Sec;
 
   Hour = (int)(Time / 3600);
   Min = (int)(Time / 60) % 60;
   Sec = Time % 60;
+  if (Hour >= 10000) Hour = 9999;
   TAP_SPrint(TimeString, "%u:%2.2u:%2.2u", Hour, Min, Sec);
 }
-void MSecToTimeString(dword Timems, char *const TimeString)
+void MSecToTimeString(dword Timems, char *const TimeString)  // needs max. 4 + 1 + 2 + 1 + 2 + 1 + 3 + 1 = 15 chars
 {
   dword                 Hour, Min, Sec, Millisec;
 
@@ -80,20 +64,30 @@ void MSecToTimeString(dword Timems, char *const TimeString)
   Millisec = Timems % 1000;
   TAP_SPrint(TimeString, "%u:%2.2u:%2.2u.%03u", Hour, Min, Sec, Millisec);
 }
+void Print64BitLong(ulong64 Number, char *const OutString)  // needs max. 16 + 2 + 1 = 19 chars
+{
+  unsigned long LowPart, HighPart;
+  HighPart = (Number >> 32);
+  LowPart = (Number & 0xffffffff);
+  if (HighPart != 0)
+    TAP_SPrint(OutString, "0x%X%X", HighPart, LowPart);
+  else
+    TAP_SPrint(OutString, "0x%X", LowPart);
+}
 
 
-bool MovieCutter(char *SourceFileName, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepSource, bool KeepCut, bool isHD, word LeaveNamesOut)
+bool MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepSource, bool KeepCut, bool isHD)
 {
   char                  CurrentDir[512];
-  char                  CutFileName[MAX_FILE_NAME_SIZE + 1];
   char                  FileName[MAX_FILE_NAME_SIZE + 1];
   __off64_t             SourceFileSize, CutFileSize;
   byte                  CutPointArea1[CUTPOINTSEARCHRADIUS * 2], CutPointArea2[CUTPOINTSEARCHRADIUS * 2];
   byte                  FirstCutPacket[PACKETSIZE], LastCutPacket[PACKETSIZE];
   off_t                 CutStartPos, BehindCutPos;
-  long int              CutStartPosOffset, BehindCutPosOffset;
+  long                  CutStartPosOffset, BehindCutPosOffset;
   bool                  SuppressNavGeneration;
   dword                 RecDate;
+  char                  SizeStr[20];
 //  char                  TimeStr[16];
 //  int                   i;
 
@@ -101,7 +95,9 @@ bool MovieCutter(char *SourceFileName, tTimeStamp *CutStartPoint, tTimeStamp *Be
 
   // LOG file printing
   WriteLogMC("MovieCutterLib", "----------------------------------------");
-  TAP_SPrint(LogString, "Source      = '%s'", SourceFileName);
+  TAP_SPrint(LogString, "Source        = '%s'", SourceFileName);
+  WriteLogMC("MovieCutterLib", LogString);
+  TAP_SPrint(LogString, "Cut name      = '%s'", CutFileName);
   WriteLogMC("MovieCutterLib", LogString);
 
   HDD_TAP_GetCurrentDir(CurrentDir);
@@ -111,17 +107,22 @@ bool MovieCutter(char *SourceFileName, tTimeStamp *CutStartPoint, tTimeStamp *Be
     return FALSE;
   }
 
-  TAP_SPrint(LogString, "File size    = %u Bytes (%u blocks)", SourceFileSize, (dword)(SourceFileSize / BLOCKSIZE));
+  Print64BitLong(SourceFileSize, SizeStr);
+  TAP_SPrint(LogString, "File size     = %u Bytes (%u blocks)", SizeStr, (dword)(SourceFileSize / BLOCKSIZE));
   WriteLogMC("MovieCutterLib", LogString);
-  TAP_SPrint(LogString, "Dir          = '%s'", CurrentDir);
+  TAP_SPrint(LogString, "Dir           = '%s'", CurrentDir);
   WriteLogMC("MovieCutterLib", LogString);
 
-  TAP_SPrint(LogString, "CutStartBlock    = %u,\tBehindCutBlock = %u, KeepSource = %s, KeepCut = %s", CutStartPoint->BlockNr, BehindCutPoint->BlockNr, KeepSource ? "yes" : "no", KeepCut ? "yes" : "no");
+  TAP_SPrint(LogString, "CutStartBlock = %12u,  BehindCutBlock = %12u, KeepSource = %s, KeepCut = %s", CutStartPoint->BlockNr, BehindCutPoint->BlockNr, KeepSource ? "yes" : "no", KeepCut ? "yes" : "no");
   WriteLogMC("MovieCutterLib", LogString);
 
   CutStartPos = CutStartPoint->BlockNr * BLOCKSIZE;
   BehindCutPos = BehindCutPoint->BlockNr * BLOCKSIZE;
-  TAP_SPrint(LogString, "CutStartPos      = %u,\tBehindCutPos = %u", CutStartPos, BehindCutPos);
+
+  Print64BitLong(CutStartPos, SizeStr);
+  TAP_SPrint(LogString, "CutStartPos   = %s", SizeStr);
+  Print64BitLong(BehindCutPos, SizeStr);
+  TAP_SPrint(&LogString[strlen(LogString)], ",  BehindCutPos = %s", SizeStr);
   WriteLogMC("MovieCutterLib", LogString);
 
   // Read the two blocks surrounding the cut points from the recording
@@ -135,11 +136,6 @@ bool MovieCutter(char *SourceFileName, tTimeStamp *CutStartPoint, tTimeStamp *Be
     WriteLogMC("MovieCutterLib", "MovieCutter() W0002: nav creation suppressed.");
     SuppressNavGeneration = TRUE;
   }
-
-  // Get a free file name for the newly to be created cut-file
-  GetNextFreeCutName(SourceFileName, CutFileName, LeaveNamesOut);
-  TAP_SPrint(LogString, "Cut name    = '%s'", CutFileName);
-  WriteLogMC("MovieCutterLib", LogString);
 
   // DO THE CUTTING
   if(!FileCut(SourceFileName, CutFileName, CutStartPoint->BlockNr, BehindCutPoint->BlockNr - CutStartPoint->BlockNr))
@@ -159,6 +155,9 @@ bool MovieCutter(char *SourceFileName, tTimeStamp *CutStartPoint, tTimeStamp *Be
     WriteLogMC("MovieCutterLib", "MovieCutter() W0003: error detecting size of cut file.");
     SuppressNavGeneration = TRUE;
   }
+  Print64BitLong(CutFileSize, SizeStr);
+  TAP_SPrint(LogString, "Cut file size: %s Bytes (=%d blocks)", SizeStr, (dword)(CutFileSize / BLOCKSIZE));
+  WriteLogMC("MovieCutterLib", LogString);
 
   // Read the beginning and the ending from the cut file
   if(!ReadFirstAndLastCutPacket(CutFileName, FirstCutPacket, LastCutPacket))
@@ -199,7 +198,7 @@ bool MovieCutter(char *SourceFileName, tTimeStamp *CutStartPoint, tTimeStamp *Be
     }
     if (SuppressNavGeneration)
       WriteLogMC("MovieCutterLib", "MovieCutter() W0007: Both cut points not found. Nav creation suppressed.");
-    TAP_SPrint(LogString, "Cut start offset: %u Bytes (=%u packets + %u Bytes), Cut end offset: %u Bytes (=%u packets + %u Bytes)", CutStartPosOffset, CutStartPosOffset/PACKETSIZE, CutStartPosOffset%PACKETSIZE, BehindCutPosOffset, BehindCutPosOffset/PACKETSIZE, BehindCutPosOffset%PACKETSIZE);
+    TAP_SPrint(LogString, "Cut start offset: %d Bytes (=%d packets and %d Bytes), Cut end offset: %d Bytes (=%d packets and %d Bytes)", CutStartPosOffset, CutStartPosOffset/PACKETSIZE, labs(CutStartPosOffset%PACKETSIZE), BehindCutPosOffset, BehindCutPosOffset/PACKETSIZE, labs(BehindCutPosOffset%PACKETSIZE));
     WriteLogMC("MovieCutterLib", LogString);
   }
 
@@ -412,7 +411,7 @@ bool ReadFirstAndLastCutPacket(char const *FileName, byte FirstCutPacket[], byte
 // Searches the best occurance of CutPacket in CutPointArray (nearest to the middle).
 // (search is no longer packet-based, because sometimes the firmware cuts somewhere in the middle of a packet)
 // Returns true if found. Offset is 0, if CutPacket starts at requested position, -x if it starts x bytes before, +x if it starts x bytes after
-bool FindCutPointOffset(const byte CutPacket[], const byte CutPointArray[], long int *const Offset)
+bool FindCutPointOffset(const byte CutPacket[], const byte CutPointArray[], long *const Offset)
 {
   const byte           *MidArray;
   byte                  FirstByte;
@@ -549,7 +548,7 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
   byte                 *Buffer;
   dword                 SourcePlayTime, CutPlayTime;
   dword                *Bookmarks = NULL;
-  int                   i;
+  word                  i;
   bool                  CutBookmarkSet;
   bool                  result = TRUE;
 
@@ -590,7 +589,7 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
   system(LogString);
 
   SourcePlayTime = 60 * RECHeaderInfo.HeaderDuration + RECHeaderInfo.HeaderDurationSec;
-  CutPlayTime = (dword)((BehindCutPoint->Timems - CutStartPoint->Timems) / 1000);
+  CutPlayTime = (dword)(((BehindCutPoint->Timems - CutStartPoint->Timems) / 1000) + 0.5);
 
   SecToTimeString(SourcePlayTime, T1);
   SecToTimeString(CutPlayTime, T2);
@@ -738,27 +737,27 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
   return result;
 }
 
-bool PatchNavFiles(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, bool isHD, dword *const CutStartTime, dword *const BehindCutTime)
+bool PatchNavFiles(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, bool isHD, dword *const OutCutStartTime, dword *const OutBehindCutTime)
 {
   #ifdef FULLDEBUG
     WriteLogMC("MovieCutterLib", "PatchNavFiles()");
   #endif
 
   if(isHD)
-    return PatchNavFilesHD(SourceFileName, CutFileName, CutStartPos, BehindCutPos, CutStartTime, BehindCutTime);
+    return PatchNavFilesHD(SourceFileName, CutFileName, CutStartPos, BehindCutPos, OutCutStartTime, OutBehindCutTime);
   else
-    return PatchNavFilesSD(SourceFileName, CutFileName, CutStartPos, BehindCutPos, CutStartTime, BehindCutTime);
+    return PatchNavFilesSD(SourceFileName, CutFileName, CutStartPos, BehindCutPos, OutCutStartTime, OutBehindCutTime);
 }
 
 
-bool PatchNavFilesSD(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, dword *const CutStartTime, dword *const BehindCutTime)
+bool PatchNavFilesSD(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, dword *const OutCutStartTime, dword *const OutBehindCutTime)
 {
   FILE                 *fSourceNav;
   TYPE_File            *fCutNav, *fSourceNavNew;
   char                  FileName[MAX_FILE_NAME_SIZE + 1];
   off_t                 PictureHeaderOffset;
   tnavSD               *navSource=NULL, *navSourceNew=NULL, *navCut=NULL;
-  int                   navsRead, navRecsSourceNew, navRecsCut, i;
+  size_t                navsRead, navRecsSourceNew, navRecsCut, i;
   bool                  IFrameCut, IFrameSource;
   char                  CurrentDir[512];
   char                  AbsFileName[512];
@@ -821,8 +820,8 @@ bool PatchNavFilesSD(char const *SourceFileName, char const *CutFileName, off_t 
 
   navRecsSourceNew = 0;
   navRecsCut = 0;
-  IFrameCut = FALSE;
-  IFrameSource = FALSE;
+//  IFrameCut = FALSE;
+//  IFrameSource = FALSE;
   FirstCutTime = 0;
   FirstSourceTime = 0;
 //  LastSourceTime = 0;
@@ -848,16 +847,16 @@ bool PatchNavFilesSD(char const *SourceFileName, char const *CutFileName, off_t 
 
         //Subtract CutStartPos from the cut .nav PH address
         PictureHeaderOffset = PictureHeaderOffset - CutStartPos;
-        if((navSource[i].SHOffset >> 24) == 1) IFrameCut = TRUE;
-        if(IFrameCut)
-        {
+//        if((navSource[i].SHOffset >> 24) == 1) IFrameCut = TRUE;
+//        if(IFrameCut)
+//        {
           memcpy(&navCut[navRecsCut], &navSource[i], sizeof(tnavSD));
           navCut[navRecsCut].PHOffsetHigh = PictureHeaderOffset >> 32;
           navCut[navRecsCut].PHOffset = PictureHeaderOffset & 0xffffffff;
           navCut[navRecsCut].Timems = navCut[navRecsCut].Timems - FirstCutTime;
           navRecsCut++;
-        }
-        IFrameSource = FALSE;
+//        }
+//        IFrameSource = FALSE;
       }
       else
       {
@@ -872,9 +871,9 @@ bool PatchNavFilesSD(char const *SourceFileName, char const *CutFileName, off_t 
           if (FirstSourceTime == 0) FirstSourceTime = navSource[i].Timems; 
 //        LastSourceTime = navSource[i].Timems;
         
-        if((navSource[i].SHOffset >> 24) == 1) IFrameSource = TRUE;
-        if(IFrameSource)
-        {
+//        if((navSource[i].SHOffset >> 24) == 1) IFrameSource = TRUE;
+//        if(IFrameSource)
+//        {
           memcpy(&navSourceNew[navRecsSourceNew], &navSource[i], sizeof(tnavSD));
 
           //if ph offset >= BehindCutPos, subtract (BehindCutPos - CutStartPos)
@@ -886,8 +885,8 @@ bool PatchNavFilesSD(char const *SourceFileName, char const *CutFileName, off_t 
             navSourceNew[navRecsSourceNew].Timems = navSourceNew[navRecsSourceNew].Timems - (FirstSourceTime - FirstCutTime);
           }
           navRecsSourceNew++;
-        }
-        IFrameCut = FALSE;
+//        }
+//        IFrameCut = FALSE;
       }
     }
   }
@@ -903,8 +902,8 @@ bool PatchNavFilesSD(char const *SourceFileName, char const *CutFileName, off_t 
   TAP_MemFree(navSourceNew);
   TAP_MemFree(navCut);
 
-  *CutStartTime = FirstCutTime;
-  *BehindCutTime = FirstSourceTime;
+  *OutCutStartTime = FirstCutTime;
+  *OutBehindCutTime = FirstSourceTime;
 
   //Delete the orig source nav and make the new source nav the active one
 //  TAP_SPrint(FileName, "%s.nav.bak", SourceFileName);
@@ -912,14 +911,14 @@ bool PatchNavFilesSD(char const *SourceFileName, char const *CutFileName, off_t 
   return TRUE;
 }
 
-bool PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, dword *const CutStartTime, dword *const BehindCutTime)
+bool PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, dword *const OutCutStartTime, dword *const OutBehindCutTime)
 {
   FILE                 *fSourceNav;
   TYPE_File            *fCutNav, *fSourceNavNew;
   char                  FileName[MAX_FILE_NAME_SIZE + 1];
   off_t                 PictureHeaderOffset;
   tnavHD               *navSource=NULL, *navSourceNew=NULL, *navCut=NULL;
-  int                   navsRead, navRecsSourceNew, navRecsCut, i;
+  size_t                navsRead, navRecsSourceNew, navRecsCut, i;
   bool                  IFrameCut, IFrameSource;
   char                  CurrentDir[512];
   char                  AbsFileName[512];
@@ -982,8 +981,8 @@ bool PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t 
 
   navRecsSourceNew = 0;
   navRecsCut = 0;
-  IFrameCut = FALSE;
-  IFrameSource = FALSE;
+//  IFrameCut = FALSE;
+//  IFrameSource = FALSE;
   FirstCutTime = 0;
   FirstSourceTime = 0;
 //  LastSourceTime = 0;
@@ -1009,16 +1008,16 @@ bool PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t 
 
         //Subtract CutStartPos from the cut .nav PH address
         PictureHeaderOffset = PictureHeaderOffset - CutStartPos;
-        if((navSource[i].LastPPS >> 24) == 1) IFrameCut = TRUE;
-        if(IFrameCut)
-        {
+//        if((navSource[i].LastPPS >> 24) == 1) IFrameCut = TRUE;
+//        if(IFrameCut)
+//        {
           memcpy(&navCut[navRecsCut], &navSource[i], sizeof(tnavHD));
           navCut[navRecsCut].SEIOffsetHigh = PictureHeaderOffset >> 32;
           navCut[navRecsCut].SEIOffsetLow = PictureHeaderOffset & 0xffffffff;
           navCut[navRecsCut].Timems = navCut[navRecsCut].Timems - FirstCutTime;
           navRecsCut++;
-        }
-        IFrameSource = FALSE;
+//        }
+//        IFrameSource = FALSE;
       }
       else
       {
@@ -1033,9 +1032,9 @@ bool PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t 
           if (FirstSourceTime == 0) FirstSourceTime = navSource[i].Timems; 
 //        LastSourceTime = navSource[i].Timems;
 
-        if((navSource[i].LastPPS >> 24) == 1) IFrameSource = TRUE;
-        if(IFrameSource)
-        {
+//        if((navSource[i].LastPPS >> 24) == 1) IFrameSource = TRUE;
+//        if(IFrameSource)
+//        {
           memcpy(&navSourceNew[navRecsSourceNew], &navSource[i], sizeof(tnavHD));
 
           //if ph offset >= BehindCutPos, subtract (BehindCutPos - CutStartPos)
@@ -1047,8 +1046,8 @@ bool PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t 
             navSourceNew[navRecsSourceNew].Timems = navSourceNew[navRecsSourceNew].Timems - (FirstSourceTime - FirstCutTime);
           }
           navRecsSourceNew++;
-        }
-        IFrameCut = FALSE;
+//        }
+//        IFrameCut = FALSE;
       }
     }
   }
@@ -1064,14 +1063,30 @@ bool PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t 
   TAP_MemFree(navSourceNew);
   TAP_MemFree(navCut);
 
-  *CutStartTime = FirstCutTime;
-  *BehindCutTime = FirstSourceTime;
+  *OutCutStartTime = FirstCutTime;
+  *OutBehindCutTime = FirstSourceTime;
 
   //Delete the orig source nav and make the new source nav the active one
 //  TAP_SPrint(FileName, "%s.nav.bak", SourceFileName);
 //  TAP_Hdd_Delete(FileName);
 
   return TRUE;
+}
+
+long64 HDD_GetFileSize(char const *FileName)
+{
+  TYPE_File            *f;
+  long64                FileSize;
+
+  f = TAP_Hdd_Fopen(FileName);
+  if(!f)
+  {
+    WriteLogMC("MovieCutterLib", "HDD_GetFileSize(): E0d01");
+    return -1;
+  }
+  FileSize = f->size;
+  TAP_Hdd_Fclose(f);
+  return FileSize;
 }
 
 bool HDD_SetFileDateTime(char const *Directory, char const *FileName, dword NewDateTime)

@@ -134,8 +134,7 @@ typedef enum
   LS_UnselectAll,
   LS_PageStr,
   LS_ListIsFull,
-  LS_ErrorPcrPid,
-  LS_ErrorPcr,
+  LS_NoRecSize,
   LS_NavLoadFailed,
   LS_WrongNavLength,
   LS_NrStrings
@@ -156,6 +155,7 @@ bool                    NoPlaybackCheck;                      //Used to circumve
 TYPE_PlayInfo           PlayInfo;
 char                    PlaybackName[MAX_FILE_NAME_SIZE + 1];
 char                    PlaybackDirectory[512];
+__off64_t               RecFileSize;
 dword                   LastTotalBlocks = 0;
 dword                   BlockNrLastSecond;
 dword                   BlockNrLast10Seconds;
@@ -170,10 +170,6 @@ dword                   NrTimeStamps = 0;
 tTimeStamp             *TimeStamps = NULL;
 tTimeStamp             *LastTimeStamp = NULL;
 bool                    HDVideo;
-// old variables -> to be deleted
-int                     PacketSize;
-word                    PCRPID;
-dword                   FirstPCR;
 
 // OSD object variables
 tFontDataUC             Calibri_10_FontDataUC;
@@ -219,6 +215,7 @@ int TAP_Main(void)
     #endif
     return 0;
   }
+
   return 1;
 }
 
@@ -293,6 +290,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     {
       if(isPlaybackRunning())
       {
+        char SizeStr[20];
         char *p;
 
         if((int)PlayInfo.totalBlock > 0)
@@ -313,6 +311,25 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
           WriteLogMC(PROGRAM_NAME, "========================================");
           TAP_SPrint(LogString, "Attaching to %s%s", PlaybackDirectory, PlaybackName);
+          WriteLogMC(PROGRAM_NAME, LogString);
+
+          // Detect size of rec file
+//          RecFileSize = HDD_GetFileSize(PlaybackName);
+//          if(RecFileSize <= 0)
+          if(!HDD_GetFileSizeAndInode(PlaybackDirectory, PlaybackName, NULL, &RecFileSize))
+          {
+            WriteLogMC(PROGRAM_NAME, ".rec size could not be detected");
+            OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_NoRecSize));
+            OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
+            OSDMenuMessageBoxShow();
+            State = ST_IdleUnacceptedFile;
+            break;
+          }
+
+          Print64BitLong(RecFileSize, SizeStr);
+          TAP_SPrint(LogString, "File size = %s Bytes (%u blocks)", SizeStr, (dword)(RecFileSize / BLOCKSIZE));
+          WriteLogMC(PROGRAM_NAME, LogString);
+          TAP_SPrint(LogString, "Reported total blocks: %u", PlayInfo.totalBlock);
           WriteLogMC(PROGRAM_NAME, LogString);
 
           //Check if a nav is available
@@ -989,7 +1006,7 @@ void AddBookmarksToSegmentList(void)
     CallTraceEnter("AddBookmarksToSegmentList");
   #endif
 
-  int i;
+  word i;
 
   // first, delete all present segment markers (*CW*)
   DeleteAllSegmentMarkers();
@@ -1000,7 +1017,7 @@ void AddBookmarksToSegmentList(void)
 
   for(i = 0; i < min(NrBookmarks, NRSEGMENTMARKER-2); i++)
   { 
-    TAP_SPrint(LogString, "Bookmark %d @ %u", i + 1, Bookmarks[i]);
+    TAP_SPrint(LogString, "Bookmark %u @ %u", i + 1, Bookmarks[i]);
     WriteLogMC(PROGRAM_NAME, LogString);
     AddSegmentMarker(Bookmarks[i]);
   }
@@ -1030,7 +1047,7 @@ bool AddSegmentMarker(dword Block)
     CallTraceEnter("AddSegmentMarker");
   #endif
 
-  int                   i, j;
+  word                  i, j;
   dword                 newTime;
   char                  StartTime[16];
 
@@ -1187,7 +1204,7 @@ void MoveSegmentMarker(void)
   #endif
 }
 
-void DeleteSegmentMarker(int MarkerIndex)
+void DeleteSegmentMarker(word MarkerIndex)
 {
   #if STACKTRACE == TRUE
     CallTraceEnter("DeleteSegmentMarker");
@@ -1362,7 +1379,7 @@ void SaveBookmarksToInf(void)
   byte                 *Buffer;
   TYPE_File            *fInf;
   dword                 FileSize, BufferSize;
-  int                   i;
+  word                  i;
 
 #ifdef FULLDEBUG
   TAP_PrintNet("SaveBookmarks()\n");
@@ -1410,7 +1427,7 @@ void SaveBookmarksToInf(void)
 
 bool AddBookmark(dword Block)
 {
-  int                   i, j;
+  word i, j;
 
   if(NrBookmarks >= NRBOOKMARKS)
   {
@@ -1446,7 +1463,7 @@ int FindNearestBookmark(void)
 {
   int                   NearestBookmarkIndex;
   long                  MinDelta;
-  int                   i;
+  word                  i;
 
   NearestBookmarkIndex = -1;
   if(NrBookmarks > 0)
@@ -1473,9 +1490,9 @@ void MoveBookmark(dword Block)
   SaveBookmarks();
 }
 
-void DeleteBookmark(int BookmarkIndex)
+void DeleteBookmark(word BookmarkIndex)
 {
-  int i;
+  word i;
 
   for(i = BookmarkIndex; i < NrBookmarks - 1; i++)
     Bookmarks[i] = Bookmarks[i + 1];
@@ -1496,23 +1513,10 @@ bool CutFileLoad(void)
   char                  Name[MAX_FILE_NAME_SIZE + 1];
   word                  Version = 0;
   word                  Padding;
-  TYPE_File            *fCut, *fRec;
-  long64                RecSize, FileSize;
+  TYPE_File            *fCut;
+  __off64_t             FileSize;
 
-  //Load the file size to check if the file didn't change
-  fRec = TAP_Hdd_Fopen(PlaybackName);
-  if(!fRec)
-  {
-    WriteLogMC(PROGRAM_NAME, "CutFileLoad: couldn't open .rec for file size verification");
-
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
-    return FALSE;
-  }
-  RecSize = fRec->size;
-  TAP_Hdd_Fclose(fRec);
-
+  // Create name of cut-file
   strcpy(Name, PlaybackName);
   Name[strlen(Name) - 4] = '\0';
   strcat(Name, ".cut");
@@ -1540,7 +1544,7 @@ bool CutFileLoad(void)
     return FALSE;
   }
 
-  // Check correct version of cut-File
+  // Check correct version of cut-file
   TAP_Hdd_Fread(&Version, sizeof(byte), 1, fCut);    // read only one byte for compatibility with V.1  [COMPATIBILITY LAYER]
   if(Version > CUTFILEVERSION)
   {
@@ -1556,8 +1560,8 @@ bool CutFileLoad(void)
     TAP_Hdd_Fread(&Padding, sizeof(byte), 1, fCut);  // read the second byte of Version (if not V.1)  [COMPATIBILITY LAYER]
 
   // Check, if size of rec-File has been changed
-  TAP_Hdd_Fread(&FileSize, sizeof(long64), 1, fCut);
-  if(RecSize != FileSize)
+  TAP_Hdd_Fread(&FileSize, sizeof(__off64_t), 1, fCut);
+  if(RecFileSize != FileSize)
   {
     WriteLogMC(PROGRAM_NAME, "CutFileLoad: .cut file size mismatch");
     TAP_Hdd_Fclose(fCut);
@@ -1602,7 +1606,7 @@ bool CutFileLoad(void)
 
   // Wenn cut-File Version 1 hat, dann ermittle neue TimeStamps und vergleiche diese mit den alten (DEBUG)  [COMPATIBILITY LAYER]
   if (Version == 1) {
-    int i;
+    word i;
     dword oldTime, newTime;
     char oldTimeStr[12], newTimeStr[16];
 
@@ -1633,10 +1637,9 @@ void CutFileSave(void)
 
   char                  Name[MAX_FILE_NAME_SIZE + 1];
   word                  Version;
-  TYPE_File            *fCut, *fRec;
-  long64                FileSize;
+  TYPE_File            *fCut;
 
-  //Save the file size to check if the file didn't change
+/*  //Save the file size to check if the file didn't change
   fRec = TAP_Hdd_Fopen(PlaybackName);
   if(!fRec)
   {
@@ -1647,7 +1650,17 @@ void CutFileSave(void)
   }
 
   FileSize = fRec->size;
-  TAP_Hdd_Fclose(fRec);
+  TAP_Hdd_Fclose(fRec); */
+
+//  RecFileSize = HDD_GetFileSize(PlaybackName);
+//  if(RecFileSize <= 0)
+  if(!HDD_GetFileSizeAndInode(PlaybackDirectory, PlaybackName, NULL, &RecFileSize))
+  {
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return;
+  }
 
   strcpy(Name, PlaybackName);
   Name[strlen(Name) - 4] = '\0';
@@ -1669,7 +1682,7 @@ void CutFileSave(void)
   if(NrSegmentMarker < 3)SegmentMarker[0].Selected = FALSE;
 
   TAP_Hdd_Fwrite(&Version, sizeof(word), 1, fCut);
-  TAP_Hdd_Fwrite(&FileSize, sizeof(long64), 1, fCut);
+  TAP_Hdd_Fwrite(&RecFileSize, sizeof(__off64_t), 1, fCut);
   TAP_Hdd_Fwrite(&NrSegmentMarker, sizeof(word), 1, fCut);
   TAP_Hdd_Fwrite(&ActiveSegment, sizeof(word), 1, fCut);
 word Padding=0;
@@ -1707,7 +1720,7 @@ void CutDumpList(void)
   #endif
 
   char                  TimeString[16];
-  int                   i;
+  word                   i;
 
   WriteLogMC(PROGRAM_NAME, "Seg      Block Time        Pct Sel Act");
   for(i = 0; i < NrSegmentMarker; i++)
@@ -1794,7 +1807,7 @@ void OSDSegmentListDrawList(void)
       if(ActiveSegment >= 10)                          TAP_Osd_PutGd(rgnSegmentList, 62, 23, &_Button_Up2_Gd, TRUE);
       if((ActiveSegment < 10) && (NrSegmentMarker>11)) TAP_Osd_PutGd(rgnSegmentList, 88, 23, &_Button_Down2_Gd, TRUE);
 
-      TAP_SPrint(PageStr, "%s%d/%d", LangGetString(LS_PageStr), (ActiveSegment/10)+1, ((NrSegmentMarker-2)/10)+1);
+      TAP_SPrint(PageStr, "%s%u/%u", LangGetString(LS_PageStr), (ActiveSegment/10)+1, ((NrSegmentMarker-2)/10)+1);
       FMUC_PutString(rgnSegmentList, 60, 3, 114, PageStr, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_RIGHT);
 
       p = (ActiveSegment / 10) * 10;
@@ -2076,7 +2089,7 @@ void OSDInfoDrawProgressbar(bool Force)
 
 void OSDInfoDrawCurrentPosition(bool Force)
 {
-  int                   Time;
+  dword                 Time;
   float                 Percent;
   char                  TimeString[12];
   char                  PercentString[10];
@@ -2726,7 +2739,7 @@ void MovieCutterSelectOddSegments(void)
     CallTraceEnter("MovieCutterSelectOddSegments");
   #endif
 
-  int                   i;
+  word i;
 
   for(i = 0; i < NrSegmentMarker-1; i++)
     SegmentMarker[i].Selected = ((i & 1) == 0);
@@ -2747,7 +2760,7 @@ void MovieCutterSelectEvenSegments(void)
     CallTraceEnter("MovieCutterSelectEvenSegments");
   #endif
 
-  int                   i;
+  word i;
 
   for(i = 0; i < NrSegmentMarker-1; i++)
     SegmentMarker[i].Selected = ((i & 1) == 1);
@@ -2810,9 +2823,10 @@ void MovieCutterProcess(bool KeepSource, bool KeepCut)
     CallTraceEnter("MovieCutterProcess");
   #endif
 
-  unsigned int          NrSelectedSegments;
+  word                  NrSelectedSegments;
   bool                  isMultiSelect;
-  int                   WorkingSegment;
+  word                  WorkingSegment;
+  char                  CutFileName[MAX_FILE_NAME_SIZE + 1];
   tTimeStamp            CutStartPoint, BehindCutPoint;
   dword                 SelectedBlock;
   dword                 DeltaTime, DeltaBlock;
@@ -2835,6 +2849,7 @@ void MovieCutterProcess(bool KeepSource, bool KeepCut)
       NrSelectedSegments++;
   }
   isMultiSelect = (NrSelectedSegments > 0);
+  if (!NrSelectedSegments) NrSelectedSegments = 1;
 
   for(i = NrSegmentMarker - 2; i >= 0; i--)
   {
@@ -2849,14 +2864,15 @@ void MovieCutterProcess(bool KeepSource, bool KeepCut)
 
     if(!isMultiSelect || SegmentMarker[i].Selected)
     {
-      TAP_SPrint(LogString, "Processing segment %d", WorkingSegment);
+      GetNextFreeCutName(PlaybackName, CutFileName, NrSelectedSegments - 1);
+      TAP_SPrint(LogString, "Processing segment %u", WorkingSegment);
       WriteLogMC(PROGRAM_NAME, LogString);
 
       CutStartPoint.BlockNr = SegmentMarker[WorkingSegment].Block;
       CutStartPoint.Timems = SegmentMarker[WorkingSegment].Timems;
       BehindCutPoint.BlockNr = SegmentMarker[WorkingSegment + 1].Block;
       BehindCutPoint.Timems = SegmentMarker[WorkingSegment + 1].Timems;
-      ret = MovieCutter(PlaybackName, &CutStartPoint, &BehindCutPoint, KeepSource, KeepCut, HDVideo, NrSelectedSegments-1);
+      ret = MovieCutter(PlaybackName, CutFileName, &CutStartPoint, &BehindCutPoint, KeepSource, KeepCut, HDVideo);
 
       TAP_Hdd_PlayTs(PlaybackName);
       do
@@ -2979,7 +2995,7 @@ bool PatchOldNavFileSD(char *SourceFileName)
   char                  FileName[MAX_FILE_NAME_SIZE + 1];
   char                  FileName2[MAX_FILE_NAME_SIZE + 1];
   tnavSD               *navRecs;
-  int                   navsRead, i;
+  size_t                navsRead, i;
   char                  CurrentDir[512];
   char                  AbsFileName[512];
 
@@ -3035,7 +3051,7 @@ bool PatchOldNavFileSD(char *SourceFileName)
 
         MSecToTimeString(lastTime, Time1);
         MSecToTimeString(navRecs[i].Timems, Time2);
-        TAP_SPrint(LogString, "  - Gap found at nav record nr. %u:  Offset=%u, TimeStamp(before)=%s, TimeStamp(after)=%s, GapSize=%s\n", ftell(fSourceNav)-NAVRECS_SD+i, (dword)((((off_t)(navRecs[i].PHOffsetHigh) << 32) | navRecs[i].PHOffset)/1), Time1, Time2, Time3);
+        TAP_SPrint(LogString, "  - Gap found at nav record nr. %u:  Offset=%u, TimeStamp(before)=%s, TimeStamp(after)=%s, GapSize=%s\n", ftell(fSourceNav)-NAVRECS_SD+i, (dword)((((off_t)(navRecs[i].PHOffsetHigh) << 32) | navRecs[i].PHOffset)/BLOCKSIZE), Time1, Time2, Time3);
         WriteLogMC(PROGRAM_NAME, LogString);
       } else {
         if (navRecs[i].Timems > lastTime)
@@ -3059,7 +3075,7 @@ bool PatchOldNavFileHD(char *SourceFileName)
   char                  FileName[MAX_FILE_NAME_SIZE + 1];
   char                  FileName2[MAX_FILE_NAME_SIZE + 1];
   tnavHD               *navRecs;
-  int                   navsRead, i;
+  size_t                navsRead, i;
   char                  CurrentDir[512];
   char                  AbsFileName[512];
 
@@ -3114,7 +3130,7 @@ bool PatchOldNavFileHD(char *SourceFileName)
 
         MSecToTimeString(lastTime, Time1);
         MSecToTimeString(navRecs[i].Timems, Time2);
-        TAP_SPrint(LogString, "  - Gap found at nav record nr. %u:  Offset=%u, TimeStamp(before)=%s, TimeStamp(after)=%s, GapSize=%s\n", ftell(fSourceNav)-NAVRECS_HD+i, (dword)((((off_t)(navRecs[i].SEIOffsetHigh) << 32) | navRecs[i].SEIOffsetLow)/1), Time1, Time2, Time3);
+        TAP_SPrint(LogString, "  - Gap found at nav record nr. %u:  Offset=%u, TimeStamp(before)=%s, TimeStamp(after)=%s, GapSize=%s\n", ftell(fSourceNav)-NAVRECS_HD+i, (dword)((((off_t)(navRecs[i].SEIOffsetHigh) << 32) | navRecs[i].SEIOffsetLow)/BLOCKSIZE), Time1, Time2, Time3);
         WriteLogMC(PROGRAM_NAME, LogString);
       } else {
         if (navRecs[i].Timems > lastTime)
