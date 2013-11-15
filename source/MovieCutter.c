@@ -2939,24 +2939,13 @@ void MovieCutterProcess(bool KeepSource, bool KeepCut)
         //If the first marker has moved to block 0, delete it
         if(SegmentMarker[j].Block == 0) DeleteSegmentMarker(j);
       }
-
-/*      for(j = NrBookmarks - 1; j >= 0; j--)
-      {
-        if(Bookmarks[j] >= SelectedBlock)
-        {
-          if(Bookmarks[j] < BehindCutPoint.BlockNr)
-            DeleteBookmark(j);
-          else
-            Bookmarks[j] -= DeltaBlock;
-        }
-        else break;
-      }
-*/    }
+    }
     if(!isMultiSelect) break;
   }
   CutFileSave();
   CutDumpList();
   CalcLastSeconds();
+  ReadBookmarks();
 
   //OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), 1, 1, NULL);
   //OSDMenuProgressBarDestroy();
