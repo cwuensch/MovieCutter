@@ -343,15 +343,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             break;
           }
 
-          //Free the old timing array, so that it is empty (NULL pointer) if something goes wrong
-          if(TimeStamps)
-          {
-            TAP_MemFree(TimeStamps);
-            TimeStamps = NULL;
-          }
-//          NrTimeStamps = 0;
-//          LastTimeStamp = NULL;
-
           // Detect if video stream is in HD
           if (!isHDVideo(PlaybackName, &HDVideo))
           {
@@ -363,6 +354,15 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             break;
           }
           WriteLogMC(PROGRAM_NAME, (HDVideo) ? "Type of recording: HD" : "Type of recording: SD");
+
+          //Free the old timing array, so that it is empty (NULL pointer) if something goes wrong
+          if(TimeStamps)
+          {
+            TAP_MemFree(TimeStamps);
+            TimeStamps = NULL;
+          }
+//          NrTimeStamps = 0;
+//          LastTimeStamp = NULL;
 
           // Try to load the nav
 #ifdef FULLDEBUG
@@ -717,7 +717,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     {
       if(!isPlaybackRunning() || LastTotalBlocks != PlayInfo.totalBlock)
       { 
-        LastTotalBlocks = 0;
+        Cleanup(TRUE);
         State = AutoOSDPolicy ? ST_IdleNoPlayback : ST_IdleInvisible;
       }
       break;
@@ -2887,7 +2887,7 @@ void MovieCutterProcess(bool KeepSource, bool KeepCut)
       do
       {
         isPlaybackRunning();
-      }while((int)PlayInfo.totalBlock == -1);
+      } while ((int)PlayInfo.totalBlock == -1);
 
       //Bail out if the cut failed
       if(!ret)
@@ -2944,14 +2944,24 @@ void MovieCutterProcess(bool KeepSource, bool KeepCut)
   }
   CutFileSave();
   CutDumpList();
-  CalcLastSeconds();
+/*  if(TimeStamps)
+  {
+    TAP_MemFree(TimeStamps);
+    TimeStamps = NULL;
+  }
+  TimeStamps = NavLoad(PlaybackName, &NrTimeStamps, HDVideo);
+  LastTimeStamp = &TimeStamps[0];
   ReadBookmarks();
+  CalcLastSeconds();
+  LastTotalBlock = PlayInfo.totalBlock;
 
   //OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), 1, 1, NULL);
   //OSDMenuProgressBarDestroy();
-  Playback_Normal();
-  TAP_Hdd_ChangePlaybackPos(SegmentMarker[ActiveSegment].Block);
-  OSDRedrawEverything();
+  Playback_Normal(); */
+  TAP_Hdd_ChangePlaybackPos(SegmentMarker[min(ActiveSegment, NrSegmentMarker-2)].Block);
+//  ClearOSD();  // unnötig?
+//  OSDRedrawEverything();
+  State = ST_IdleNoPlayback;
   NoPlaybackCheck = FALSE;
 
   #if STACKTRACE == TRUE
