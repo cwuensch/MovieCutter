@@ -54,10 +54,9 @@ de_027=Mittelstück markieren
 de_028=Alle abwählen
 de_029=S.
 de_030=Liste der Segment-Marker ist voll.
-de_031=PCR-PID konnte nicht ermittelt werden.
-de_032=Erster PCR konnte nicht ermittelt werden.
-de_033=Die .nav-Datei konnte nicht geladen werden.
-de_034=Länge der .nav-Datei ist inkorrekt.
+de_031=Dateigröße der Aufnahme ist inkorrekt.
+de_032=Die .nav-Datei konnte nicht geladen werden.
+de_033=Länge der .nav-Datei ist inkorrekt.
 
 #English
 en_000= Add
@@ -91,10 +90,9 @@ en_027=Select middle
 en_028=Unselect all
 en_029=p.
 en_030=SegmentMarker list is full.
-en_031=Couldn't detect PCR-PID.
-en_032=Couldn't detect first PCR.
-en_033=Error loading the .nav file.
-en_034=.nav file length not matching duration.
+en_031=Rec file size is incorrect.
+en_032=Error loading the .nav file.
+en_033=.nav file length not matching duration.
 
 
 #French
@@ -129,7 +127,6 @@ fr_027=Sélectionner mid segment
 fr_028=Unselect all
 fr_029=p.
 fr_030=SegmentMarker list is full.
-fr_031=Couldn't detect PCR-PID.
-fr_032=Couldn't detect first PCR.
-fr_033=Error loading the .nav file.
-fr_034=.nav file length not matching duration.
+fr_031=Rec file size is incorrect.
+fr_032=Error loading the .nav file.
+fr_033=.nav file length not matching duration.
