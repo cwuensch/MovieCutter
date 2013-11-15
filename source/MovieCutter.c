@@ -154,8 +154,7 @@ bool                    NoPlaybackCheck;                      //Used to circumve
 // Playback information
 TYPE_PlayInfo           PlayInfo;
 char                    PlaybackName[MAX_FILE_NAME_SIZE + 1];
-char                    AbsPlaybackDirectory[512];
-char                   *PlaybackDirectory;
+char                    PlaybackDirectory[512];
 __off64_t               RecFileSize;
 dword                   LastTotalBlocks = 0;
 dword                   BlockNrLastSecond;
@@ -304,21 +303,20 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           PlaybackName[strlen(PlaybackName) - 4] = '\0';
 
           //Extract the absolute path to the rec file and change into that dir
-          HDD_GetAbsolutePathByTypeFile(PlayInfo.file, AbsPlaybackDirectory);
-          p = strstr(AbsPlaybackDirectory, PlaybackName);
+          HDD_GetAbsolutePathByTypeFile(PlayInfo.file, PlaybackDirectory);
+          p = strstr(PlaybackDirectory, PlaybackName);
           if(p) *p = '\0';
-          PlaybackDirectory = &PlaybackDirectory[strlen(TAPFSROOT)];
-//          TAP_Hdd_ChangeDir(PlaybackDirectory);
-          HDD_ChangeDir(PlaybackDirectory);
+//          TAP_Hdd_ChangeDir(&PlaybackDirectory[strlen(TAPFSROOT)]);
+          HDD_ChangeDir(&PlaybackDirectory[strlen(TAPFSROOT)]);
 
           WriteLogMC(PROGRAM_NAME, "========================================");
-          TAP_SPrint(LogString, "Attaching to %s%s", AbsPlaybackDirectory, PlaybackName);
+          TAP_SPrint(LogString, "Attaching to %s%s", PlaybackDirectory, PlaybackName);
           WriteLogMC(PROGRAM_NAME, LogString);
 
           // Detect size of rec file
 //          RecFileSize = HDD_GetFileSize(PlaybackName);
 //          if(RecFileSize <= 0)
-          if(!HDD_GetFileSizeAndInode(PlaybackDirectory, PlaybackName, NULL, &RecFileSize))
+          if(!HDD_GetFileSizeAndInode(&PlaybackDirectory[strlen(TAPFSROOT)], PlaybackName, NULL, &RecFileSize))
           {
             WriteLogMC(PROGRAM_NAME, ".rec size could not be detected");
             OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_NoRecSize));
@@ -1656,7 +1654,7 @@ void CutFileSave(void)
 
 //  RecFileSize = HDD_GetFileSize(PlaybackName);
 //  if(RecFileSize <= 0)
-  if(!HDD_GetFileSizeAndInode(PlaybackDirectory, PlaybackName, NULL, &RecFileSize))
+  if(!HDD_GetFileSizeAndInode(&PlaybackDirectory[strlen(TAPFSROOT)], PlaybackName, NULL, &RecFileSize))
   {
     #if STACKTRACE == TRUE
       CallTraceExit(NULL);
@@ -2847,7 +2845,7 @@ void MovieCutterProcess(bool KeepSource, bool KeepCut)
   char BackupName[MAX_FILE_NAME_SIZE + 1];
   strcpy(BackupName, PlaybackName);
   BackupName[strlen(BackupName) - 4] = '\0';
-  TAP_SPrint(LogString, "cp \"%s%s/%s.cut\" \"%s%s/%s.cut.bak\"", TAPFSROOT, PlaybackDirectory, BackupName, TAPFSROOT, PlaybackDirectory, BackupName);
+  TAP_SPrint(LogString, "cp \"%s/%s.cut\" \"%s/%s.cut.bak\"", PlaybackDirectory, BackupName, PlaybackDirectory, BackupName);
   system(LogString);
 
   //ClearOSD();
@@ -2941,7 +2939,19 @@ void MovieCutterProcess(bool KeepSource, bool KeepCut)
         //If the first marker has moved to block 0, delete it
         if(SegmentMarker[j].Block == 0) DeleteSegmentMarker(j);
       }
-    }
+
+/*      for(j = NrBookmarks - 1; j >= 0; j--)
+      {
+        if(Bookmarks[j] >= SelectedBlock)
+        {
+          if(Bookmarks[j] < BehindCutPoint.BlockNr)
+            DeleteBookmark(j);
+          else
+            Bookmarks[j] -= DeltaBlock;
+        }
+        else break;
+      }
+*/    }
     if(!isMultiSelect) break;
   }
   CutFileSave();
