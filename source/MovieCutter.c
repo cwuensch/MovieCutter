@@ -39,7 +39,7 @@
 #include                "Graphics/Info_Progressbar.gd"
 #include                "Graphics/BookmarkMarker.gd"
 #include                "Graphics/SegmentMarker.gd"
-#include                "Graphics/ActionMenu11.gd"
+#include                "Graphics/ActionMenu9.gd"
 #include                "Graphics/ActionMenu_Bar.gd"
 #include                "TMSCommander.h"
 
@@ -82,14 +82,12 @@ typedef enum
 typedef enum
 {
   MI_SelectFunction,
-  MI_SelectPadding,
   MI_SaveSegment,
   MI_DeleteSegment,
   MI_SelectOddSegments,
   MI_SelectEvenSegments,
+  MI_UnselectAll,
   MI_ImportBookmarks,
-  MI_GotoNextBM,
-  MI_GotoPrevBM,
   MI_DeleteFile,
   MI_ExitMC,
   MI_NrMenuItems
@@ -126,10 +124,16 @@ typedef enum
  // Menu entries (4)
   LS_DeleteOddSegments,
   LS_DeleteEvenSegments,
- // new language strings V1.5
+ // new language strings V2.0
+  LS_SaveNrSegments,
+  LS_Save1Segment,
+  LS_SaveCurSegment,
+  LS_DeleteNrSegments,
+  LS_Delete1Segment,
+  LS_DeleteCurSegment,
   LS_SelectOddSegments,
-  LS_SelectEvenSegments,
   LS_SelectPadding,
+  LS_SelectEvenSegments,
   LS_SelectMiddle,
   LS_UnselectAll,
   LS_PageStr,
@@ -741,11 +745,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 case MI_DeleteSegment:      MovieCutterDeleteSegments(); break;
                 case MI_SelectOddSegments:  MovieCutterSelectOddSegments(); break;
                 case MI_SelectEvenSegments: MovieCutterSelectEvenSegments(); break;
-                case MI_SelectPadding:      MovieCutterSelectPadding(); break;
+                case MI_UnselectAll:        MovieCutterUnselectAll(); break;
                 case MI_DeleteFile:         MovieCutterDeleteFile(); break;
                 case MI_ImportBookmarks:    AddBookmarksToSegmentList(); OSDRedrawEverything(); break;
-                case MI_GotoNextBM:         Playback_JumpNextBookmark(); break;
-                case MI_GotoPrevBM:         Playback_JumpPrevBookmark(); break;
                 case MI_ExitMC:             State = ST_Exit; break;
                 case MI_NrMenuItems:        break;
               }
@@ -1654,6 +1656,7 @@ void CutFileSave(void)
 
 //  RecFileSize = HDD_GetFileSize(PlaybackName);
 //  if(RecFileSize <= 0)
+
   if(!HDD_GetFileSizeAndInode(&PlaybackDirectory[strlen(TAPFSROOT)], PlaybackName, NULL, &RecFileSize))
   {
     #if STACKTRACE == TRUE
@@ -1665,6 +1668,11 @@ void CutFileSave(void)
   strcpy(Name, PlaybackName);
   Name[strlen(Name) - 4] = '\0';
   strcat(Name, ".cut");
+
+char CurDir[512];
+HDD_TAP_GetCurrentDir(CurDir);
+TAP_SPrint(LogString, "CutFileSave()! CurrentDir: %s, PlaybackName: %s, CutFileName: %s", CurDir, PlaybackName, Name);
+WriteLogMC(PROGRAM_NAME, LogString);
 
   Version = CUTFILEVERSION;
   TAP_Hdd_Delete(Name);
@@ -1970,21 +1978,21 @@ void OSDInfoDrawPlayIcons(bool Force)
       TAP_Osd_FillBox(rgnInfo, 552, 26, 145, 19, RGB(51, 51, 51));
       switch(TrickModeSwitch)
       {
-        case 0x11: FMUC_PutString(rgnInfo, 657, 26, 697, "2x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x12: FMUC_PutString(rgnInfo, 657, 26, 697, "4x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x13: FMUC_PutString(rgnInfo, 657, 26, 697, "8x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x14: FMUC_PutString(rgnInfo, 657, 26, 697, "16x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x15: FMUC_PutString(rgnInfo, 657, 26, 697, "32x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x16: FMUC_PutString(rgnInfo, 657, 26, 697, "64x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x21: FMUC_PutString(rgnInfo, 549, 26, 589, "2x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x22: FMUC_PutString(rgnInfo, 549, 26, 589, "4x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x23: FMUC_PutString(rgnInfo, 549, 26, 589, "8x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x24: FMUC_PutString(rgnInfo, 549, 26, 589, "16x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x25: FMUC_PutString(rgnInfo, 549, 26, 589, "32x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x26: FMUC_PutString(rgnInfo, 549, 26, 589, "64x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x31: FMUC_PutString(rgnInfo, 602, 26, 642, "1/2x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x32: FMUC_PutString(rgnInfo, 602, 26, 642, "1/4x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x33: FMUC_PutString(rgnInfo, 602, 26, 642, "1/8x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x11: FMUC_PutString(rgnInfo, 657, 26, 697, "2x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x12: FMUC_PutString(rgnInfo, 657, 26, 697, "4x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x13: FMUC_PutString(rgnInfo, 657, 26, 697, "8x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x14: FMUC_PutString(rgnInfo, 657, 26, 697, "16x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x15: FMUC_PutString(rgnInfo, 657, 26, 697, "32x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x16: FMUC_PutString(rgnInfo, 657, 26, 697, "64x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x21: FMUC_PutString(rgnInfo, 549, 26, 589, "2x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x22: FMUC_PutString(rgnInfo, 549, 26, 589, "4x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x23: FMUC_PutString(rgnInfo, 549, 26, 589, "8x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x24: FMUC_PutString(rgnInfo, 549, 26, 589, "16x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x25: FMUC_PutString(rgnInfo, 549, 26, 589, "32x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x26: FMUC_PutString(rgnInfo, 549, 26, 589, "64x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x31: FMUC_PutString(rgnInfo, 602, 26, 642, "1/2x",  COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x32: FMUC_PutString(rgnInfo, 602, 26, 642, "1/4x",  COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x33: FMUC_PutString(rgnInfo, 602, 26, 642, "1/8x",  COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
         case 0x34: FMUC_PutString(rgnInfo, 602, 26, 642, "1/16x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
       }
       LastTrickModeSwitch = TrickModeSwitch;
@@ -2546,12 +2554,6 @@ bool isPlaybackRunning(void)
   #endif
 
   TAP_Hdd_GetPlayInfo(&PlayInfo);
-#ifdef FULLDEBUG
-  if((int)PlayInfo.currentBlock < 0) {
-    TAP_PrintNet("!!First bit of currentBlock is 1!\n");
-    WriteLogMC(PROGRAM_NAME, "!!First bit of currentBlock is 1!");
-  }
-#endif
   if((int)PlayInfo.currentBlock < 0) PlayInfo.currentBlock = 0;
 
   #if STACKTRACE == TRUE
@@ -2597,20 +2599,28 @@ void ActionMenuDraw(void)
     CallTraceEnter("ActionMenuDraw");
   #endif
 
-  dword  C1, C2, C3, C4;
+  dword  C1, C2, C3, C4, DisplayColor;
   int    x, y, i;
+  char   TempStr[128];
+  char*  DisplayStr;
+  word   NrSelectedSegments = 0;
+
+  for(i = 0; i < NrSegmentMarker - 1; i++)
+  {
+    if(SegmentMarker[i].Selected) NrSelectedSegments++;
+  }
 
   if(!rgnActionMenu)
   {
-    rgnActionMenu = TAP_Osd_Create((720 - _ActionMenu11_Gd.width) >> 1, 70, _ActionMenu11_Gd.width, _ActionMenu11_Gd.height, 0, 0);
+    rgnActionMenu = TAP_Osd_Create((720 - _ActionMenu9_Gd.width) >> 1, 70, _ActionMenu9_Gd.width, _ActionMenu9_Gd.height, 0, 0);
     ActionMenuItem = 0;
   }
 
-  TAP_Osd_PutGd(rgnActionMenu, 0, 0, &_ActionMenu11_Gd, FALSE);
+  TAP_Osd_PutGd(rgnActionMenu, 0, 0, &_ActionMenu9_Gd, FALSE);
   TAP_Osd_PutGd(rgnActionMenu, 8, 4 + 28 * ActionMenuItem, &_ActionMenu_Bar_Gd, FALSE);
 
   x = 20;
-  y = MI_NrMenuItems * 30 - 18;
+  y = MI_NrMenuItems * 30 - 15;
   TAP_Osd_PutGd(rgnActionMenu, x, y, &_Button_Down_Gd, TRUE);
   x += (_Button_Down_Gd.width + 5);
 
@@ -2629,21 +2639,68 @@ void ActionMenuDraw(void)
 
   for(i = 0; i < MI_NrMenuItems; i++)
   {
+    DisplayStr = NULL;
+    DisplayColor = (ActionMenuItem == i ? C1 : C2);
     switch(i)
     {
-      case MI_SelectFunction:     FMUC_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_SelectFunction), (ActionMenuItem == MI_SelectFunction ? C1 : C2), COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT); break;
-      case MI_SaveSegment:        FMUC_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_SaveSegments), (ActionMenuItem == MI_SaveSegment ? C1 : C2), COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT); break;
-      case MI_DeleteSegment:      FMUC_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_DeleteSegments), (ActionMenuItem == MI_DeleteSegment ? C1 : C2), COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT); break;
-      case MI_SelectOddSegments:  FMUC_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_SelectOddSegments), (ActionMenuItem == MI_SelectOddSegments ? C1 : C2), COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT); break;
-      case MI_SelectEvenSegments: FMUC_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_SelectEvenSegments), (ActionMenuItem == MI_SelectEvenSegments ? C1 : C2), COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT); break;
-      case MI_SelectPadding:      FMUC_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_SelectPadding), (ActionMenuItem == MI_SelectPadding ? C1 : (NrSegmentMarker == 4 ? C2 : C4)), COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT); break;
-      case MI_DeleteFile:         FMUC_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_DeleteFile), (ActionMenuItem == MI_DeleteFile ? C1 : C3), COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT); break;
-      case MI_ImportBookmarks:    FMUC_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_ImportBM), (ActionMenuItem == MI_ImportBookmarks ? C1 : C2), COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT); break;
-      case MI_GotoNextBM:         FMUC_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_GotoNextBM), (ActionMenuItem == MI_GotoNextBM ? C1 : C2), COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT); break;
-      case MI_GotoPrevBM:         FMUC_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_GotoPrevBM), (ActionMenuItem == MI_GotoPrevBM ? C1 : C2), COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT); break;
-      case MI_ExitMC:             FMUC_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, LangGetString(LS_ExitMC), (ActionMenuItem == MI_ExitMC ? C1 : C2), COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT); break;
+      case MI_SelectFunction:     DisplayStr = LangGetString(LS_SelectFunction); break;
+      case MI_SaveSegment:
+      {
+        if (NrSelectedSegments == 0)
+        {
+          DisplayStr = LangGetString(LS_SaveCurSegment);
+          if (NrSegmentMarker <= 2) DisplayColor = C4;
+        }
+        else if (NrSelectedSegments == 1)
+          DisplayStr = LangGetString(LS_Save1Segment);
+        else
+        {
+          TAP_SPrint(TempStr, LangGetString(LS_SaveNrSegments), NrSelectedSegments);
+          DisplayStr = TempStr;
+        }
+        break;
+      }
+      case MI_DeleteSegment:
+      {
+        if (NrSelectedSegments == 0)
+        {
+          DisplayStr = LangGetString(LS_DeleteCurSegment);
+          if (NrSegmentMarker <= 2) DisplayColor = C4;
+        }
+        else if (NrSelectedSegments == 1)
+          DisplayStr = LangGetString(LS_Delete1Segment);
+        else
+        {
+          TAP_SPrint(TempStr, LangGetString(LS_DeleteNrSegments), NrSelectedSegments);
+          DisplayStr = TempStr;
+        }
+        break;
+      }
+      case MI_SelectOddSegments:
+      {
+        DisplayStr = (NrSegmentMarker == 4) ? LangGetString(LS_SelectPadding) : LangGetString(LS_SelectOddSegments);
+        if (NrSegmentMarker <= 2) DisplayColor = C4;
+        break;
+      }
+      case MI_SelectEvenSegments:
+      {
+        DisplayStr = (NrSegmentMarker == 4) ? LangGetString(LS_SelectMiddle) : LangGetString(LS_SelectEvenSegments);
+        if (NrSegmentMarker <= 2) DisplayColor = C4;
+        break;
+      }
+      case MI_UnselectAll:
+      {
+        DisplayStr = LangGetString(LS_UnselectAll);
+        if (NrSelectedSegments == 0) DisplayColor = C4;
+        break;
+      }
+      case MI_DeleteFile:         DisplayStr = LangGetString(LS_DeleteFile); DisplayColor = C3; break;
+      case MI_ImportBookmarks:    DisplayStr = LangGetString(LS_ImportBM); break;
+      case MI_ExitMC:             DisplayStr = LangGetString(LS_ExitMC); break;
       case MI_NrMenuItems:        break;
     }
+    if (DisplayStr && (i < MI_NrMenuItems))
+      FMUC_PutString(rgnActionMenu, 20, 4 + 28 * i, 300, DisplayStr, DisplayColor, COLOR_None, &Calibri_14_FontDataUC, TRUE, (i==0) ? ALIGN_CENTER : ALIGN_LEFT);
   }
 
   TAP_Osd_Sync();
@@ -2713,7 +2770,8 @@ void MovieCutterSaveSegments(void)
     CallTraceEnter("MovieCutterSaveSegments");
   #endif
 
-  MovieCutterProcess(TRUE, TRUE);
+  if (NrSegmentMarker > 2)
+    MovieCutterProcess(TRUE);
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
@@ -2726,7 +2784,8 @@ void MovieCutterDeleteSegments(void)
     CallTraceEnter("MovieCutterDeleteSegments");
   #endif
 
-  MovieCutterProcess(TRUE, FALSE);
+  if (NrSegmentMarker > 2)
+    MovieCutterProcess(FALSE);
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
@@ -2764,6 +2823,27 @@ void MovieCutterSelectEvenSegments(void)
 
   for(i = 0; i < NrSegmentMarker-1; i++)
     SegmentMarker[i].Selected = ((i & 1) == 1);
+
+  OSDSegmentListDrawList();
+  OSDInfoDrawProgressbar(TRUE);
+//  OSDRedrawEverything();
+//  MovieCutterProcess(TRUE, FALSE);
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+}
+
+void MovieCutterUnselectAll(void)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("MovieCutterUnselectAll");
+  #endif
+
+  word i;
+
+  for(i = 0; i < NrSegmentMarker-1; i++)
+    SegmentMarker[i].Selected = FALSE;
 
   OSDSegmentListDrawList();
   OSDInfoDrawProgressbar(TRUE);
@@ -2817,7 +2897,7 @@ void MovieCutterDeleteFile(void)
   #endif
 }
 
-void MovieCutterProcess(bool KeepSource, bool KeepCut)
+void MovieCutterProcess(bool KeepCut)
 {
   #if STACKTRACE == TRUE
     CallTraceEnter("MovieCutterProcess");
@@ -2881,7 +2961,7 @@ void MovieCutterProcess(bool KeepSource, bool KeepCut)
       CutStartPoint.Timems = SegmentMarker[WorkingSegment].Timems;
       BehindCutPoint.BlockNr = SegmentMarker[WorkingSegment + 1].Block;
       BehindCutPoint.Timems = SegmentMarker[WorkingSegment + 1].Timems;
-      ret = MovieCutter(PlaybackName, CutFileName, &CutStartPoint, &BehindCutPoint, KeepSource, KeepCut, HDVideo);
+      ret = MovieCutter(PlaybackName, CutFileName, &CutStartPoint, &BehindCutPoint, KeepCut, HDVideo);
 
       TAP_Hdd_PlayTs(PlaybackName);
       do

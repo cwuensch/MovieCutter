@@ -49,8 +49,8 @@ void SecToTimeString(dword Time, char *const TimeString)  // needs max. 4 + 1 + 
   dword                 Hour, Min, Sec;
 
   Hour = (int)(Time / 3600);
-  Min = (int)(Time / 60) % 60;
-  Sec = Time % 60;
+  Min  = (int)(Time / 60) % 60;
+  Sec  = Time % 60;
   if (Hour >= 10000) Hour = 9999;
   TAP_SPrint(TimeString, "%u:%2.2u:%2.2u", Hour, Min, Sec);
 }
@@ -59,24 +59,28 @@ void MSecToTimeString(dword Timems, char *const TimeString)  // needs max. 4 + 1
   dword                 Hour, Min, Sec, Millisec;
 
   Hour = (int)(Timems / 3600000);
-  Min = (int)(Timems / 60000) % 60;
-  Sec = (int)(Timems / 1000) % 60;
+  Min  = (int)(Timems / 60000) % 60;
+  Sec  = (int)(Timems / 1000) % 60;
   Millisec = Timems % 1000;
   TAP_SPrint(TimeString, "%u:%2.2u:%2.2u.%03u", Hour, Min, Sec, Millisec);
 }
-void Print64BitLong(ulong64 Number, char *const OutString)  // needs max. 16 + 2 + 1 = 19 chars
+void Print64BitLong(long64 Number, char *const OutString)  // needs max. 2 + 2*9 + 1 = 19 chars
 {
-  unsigned long LowPart, HighPart;
-  HighPart = (Number >> 32);
-  LowPart = (Number & 0xffffffff);
+  unsigned long LowPart, MidPart, HighPart;
+  if (Number < 0) Number = -1 * Number;
+  HighPart = (Number / 1000000000) / 1000000000;
+  MidPart  = (Number / 1000000000) % 1000000000;
+  LowPart  =  Number % 1000000000;
   if (HighPart != 0)
-    TAP_SPrint(OutString, "0x%X%X", HighPart, LowPart);
+    TAP_SPrint(OutString, "%u%09u%09u", HighPart, MidPart, LowPart);
+  else if (MidPart != 0)
+    TAP_SPrint(OutString, "%u%09u", MidPart, LowPart);
   else
-    TAP_SPrint(OutString, "0x%X", LowPart);
+    TAP_SPrint(OutString, "%u", LowPart);
 }
 
 
-bool MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepSource, bool KeepCut, bool isHD)
+bool MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepCut, bool isHD)
 {
   char                  CurrentDir[512];
   char                  FileName[MAX_FILE_NAME_SIZE + 1];
@@ -113,7 +117,7 @@ bool MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPo
   TAP_SPrint(LogString, "Dir           = '%s'", CurrentDir);
   WriteLogMC("MovieCutterLib", LogString);
 
-  TAP_SPrint(LogString, "CutStartBlock = %12u,  BehindCutBlock = %12u, KeepSource = %s, KeepCut = %s", CutStartPoint->BlockNr, BehindCutPoint->BlockNr, KeepSource ? "yes" : "no", KeepCut ? "yes" : "no");
+  TAP_SPrint(LogString, "CutStartBlock = %12u,  BehindCutBlock = %12u, KeepCut = %s", CutStartPoint->BlockNr, BehindCutPoint->BlockNr, KeepCut ? "yes" : "no");
   WriteLogMC("MovieCutterLib", LogString);
 
   CutStartPos = CutStartPoint->BlockNr * BLOCKSIZE;
@@ -251,7 +255,7 @@ bool MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPo
     TAP_SPrint(FileName, "%s.nav", CutFileName);
     HDD_SetFileDateTime(CurrentDir, FileName, RecDate);
   }
-  if(!KeepSource) HDD_Delete(SourceFileName);
+//  if(!KeepSource) HDD_Delete(SourceFileName);
   if(!KeepCut) HDD_Delete(CutFileName);
 
   WriteLogMC("MovieCutterLib", "MovieCutter() finished.");
