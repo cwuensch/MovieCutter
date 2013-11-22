@@ -5,6 +5,7 @@
 #define VERSION               "V2.0alp"
 #define TAPID                 0x8E0A4247
 #define AUTHOR                "FireBird / Christian Wünsch"
+#define AUTHOR_UTF8           "FireBird / Christian WÃ¼nsch"
 #define DESCRIPTION           "MovieCutter"
 
 #define NRSEGMENTMARKER       14            // max. number of file markers +1 (marker for the end of file)

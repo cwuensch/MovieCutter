@@ -313,9 +313,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 //          TAP_Hdd_ChangeDir(&PlaybackDirectory[strlen(TAPFSROOT)]);
           HDD_ChangeDir(&PlaybackDirectory[strlen(TAPFSROOT)]);
 
-          WriteLogMC(PROGRAM_NAME, "========================================");
+          WriteLogMC(PROGRAM_NAME, "========================================\n");
           TAP_SPrint(LogString, "Attaching to %s%s", PlaybackDirectory, PlaybackName);
           WriteLogMC(PROGRAM_NAME, LogString);
+          WriteLogMC("MovieCutterLib", "----------------------------------------");
 
           // Detect size of rec file
 //          RecFileSize = HDD_GetFileSize(PlaybackName);
@@ -789,7 +790,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
     case ST_Exit:             //Preparing to terminate the TAP
     {
-      CutFileSave();
+      if (strlen(PlaybackName) > 0)
+        CutFileSave();
       Cleanup(TRUE);
       LangUnloadStrings();
       FMUC_FreeFontFile(&Calibri_10_FontDataUC);
@@ -1594,7 +1596,7 @@ bool CutFileLoad(void)
   if (SegmentMarker[NrSegmentMarker - 1].Block != PlayInfo.totalBlock) {
 #ifdef FULLDEBUG
   TAP_PrintNet("CutFileLoad: Letzter Segment-Marker %u ist ungleich TotalBlock %u!\n", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
-  TAP_SPrint(LogString, "CutFileLoad: Letzter Segment-Marker %u ist ungleich TotalBlock %u!\n", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
+  TAP_SPrint(LogString, "CutFileLoad: Letzter Segment-Marker %u ist ungleich TotalBlock %u!", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
   WriteLogMC(PROGRAM_NAME, LogString);
 #endif
     SegmentMarker[NrSegmentMarker - 1].Block = PlayInfo.totalBlock;
@@ -1669,10 +1671,12 @@ void CutFileSave(void)
   Name[strlen(Name) - 4] = '\0';
   strcat(Name, ".cut");
 
-char CurDir[512];
-HDD_TAP_GetCurrentDir(CurDir);
-TAP_SPrint(LogString, "CutFileSave()! CurrentDir: %s, PlaybackName: %s, CutFileName: %s", CurDir, PlaybackName, Name);
-WriteLogMC(PROGRAM_NAME, LogString);
+#ifdef FULLDEBUG
+  char CurDir[512];
+  HDD_TAP_GetCurrentDir(CurDir);
+  TAP_SPrint(LogString, "CutFileSave()! CurrentDir: %s, PlaybackName: %s, CutFileName: %s", CurDir, PlaybackName, Name);
+  WriteLogMC(PROGRAM_NAME, LogString);
+#endif
 
   Version = CUTFILEVERSION;
   TAP_Hdd_Delete(Name);
@@ -2620,7 +2624,7 @@ void ActionMenuDraw(void)
   TAP_Osd_PutGd(rgnActionMenu, 8, 4 + 28 * ActionMenuItem, &_ActionMenu_Bar_Gd, FALSE);
 
   x = 20;
-  y = MI_NrMenuItems * 30 - 15;
+  y = MI_NrMenuItems * 30 - 12;
   TAP_Osd_PutGd(rgnActionMenu, x, y, &_Button_Down_Gd, TRUE);
   x += (_Button_Down_Gd.width + 5);
 
@@ -3007,7 +3011,7 @@ void MovieCutterProcess(bool KeepCut)
         {
 #ifdef FULLDEBUG
   TAP_PrintNet("MovieCutterProcess: Letzter Segment-Marker %u ist ungleich TotalBlock %u!\n", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
-  TAP_SPrint(LogString, "MovieCutterProcess: Letzter Segment-Marker %u ist ungleich TotalBlock %u!\n", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
+  TAP_SPrint(LogString, "MovieCutterProcess: Letzter Segment-Marker %u ist ungleich TotalBlock %u!", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
   WriteLogMC(PROGRAM_NAME, LogString);
 #endif
           SegmentMarker[j].Block = PlayInfo.totalBlock;
