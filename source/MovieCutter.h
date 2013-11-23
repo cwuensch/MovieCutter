@@ -49,7 +49,6 @@ void  LoadINI(void);
 void  MoveBookmark(dword Block);
 void  MoveSegmentMarker(void);
 void  MovieCutterDeleteFile(void);
-void  MovieCutterSelectPadding(void);
 void  MovieCutterDeleteSegments(void);
 void  MovieCutterSelectOddSegments(void);
 void  MovieCutterSelectEvenSegments(void);

@@ -410,7 +410,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             PatchOldNavFile(PlaybackName, HDVideo);
 
 //            OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_WrongNavLength));
-            OSDMenuMessageBoxInitialize(PROGRAM_NAME, ".nav file not matching duration of recording. Tried to fix this. Please restart playback!");
+            OSDMenuMessageBoxInitialize(PROGRAM_NAME, ".nav duration mismatch. Patched! Try again please.");
             OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
             OSDMenuMessageBoxShow();
             State = ST_IdleUnacceptedFile;
@@ -1614,7 +1614,7 @@ bool CutFileLoad(void)
     dword oldTime, newTime;
     char oldTimeStr[12], newTimeStr[16];
 
-    WriteLogMC(PROGRAM_NAME, "Import of old cut file version (compare old and new TimeStamps!)\n");
+    WriteLogMC(PROGRAM_NAME, "Import of old cut file version (compare old and new TimeStamps!)");
     for (i = 0; i < NrSegmentMarker; i++) {
       oldTime = SegmentMarker[i].Timems;
       newTime = NavGetBlockTimeStamp(SegmentMarker[i].Block);
@@ -1622,7 +1622,7 @@ bool CutFileLoad(void)
 
       SecToTimeString(oldTime, oldTimeStr);
       MSecToTimeString(newTime, newTimeStr);
-      TAP_SPrint(LogString, " %s%2u.)  BlockNr=%8u   oldTimeStamp=%s   newTimeStamp=%s\n", (labs(oldTime*1000-newTime) > 1000) ? "!!" : "  ", i, SegmentMarker[i].Block, oldTimeStr, newTimeStr);
+      TAP_SPrint(LogString, " %s%2u.)  BlockNr=%8u   oldTimeStamp=%s   newTimeStamp=%s", (labs(oldTime*1000-newTime) > 1000) ? "!!" : "  ", i, SegmentMarker[i].Block, oldTimeStr, newTimeStr);
       WriteLogMC(PROGRAM_NAME, LogString);
     }
   }
@@ -2859,31 +2859,6 @@ void MovieCutterUnselectAll(void)
   #endif
 }
 
-void MovieCutterSelectPadding(void)
-{
-  #if STACKTRACE == TRUE
-    CallTraceEnter("MovieCutterSelectPadding");
-  #endif
-
-  if(NrSegmentMarker == 4)
-  {
-    SegmentMarker[0].Selected = TRUE;
-    SegmentMarker[1].Selected = FALSE;
-    SegmentMarker[2].Selected = TRUE;
-    SegmentMarker[3].Selected = FALSE;
-
-    OSDSegmentListDrawList();
-    OSDInfoDrawProgressbar(TRUE);
-//    OSDRedrawEverything();
-//    TAP_Osd_Sync();
-//    MovieCutterProcess(TRUE, FALSE);
-  }
-
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
-}
-
 void MovieCutterDeleteFile(void)
 {
   #if STACKTRACE == TRUE
@@ -3136,8 +3111,7 @@ bool PatchOldNavFileSD(char *SourceFileName)
 
   //Loop through the nav
   dword Difference = 0;
-  dword LastDiff = 0;
-  dword lastTime = 0;
+  dword LastTime = 0;
 
   navRecs = (tnavSD*) TAP_MemAlloc(NAVRECS_SD * sizeof(tnavSD));
   while(TRUE)
@@ -3147,21 +3121,19 @@ bool PatchOldNavFileSD(char *SourceFileName)
 
     for(i = 0; i < navsRead; i++)
     {
-      if (navRecs[i].Timems - lastTime > 1000) {        
-        char Time1[16], Time2[16], Time3[16];
-        MSecToTimeString((navRecs[i].Timems - lastTime) - LastDiff, Time3);
-        Difference += (navRecs[i].Timems - lastTime) - LastDiff;
-        lastTime = navRecs[i].Timems;
-        navRecs[i].Timems -= Difference;
+      if (navRecs[i].Timems - LastTime > 1000) {        
+        char Time1[16], Time2[16], Time3[16], PosString[20];
+        MSecToTimeString((navRecs[i].Timems - LastTime), Time3);
+        Difference += (navRecs[i].Timems - LastTime) - 1000;
 
-        MSecToTimeString(lastTime, Time1);
-        MSecToTimeString(navRecs[i].Timems, Time2);
-        TAP_SPrint(LogString, "  - Gap found at nav record nr. %u:  Offset=%u, TimeStamp(before)=%s, TimeStamp(after)=%s, GapSize=%s\n", ftell(fSourceNav)-NAVRECS_SD+i, (dword)((((off_t)(navRecs[i].PHOffsetHigh) << 32) | navRecs[i].PHOffset)/BLOCKSIZE), Time1, Time2, Time3);
+        MSecToTimeString(navRecs[i].Timems, Time1);
+        MSecToTimeString(navRecs[i].Timems - Difference, Time2);
+        Print64BitLong(((off_t)(navRecs[i].PHOffsetHigh) << 32) | navRecs[i].PHOffset, PosString);
+        TAP_SPrint(LogString, "  - Gap found at nav record nr. %u:  Offset=%s, TimeStamp(before)=%s, TimeStamp(after)=%s, GapSize=%s\n", ftell(fSourceNav)/sizeof(tnavSD) - navsRead + i, PosString, Time1, Time2, Time3);
         WriteLogMC(PROGRAM_NAME, LogString);
-      } else {
-        if (navRecs[i].Timems > lastTime)
-          LastDiff = navRecs[i].Timems - lastTime;
       }
+      LastTime = navRecs[i].Timems;
+      navRecs[i].Timems -= Difference;
     }
     TAP_Hdd_Fwrite(navRecs, sizeof(tnavSD), navsRead, fNewNav);
   }
@@ -3189,6 +3161,7 @@ bool PatchOldNavFileHD(char *SourceFileName)
   //Rename the original nav file to bak
   TAP_SPrint(FileName, "%s.nav", SourceFileName);
   TAP_SPrint(FileName2, "%s.nav.bak", SourceFileName);
+  TAP_Hdd_Delete(FileName2);
   TAP_Hdd_Rename(FileName, FileName2);
 
   //Open the original nav
@@ -3215,8 +3188,7 @@ bool PatchOldNavFileHD(char *SourceFileName)
 
   //Loop through the nav
   dword Difference = 0;
-  dword LastDiff = 0;
-  dword lastTime = 0;
+  dword LastTime = 0;
 
   navRecs = (tnavHD*) TAP_MemAlloc(NAVRECS_HD * sizeof(tnavHD));
   while(TRUE)
@@ -3226,21 +3198,19 @@ bool PatchOldNavFileHD(char *SourceFileName)
 
     for(i = 0; i < navsRead; i++)
     {
-      if (navRecs[i].Timems - lastTime > 1000) {        
-        char Time1[16], Time2[16], Time3[16];
-        MSecToTimeString((navRecs[i].Timems - lastTime) - LastDiff, Time3);
-        Difference += (navRecs[i].Timems - lastTime) - LastDiff;
-        lastTime = navRecs[i].Timems;
-        navRecs[i].Timems -= Difference;
+      if (navRecs[i].Timems - LastTime > 1000) {        
+        char Time1[16], Time2[16], Time3[16], PosString[20];
+        MSecToTimeString((navRecs[i].Timems - LastTime), Time3);
+        Difference += (navRecs[i].Timems - LastTime) - 1000;
 
-        MSecToTimeString(lastTime, Time1);
-        MSecToTimeString(navRecs[i].Timems, Time2);
-        TAP_SPrint(LogString, "  - Gap found at nav record nr. %u:  Offset=%u, TimeStamp(before)=%s, TimeStamp(after)=%s, GapSize=%s\n", ftell(fSourceNav)-NAVRECS_HD+i, (dword)((((off_t)(navRecs[i].SEIOffsetHigh) << 32) | navRecs[i].SEIOffsetLow)/BLOCKSIZE), Time1, Time2, Time3);
+        MSecToTimeString(navRecs[i].Timems, Time1);
+        MSecToTimeString(navRecs[i].Timems - Difference, Time2);
+        Print64BitLong(((off_t)(navRecs[i].SEIOffsetHigh) << 32) | navRecs[i].SEIOffsetLow, PosString);
+        TAP_SPrint(LogString, "  - Gap found at nav record nr. %u:  Offset=%s, TimeStamp(before)=%s, TimeStamp(after)=%s, GapSize=%s", ftell(fSourceNav)/sizeof(tnavHD) - navsRead + i, PosString, Time1, Time2, Time3);
         WriteLogMC(PROGRAM_NAME, LogString);
-      } else {
-        if (navRecs[i].Timems > lastTime)
-          LastDiff = navRecs[i].Timems - lastTime;
       }
+      LastTime = navRecs[i].Timems;
+      navRecs[i].Timems -= Difference;
     }
     TAP_Hdd_Fwrite(navRecs, sizeof(tnavHD), navsRead, fNewNav);
   }

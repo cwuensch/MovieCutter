@@ -12,7 +12,7 @@
 
 bool        FileCut(char *SourceFileName, char *CutFileName, dword StartBlock, dword NrBlocks);
 bool        PatchRecFile(char const *SourceFileName, off_t RequestedCutPosition, byte const CutPointArray[], off_t OutPatchedBytes[]);
-bool        UnpatchRecFiles(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, off_t const PatchedBytes[]);
+bool        UnpatchRecFiles(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, off_t const PatchedBytes[], dword NrPatchedBytes);
 bool        ReadCutPointArea(char const *SourceFileName, off_t CutPosition, byte CutPointArray[]);
 bool        ReadFirstAndLastCutPacket(char const *FileName, byte FirstCutPacket[], byte LastCutPacket[]);
 bool        FindCutPointOffset(const byte CutPacket[], const byte CutPointArray[], long *const Offset);
@@ -89,7 +89,7 @@ bool MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPo
   __off64_t             SourceFileSize, CutFileSize;
   byte                  CutPointArea1[CUTPOINTSEARCHRADIUS * 2], CutPointArea2[CUTPOINTSEARCHRADIUS * 2];
   byte                  FirstCutPacket[PACKETSIZE], LastCutPacket[PACKETSIZE];
-  off_t                 PatchedBytes[16];
+  off_t                 PatchedBytes[8];
   off_t                 CutStartPos, BehindCutPos;
   long                  CutStartPosOffset, BehindCutPosOffset;
   bool                  SuppressNavGeneration;
@@ -148,7 +148,7 @@ bool MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPo
   if (!SuppressNavGeneration)
   {
     PatchRecFile(SourceFileName, CutStartPos, CutPointArea1, PatchedBytes);
-    PatchRecFile(SourceFileName, BehindCutPos, CutPointArea2, &PatchedBytes[8]);
+    PatchRecFile(SourceFileName, BehindCutPos, CutPointArea2, &PatchedBytes[4]);
   }
 
   // DO THE CUTTING
@@ -259,7 +259,7 @@ bool MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPo
 
   // Patch the rec-File to prevent the firmware from cutting in the middle of a packet
   if (!SuppressNavGeneration)
-    UnpatchRecFiles(SourceFileName, CutFileName, CutStartPos, BehindCutPos, PatchedBytes);
+    UnpatchRecFiles(SourceFileName, CutFileName, CutStartPos, BehindCutPos, PatchedBytes, 8);
 
   // Rename old nav file to bak
   char BakFileName[MAX_FILE_NAME_SIZE + 1];
@@ -454,8 +454,7 @@ bool PatchRecFile(char const *SourceFileName, off_t RequestedCutPosition, byte c
   // For each of the 4 possible cut positions
   for (i = -1; i <= 2; i++)
   {
-    OutPatchedBytes[(i+1)*2] = 0;
-    OutPatchedBytes[(i+1)*2 + 1] = 0;
+    OutPatchedBytes[i+1] = 0;
     pos = ((RequestedCutPosition / 4096) * 4096) + (i * 4096);
     ArrayPos = (int)(pos-RequestedCutPosition);
 
@@ -479,33 +478,7 @@ bool PatchRecFile(char const *SourceFileName, off_t RequestedCutPosition, byte c
       if (!isPacketStart)
       {
         if (WriteByteToFile(SourceFileName, pos+4, 'G', 'F'))
-          OutPatchedBytes[(i+1)*2] = pos+4;
-        else
-          ret = FALSE;
-      }
-    }
-
-    // Check, if the current position is a sync-byte
-    if ((MidArray[ArrayPos] == 'G'))
-    {
-      // Check, if the current position is a packet start (192 bytes per packet)
-      isPacketStart = TRUE;
-      for (j = 0; j < 10; j++)
-      {
-        if (ArrayPos + (j * 188) >= CUTPOINTSEARCHRADIUS)
-          break;
-        if (MidArray[ArrayPos + (j * 188)] != 'G')
-        {
-          isPacketStart = FALSE;
-          break;
-        }
-      }
-
-      // If there IS a sync-Byte, but NOT a packet start, then patch this byte
-      if (!isPacketStart)
-      {
-        if (WriteByteToFile(SourceFileName, pos, 'G', 'F'))
-          OutPatchedBytes[(i+1)*2 + 1] = pos;
+          OutPatchedBytes[i+1] = pos+4;
         else
           ret = FALSE;
       }
@@ -516,7 +489,7 @@ bool PatchRecFile(char const *SourceFileName, off_t RequestedCutPosition, byte c
 }
 
 // Restores the patched Sync-Bytes in the rec-File
-bool UnpatchRecFiles(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, off_t const PatchedBytes[])
+bool UnpatchRecFiles(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, off_t const PatchedBytes[], dword NrPatchedBytes)
 {
   word                  i;
   int                   ret = 0;
@@ -526,15 +499,15 @@ bool UnpatchRecFiles(char const *SourceFileName, char const *CutFileName, off_t 
 
     char PosString[20];
     TAP_SPrint(LogString, "Patched Bytes: ");
-    for (i = 0; i < 16; i++)
+    for (i = 0; i < NrPatchedBytes; i++)
     {
       Print64BitLong(PatchedBytes[i], PosString);
-      TAP_SPrint(&LogString[strlen(LogString)], "%s%s", PosString, (i<15) ? ", " : "");
+      TAP_SPrint(&LogString[strlen(LogString)], "%s%s", PosString, (i < NrPatchedBytes-1) ? ", " : "");
     }
     WriteLogMC("MovieCutterLib", LogString);
   #endif
     
-  for (i = 0; i < 16; i++)
+  for (i = 0; i < NrPatchedBytes; i++)
   {
     if (PatchedBytes[i] > 0)
     {
@@ -1149,6 +1122,7 @@ bool PatchNavFilesSD(char const *SourceFileName, char const *CutFileName, off_t 
   //Delete the orig source nav and make the new source nav the active one
 //  TAP_SPrint(FileName, "%s.nav.bak", SourceFileName);
 //  TAP_Hdd_Delete(FileName);
+
   return TRUE;
 }
 
