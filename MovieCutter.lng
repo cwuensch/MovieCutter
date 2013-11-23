@@ -61,9 +61,10 @@ de_034=Alle abwählen
 de_035=S.
 de_036=Liste der Segment-Marker ist voll.
 de_037=Dateigröße der Aufnahme ist inkorrekt.
-de_038=Die .nav-Datei konnte nicht geladen werden.
-de_039=Länge der .nav-Datei ist inkorrekt.
-
+de_038=HD-Video Erkennung fehlgeschlagen.
+de_039=Die .nav-Datei konnte nicht geladen werden.
+de_040=Länge der .nav-Datei ist inkorrekt.
+       
 #English
 en_000= Add
 en_001= Delete
@@ -103,8 +104,9 @@ en_034=Unselect all
 en_035=p.
 en_036=SegmentMarker list is full.
 en_037=Rec file size is incorrect.
-en_038=Error loading the .nav file.
-en_039=.nav file length not matching duration.
+en_038=HD-video detection failed.
+en_039=Error loading the .nav file.
+en_040=.nav file length not matching duration.
 
 
 #French
@@ -146,5 +148,6 @@ fr_034=Unselect all
 fr_035=p.
 fr_036=SegmentMarker list is full.
 fr_037=Rec file size is incorrect.
-fr_038=Error loading the .nav file.
-fr_039=.nav file length not matching duration.
+fr_038=HD-video detection failed.
+fr_039=Error loading the .nav file.
+fr_040=.nav file length not matching duration.

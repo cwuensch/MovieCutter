@@ -139,6 +139,7 @@ typedef enum
   LS_PageStr,
   LS_ListIsFull,
   LS_NoRecSize,
+  LS_HDDetectionFailed,
   LS_NavLoadFailed,
   LS_WrongNavLength,
   LS_NrStrings
@@ -352,7 +353,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           if (!isHDVideo(PlaybackName, &HDVideo))
           {
             WriteLogMC(PROGRAM_NAME, "could not detect type of video stream.");
-            OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_NavLoadFailed));
+            OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_HDDetectionFailed));
             OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
             OSDMenuMessageBoxShow();
             State = ST_IdleUnacceptedFile;
@@ -410,7 +411,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             PatchOldNavFile(PlaybackName, HDVideo);
 
 //            OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_WrongNavLength));
-            OSDMenuMessageBoxInitialize(PROGRAM_NAME, ".nav duration mismatch. Patched! Try again please.");
+            OSDMenuMessageBoxInitialize(PROGRAM_NAME, ".nav duration mismatch. Patched! Try again.");
             OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
             OSDMenuMessageBoxShow();
             State = ST_IdleUnacceptedFile;
