@@ -1335,9 +1335,8 @@ void ReadBookmarks(void)
   }
   else
   {
-    //TODO: Fehlermeldung, falls der Pointer zum inf-Cache nicht gefunden wurde
     NrBookmarks = 0;
-    TAP_PrintNet("inf cache entry point not found\n");
+    WriteLogMC(PROGRAM_NAME, "ReadBookmarks: Fatal error - inf cache entry point not found!");
   }
 
   #if STACKTRACE == TRUE
@@ -1367,9 +1366,8 @@ void SaveBookmarks(void)
   }
   else
   {
-    //TODO: Fehlermeldung, falls der Pointer zum inf-Cache nicht gefunden wurde
     NrBookmarks = 0;
-    TAP_PrintNet("inf cache entry point not found\n");
+    WriteLogMC(PROGRAM_NAME, "SaveBookmarks: Fatal error - inf cache entry point not found!");
   }
 
   #if STACKTRACE == TRUE
@@ -1387,7 +1385,7 @@ void SaveBookmarksToInf(void)
   word                  i;
 
 #ifdef FULLDEBUG
-  TAP_PrintNet("SaveBookmarks()\n");
+  TAP_PrintNet("SaveBookmarksToInf()\n");
   for (i = 0; i < NrBookmarks; i++) {
     TAP_PrintNet("%u\n", Bookmarks[i]);
   }
@@ -1398,7 +1396,7 @@ void SaveBookmarksToInf(void)
   fInf = TAP_Hdd_Fopen(InfFileName);
   if(!fInf)
   {
-    WriteLogMC(PROGRAM_NAME, "SaveBookmarks: failed to open the inf file");
+    WriteLogMC(PROGRAM_NAME, "SaveBookmarksToInf: failed to open the inf file");
     return;
   }
 
@@ -1596,7 +1594,6 @@ bool CutFileLoad(void)
 
   if (SegmentMarker[NrSegmentMarker - 1].Block != PlayInfo.totalBlock) {
 #ifdef FULLDEBUG
-  TAP_PrintNet("CutFileLoad: Letzter Segment-Marker %u ist ungleich TotalBlock %u!\n", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
   TAP_SPrint(LogString, "CutFileLoad: Letzter Segment-Marker %u ist ungleich TotalBlock %u!", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
   WriteLogMC(PROGRAM_NAME, LogString);
 #endif
@@ -2986,7 +2983,6 @@ void MovieCutterProcess(bool KeepCut)
         if((j == NrSegmentMarker - 1) && (SegmentMarker[j].Block != PlayInfo.totalBlock))
         {
 #ifdef FULLDEBUG
-  TAP_PrintNet("MovieCutterProcess: Letzter Segment-Marker %u ist ungleich TotalBlock %u!\n", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
   TAP_SPrint(LogString, "MovieCutterProcess: Letzter Segment-Marker %u ist ungleich TotalBlock %u!", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
   WriteLogMC(PROGRAM_NAME, LogString);
 #endif
@@ -3123,14 +3119,11 @@ bool PatchOldNavFileSD(char *SourceFileName)
     for(i = 0; i < navsRead; i++)
     {
       if (navRecs[i].Timems - LastTime > 1000) {        
-        char Time1[16], Time2[16], Time3[16], PosString[20];
-        MSecToTimeString((navRecs[i].Timems - LastTime), Time3);
+        char PosString[20];
         Difference += (navRecs[i].Timems - LastTime) - 1000;
 
-        MSecToTimeString(navRecs[i].Timems, Time1);
-        MSecToTimeString(navRecs[i].Timems - Difference, Time2);
         Print64BitLong(((off_t)(navRecs[i].PHOffsetHigh) << 32) | navRecs[i].PHOffset, PosString);
-        TAP_SPrint(LogString, "  - Gap found at nav record nr. %u:  Offset=%s, TimeStamp(before)=%s, TimeStamp(after)=%s, GapSize=%s\n", ftell(fSourceNav)/sizeof(tnavSD) - navsRead + i, PosString, Time1, Time2, Time3);
+        TAP_SPrint(LogString, "  - Gap found at nav record nr. %u:  Offset=%s, TimeStamp(before)=%u, TimeStamp(after)=%u, GapSize=%u", ftell(fSourceNav)/sizeof(tnavSD) - navsRead + i, PosString, navRecs[i].Timems, navRecs[i].Timems-Difference, navRecs[i].Timems-LastTime);
         WriteLogMC(PROGRAM_NAME, LogString);
       }
       LastTime = navRecs[i].Timems;
@@ -3200,14 +3193,11 @@ bool PatchOldNavFileHD(char *SourceFileName)
     for(i = 0; i < navsRead; i++)
     {
       if (navRecs[i].Timems - LastTime > 1000) {        
-        char Time1[16], Time2[16], Time3[16], PosString[20];
-        MSecToTimeString((navRecs[i].Timems - LastTime), Time3);
+        char PosString[20];
         Difference += (navRecs[i].Timems - LastTime) - 1000;
 
-        MSecToTimeString(navRecs[i].Timems, Time1);
-        MSecToTimeString(navRecs[i].Timems - Difference, Time2);
         Print64BitLong(((off_t)(navRecs[i].SEIOffsetHigh) << 32) | navRecs[i].SEIOffsetLow, PosString);
-        TAP_SPrint(LogString, "  - Gap found at nav record nr. %u:  Offset=%s, TimeStamp(before)=%s, TimeStamp(after)=%s, GapSize=%s", ftell(fSourceNav)/sizeof(tnavHD) - navsRead + i, PosString, Time1, Time2, Time3);
+        TAP_SPrint(LogString, "  - Gap found at nav record nr. %u:  Offset=%s, TimeStamp(before)=%u, TimeStamp(after)=%u, GapSize=%u", ftell(fSourceNav)/sizeof(tnavHD) - navsRead + i, PosString, navRecs[i].Timems, navRecs[i].Timems-Difference, navRecs[i].Timems-LastTime);
         WriteLogMC(PROGRAM_NAME, LogString);
       }
       LastTime = navRecs[i].Timems;

@@ -289,18 +289,18 @@ bool MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPo
 
   // Fix the date info of all involved files
   if (GetRecDateFromInf(SourceFileName, &RecDate)) {
-    //Source
-    HDD_SetFileDateTime(CurrentDir, SourceFileName, RecDate);
-    TAP_SPrint(FileName, "%s.inf", SourceFileName);
-    HDD_SetFileDateTime(CurrentDir, FileName, RecDate);
-    TAP_SPrint(FileName, "%s.nav", SourceFileName);
-    HDD_SetFileDateTime(CurrentDir, FileName, RecDate);
-
     //Cut
     HDD_SetFileDateTime(CurrentDir, CutFileName, RecDate);
     TAP_SPrint(FileName, "%s.inf", CutFileName);
     HDD_SetFileDateTime(CurrentDir, FileName, RecDate);
     TAP_SPrint(FileName, "%s.nav", CutFileName);
+    HDD_SetFileDateTime(CurrentDir, FileName, RecDate);
+
+    //Source
+    HDD_SetFileDateTime(CurrentDir, SourceFileName, RecDate);
+    TAP_SPrint(FileName, "%s.inf", SourceFileName);
+    HDD_SetFileDateTime(CurrentDir, FileName, RecDate);
+    TAP_SPrint(FileName, "%s.nav", SourceFileName);
     HDD_SetFileDateTime(CurrentDir, FileName, RecDate);
   }
 //  if(!KeepSource) HDD_Delete(SourceFileName);
