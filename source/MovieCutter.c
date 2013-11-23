@@ -408,10 +408,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             WriteLogMC(PROGRAM_NAME, ".nav file length not matching duration");
 
             // [COMPATIBILITY LAYER - fill holes in old nav file]
-            PatchOldNavFile(PlaybackName, HDVideo);
-
-//            OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_WrongNavLength));
-            OSDMenuMessageBoxInitialize(PROGRAM_NAME, ".nav duration mismatch. Patched! Try again.");
+            if (PatchOldNavFile(PlaybackName, HDVideo))
+              OSDMenuMessageBoxInitialize(PROGRAM_NAME, ".nav duration mismatch. Patched!\nPlease try again.");
+            else
+              OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_WrongNavLength));
             OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
             OSDMenuMessageBoxShow();
             State = ST_IdleUnacceptedFile;
@@ -3143,7 +3143,7 @@ bool PatchOldNavFileSD(char *SourceFileName)
   TAP_Hdd_Fclose(fNewNav);
   TAP_MemFree(navRecs);
 
-  return TRUE;
+  return (Difference > 0);
 }
 
 bool PatchOldNavFileHD(char *SourceFileName)
@@ -3220,7 +3220,7 @@ bool PatchOldNavFileHD(char *SourceFileName)
   TAP_Hdd_Fclose(fNewNav);
   TAP_MemFree(navRecs);
 
-  return TRUE;
+  return (Difference > 0);
 }
 
 bool PatchOldNavFile(char *SourceFileName, bool isHD)
