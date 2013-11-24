@@ -221,6 +221,9 @@ int TAP_Main(void)
     return 0;
   }
 
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
   return 1;
 }
 
@@ -295,7 +298,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     {
       if(isPlaybackRunning())
       {
-        char SizeStr[20];
         char *p;
 
         if((int)PlayInfo.totalBlock > 0)
@@ -332,8 +334,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             break;
           }
 
-          Print64BitLong(RecFileSize, SizeStr);
-          TAP_SPrint(LogString, "File size = %s Bytes (%u blocks)", SizeStr, (dword)(RecFileSize / BLOCKSIZE));
+          TAP_SPrint(LogString, "File size = %llu Bytes (%u blocks)", RecFileSize, (dword)(RecFileSize / BLOCKSIZE));
           WriteLogMC(PROGRAM_NAME, LogString);
           TAP_SPrint(LogString, "Reported total blocks: %u", PlayInfo.totalBlock);
           WriteLogMC(PROGRAM_NAME, LogString);
@@ -1377,6 +1378,10 @@ void SaveBookmarks(void)
 
 void SaveBookmarksToInf(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("SaveBookmarksToInf");
+  #endif
+
   char                  InfFileName[MAX_FILE_NAME_SIZE + 1];
   tRECHeaderInfo        RECHeaderInfo;
   byte                 *Buffer;
@@ -1397,6 +1402,10 @@ void SaveBookmarksToInf(void)
   if(!fInf)
   {
     WriteLogMC(PROGRAM_NAME, "SaveBookmarksToInf: failed to open the inf file");
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
     return;
   }
 
@@ -1426,15 +1435,27 @@ void SaveBookmarksToInf(void)
   TAP_Hdd_Fwrite(Buffer, FileSize, 1, fInf);
   TAP_Hdd_Fclose(fInf);
   TAP_MemFree(Buffer);
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 bool AddBookmark(dword Block)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("AddBookmark");
+  #endif
+
   word i, j;
 
   if(NrBookmarks >= NRBOOKMARKS)
   {
     WriteLogMC(PROGRAM_NAME, "AddBookmark: Bookmark list is full");
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
     return FALSE;
   }
 
@@ -1459,11 +1480,19 @@ bool AddBookmark(dword Block)
   }
   NrBookmarks++;
   SaveBookmarks();
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
   return TRUE;
 }
 
 int FindNearestBookmark(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("FindNearestBookmark");
+  #endif
+
   int                   NearestBookmarkIndex;
   long                  MinDelta;
   word                  i;
@@ -1481,20 +1510,36 @@ int FindNearestBookmark(void)
       }
     }
   }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
   return NearestBookmarkIndex;
 }
 
 void MoveBookmark(dword Block)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("MoveBookmark");
+  #endif
+
   int NearestBookmarkIndex = FindNearestBookmark();
 
   if(NearestBookmarkIndex != -1)
     Bookmarks[NearestBookmarkIndex] = Block;
   SaveBookmarks();
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 void DeleteBookmark(word BookmarkIndex)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("DeleteBookmark");
+  #endif
+
   word i;
 
   for(i = BookmarkIndex; i < NrBookmarks - 1; i++)
@@ -1503,6 +1548,10 @@ void DeleteBookmark(word BookmarkIndex)
 
   NrBookmarks--;
   SaveBookmarks();
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 
@@ -1648,7 +1697,7 @@ void CutFileSave(void)
     #if STACKTRACE == TRUE
       CallTraceExit(NULL);
     #endif
-    return;
+   return;
   }
 
   FileSize = fRec->size;
@@ -3067,6 +3116,10 @@ dword NavGetBlockTimeStamp(dword PlaybackBlockNr)
 // ------ [COMPATIBILITY LAYER] ------
 bool PatchOldNavFileSD(char *SourceFileName)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("PatchOldNavFileSD");
+  #endif
+
   FILE                 *fSourceNav;
   TYPE_File            *fNewNav;
   char                  FileName[MAX_FILE_NAME_SIZE + 1];
@@ -3091,6 +3144,10 @@ bool PatchOldNavFileSD(char *SourceFileName)
   if(!fSourceNav)
   {
     WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E0d01.");
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
     return FALSE;
   }
 
@@ -3103,6 +3160,10 @@ bool PatchOldNavFileSD(char *SourceFileName)
   {
     fclose(fSourceNav);
     WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E0d02.");
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
     return FALSE;
   }
 
@@ -3118,12 +3179,11 @@ bool PatchOldNavFileSD(char *SourceFileName)
 
     for(i = 0; i < navsRead; i++)
     {
-      if (navRecs[i].Timems - LastTime > 1000) {        
-        char PosString[20];
+      if (navRecs[i].Timems - LastTime > 1000)
+      {
         Difference += (navRecs[i].Timems - LastTime) - 1000;
 
-        Print64BitLong(((off_t)(navRecs[i].PHOffsetHigh) << 32) | navRecs[i].PHOffset, PosString);
-        TAP_SPrint(LogString, "  - Gap found at nav record nr. %u:  Offset=%s, TimeStamp(before)=%u, TimeStamp(after)=%u, GapSize=%u", ftell(fSourceNav)/sizeof(tnavSD) - navsRead + i, PosString, navRecs[i].Timems, navRecs[i].Timems-Difference, navRecs[i].Timems-LastTime);
+        TAP_SPrint(LogString, "  - Gap found at nav record nr. %u:  Offset=%llu, TimeStamp(before)=%u, TimeStamp(after)=%u, GapSize=%u", ftell(fSourceNav)/sizeof(tnavSD) - navsRead + i, ((off_t)(navRecs[i].PHOffsetHigh) << 32) | navRecs[i].PHOffset, navRecs[i].Timems, navRecs[i].Timems-Difference, navRecs[i].Timems-LastTime);
         WriteLogMC(PROGRAM_NAME, LogString);
       }
       LastTime = navRecs[i].Timems;
@@ -3136,11 +3196,18 @@ bool PatchOldNavFileSD(char *SourceFileName)
   TAP_Hdd_Fclose(fNewNav);
   TAP_MemFree(navRecs);
 
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
   return (Difference > 0);
 }
 
 bool PatchOldNavFileHD(char *SourceFileName)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("PatchOldNavFileHD");
+  #endif
+
   FILE                 *fSourceNav;
   TYPE_File            *fNewNav;
   char                  FileName[MAX_FILE_NAME_SIZE + 1];
@@ -3165,6 +3232,10 @@ bool PatchOldNavFileHD(char *SourceFileName)
   if(!fSourceNav)
   {
     WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E0e01.");
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
     return FALSE;
   }
 
@@ -3177,6 +3248,10 @@ bool PatchOldNavFileHD(char *SourceFileName)
   {
     fclose(fSourceNav);
     WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E0e02.");
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
     return FALSE;
   }
 
@@ -3192,12 +3267,11 @@ bool PatchOldNavFileHD(char *SourceFileName)
 
     for(i = 0; i < navsRead; i++)
     {
-      if (navRecs[i].Timems - LastTime > 1000) {        
-        char PosString[20];
+      if (navRecs[i].Timems - LastTime > 1000)
+      {
         Difference += (navRecs[i].Timems - LastTime) - 1000;
 
-        Print64BitLong(((off_t)(navRecs[i].SEIOffsetHigh) << 32) | navRecs[i].SEIOffsetLow, PosString);
-        TAP_SPrint(LogString, "  - Gap found at nav record nr. %u:  Offset=%s, TimeStamp(before)=%u, TimeStamp(after)=%u, GapSize=%u", ftell(fSourceNav)/sizeof(tnavHD) - navsRead + i, PosString, navRecs[i].Timems, navRecs[i].Timems-Difference, navRecs[i].Timems-LastTime);
+        TAP_SPrint(LogString, "  - Gap found at nav record nr. %u:  Offset=%llu, TimeStamp(before)=%u, TimeStamp(after)=%u, GapSize=%u", ftell(fSourceNav)/sizeof(tnavHD) - navsRead + i, ((off_t)(navRecs[i].SEIOffsetHigh) << 32) | navRecs[i].SEIOffsetLow, navRecs[i].Timems, navRecs[i].Timems-Difference, navRecs[i].Timems-LastTime);
         WriteLogMC(PROGRAM_NAME, LogString);
       }
       LastTime = navRecs[i].Timems;
@@ -3210,13 +3284,38 @@ bool PatchOldNavFileHD(char *SourceFileName)
   TAP_Hdd_Fclose(fNewNav);
   TAP_MemFree(navRecs);
 
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
   return (Difference > 0);
 }
 
 bool PatchOldNavFile(char *SourceFileName, bool isHD)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("PatchOldNavFile");
+  #endif
+
   if(isHD)
-    return PatchOldNavFileHD(SourceFileName);
+  {
+    bool ret;
+
+    ret = PatchOldNavFileHD(SourceFileName);
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return ret;
+  }
   else
-    return PatchOldNavFileSD(SourceFileName);
+  {
+    bool ret;
+
+    ret = PatchOldNavFileSD(SourceFileName);
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return ret;
+  }
 }
