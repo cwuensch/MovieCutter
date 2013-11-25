@@ -2,7 +2,7 @@
 #define __MOVIECUTTERH__
 
 #define PROGRAM_NAME          "MovieCutter"
-#define VERSION               "V2.0alp"
+#define VERSION               "V2.0al2"
 #define TAPID                 0x8E0A4247
 #define AUTHOR                "FireBird / Christian Wünsch"
 #define AUTHOR_UTF8           "FireBird / Christian WÃ¼nsch"

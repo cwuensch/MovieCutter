@@ -1697,7 +1697,7 @@ void CutFileSave(void)
     #if STACKTRACE == TRUE
       CallTraceExit(NULL);
     #endif
-   return;
+    return;
   }
 
   FileSize = fRec->size;
@@ -3296,26 +3296,15 @@ bool PatchOldNavFile(char *SourceFileName, bool isHD)
     CallTraceEnter("PatchOldNavFile");
   #endif
 
+  bool ret;
+
   if(isHD)
-  {
-    bool ret;
-
     ret = PatchOldNavFileHD(SourceFileName);
-
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
-    return ret;
-  }
   else
-  {
-    bool ret;
-
     ret = PatchOldNavFileSD(SourceFileName);
 
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
-    return ret;
-  }
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+  return ret;
 }
