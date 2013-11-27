@@ -136,7 +136,11 @@ typedef enum
   LS_SelectEvenSegments,
   LS_SelectMiddle,
   LS_UnselectAll,
+  LS_ClearSegmentList,
   LS_PageStr,
+  LS_AskConfirmation,
+  LS_Yes,
+  LS_No,
   LS_ListIsFull,
   LS_NoRecSize,
   LS_HDDetectionFailed,
@@ -275,6 +279,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   {
     OSDMenuEvent(&event, &param1, &param2);
     if(event == EVT_KEY && param1 == RKEY_Ok) OSDMenuMessageBoxDestroy();
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return 0;
   }
 
   TAP_GetState(&SysState, &SysSubState);
@@ -459,7 +468,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       }
 
       // if progress-bar is enabled and cut-key is pressed -> show MovieCutter OSD (ST_IdleNoPlayback)
-      if(SysSubState == SUBSTATE_PvrPlayingSearch && (event == EVT_KEY) && ((param1 == RKEY_Ab) || (param1 == RKEY_Option)))
+      if(/*SysSubState == SUBSTATE_PvrPlayingSearch &&*/ (event == EVT_KEY) && ((param1 == RKEY_Ab) || (param1 == RKEY_Option)))
       {
         if (LastTotalBlocks != PlayInfo.totalBlock)
           State = ST_IdleNoPlayback;
@@ -475,6 +484,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           OSDRedrawEverything();
           State = ST_Idle;
         }
+        param1 = 0;
       }
 
       // if playback-file changed -> show MovieCutter as soon as next playback is started (ST_IdleNoPlayback)
@@ -740,17 +750,21 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           {
             if(ActionMenuItem != MI_SelectFunction)
             {
+              if (ActionMenuItem==MI_SaveSegment || ActionMenuItem==MI_DeleteSegment || ActionMenuItem==MI_DeleteFile)
+                if (!GetUserConfirmation())
+                  break;
+
               ActionMenuRemove();
               State = ST_Idle;
               switch(ActionMenuItem)
               {
                 case MI_SaveSegment:        MovieCutterSaveSegments(); break;
                 case MI_DeleteSegment:      MovieCutterDeleteSegments(); break;
-                case MI_SelectOddSegments:  MovieCutterSelectOddSegments(); break;
-                case MI_SelectEvenSegments: MovieCutterSelectEvenSegments(); break;
+                case MI_SelectOddSegments:  MovieCutterSelectOddSegments();  ActionMenuDraw(); State = ST_ActionDialog; break;
+                case MI_SelectEvenSegments: MovieCutterSelectEvenSegments(); ActionMenuDraw(); State = ST_ActionDialog; break;
                 case MI_UnselectAll:        MovieCutterUnselectAll(); break;
                 case MI_DeleteFile:         MovieCutterDeleteFile(); break;
-                case MI_ImportBookmarks:    AddBookmarksToSegmentList(); OSDRedrawEverything(); break;
+                case MI_ImportBookmarks:    AddBookmarksToSegmentList(); break;
                 case MI_ExitMC:             State = ST_Exit; break;
                 case MI_NrMenuItems:        break;
               }
@@ -776,6 +790,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             State = ST_Idle;
             break;
           }
+
+        param1 = 0;
         }
       }
       break;
@@ -813,6 +829,21 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     CallTraceExit(NULL);
   #endif
   return param1;
+}
+
+bool GetUserConfirmation(void)
+{
+  OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_AskConfirmation));
+  OSDMenuMessageBoxButtonAdd(LangGetString(LS_No));
+  OSDMenuMessageBoxButtonAdd(LangGetString(LS_Yes));
+//  OSDMenuMessageBoxButtonSelect(0);
+  OSDMenuMessageBoxShow();
+  do
+  {
+    OSDMenuEvent(NULL, NULL, NULL);
+  } while(OSDMenuMessageBoxIsVisible());
+  OSDMenuMessageBoxDestroy();
+  return (OSDMenuMessageBoxLastButton() == 1);
 }
 
 dword TMSCommander_handler(dword param1)
@@ -1028,6 +1059,8 @@ void AddBookmarksToSegmentList(void)
     AddSegmentMarker(Bookmarks[i]);
   }
 
+  OSDRedrawEverything();
+
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
   #endif
@@ -1060,7 +1093,7 @@ bool AddSegmentMarker(dword Block)
   if(NrSegmentMarker >= NRSEGMENTMARKER)
   {
     WriteLogMC(PROGRAM_NAME, "AddSegmentMarker: SegmentMarker list is full");
-    OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_ListIsFull));  //***CW***
+    OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_ListIsFull));
     OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
     OSDMenuMessageBoxShow();
 
@@ -1070,13 +1103,18 @@ bool AddSegmentMarker(dword Block)
     return FALSE;
   }
 
-  newTime = NavGetBlockTimeStamp(Block);
-  if((Block > 0) && (newTime == 0))
+  if (Block == 0)
+    newTime = 0;
+  else
   {
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
-    return FALSE;
+    newTime = NavGetBlockTimeStamp(Block);
+    if(newTime == 0)
+    {
+      #if STACKTRACE == TRUE
+        CallTraceExit(NULL);
+      #endif
+      return FALSE;
+    }
   }
 
 #ifdef FULLDEBUG
@@ -1229,7 +1267,7 @@ void DeleteSegmentMarker(word MarkerIndex)
   for(i = MarkerIndex; i < NrSegmentMarker - 1; i++)
     memcpy(&SegmentMarker[i], &SegmentMarker[i + 1], sizeof(tSegmentMarker));
 
-  memset(&SegmentMarker[NrSegmentMarker - 1], 0, sizeof(tSegmentMarker));
+//  memset(&SegmentMarker[NrSegmentMarker - 1], 0, sizeof(tSegmentMarker));
   NrSegmentMarker--;
 
   SegmentMarker[NrSegmentMarker - 1].Selected = FALSE;        // the very last marker (no segment)
@@ -1247,13 +1285,9 @@ void DeleteAllSegmentMarkers(void)
     CallTraceEnter("DeleteAllSegmentMarkers");
   #endif
 
-  int i;
-
   if (NrSegmentMarker > 2) {
     memcpy(&SegmentMarker[1], &SegmentMarker[NrSegmentMarker-1], sizeof(tSegmentMarker));
-    for(i = 2; i < NrSegmentMarker; i++) {
-      memset(&SegmentMarker[i], 0, sizeof(tSegmentMarker));
-    }
+//    memset(&SegmentMarker[2], 0, (NrSegmentMarker-2) * sizeof(tSegmentMarker));
     NrSegmentMarker = 2;
   }
   SegmentMarker[0].Selected = FALSE;
@@ -2619,8 +2653,8 @@ void CalcLastSeconds(void)
     CallTraceEnter("CalcLastSecond");
   #endif
 
-  BlockNrLastSecond    = PlayInfo.totalBlock - PlayInfo.totalBlock      / (60*PlayInfo.duration + PlayInfo.durationSec);
-  BlockNrLast10Seconds = PlayInfo.totalBlock - PlayInfo.totalBlock * 10 / (60*PlayInfo.duration + PlayInfo.durationSec);
+  BlockNrLastSecond    = PlayInfo.totalBlock -      (PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec));
+  BlockNrLast10Seconds = PlayInfo.totalBlock - (10 * PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec));
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
@@ -3015,7 +3049,7 @@ void MovieCutterProcess(bool KeepCut)
         DeltaBlock = SegmentMarker[WorkingSegment + 1].Block - SelectedBlock;
         DeltaTime = SegmentMarker[WorkingSegment + 1].Timems - SegmentMarker[WorkingSegment].Timems;
       } */
-      DeleteSegmentMarker(WorkingSegment);
+      DeleteSegmentMarker(WorkingSegment);  // das 0. Segment darf nicht gelöscht werden
       NrSelectedSegments--;
 
       TAP_SPrint(LogString, "Reported new totalBlock = %u", PlayInfo.totalBlock);
@@ -3042,7 +3076,7 @@ void MovieCutterProcess(bool KeepCut)
         SegmentMarker[j].Percent = (float)SegmentMarker[j].Block * 100 / SegmentMarker[NrSegmentMarker - 1].Block;
 
         //If the first marker has moved to block 0, delete it
-        if(SegmentMarker[j].Block == 0) DeleteSegmentMarker(j);
+        if(SegmentMarker[j].Block <= 1) DeleteSegmentMarker(j);  // Annahme: ermittelte DeltaBlocks weichen nur um höchstens 1 ab
       }
     }
     if(!isMultiSelect) break;

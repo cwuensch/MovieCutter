@@ -11,7 +11,7 @@
 
 
 bool        FileCut(char *SourceFileName, char *CutFileName, dword StartBlock, dword NrBlocks);
-bool        PatchRecFile(char const *SourceFileName, off_t RequestedCutPosition, byte const CutPointArray[], off_t OutPatchedBytes[]);
+bool        PatchRecFile(char const *SourceFileName, off_t RequestedCutPosition, byte CutPointArray[], off_t OutPatchedBytes[]);
 bool        UnpatchRecFiles(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, off_t const PatchedBytes[], dword NrPatchedBytes);
 bool        ReadCutPointArea(char const *SourceFileName, off_t CutPosition, byte CutPointArray[]);
 bool        ReadFirstAndLastCutPacket(char const *FileName, byte FirstCutPacket[], byte LastCutPacket[]);
@@ -268,7 +268,7 @@ bool MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPo
   if (!SuppressNavGeneration)
   {
     CutStartPoint->BlockNr = CalcBlockSize(CutStartPos);
-    BehindCutPoint->BlockNr = CutStartPoint->BlockNr + CalcBlockSize(BehindCutPos - CutStartPos);
+    BehindCutPoint->BlockNr = CutStartPoint->BlockNr + CalcBlockSize(BehindCutPos - CutStartPos + 9023);
   }
 
   // Patch the rec-File to prevent the firmware from cutting in the middle of a packet
@@ -510,7 +510,7 @@ bool WriteByteToFile(char const *FileName, off_t BytePosition, char OldValue, ch
 }
 
 // Patches the rec-File to prevent the firmware from cutting in the middle of a packet
-bool PatchRecFile(char const *SourceFileName, off_t RequestedCutPosition, byte const CutPointArray[], off_t OutPatchedBytes[])
+bool PatchRecFile(char const *SourceFileName, off_t RequestedCutPosition, byte CutPointArray[], off_t OutPatchedBytes[])
 {
   #if STACKTRACE == TRUE
     CallTraceEnter("PatchRecFile");
@@ -556,7 +556,10 @@ bool PatchRecFile(char const *SourceFileName, off_t RequestedCutPosition, byte c
       if (!isPacketStart)
       {
         if (WriteByteToFile(SourceFileName, pos+4, 'G', 'F'))
+        {
           OutPatchedBytes[i+1] = pos+4;
+          CutPointArray[ArrayPos+4] = 'F';  // ACHTUNG! Nötig, damit die neue Schätzung der CutPosition korrekt funktioniert.
+        }                                   // Könnte aber ein Problem geben bei der (alten) CutPoint-Identifikation (denn hier wird der noch ungepatchte Wert aus dem Cache gelesen)!
         else
           ret = FALSE;
       }
@@ -645,7 +648,7 @@ bool ReadCutPointArea(char const *SourceFileName, off_t CutPosition, byte CutPoi
   }
   else
   {
-    fseeko64(f, 0, SEEK_SET);
+//    fseeko64(f, 0, SEEK_SET);
     memset(CutPointArray, 0, CUTPOINTSEARCHRADIUS - CutPosition);
     ret = fread(&CutPointArray[CUTPOINTSEARCHRADIUS - CutPosition], CutPosition + CUTPOINTSEARCHRADIUS, 1, f);
   }
@@ -930,7 +933,7 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
   dword                 SourcePlayTime, CutPlayTime;
   dword                *Bookmarks = NULL;
   word                  i;
-  bool                  CutBookmarkSet;
+  bool                  SetCutBookmark;
   bool                  result = TRUE;
 
   #ifdef FULLDEBUG
@@ -977,7 +980,7 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
     return FALSE;
   }
 
-  //Copy the orig inf to nav inf (abuse the log string buffer)
+  //Copy the orig inf to cut inf (abuse the log string buffer)
   TAP_SPrint(LogString, "cp \"%s%s/%s.inf\" \"%s%s/%s.inf\"", TAPFSROOT, CurrentDir, SourceFileName, TAPFSROOT, CurrentDir, CutFileName);
   system(LogString);
 
@@ -1017,7 +1020,10 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
 
   //Copy all bookmarks which are < CutPointA or >= CutPointB
   //Move the second group by (CutPointB - CutPointA)
-  CutBookmarkSet = FALSE;
+  SetCutBookmark = TRUE;
+  if ((CutStartPoint->BlockNr <= 1) || (BehindCutPoint->Timems >= SourcePlayTime+CutPlayTime-3000))
+    SetCutBookmark = FALSE;
+
   if(Bookmarks)
   {
     TAP_SPrint(LogString, "Bookmarks->Source: ");
@@ -1029,12 +1035,12 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
           RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks] = Bookmarks[i];
         else
         {
-          if (!CutBookmarkSet)
+          if (SetCutBookmark)
           {
             RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks] = CutStartPoint->BlockNr;
             TAP_SPrint(&LogString[strlen(LogString)], "*%u ", CutStartPoint->BlockNr);
             RECHeaderInfo.NrBookmarks++;
-            CutBookmarkSet = TRUE;
+            SetCutBookmark = FALSE;
           }
           RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks] = Bookmarks[i] - (BehindCutPoint->BlockNr - CutStartPoint->BlockNr);
         }
@@ -1046,9 +1052,10 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
     WriteLogMC("MovieCutterLib", LogString);
   }
   // Setzt automatisch ein Bookmark an die Schnittstelle
-  if (!CutBookmarkSet)
+  if (SetCutBookmark)
   {
     RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks] = CutStartPoint->BlockNr;
+    TAP_SPrint(&LogString[strlen(LogString)], "*%u ", CutStartPoint->BlockNr);
     RECHeaderInfo.NrBookmarks++;
   }
 

@@ -2,10 +2,10 @@
 #define __MOVIECUTTERH__
 
 #define PROGRAM_NAME          "MovieCutter"
-#define VERSION               "V2.0al2"
+#define VERSION               "V2.0alpha"  // alpha = Î±,  beta = Î², ü = Ã¼
 #define TAPID                 0x8E0A4247
-#define AUTHOR                "FireBird / Christian Wünsch"
-#define AUTHOR_UTF8           "FireBird / Christian WÃ¼nsch"
+//#define AUTHOR                "FireBird / Christian Wünsch"
+#define AUTHOR                "FireBird / C. WÃ¼nsch"
 #define DESCRIPTION           "MovieCutter"
 
 #define NRSEGMENTMARKER       14            // max. number of file markers +1 (marker for the end of file)
@@ -43,6 +43,7 @@ void  DeleteSegmentMarker(word MarkerIndex);
 void  DeleteAllSegmentMarkers(void);
 int   FindNearestBookmark(void);
 int   FindNearestSegmentMarker(void);
+bool  GetUserConfirmation(void);
 dword NavGetBlockTimeStamp(dword PlaybackBlockNr);
 bool  isPlaybackRunning(void);
 void  LoadINI(void);
