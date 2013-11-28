@@ -101,6 +101,7 @@ bool MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPo
   char                  CurrentDir[512];
   char                  FileName[MAX_FILE_NAME_SIZE + 1];
   off_t                 SourceFileSize, CutFileSize;
+  dword                 SourceFileBlocks;
   byte                  CutPointArea1[CUTPOINTSEARCHRADIUS * 2], CutPointArea2[CUTPOINTSEARCHRADIUS * 2];
   byte                  FirstCutPacket[PACKETSIZE], LastCutPacket[PACKETSIZE];
   off_t                 PatchedBytes[8];
@@ -130,17 +131,20 @@ bool MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPo
     #endif
     return FALSE;
   }
+  SourceFileBlocks = CalcBlockSize(SourceFileSize);
 
-  TAP_SPrint(LogString, "File size     = %llu Bytes (%u blocks)", SourceFileSize, CalcBlockSize(SourceFileSize));
+  TAP_SPrint(LogString, "File size     = %llu Bytes (%u blocks)", SourceFileSize, SourceFileBlocks);
   WriteLogMC("MovieCutterLib", LogString);
   TAP_SPrint(LogString, "Dir           = '%s'", CurrentDir);
   WriteLogMC("MovieCutterLib", LogString);
 
-  TAP_SPrint(LogString, "CutStartBlock = %u,\tBehindCutBlock = %u, KeepCut = %s", CutStartPoint->BlockNr, BehindCutPoint->BlockNr, KeepCut ? "yes" : "no");
-  WriteLogMC("MovieCutterLib", LogString);
-
+  if (BehindCutPoint->BlockNr > SourceFileBlocks)
+    BehindCutPoint->BlockNr = SourceFileBlocks - 1;
   CutStartPos = (off_t)CutStartPoint->BlockNr * BLOCKSIZE;
   BehindCutPos = (off_t)BehindCutPoint->BlockNr * BLOCKSIZE;
+
+  TAP_SPrint(LogString, "CutStartBlock = %u,\tBehindCutBlock = %u, KeepCut = %s", CutStartPoint->BlockNr, BehindCutPoint->BlockNr, KeepCut ? "yes" : "no");
+  WriteLogMC("MovieCutterLib", LogString);
 
   TAP_SPrint(LogString, "CutStartPos   = %llu,\tBehindCutPos = %llu", CutStartPos, BehindCutPos);
   WriteLogMC("MovieCutterLib", LogString);
@@ -267,7 +271,7 @@ bool MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPo
   // Copy the real cutting positions into the cut point parameters to be returned
   if (!SuppressNavGeneration)
   {
-    CutStartPoint->BlockNr = CalcBlockSize(CutStartPos);
+    CutStartPoint->BlockNr = CalcBlockSize(CutStartPos + 4512);
     BehindCutPoint->BlockNr = CutStartPoint->BlockNr + CalcBlockSize(BehindCutPos - CutStartPos + 9023);
   }
 
