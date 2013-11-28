@@ -802,10 +802,6 @@ void GetNextFreeCutName(char const *SourceFileName, char *CutFileName, word Leav
   int                   i;
   char                  NextFileName[MAX_FILE_NAME_SIZE + 1];
 
-  #ifdef FULLDEBUG
-    WriteLogMC("MovieCutterLib", "GetNextFreeCutName()");
-  #endif
-
   NameLen = strlen(SourceFileName) - 4;  // ".rec" entfernen
 
   i = 0;
@@ -1053,7 +1049,6 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
       }
       if(Bookmarks[i+1] == 0) break;
     }
-    WriteLogMC("MovieCutterLib", LogString);
   }
   // Setzt automatisch ein Bookmark an die Schnittstelle
   if (SetCutBookmark)
@@ -1062,6 +1057,7 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
     TAP_SPrint(&LogString[strlen(LogString)], "*%u ", CutStartPoint->BlockNr);
     RECHeaderInfo.NrBookmarks++;
   }
+  WriteLogMC("MovieCutterLib", LogString);
 
   //Encode and write the modified source inf
   if(HDD_EncodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN))
@@ -1183,7 +1179,7 @@ bool PatchNavFilesSD(char const *SourceFileName, char const *CutFileName, off_t 
   bool                  IFrameCut, IFrameSource;
   char                  CurrentDir[512];
   char                  AbsFileName[512];
-  dword                 FirstCutTime, FirstSourceTime; // LastSourceTime;
+  dword                 FirstCutTime, LastCutTime, FirstSourceTime;
 
   #ifdef FULLDEBUG
     WriteLogMC("MovieCutterLib", "PatchNavFilesSD()");
@@ -1261,8 +1257,8 @@ bool PatchNavFilesSD(char const *SourceFileName, char const *CutFileName, off_t 
   IFrameCut = FALSE;
   IFrameSource = FALSE;
   FirstCutTime = 0;
+  LastCutTime = 0;
   FirstSourceTime = 0;
-//  LastSourceTime = 0;
   while(TRUE)
   {
     navsRead = fread(navSource, sizeof(tnavSD), NAVRECS_SD, fSourceNav);
@@ -1282,6 +1278,7 @@ bool PatchNavFilesSD(char const *SourceFileName, char const *CutFileName, off_t 
         }
 
         if (FirstCutTime == 0) FirstCutTime = navSource[i].Timems;
+        LastCutTime = navSource[i].Timems;
 
         //Subtract CutStartPos from the cut .nav PH address
         PictureHeaderOffset = PictureHeaderOffset - CutStartPos;
@@ -1308,7 +1305,7 @@ bool PatchNavFilesSD(char const *SourceFileName, char const *CutFileName, off_t 
         if (PictureHeaderOffset >= BehindCutPos)
           if (FirstSourceTime == 0) FirstSourceTime = navSource[i].Timems; 
 //        LastSourceTime = navSource[i].Timems;
-        
+
         if((navSource[i].SHOffset >> 24) == 1) IFrameSource = TRUE;
         if(IFrameSource)
         {
@@ -1341,7 +1338,7 @@ bool PatchNavFilesSD(char const *SourceFileName, char const *CutFileName, off_t 
   TAP_MemFree(navCut);
 
   *OutCutStartTime = FirstCutTime;
-  *OutBehindCutTime = FirstSourceTime;
+  *OutBehindCutTime = (FirstSourceTime) ? FirstSourceTime : LastCutTime;
 
   //Delete the orig source nav and make the new source nav the active one
 //  TAP_SPrint(FileName, "%s.nav.bak", SourceFileName);
@@ -1368,7 +1365,7 @@ bool PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t 
   bool                  IFrameCut, IFrameSource;
   char                  CurrentDir[512];
   char                  AbsFileName[512];
-  dword                 FirstCutTime, FirstSourceTime; // LastSourceTime;
+  dword                 FirstCutTime, LastCutTime, FirstSourceTime;
 
   #ifdef FULLDEBUG
     WriteLogMC("MovieCutterLib", "PatchNavFilesHD()");
@@ -1446,8 +1443,8 @@ bool PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t 
   IFrameCut = FALSE;
   IFrameSource = FALSE;
   FirstCutTime = 0;
+  LastCutTime = 0;
   FirstSourceTime = 0;
-//  LastSourceTime = 0;
   while(TRUE)
   {
     navsRead = fread(navSource, sizeof(tnavHD), NAVRECS_HD, fSourceNav);
@@ -1467,6 +1464,7 @@ bool PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t 
         }
 
         if (FirstCutTime == 0) FirstCutTime = navSource[i].Timems;
+        LastCutTime = navSource[i].Timems;
 
         //Subtract CutStartPos from the cut .nav PH address
         PictureHeaderOffset = PictureHeaderOffset - CutStartPos;
@@ -1526,7 +1524,7 @@ bool PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t 
   TAP_MemFree(navCut);
 
   *OutCutStartTime = FirstCutTime;
-  *OutBehindCutTime = FirstSourceTime;
+  *OutBehindCutTime = (FirstSourceTime) ? FirstSourceTime : LastCutTime;
 
   //Delete the orig source nav and make the new source nav the active one
 //  TAP_SPrint(FileName, "%s.nav.bak", SourceFileName);

@@ -2969,9 +2969,10 @@ void MovieCutterProcess(bool KeepCut)
   #endif
 
   int                   NrSelectedSegments;
-  bool                  isMultiSelect, CropMargins;
+  bool                  isMultiSelect, CropEnding;
   word                  WorkingSegment;
   char                  CutFileName[MAX_FILE_NAME_SIZE + 1];
+  char                  TempString[MAX_FILE_NAME_SIZE + 1];
   tTimeStamp            CutStartPoint, BehindCutPoint;
   dword                 DeltaTime, DeltaBlock;
   int                   i, j;
@@ -3005,130 +3006,6 @@ void MovieCutterProcess(bool KeepCut)
 
   //ClearOSD();
 
-  // ----- START Spezial-Crop-Funktion -----
-  // Wenn das erste und/oder letzte Segment entfernt werden soll -> speichere stattdessen das Mittelstück
-  // (Grund: Beim Wegschneiden des ersten und letzten Segments gehen Blöcke am Ende verloren.)
-  CropMargins = FALSE;
-  if (!KeepCut)
-  {
-    CutStartPoint.BlockNr  = SegmentMarker[0].Block;
-    CutStartPoint.Timems   = SegmentMarker[0].Timems;
-    BehindCutPoint.BlockNr = SegmentMarker[NrSegmentMarker-1].Block;
-    BehindCutPoint.Timems  = SegmentMarker[NrSegmentMarker-1].Timems;
-    
-    if ((isMultiSelect && SegmentMarker[0].Selected) || (!isMultiSelect && (ActiveSegment == 0)))
-    {
-      CutStartPoint.BlockNr  = SegmentMarker[1].Block;
-      CutStartPoint.Timems   = SegmentMarker[1].Timems;
-      NrSelectedSegments--;
-      CropMargins = TRUE;
-    }
-    if ((isMultiSelect && SegmentMarker[NrSegmentMarker-2].Selected) || (!isMultiSelect && (ActiveSegment == NrSegmentMarker-2)))
-    {
-      BehindCutPoint.BlockNr = SegmentMarker[NrSegmentMarker-2].Block;
-      BehindCutPoint.Timems  = SegmentMarker[NrSegmentMarker-2].Timems;
-      DeleteSegmentMarker(NrSegmentMarker - 2);
-      NrSelectedSegments--;
-      CropMargins = TRUE;
-    }
-  }
-
-  if (CropMargins)
-  {
-    char TempRecName[MAX_FILE_NAME_SIZE + 1], TempInfName[MAX_FILE_NAME_SIZE + 1], TempNavName[MAX_FILE_NAME_SIZE + 1];
-    char SourceInfName[MAX_FILE_NAME_SIZE + 1], SourceNavName[MAX_FILE_NAME_SIZE + 1];
-
-    WriteLogMC(PROGRAM_NAME, "Cropping first and/or last segment");
-
-    // Generiere neuen Namen *_temp.rec für das CutFile (die künftige Aufnahme)
-    strncpy(TempInfName, PlaybackName, strlen(PlaybackName) - 4);
-    TAP_SPrint(TempRecName, "%s_temp.rec", TempInfName);
-    TAP_SPrint(TempInfName, "%s.inf", TempRecName);
-    TAP_SPrint(TempNavName, "%s.nav", TempRecName);
-
-    // Schnitt in temporäre Datei durchführen
-    ret = MovieCutter(PlaybackName, TempRecName, &CutStartPoint, &BehindCutPoint, TRUE, HDVideo);
-
-    // Temporäres CutFile wird zum neuen SourceFile
-    if (ret)
-    {
-      TAP_SPrint(SourceInfName, "%s.inf", PlaybackName);
-      TAP_SPrint(SourceNavName, "%s.nav", PlaybackName);
-      TAP_SPrint(LogString, "Renaming cutfile '%s' to '%s'", TempRecName, PlaybackName);
-      WriteLogMC(PROGRAM_NAME, LogString);
-
-      TAP_Hdd_Delete(PlaybackName);
-      TAP_Hdd_Rename(TempRecName, PlaybackName);
-      TAP_Hdd_Delete(SourceInfName);
-      TAP_Hdd_Rename(TempInfName, SourceInfName);
-      TAP_Hdd_Delete(SourceNavName);
-      TAP_Hdd_Rename(TempNavName, SourceNavName);
-    }
-
-    TAP_Hdd_PlayTs(PlaybackName);
-    do
-    {
-      isPlaybackRunning();
-    } while ((int)PlayInfo.totalBlock == -1);
-    //Bail out if the cut failed
-    if(!ret)
-    {
-      State = ST_CutFailDialog;
-      #if STACKTRACE == TRUE
-        CallTraceExit(NULL);
-      #endif
-      return;
-    }
-
-    // Verbleibende Segmente anpassen
-    TAP_SPrint(LogString, "Reported new totalBlock = %u", PlayInfo.totalBlock);
-    WriteLogMC(PROGRAM_NAME, LogString);
-
-    for(j = NrSegmentMarker - 1; j >= 1; j--)
-    {
-      if(SegmentMarker[j].Block-1 > CutStartPoint.BlockNr)
-      {
-        SegmentMarker[j].Block -= CutStartPoint.BlockNr;
-        SegmentMarker[j].Timems -= CutStartPoint.Timems;
-      }
-
-      if((j == NrSegmentMarker - 1) && (SegmentMarker[j].Block != PlayInfo.totalBlock))
-      {
-        SegmentMarker[j].Block = PlayInfo.totalBlock;
-        dword newTime = NavGetBlockTimeStamp(SegmentMarker[j].Block);
-        SegmentMarker[j].Timems = (newTime) ? newTime : (dword)(1000 * (60*PlayInfo.duration + PlayInfo.durationSec));
-      }
-      SegmentMarker[j].Percent = (float)SegmentMarker[j].Block * 100 / SegmentMarker[NrSegmentMarker - 1].Block;
-
-      //If the first marker has moved to block 0, delete it
-      if(SegmentMarker[j].Block-1 <= CutStartPoint.BlockNr) DeleteSegmentMarker(j);  // Annahme: ermittelte DeltaBlocks weichen nur um höchstens 1 ab
-    }
-    CutFileSave();
-    CutDumpList();
-
-    // TimeStamps neu laden
-    if(TimeStamps)
-    {
-      TAP_MemFree(TimeStamps);
-      TimeStamps = NULL;
-    }
-    TimeStamps = NavLoad(PlaybackName, &NrTimeStamps, HDVideo);
-    LastTimeStamp = &TimeStamps[0];
-    
-    // Prüfe, ob alles geklappt hat -> sonst verhindere den weiteren Schnitt
-    ret = (TAP_Hdd_Exist(PlaybackName) && TAP_Hdd_Exist(SourceInfName) && TAP_Hdd_Exist(SourceNavName) && !TAP_Hdd_Exist(TempRecName) && !TAP_Hdd_Exist(TempNavName));
-    if (!ret)
-    {
-      WriteLogMC(PROGRAM_NAME, "Error renaming one of the temporary cut files to PlaybackName.");
-      State = ST_CutFailDialog;
-      #if STACKTRACE == TRUE
-        CallTraceExit(NULL);
-      #endif
-      return;
-    }
-  }
-  // ----- ENDE Spezial-Crop-Funktion -----
-
   for(i = NrSegmentMarker - 2; i >= 0; i--)
   {
     if (NrSelectedSegments <= 0) break;
@@ -3145,51 +3022,90 @@ void MovieCutterProcess(bool KeepCut)
     {
       TAP_SPrint(LogString, "Processing segment %u", WorkingSegment);
       WriteLogMC(PROGRAM_NAME, LogString);
-      GetNextFreeCutName(PlaybackName, CutFileName, NrSelectedSegments - 1);
 
+      // Ermittlung der Schnittpositionen
       CutStartPoint.BlockNr = SegmentMarker[WorkingSegment].Block;
       CutStartPoint.Timems = SegmentMarker[WorkingSegment].Timems;
       BehindCutPoint.BlockNr = SegmentMarker[WorkingSegment + 1].Block;
       BehindCutPoint.Timems = SegmentMarker[WorkingSegment + 1].Timems;
 
-      //Wenn das Ende gespeichert werden soll -> versuche bis zum tatsächlichen Ende zu gehen
-      if (KeepCut && (WorkingSegment == NrSegmentMarker-2))
-        BehindCutPoint.BlockNr = 0xFFFFFFFF;
+      // NEUE Spezial-Behandlung beim Schneiden des Endes
+      CropEnding = FALSE;
+      if (WorkingSegment == NrSegmentMarker - 2)
+      {
+        if (KeepCut)
+          //letztes Segment soll gespeichert werden -> versuche bis zum tatsächlichen Ende zu gehen
+          BehindCutPoint.BlockNr = 0xFFFFFFFF;
+        else
+        {
+          //letztes Segment soll gelöscht werden -> schneide und speichere stattdessen den vorderen Teil der Aufnahme
+          CropEnding = TRUE;
+          CutStartPoint.BlockNr  = SegmentMarker[0].Block;
+          CutStartPoint.Timems   = SegmentMarker[0].Timems;
+          BehindCutPoint.BlockNr = SegmentMarker[NrSegmentMarker-2].Block;
+          BehindCutPoint.Timems  = SegmentMarker[NrSegmentMarker-2].Timems;
+          WriteLogMC(PROGRAM_NAME, "(* special mode for crop ending *)");
+        }
+      }
 
-      ret = MovieCutter(PlaybackName, CutFileName, &CutStartPoint, &BehindCutPoint, KeepCut, HDVideo);
+      // Ermittlung des Dateinamens für das CutFile
+      if (CropEnding)
+      {
+        strncpy(TempString, PlaybackName, strlen(PlaybackName) - 4);
+        TAP_SPrint(CutFileName, "%s_temp.rec", TempString);
+        HDD_Delete(CutFileName);
+      }
+      else
+        GetNextFreeCutName(PlaybackName, CutFileName, NrSelectedSegments - 1);
+
+      // Schnittoperation
+      ret = MovieCutter(PlaybackName, CutFileName, &CutStartPoint, &BehindCutPoint, KeepCut || CropEnding, HDVideo);
+
+      // Das erzeugte CutFile wird zum neuen SourceFile
+      if (CropEnding)
+      {
+        TAP_SPrint(LogString, "Renaming cutfile '%s' to '%s'", CutFileName, PlaybackName);
+        HDD_Delete(PlaybackName);
+        HDD_Rename(CutFileName, PlaybackName);
+      }
+
+      // Wiedergabe wird neu gestartet
       TAP_Hdd_PlayTs(PlaybackName);
       do
       {
         isPlaybackRunning();
       } while ((int)PlayInfo.totalBlock == -1);
+      TAP_SPrint(LogString, "Reported new totalBlock = %u", PlayInfo.totalBlock);
+      WriteLogMC(PROGRAM_NAME, LogString);
 
       //Bail out if the cut failed
       if(!ret)
       {
         State = ST_CutFailDialog;
-        #if STACKTRACE == TRUE
-          CallTraceExit(NULL);
-        #endif
-        return;
+        break;
       }
-      TAP_SPrint(LogString, "Reported new totalBlock = %u", PlayInfo.totalBlock);
-      WriteLogMC(PROGRAM_NAME, LogString);
 
+      // Anpassung der verbleibenden Segmente
       DeleteSegmentMarker(WorkingSegment);  // das 0. Segment darf nicht gelöscht werden
       NrSelectedSegments--;
 
-      DeltaBlock = BehindCutPoint.BlockNr - CutStartPoint.BlockNr;
-//      DeltaTime = NavGetBlockTimeStamp(BehindCutPoint.BlockNr) - NavGetBlockTimeStamp(CutStartPoint.BlockNr);
-      DeltaTime = BehindCutPoint.Timems - CutStartPoint.Timems;
+      if (CropEnding) {
+        DeltaBlock = CutStartPoint.BlockNr;
+        DeltaTime = CutStartPoint.Timems;
+      } else {
+        DeltaBlock = BehindCutPoint.BlockNr - CutStartPoint.BlockNr;
+        DeltaTime = BehindCutPoint.Timems - CutStartPoint.Timems;
+      }
 
       for(j = NrSegmentMarker - 1; j >= 1; j--)
       {
-        if(SegmentMarker[j].Block > CutStartPoint.BlockNr)
+        if(SegmentMarker[j].Block-1 > CutStartPoint.BlockNr)
         {
           SegmentMarker[j].Block -= min(DeltaBlock, SegmentMarker[j].Block);
           SegmentMarker[j].Timems -= min(DeltaTime, SegmentMarker[j].Timems);
         }
 
+        // das letzte Segment auf den gemeldeten TotalBlock-Wert setzen
         if((j == NrSegmentMarker - 1) && (SegmentMarker[j].Block != PlayInfo.totalBlock))
         {
           #ifdef FULLDEBUG
@@ -3204,6 +3120,17 @@ void MovieCutterProcess(bool KeepCut)
 
         //If the first marker has moved to block 0, delete it
         if(SegmentMarker[j].Block <= 1) DeleteSegmentMarker(j);  // Annahme: ermittelte DeltaBlocks weichen nur um höchstens 1 ab
+      }
+    
+      // Wenn Spezial-Crop-Modus, nochmal testen, ob auch mit der richtigen rec weitergemacht wird
+      if(CropEnding)
+      {
+        if(!TAP_Hdd_Exist(PlaybackName) || TAP_Hdd_Exist(CutFileName))
+        {
+          WriteLogMC(PROGRAM_NAME, "Error renaming one of the temporary cut files to PlaybackName.");
+          State = ST_CutFailDialog;
+          break;
+        }
       }
     }
   }
@@ -3275,6 +3202,8 @@ dword NavGetBlockTimeStamp(dword PlaybackBlockNr)
 
 
 // ------ [COMPATIBILITY LAYER] ------
+// Die Implementierung berücksichtigt (aus Versehen) auch negative Sprünge und Überlauf.
+// SOLLTE eine nav-Datei einen Überlauf beinhalten, wird dieser durch PatchOldNavFile korrigiert.
 bool PatchOldNavFileSD(char *SourceFileName)
 {
   #if STACKTRACE == TRUE
