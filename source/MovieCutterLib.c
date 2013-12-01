@@ -92,7 +92,7 @@ void MSecToTimeString(dword Timems, char *const TimeString)  // needs max. 4 + 1
   #endif
 }
 
-bool MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepCut, bool isHD)
+tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepCut, bool isHD)
 {
   #if STACKTRACE == TRUE
     CallTraceEnter("MovieCutter");
@@ -129,7 +129,7 @@ bool MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPo
     #if STACKTRACE == TRUE
       CallTraceExit(NULL);
     #endif
-    return FALSE;
+    return RC_Error;
   }
   SourceFileBlocks = CalcBlockSize(SourceFileSize);
 
@@ -176,7 +176,7 @@ bool MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPo
     #if STACKTRACE == TRUE
       CallTraceExit(NULL);
     #endif
-    return FALSE;
+    return RC_Error;
   }
   if(!TAP_Hdd_Exist(CutFileName))
   {
@@ -185,7 +185,7 @@ bool MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPo
     #if STACKTRACE == TRUE
       CallTraceExit(NULL);
     #endif
-    return FALSE;
+    return RC_Error;
   }
 
   // Detect the size of the cut file
@@ -329,7 +329,7 @@ bool MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPo
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
   #endif
-  return TRUE;
+  return ((SuppressNavGeneration) ? RC_Warning : RC_Ok);
 }
 
 

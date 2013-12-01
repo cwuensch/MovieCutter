@@ -9,6 +9,13 @@
 #define PACKETSIZE               192   // number of bytes to compare (in fact the actual packet size doesn't matter)
 //#define TEMPCUTNAME        "__tempcut__.ts"
 
+typedef enum
+{
+  RC_Error,
+  RC_Warning,
+  RC_Ok
+}tResultCode;
+
 typedef struct
 {
   dword                 BlockNr;
@@ -54,7 +61,7 @@ typedef struct
 } tnavHD;
 
 void        WriteLogMC(char *ProgramName, char *s);
-bool        MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepCut, bool isHD);
+tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepCut, bool isHD);
 void        GetNextFreeCutName(char const *SourceFileName, char *CutFileName, word LeaveNamesOut);
 void        SecToTimeString(dword Time, char *const TimeString);     // needs max. 4 + 1 + 2 + 1 + 2 + 1 = 11 chars
 void        MSecToTimeString(dword Timems, char *const TimeString);  // needs max. 4 + 1 + 2 + 1 + 2 + 1 + 3 + 1 = 15 chars

@@ -50,5 +50,5 @@
                   * Markieren der geraden / ungeraden Segmente ist jetzt eine eigene Aktion (-> Schutz vor Fehlbedienung)
                   * Fehlverhalten der FW (Schnitt inmitten eines Pakets) wird abgefangen
                   * Präzisere Behandlung beim Schneiden des letzten Segments:
-                    - beim Speichern bleibt dieses so vollständig wie möglich erhalten
+                    - beim Speichern bleibt dieses vollständig erhalten
                     - beim Löschen verbleibt kein Rest des Aufnahmeendes mehr hinter der Schnittstelle

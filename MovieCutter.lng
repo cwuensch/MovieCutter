@@ -29,7 +29,7 @@ de_002= Beenden
 de_003= Verschieben
 de_004= Pause/Menü
 de_005= Auswählen
-de_006=.nav fehlt!
+de_006=Aufnahme nicht unterstützt!\n(.nav-Datei fehlt)
 de_007=Ausgewählte Segmente löschen
 de_008=Diese Datei löschen
 de_009=MovieCutter beenden
@@ -76,7 +76,7 @@ en_002= Exit
 en_003= Move
 en_004= Pause/Menu
 en_005= Select
-en_006=.nav does not exist!
+en_006=This recording is not supported!\n(.nav does not exist)
 en_007=Delete the selected segments
 en_008=Delete this file
 en_009=Exit MovieCutter
@@ -118,12 +118,12 @@ en_044=.nav file length not matching duration.
 
 
 #French
-fr_000= Ajouter  
-fr_001= Effacer  
-fr_002= Quitter  
-fr_003= Déplacer  
-fr_004= Pause/Menu  
-fr_005= Sélectionner  
+fr_000= Ajouter
+fr_001= Effacer
+fr_002= Quitter
+fr_003= Déplacer
+fr_004= Pause/Menu
+fr_005= Sélectionner
 fr_006=Fichier .nav non disponible !
 fr_007=Supprimer segments sélectionnés
 fr_008=Effacer ce fichier

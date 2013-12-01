@@ -2977,7 +2977,7 @@ void MovieCutterProcess(bool KeepCut)
   tTimeStamp            CutStartPoint, BehindCutPoint;
   dword                 DeltaTime, DeltaBlock;
   int                   i, j;
-  bool                  ret;
+  tResultCode           ret;
 
   NoPlaybackCheck = TRUE;
 
@@ -3007,13 +3007,19 @@ void MovieCutterProcess(bool KeepCut)
 
   //ClearOSD();
 
-  for(i = NrSegmentMarker - 2; i >= 0; i--)
+  for(i = NrSegmentMarker - 2; i >= -1; i--)
   {
     //OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), NrSegmentMarker - i - 1, NrSegmentMarker, NULL);
 
     if(isMultiSelect)
+    {
       //If one or more segments have been selected, work with them.
       WorkingSegment = i;
+
+      // Process the ending at last (*experimental!*)
+      if (i == NrSegmentMarker-2) continue;
+      if (i == -1) WorkingSegment = NrSegmentMarker-2;
+    }
     else
       //If no segment has been selected, use the active segment and break the loop
       WorkingSegment = ActiveSegment;
@@ -3084,7 +3090,7 @@ void MovieCutterProcess(bool KeepCut)
       WriteLogMC(PROGRAM_NAME, LogString);
 
       //Bail out if the cut failed
-      if(!ret)
+      if(ret == RC_Error)
       {
         State = ST_CutFailDialog;
         break;
@@ -3130,9 +3136,9 @@ void MovieCutterProcess(bool KeepCut)
       // Wenn Spezial-Crop-Modus, nochmal testen, ob auch mit der richtigen rec weitergemacht wird
       if(CutEnding)
       {
-        if(!TAP_Hdd_Exist(PlaybackName) || TAP_Hdd_Exist(TempFileName))
+        if((ret==RC_Warning) || !TAP_Hdd_Exist(PlaybackName) || TAP_Hdd_Exist(TempFileName))
         {
-          WriteLogMC(PROGRAM_NAME, "Error renaming one of the temporary cut files to PlaybackName.");
+          WriteLogMC(PROGRAM_NAME, "Error processing the last segment: Renaming or nav-generation failed.");
           State = ST_CutFailDialog;
           break;
         }
