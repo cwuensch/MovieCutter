@@ -64,7 +64,7 @@ void  OSDInfoDrawPlayIcons(bool Force);
 void  OSDInfoDrawProgressbar(bool Force);
 void  OSDInfoDrawRecName(void);
 void  OSDRedrawEverything(void);
-void  OSDSegmentListDrawList(void);
+void  OSDSegmentListDrawList(word CurrentSegment);
 void  Playback_Faster(void);
 void  Playback_FFWD(void);
 void  Playback_JumpBackward(void);

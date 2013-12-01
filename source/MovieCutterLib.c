@@ -1029,7 +1029,7 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
     TAP_SPrint(LogString, "Bookmarks->Source: ");
     for(i = 0; i < 177; i++)
     {
-      if((Bookmarks[i] >= 100 && Bookmarks[i] < CutStartPoint->BlockNr - 100) || (Bookmarks[i] >= BehindCutPoint->BlockNr + 100))
+      if((Bookmarks[i] >= 100 && Bookmarks[i] + 100 < CutStartPoint->BlockNr) || (Bookmarks[i] >= BehindCutPoint->BlockNr + 100))
       {
         if(Bookmarks[i] < BehindCutPoint->BlockNr)
           RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks] = Bookmarks[i];
@@ -1112,7 +1112,7 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
     TAP_SPrint(LogString, "Bookmarks->Cut: ");
     for(i = 0; i < 177; i++)
     {
-      if((Bookmarks[i] >= CutStartPoint->BlockNr + 100) && (Bookmarks[i] < BehindCutPoint->BlockNr - 100))
+      if((Bookmarks[i] >= CutStartPoint->BlockNr + 100) && (Bookmarks[i] + 100 < BehindCutPoint->BlockNr))
       {
         RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks] = Bookmarks[i] - CutStartPoint->BlockNr;
         TAP_SPrint(&LogString[strlen(LogString)], "%u ", Bookmarks[i]);
@@ -1144,6 +1144,7 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
   return result;
 }
 
+
 bool PatchNavFiles(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, bool isHD, dword *const OutCutStartTime, dword *const OutBehindCutTime)
 {
   #if STACKTRACE == TRUE
@@ -1162,7 +1163,6 @@ bool PatchNavFiles(char const *SourceFileName, char const *CutFileName, off_t Cu
   #endif
   return ret;
 }
-
 
 bool PatchNavFilesSD(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, dword *const OutCutStartTime, dword *const OutBehindCutTime)
 {
@@ -1256,7 +1256,7 @@ bool PatchNavFilesSD(char const *SourceFileName, char const *CutFileName, off_t 
   navRecsCut = 0;
   IFrameCut = FALSE;
   IFrameSource = FALSE;
-  FirstCutTime = 0;
+  FirstCutTime = 0xFFFFFFFF;
   LastCutTime = 0;
   FirstSourceTime = 0;
   while(TRUE)
@@ -1277,7 +1277,7 @@ bool PatchNavFilesSD(char const *SourceFileName, char const *CutFileName, off_t 
           navRecsCut = 0;
         }
 
-        if (FirstCutTime == 0) FirstCutTime = navSource[i].Timems;
+        if (FirstCutTime == 0xFFFFFFFF) FirstCutTime = navSource[i].Timems;
         LastCutTime = navSource[i].Timems;
 
         //Subtract CutStartPos from the cut .nav PH address
@@ -1442,7 +1442,7 @@ bool PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t 
   navRecsCut = 0;
   IFrameCut = FALSE;
   IFrameSource = FALSE;
-  FirstCutTime = 0;
+  FirstCutTime = 0xFFFFFFFF;
   LastCutTime = 0;
   FirstSourceTime = 0;
   while(TRUE)
@@ -1463,7 +1463,7 @@ bool PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t 
           navRecsCut = 0;
         }
 
-        if (FirstCutTime == 0) FirstCutTime = navSource[i].Timems;
+        if (FirstCutTime == 0xFFFFFFFF) FirstCutTime = navSource[i].Timems;
         LastCutTime = navSource[i].Timems;
 
         //Subtract CutStartPos from the cut .nav PH address
@@ -1648,7 +1648,7 @@ tTimeStamp* NavLoadSD(char const *SourceFileName, dword *const NrTimeStamps)
   dword                 NavSize;
 
   *NrTimeStamps = 0;
-  
+
   // Open the nav file
   HDD_TAP_GetCurrentDir(CurrentDir);
   TAP_SPrint(AbsFileName, "%s%s/%s.nav", TAPFSROOT, CurrentDir, SourceFileName);
@@ -1683,8 +1683,8 @@ tTimeStamp* NavLoadSD(char const *SourceFileName, dword *const NrTimeStamps)
 #endif
 
   //Count and save all the _different_ time stamps in the .nav
-  LastTimeStamp = 0;
-  FirstTime = 0;
+  LastTimeStamp = 0xFFFFFFFF;
+  FirstTime = 0xFFFFFFFF;
   navBuffer = (tnavSD*) TAP_MemAlloc(NAVRECS_SD * sizeof(tnavSD));
   if (!navBuffer)
   {
@@ -1705,7 +1705,7 @@ tTimeStamp* NavLoadSD(char const *SourceFileName, dword *const NrTimeStamps)
 
     for(i = 0; i < ret; i++)
     {
-      if(FirstTime == 0) FirstTime = navBuffer[i].Timems;
+      if(FirstTime == 0xFFFFFFFF) FirstTime = navBuffer[i].Timems;
       if(LastTimeStamp != navBuffer[i].Timems)
       {
         AbsPos = ((ulong64)(navBuffer[i].PHOffsetHigh) << 32) | navBuffer[i].PHOffset;
@@ -1812,8 +1812,8 @@ tTimeStamp* NavLoadHD(char const *SourceFileName, dword *const NrTimeStamps)
 #endif
 
   //Count and save all the _different_ time stamps in the .nav
-  LastTimeStamp = 0;
-  FirstTime = 0;
+  LastTimeStamp = 0xFFFFFFFF;
+  FirstTime = 0xFFFFFFFF;
   navBuffer = (tnavHD*) TAP_MemAlloc(NAVRECS_HD * sizeof(tnavHD));
   if (!navBuffer)
   {
@@ -1834,7 +1834,7 @@ tTimeStamp* NavLoadHD(char const *SourceFileName, dword *const NrTimeStamps)
 
     for(i = 0; i < ret; i++)
     {
-      if(FirstTime == 0) FirstTime = navBuffer[i].Timems;
+      if(FirstTime == 0xFFFFFFFF) FirstTime = navBuffer[i].Timems;
       if(LastTimeStamp != navBuffer[i].Timems)
       {
         AbsPos = ((ulong64)(navBuffer[i].SEIOffsetHigh) << 32) | navBuffer[i].SEIOffsetLow;
