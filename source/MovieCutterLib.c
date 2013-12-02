@@ -283,7 +283,12 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
   char BakFileName[MAX_FILE_NAME_SIZE + 1];
   TAP_SPrint(FileName, "%s.nav", SourceFileName);
   TAP_SPrint(BakFileName, "%s.nav.bak", SourceFileName);
-  TAP_Hdd_Rename(FileName, BakFileName);
+  if (TAP_Hdd_Exist(FileName))
+  {
+    if (TAP_Hdd_Exist(BakFileName))
+      TAP_Hdd_Delete(BakFileName);
+    TAP_Hdd_Rename(FileName, BakFileName);
+  }
 
   // Patch the nav files (and get the TimeStamps for the actual cutting positions)
   if(!SuppressNavGeneration)

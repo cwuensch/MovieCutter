@@ -280,14 +280,40 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
   if(OSDMenuMessageBoxIsVisible())
   {
-    OSDMenuEvent(&event, &param1, &param2);
-    if(event == EVT_KEY && param1 == RKEY_Ok) OSDMenuMessageBoxDestroy();
-
-/*    #if STACKTRACE == TRUE
+    if(event == EVT_KEY && (param1 == RKEY_Ok || param1 == RKEY_Exit))
+    {
+      OSDMenuMessageBoxDestroy();
+      if (State == ST_ActionDialog)
+      {
+        TAP_ExitNormal();
+        if ((param1 == RKEY_Ok) && (OSDMenuMessageBoxLastButton() == 0))
+        {
+          ActionMenuRemove();
+          State = ST_Idle;
+          switch(ActionMenuItem)
+          {
+            case MI_SaveSegment:        MovieCutterSaveSegments(); break;
+            case MI_DeleteSegment:      MovieCutterDeleteSegments(); break;
+            case MI_DeleteFile:         MovieCutterDeleteFile(); break;
+          }
+        }
+        else
+        {
+          TAP_Osd_Sync();
+          ActionMenuDraw();
+        }
+      }
+      param1 = 0;
+    }
+    else
+      OSDMenuEvent(&event, &param1, &param2);
+    
+    DoNotReenter = FALSE;
+    #if STACKTRACE == TRUE
       CallTraceExit(NULL);
     #endif
-    return 0;
-*/  }
+    return param1;
+  }
 
   TAP_GetState(&SysState, &SysSubState);
 
@@ -773,19 +799,21 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             if(ActionMenuItem != MI_SelectFunction)
             {
               if (ActionMenuItem==MI_SaveSegment || ActionMenuItem==MI_DeleteSegment || ActionMenuItem==MI_DeleteFile)
-                if (!GetUserConfirmation())
-                  break;
+              {
+                ShowConfirmationDialog();
+                break;
+              }
 
               ActionMenuRemove();
               State = ST_Idle;
               switch(ActionMenuItem)
               {
-                case MI_SaveSegment:        MovieCutterSaveSegments(); break;
-                case MI_DeleteSegment:      MovieCutterDeleteSegments(); break;
+//                case MI_SaveSegment:        MovieCutterSaveSegments(); break;
+//                case MI_DeleteSegment:      MovieCutterDeleteSegments(); break;
                 case MI_SelectOddSegments:  MovieCutterSelectOddSegments();  ActionMenuDraw(); State = ST_ActionDialog; break;
                 case MI_SelectEvenSegments: MovieCutterSelectEvenSegments(); ActionMenuDraw(); State = ST_ActionDialog; break;
                 case MI_UnselectAll:        MovieCutterUnselectAll(); break;
-                case MI_DeleteFile:         MovieCutterDeleteFile(); break;
+//                case MI_DeleteFile:         MovieCutterDeleteFile(); break;
                 case MI_ImportBookmarks:    AddBookmarksToSegmentList(); break;
                 case MI_ExitMC:             State = ST_Exit; break;
                 case MI_NrMenuItems:        break;
@@ -812,9 +840,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             State = ST_Idle;
             break;
           }
-
-        param1 = 0;
         }
+        param1 = 0;
       }
       break;
     }
@@ -854,23 +881,13 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   return param1;
 }
 
-bool GetUserConfirmation(void)
+void ShowConfirmationDialog(void)
 {
-  word event; dword param1, param2;
-return TRUE;
   OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_AskConfirmation));
-  OSDMenuMessageBoxButtonAdd(LangGetString(LS_No));
   OSDMenuMessageBoxButtonAdd(LangGetString(LS_Yes));
+  OSDMenuMessageBoxButtonAdd(LangGetString(LS_No));
+  OSDMenuMessageBoxButtonSelect(1);
   OSDMenuMessageBoxShow();
-  do
-  {
-    OSDMenuEvent(&event, &param1, &param2);
-    if((event == EVT_KEY) && ((param1 == RKEY_Left) || (param1 == RKEY_Right)))
-      OSDMenuMessageBoxButtonSelect((OSDMenuMessageBoxLastButton() + 1) % 2);
-    if((event == EVT_KEY) && (param1 == RKEY_Ok)) 
-      OSDMenuMessageBoxDestroy();
-  } while(OSDMenuMessageBoxIsVisible());
-  return (OSDMenuMessageBoxLastButton() == 1);
 }
 
 dword TMSCommander_handler(dword param1)
@@ -984,6 +1001,8 @@ void CleanupCut(void)
 
   HDD_TAP_PushDir();
   HDD_ChangeDir("/DataFiles");
+  
+  // Lösche verweiste .cut-Dateien in /DataFiles (nicht in Unterverzeichnissen)
   NrFiles = TAP_Hdd_FindFirst(&FolderEntry, "cut");
   for (i = 0; i < NrFiles; i++)
   {
@@ -993,6 +1012,23 @@ void CleanupCut(void)
       RecFileName[strlen(RecFileName) - 4] = '\0';
       strcat(RecFileName, ".rec");
       if(!TAP_Hdd_Exist(RecFileName)) TAP_Hdd_Delete(FolderEntry.name);
+    }
+    TAP_Hdd_FindNext(&FolderEntry);
+  }
+
+  // Lösche verweiste .cut.bak-Dateien in /DataFiles
+  NrFiles = TAP_Hdd_FindFirst(&FolderEntry, "bak");
+  for (i = 0; i < NrFiles; i++)
+  {
+    if(FolderEntry.attr == ATTR_NORMAL)
+    {
+      strcpy(RecFileName, FolderEntry.name);
+      if (strncmp(RecFileName + strlen(RecFileName) - 8, ".cut.bak", 8) == 0)
+      {
+        RecFileName[strlen(RecFileName) - 8] = '\0';
+        strcat(RecFileName, ".rec");
+        if(!TAP_Hdd_Exist(RecFileName)) TAP_Hdd_Delete(FolderEntry.name);
+      }
     }
     TAP_Hdd_FindNext(&FolderEntry);
   }
@@ -3020,10 +3056,10 @@ void MovieCutterProcess(bool KeepCut)
 
   // Lege ein Backup der .cut-Datei an
   CutFileSave();
-  char BackupName[MAX_FILE_NAME_SIZE + 1];
-  strcpy(BackupName, PlaybackName);
-  BackupName[strlen(BackupName) - 4] = '\0';
-  TAP_SPrint(LogString, "cp \"%s/%s.cut\" \"%s/%s.cut.bak\"", PlaybackDirectory, BackupName, PlaybackDirectory, BackupName);
+  char BackupCutName[MAX_FILE_NAME_SIZE + 1];
+  strcpy(BackupCutName, PlaybackName);
+  BackupCutName[strlen(BackupCutName) - 4] = '\0';
+  TAP_SPrint(LogString, "cp \"%s/%s.cut\" \"%s/%s.cut.bak\"", PlaybackDirectory, BackupCutName, PlaybackDirectory, BackupCutName);
   system(LogString);
 
   // Zähle die ausgewählten Segmente
@@ -3039,7 +3075,7 @@ void MovieCutterProcess(bool KeepCut)
 
   //ClearOSD();
 
-  for(i = NrSegmentMarker - 2; i >= -1; i--)
+  for(i = NrSegmentMarker - 2; i >= 0 /*-1*/; i--)
   {
     //OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), NrSegmentMarker - i - 1, NrSegmentMarker, NULL);
 
@@ -3049,7 +3085,7 @@ void MovieCutterProcess(bool KeepCut)
       WorkingSegment = i;
 
       // Process the ending at last (*experimental!*)
-      if (i == NrSegmentMarker - 2) {
+/*      if (i == NrSegmentMarker - 2) {
         NrSelectedSegments--;
         continue;
       }
@@ -3057,7 +3093,7 @@ void MovieCutterProcess(bool KeepCut)
       {
         WorkingSegment = NrSegmentMarker - 2;
         NrSelectedSegments = 1;
-      }
+      }  */
     }
     else
       //If no segment has been selected, use the active segment and break the loop
@@ -3149,7 +3185,7 @@ void MovieCutterProcess(bool KeepCut)
 
       for(j = NrSegmentMarker - 1; j >= 1; j--)
       {
-        if(SegmentMarker[j].Block-1 > CutStartPoint.BlockNr)
+        if(SegmentMarker[j].Block > CutStartPoint.BlockNr + 1)
         {
           SegmentMarker[j].Block -= min(DeltaBlock, SegmentMarker[j].Block);
           SegmentMarker[j].Timems -= min(DeltaTime, SegmentMarker[j].Timems);
@@ -3183,7 +3219,7 @@ void MovieCutterProcess(bool KeepCut)
         }
       }
     }
-    if ((NrSelectedSegments <= 0) && !SegmentMarker[NrSegmentMarker-2].Selected)
+    if ((NrSelectedSegments <= 0) /* && !SegmentMarker[NrSegmentMarker-2].Selected*/ )
       break;
   }
   CutFileSave();

@@ -43,7 +43,7 @@ void  DeleteSegmentMarker(word MarkerIndex);
 void  DeleteAllSegmentMarkers(void);
 int   FindNearestBookmark(void);
 int   FindNearestSegmentMarker(void);
-bool  GetUserConfirmation(void);
+void  ShowConfirmationDialog(void);
 dword NavGetBlockTimeStamp(dword PlaybackBlockNr);
 bool  isPlaybackRunning(void);
 void  LoadINI(void);
