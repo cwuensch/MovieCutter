@@ -33,14 +33,15 @@
 2011-08-14 V1.3c  * Fixed a reboot if green is pressed without a running playback
 2011-08-26 V1.3d  * Added the French translations (Thanks to LAL)
 2012-06-23 V1.4   * Added action menu items "Delete event segments" and "Delete odd segments"
-2013-12-01 V2.0   * vollständiger Unicode-Support
-                  * alle Zeitangaben werden präzise aus der nav berechnet
+2013-12-06 V2.0  ** vollständiger Unicode-Support
+                *** alle Zeitangaben werden präzise aus der nav berechnet
+                  * Hin- und Herspringen der Spielzeit-Anzeige behoben
                   * Nummerierung der geschnittenen Teile nun aufsteigend
-                  * mehr Segmente können angelegt werden (aktuell nur 12, später bis zu 99)
-                  * Bookmarks werden korrekt zwischen MC und Firmware ausgetauscht
-                  * Bookmark-Modus: Nach Drücken der weißen Taste können nun auch im MC Bookmarks
+                 ** mehr Segmente können angelegt werden (aktuell nur 12, später bis zu 99)
+                 ** Bookmarks werden korrekt zwischen MC und Firmware ausgetauscht
+                 ** Bookmark-Modus: Nach Drücken der weißen Taste können nun auch im MC Bookmarks
                     angelegt und gelöscht, sowie dazwischen hin- und hergesprungen werden
-                    (nochmaliges Drücken der weißen Taste schaltet in normalen Modus zurück)
+                    (nochmaliges Drücken der weißen Taste schaltet in den normalen Modus zurück)
                   * Minutensprung-Modus erlaubt zweistellige Eingabe
                     (10 min ist nicht mehr [0], sondern [1], dann [0]).
                     Theoretisch bis zu 99 min Sprungweite möglich
@@ -48,7 +49,16 @@
                   * MovieCutter wird jetzt allein durch die Schnitttaste (ohne Playbalken) eingeblendet
                   * Menü verschlankt: Einträge erscheinen kontextsensitiv (nur wenn sie relevant sind)
                   * Markieren der geraden / ungeraden Segmente ist jetzt eine eigene Aktion (-> Schutz vor Fehlbedienung)
-                  * Fehlverhalten der FW (Schnitt inmitten eines Pakets) wird abgefangen
-                  * Präzisere Behandlung beim Schneiden des letzten Segments:
+                 ** Springen zwischen Segmenten (v.a. mehrfaches Springen) geht jetzt flüssig
+                    (OSD-Anzeige erfolgt in Echtzeit, die eigentliche Sprung-Operation wird verzögert ausgeführt)
+                  * nach dem Segment-Sprung erfolgt kein kurzes Zurückspringen der Anzeige mehr
+                  * OSD: Rote Markierung von kurzen Segmenten aufgehoben
+                    (diese werden von der FW anscheinend NICHT gelöscht)
+                  * Rückfrage-Dialog vor kritischen Aktionen
+                *** Fehlverhalten der FW (Schnitt inmitten eines Pakets) wird abgefangen
+                *** Präzisere Behandlung beim Schneiden des letzten Segments:
                     - beim Speichern bleibt dieses vollständig erhalten
                     - beim Löschen verbleibt kein Rest des Aufnahmeendes mehr hinter der Schnittstelle
+                 ** Kompatibilitäts-Funktionen zum Umstieg von Version 1.x:
+                    - automatisches Konvertieren der alten Cut-Files
+                    - automatische Nachkorrektur der vom alten MC erzeugten nav-Files

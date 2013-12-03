@@ -23,11 +23,11 @@
 
 
 #Deutsch
-de_000= Neu
-de_001= Löschen
-de_002= Beenden
-de_003= Verschieben
-de_004= Pause/Menü
+de_000= Neu 
+de_001= Löschen 
+de_002= Beenden 
+de_003= Verschieben 
+de_004= Pause/Menü 
 de_005= Auswählen
 de_006=Aufnahme nicht unterstützt!\n(.nav-Datei fehlt)
 de_007=Ausgewählte Segmente löschen
@@ -70,11 +70,11 @@ de_043=Die .nav-Datei konnte nicht geladen werden.
 de_044=Länge der .nav-Datei ist inkorrekt.
        
 #English
-en_000= Add
-en_001= Delete
-en_002= Exit
-en_003= Move
-en_004= Pause/Menu
+en_000= Add 
+en_001= Delete 
+en_002= Exit 
+en_003= Move 
+en_004= Pause/Menu 
 en_005= Select
 en_006=This recording is not supported!\n(.nav does not exist)
 en_007=Delete the selected segments
@@ -118,11 +118,11 @@ en_044=.nav file length not matching duration.
 
 
 #French
-fr_000= Ajouter
-fr_001= Effacer
-fr_002= Quitter
-fr_003= Déplacer
-fr_004= Pause/Menu
+fr_000= Ajouter 
+fr_001= Effacer 
+fr_002= Quitter 
+fr_003= Déplacer 
+fr_004= Pause/Menu 
 fr_005= Sélectionner
 fr_006=Enregistrement non supporté !\n(Fichier .nav manquant)
 fr_007=Supprimer segments sélectionnés

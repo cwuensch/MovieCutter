@@ -483,6 +483,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           CalcLastSeconds();
           ReadBookmarks();
           if(!CutFileLoad()) AddDefaultSegmentMarker();
+// *** HIER Repeat-Modus aktivieren! ***
           OSDRedrawEverything();
 //          LastTotalBlocks = PlayInfo.totalBlock;  // *CW*
           State = ST_Idle;
@@ -515,9 +516,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 //          Playback_Normal();
           ReadBookmarks();
           OSDRedrawEverything();
+// *** HIER Repeat-Modus aktivieren! ***
           State = ST_Idle;
         }
-        param1 = 0;
+        param1 = RKEY_Ab;  // *** (de-/aktiviert Repeat-Modus, keine Dauerlösung!) ***
       }
 
       // if playback-file changed -> show MovieCutter as soon as next playback is started (ST_IdleNoPlayback)
@@ -559,6 +561,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             CutFileSave();
             ClearOSD();
             State = ST_IdleInvisible;
+
+// *** HIER Repeat-Modus deaktivieren! ***
 
             //Exit immediately so that other functions can not interfere with the cleanup
             DoNotReenter = FALSE;
@@ -865,6 +869,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       FMUC_FreeFontFile(&Calibri_10_FontDataUC);
       FMUC_FreeFontFile(&Calibri_12_FontDataUC);
       FMUC_FreeFontFile(&Calibri_14_FontDataUC);
+
+// *** HIER Repeat-Modus deaktivieren! ***
+
       #if STACKTRACE == TRUE
         CallTraceExit(NULL);
       #endif
@@ -1915,7 +1922,7 @@ void CreateOSD(void)
     TAP_ExitNormal();
     TAP_EnterNormal();
     TAP_ExitNormal();
-    rgnSegmentList = TAP_Osd_Create(28, 85, _SegmentList_Background_Gd.width, _SegmentList_Background_Gd.height, 0, 0);
+    rgnSegmentList = TAP_Osd_Create(28 +22 /***CW***/, 85, _SegmentList_Background_Gd.width, _SegmentList_Background_Gd.height, 0, 0);
   }
   if(!rgnInfo) rgnInfo = TAP_Osd_Create(0, 576 - _Info_Background_Gd.height, _Info_Background_Gd.width, _Info_Background_Gd.height, 0, 0);
 
