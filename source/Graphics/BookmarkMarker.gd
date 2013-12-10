@@ -15,7 +15,7 @@ TYPE_GrData _BookmarkMarker_Gd =
   0,                              //reserved
   OSD_8888,                       //data format
   COMPRESS_Tfp,                   //compressed method
-  _BookmarkMarker_Cpm,            //data
+  _BookmarkMarker_Cpm,      
    288,                           //size
      8,                           //width
      9                            //height

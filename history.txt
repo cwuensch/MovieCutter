@@ -49,12 +49,14 @@
                   * MovieCutter wird jetzt allein durch die Schnitttaste (ohne Playbalken) eingeblendet
                   * Menü verschlankt: Einträge erscheinen kontextsensitiv (nur wenn sie relevant sind)
                   * Markieren der geraden / ungeraden Segmente ist jetzt eine eigene Aktion (-> Schutz vor Fehlbedienung)
+                  * Rückfrage-Dialog vor kritischen Aktionen
                  ** Springen zwischen Segmenten (v.a. mehrfaches Springen) geht jetzt flüssig
                     (OSD-Anzeige erfolgt in Echtzeit, die eigentliche Sprung-Operation wird verzögert ausgeführt)
-                  * nach dem Segment-Sprung erfolgt kein kurzes Zurückspringen der Anzeige mehr
+                 ** nach dem Segment-Sprung erfolgt kein kurzes Zurückspringen der Anzeige mehr
+                  * während MC aktiv ist, wird der Wiederholungs-Modus aktiviert, um Beenden der Wiedergabe zu verhindern
+                  * OSD: Segmentliste neu gestaltet
                   * OSD: Rote Markierung von kurzen Segmenten aufgehoben
                     (diese werden von der FW anscheinend NICHT gelöscht)
-                  * Rückfrage-Dialog vor kritischen Aktionen
                 *** Fehlverhalten der FW (Schnitt inmitten eines Pakets) wird abgefangen
                 *** Präzisere Behandlung beim Schneiden des letzten Segments:
                     - beim Speichern bleibt dieses vollständig erhalten
