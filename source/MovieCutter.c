@@ -1,6 +1,5 @@
 #define _FILE_OFFSET_BITS  64
 #define __USE_LARGEFILE64  1
-#define STACKTRACE FALSE
 
 #include                <stdio.h>
 #include                <stdlib.h>
@@ -12,7 +11,10 @@
 #include                "MovieCutter_TAPCOM.h"
 #include                "Graphics/SegmentList_Background.gd"
 #include                "Graphics/Selection_Blue.gd"
-#include                "Graphics/Selection_Red.gd"
+#include                "Graphics/Selection_Blue_small.gd"
+//#include                "Graphics/Selection_Red.gd"
+#include                "Graphics/SegmentList_ScrollBar.gd"
+#include                "Graphics/SegmentList_ScrollButton.gd"
 #include                "Graphics/Button_Ffwd_Active.gd"
 #include                "Graphics/Button_Ffwd_Inactive.gd"
 #include                "Graphics/Button_Pause_Active.gd"
@@ -26,9 +28,9 @@
 #include                "Graphics/Button_Left.gd"
 #include                "Graphics/Button_Right.gd"
 #include                "Graphics/Button_Up.gd"
-#include                "Graphics/Button_Up2.gd"
+#include                "Graphics/Button_Up_small.gd"
 #include                "Graphics/Button_Down.gd"
-#include                "Graphics/Button_Down2.gd"
+#include                "Graphics/Button_Down_small.gd"
 #include                "Graphics/Button_Red.gd"
 #include                "Graphics/Button_Green.gd"
 #include                "Graphics/Button_Yellow.gd"
@@ -39,7 +41,9 @@
 #include                "Graphics/Info_Background.gd"
 #include                "Graphics/Info_Progressbar.gd"
 #include                "Graphics/BookmarkMarker.gd"
+#include                "Graphics/BookmarkMarker_gray.gd"
 #include                "Graphics/SegmentMarker.gd"
+#include                "Graphics/SegmentMarker_gray.gd"
 #include                "Graphics/ActionMenu9.gd"
 #include                "Graphics/ActionMenu_Bar.gd"
 #include                "TMSCommander.h"
@@ -163,7 +167,7 @@ bool                    NoPlaybackCheck;                      //Used to circumve
 word                    JumpRequestedSegment = 0xFFFF;        //Is set, when the user presses up/down to jump to another segment
 dword                   JumpRequestedTime = 0;
 dword                   JumpPerformedTime = 0;
-bool                    PassWhiteKeyToFirmware = FALSE;
+bool                    OldRepeatMode;
 
 // Playback information
 TYPE_PlayInfo           PlayInfo;
@@ -257,13 +261,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
   (void) param2;
 
-  if(PassWhiteKeyToFirmware && (event == EVT_KEY) && (param1 == RKEY_Ab))
-  {
-TAP_PrintNet("WHITE Key sent to firmware! \n");
-    PassWhiteKeyToFirmware = FALSE;
-    return 0; // param1;
-  }
-
   if(DoNotReenter) return param1;
   DoNotReenter = TRUE;
 
@@ -321,17 +318,15 @@ TAP_PrintNet("WHITE Key sent to firmware! \n");
         else
         {
           TAP_Osd_Sync();
+          OSDRedrawEverything();
           ActionMenuDraw();
         }
       }
       param1 = 0;
     }
     else
-    {
       OSDMenuEvent(&event, &param1, &param2);
-//      OSDRedrawEverything();  // Wofür habe ich diese Zeile eingefügt!? -> Sie bewirkt, dass bei ST_UnacceptedFile ein (altes) OSD gezeichnet wird.
-    }
-
+    
     DoNotReenter = FALSE;
     #if STACKTRACE == TRUE
       CallTraceExit(NULL);
@@ -507,13 +502,11 @@ TAP_PrintNet("WHITE Key sent to firmware! \n");
           CalcLastSeconds();
           ReadBookmarks();
           if(!CutFileLoad()) AddDefaultSegmentMarker();
+          OldRepeatMode = PlaybackRepeatGet();
+          PlaybackRepeatSet(TRUE);
           OSDRedrawEverything();
 //          LastTotalBlocks = PlayInfo.totalBlock;  // *CW*
           State = ST_Idle;
-// *** HIER Repeat-Modus aktivieren! ***
-TAP_PrintNet("WHITE Key event generated! IdleNoPlayback->Film analysiert \n");
-          PassWhiteKeyToFirmware = TRUE;
-//          TAP_GenerateEvent(EVT_KEY, RKEY_Ab, 0);
         }
       }
       break;
@@ -542,14 +535,12 @@ TAP_PrintNet("WHITE Key event generated! IdleNoPlayback->Film analysiert \n");
           CreateOSD();
 //          Playback_Normal();
           ReadBookmarks();
+          OldRepeatMode = PlaybackRepeatGet();
+          PlaybackRepeatSet(TRUE);
           OSDRedrawEverything();
           State = ST_Idle;
-// *** HIER Repeat-Modus aktivieren! ***
-TAP_PrintNet("WHITE Key event generated! IdleInvisible->OSD erneut eingeblendet \n");
-          PassWhiteKeyToFirmware = TRUE;
-//          TAP_GenerateEvent(EVT_KEY, RKEY_Ab, 0);
         }
-        param1 = 0;  // RKEY_Ab;  // *** (de-/aktiviert Repeat-Modus, keine Dauerlösung!) ***
+        param1 = 0;
       }
 
       // if playback-file changed -> show MovieCutter as soon as next playback is started (ST_IdleNoPlayback)
@@ -590,12 +581,8 @@ TAP_PrintNet("WHITE Key event generated! IdleInvisible->OSD erneut eingeblendet 
           {
             CutFileSave();
             ClearOSD();
+            PlaybackRepeatSet(OldRepeatMode);
             State = ST_IdleInvisible;
-
-// *** HIER Repeat-Modus deaktivieren! ***
-TAP_PrintNet("WHITE Key event generated! RKEY_Exit gedrückt \n");
-            PassWhiteKeyToFirmware = TRUE;
-//            TAP_GenerateEvent(EVT_KEY, RKEY_Ab, 0);
 
             //Exit immediately so that other functions can not interfere with the cleanup
             DoNotReenter = FALSE;
@@ -904,21 +891,18 @@ TAP_PrintNet("WHITE Key event generated! RKEY_Exit gedrückt \n");
     {
       if (strlen(PlaybackName) > 0)
         CutFileSave();
+      PlaybackRepeatSet(OldRepeatMode);
       Cleanup(TRUE);
       LangUnloadStrings();
       FMUC_FreeFontFile(&Calibri_10_FontDataUC);
       FMUC_FreeFontFile(&Calibri_12_FontDataUC);
       FMUC_FreeFontFile(&Calibri_14_FontDataUC);
 
-// *** HIER Repeat-Modus deaktivieren! ***
-TAP_PrintNet("WHITE Key event generated! ST_Exit->TAP wird beendet \n");
-      PassWhiteKeyToFirmware = TRUE;
-//      TAP_GenerateEvent(EVT_KEY, RKEY_Ab, 0);
-
       #if STACKTRACE == TRUE
         CallTraceExit(NULL);
       #endif
       TAP_Exit();
+      return param1;
       break;
     }
   }
@@ -2003,9 +1987,10 @@ void OSDSegmentListDrawList(word CurrentSegment)
     CallTraceEnter("OSDSegmentListDrawList");
   #endif
 
-  const int             StartTextField_X = 5,   StartTextField_Y = 33,  EndTextField_X = 163;
-  const int             TextFieldHeight  = 26,  TextFieldDist  = 2;
-  const int             Scrollbar_X = 166,      Scrollbar_Y = 44,       ScrollbarWidth = 10,  ScrollbarHeight = 256;
+  const int             RegionWidth    = 166,  BelowTextArea_Y = 306;
+  const int             StartTextField_X = 5,  StartTextField_Y = 28,  EndTextField_X = 149;
+  const int             TextFieldHeight = 26,  TextFieldDist    =  2;
+  const int             Scrollbar_X = 152,     Scrollbar_Y = 39,     /*ScrollbarWidth = 10,*/    ScrollbarHeight = 256;
   const int             NrWidth     = FMUC_GetStringWidth("99.", &Calibri_12_FontDataUC);
   const int             DashWidth   = FMUC_GetStringWidth(" - ", &Calibri_12_FontDataUC);
   const int             TimeWidth   = FMUC_GetStringWidth("99:99:99", &Calibri_12_FontDataUC);
@@ -2027,25 +2012,26 @@ void OSDSegmentListDrawList(word CurrentSegment)
 
     // Hintergrund, Überschrift, Buttons
     TAP_Osd_PutGd(rgnSegmentList, 0, 0, &_SegmentList_Background_Gd, FALSE);
-    FMUC_PutString(rgnSegmentList, StartTextField_X, 3, EndTextField_X, LangGetString(LS_Segments), COLOR_White, COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_CENTER);
-    TAP_Osd_PutGd(rgnSegmentList, 62, 300, &_Button_Up_Gd, TRUE);
-    TAP_Osd_PutGd(rgnSegmentList, 88, 300, &_Button_Down_Gd, TRUE);
+    FMUC_PutString(rgnSegmentList, 0, 1, RegionWidth, LangGetString(LS_Segments), COLOR_White, COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_CENTER);
+    TAP_Osd_PutGd(rgnSegmentList, EndTextField_X - 2*19 - 3, BelowTextArea_Y + 5, &_Button_Up_small_Gd, TRUE);
+    TAP_Osd_PutGd(rgnSegmentList, EndTextField_X - 19,       BelowTextArea_Y + 5, &_Button_Down_small_Gd, TRUE);
 
     // Seitenzahl
     NrPages = ((NrSegmentMarker - 2) / 10) + 1;
     p       = (CurrentSegment / 10) + 1;
-    TAP_SPrint(PageStr, "%s%u/%u", LangGetString(LS_PageStr), p, NrPages);
-    FMUC_PutString(rgnSegmentList, EndTextField_X-50, 9, EndTextField_X+15, PageStr, COLOR_White, COLOR_None, &Calibri_10_FontDataUC, FALSE, ALIGN_RIGHT);
+    TAP_SPrint(PageStr, "%s %u/%u", LangGetString(LS_PageStr), p, NrPages);
+    FMUC_PutString(rgnSegmentList, StartTextField_X + 1, BelowTextArea_Y + 2, EndTextField_X - 2*19 - 3, PageStr, COLOR_White, COLOR_None, &Calibri_10_FontDataUC, FALSE, ALIGN_LEFT);
 
     // Scrollbalken
-    ScrollButtonHeight = (ScrollbarHeight / NrPages);
-    ScrollButtonPos    = Scrollbar_Y + (ScrollbarHeight * (p - 1) / NrPages);
-//    TAP_Osd_FillBox(rgnSegmentList, Scrollbar_X+2, ScrollButtonPos, ScrollbarWidth-4, ScrollButtonHeight, COLOR_DarkGray);
-    TAP_Osd_Draw3dBoxFill(rgnSegmentList, Scrollbar_X+2, ScrollButtonPos, ScrollbarWidth-4, ScrollButtonHeight, COLOR_Yellow, COLOR_Red, COLOR_DarkGray);
-
-//    TAP_Osd_PutGd(rgnSegmentList, Scrollbar_X, ScrollButtonPos, , FALSE);
-    for (i = 40+1; i < ScrollButtonHeight; i++)
-      TAP_Osd_Copy(rgnSegmentList, rgnSegmentList, Scrollbar_X, Scrollbar_Y-4, ScrollbarWidth, 1, Scrollbar_X, ScrollButtonPos+i, FALSE);
+    if (NrPages > 1)
+    {
+      TAP_Osd_PutGd(rgnSegmentList, EndTextField_X, StartTextField_Y, &_SegmentList_ScrollBar_Gd, FALSE);
+      ScrollButtonHeight = (ScrollbarHeight / NrPages);
+      ScrollButtonPos    = Scrollbar_Y + (ScrollbarHeight * (p - 1) / NrPages);
+//      TAP_Osd_Draw3dBoxFill(rgnSegmentList, Scrollbar_X+2, ScrollButtonPos, ScrollbarWidth-4, ScrollButtonHeight, COLOR_Yellow, COLOR_Red, COLOR_DarkGray);
+      for (i = 0; i < ScrollButtonHeight; i++)
+        TAP_Osd_PutGd(rgnSegmentList, Scrollbar_X, ScrollButtonPos + i, &_SegmentList_ScrollButton_Gd, FALSE);
+    }
 
     // Segmente
     if(NrSegmentMarker > 2)
@@ -2061,7 +2047,7 @@ void OSDSegmentListDrawList(word CurrentSegment)
 //          if((SegmentMarker[p+i + 1].Timems - SegmentMarker[p+i].Timems) < 60001)
 //            TAP_Osd_PutGd(rgnSegmentList, 3, 44 + 28*i, &_Selection_Red_Gd, FALSE);
 //          else
-          TAP_Osd_PutGd(rgnSegmentList, StartTextField_X, StartTextField_Y + i*(TextFieldHeight+TextFieldDist), &_Selection_Blue_Gd, FALSE);
+          TAP_Osd_PutGd(rgnSegmentList, StartTextField_X, StartTextField_Y + i*(TextFieldHeight+TextFieldDist), ((NrPages > 1) ? &_Selection_Blue_small_Gd : &_Selection_Blue_Gd), FALSE);
         }
 
         SecToTimeString((SegmentMarker[Start + i].Timems) / 1000, StartTime);
@@ -2078,7 +2064,7 @@ void OSDSegmentListDrawList(word CurrentSegment)
         PosX += TimeWidth;
         FMUC_PutString(rgnSegmentList, PosX, PosY, PosX + DashWidth,  "-",                                               UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_CENTER);
         PosX += DashWidth;
-        FMUC_PutString(rgnSegmentList, PosX, PosY, EndTextField_X+15, (Start+i == NrSegmentMarker-2) ? "  Ende" : EndTime, UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_LEFT);
+        FMUC_PutString(rgnSegmentList, PosX, PosY, EndTextField_X+15, (Start+i == NrSegmentMarker-2) ? " Ende" : EndTime, UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_LEFT);
       }
     }
   }
@@ -3342,6 +3328,53 @@ void MovieCutterProcess(bool KeepCut)
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
   #endif
+}
+
+
+// Sets the Playback Repeat Mode: 0=NoRepeat, 1=RepeatFromTo, 2=RepeatAll.
+// If RepeatMode != 1, the other parameters are without function.
+// Returns the old value if success, 0xFF if failure
+byte PlaybackRepeatMode(bool ChangeMode, byte RepeatMode, dword RepeatStartBlock, dword RepeatEndBlock)
+{
+  static byte        *_RepeatMode = NULL;
+  static int         *_RepeatStart = NULL;
+  static int         *_RepeatEnd = NULL;
+  byte               OldValue;
+
+  if(_RepeatMode == NULL)
+  {
+    _RepeatMode = (byte*)TryResolve("_playbackRepeatMode");
+    if(_RepeatMode == NULL) return 0xFF;
+  }
+
+  if(_RepeatStart == NULL)
+  {
+    _RepeatStart = (int*)TryResolve("_playbackRepeatRegionStart");
+    if(_RepeatStart == NULL) return 0xFF;
+  }
+
+  if(_RepeatEnd == NULL)
+  {
+    _RepeatEnd = (int*)TryResolve("_playbackRepeatRegionEnd");
+    if(_RepeatEnd == NULL) return 0xFF;
+  }
+
+  OldValue = *_RepeatMode;
+  if (ChangeMode)
+  {
+    *_RepeatMode = RepeatMode;
+    *_RepeatStart = (RepeatMode == 1) ? (int)RepeatStartBlock : -1;
+    *_RepeatEnd = (RepeatMode == 1) ? (int)RepeatEndBlock : -1;
+  }
+  return OldValue;
+}
+bool PlaybackRepeatSet(bool EnableRepeatAll)
+{
+  return (PlaybackRepeatMode(TRUE, ((EnableRepeatAll) ? 2 : 0), 0, 0) != 0xFF);
+}
+bool PlaybackRepeatGet()
+{
+  return (PlaybackRepeatMode(FALSE, 0, 0, 0) == 2);
 }
 
 
