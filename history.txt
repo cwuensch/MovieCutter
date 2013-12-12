@@ -57,6 +57,7 @@
                   * OSD: Segmentliste neu gestaltet
                   * OSD: Rote Markierung von kurzen Segmenten aufgehoben
                     (diese werden von der FW anscheinend NICHT gelöscht)
+                 ** Der Play-Modus (TrickMode) wird direkt aus der Firmware ermittelt, statt selbst verwaltet
                 *** Fehlverhalten der FW (Schnitt inmitten eines Pakets) wird abgefangen
                 *** Präzisere Behandlung beim Schneiden des letzten Segments:
                     - beim Speichern bleibt dieses vollständig erhalten

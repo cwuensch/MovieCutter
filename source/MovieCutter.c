@@ -2038,7 +2038,7 @@ void OSDSegmentListDrawList(word CurrentSegment)
     NrPages = ((NrSegmentMarker - 2) / 10) + 1;
     p       = (CurrentSegment / 10) + 1;
     TAP_SPrint(PageStr, "%s %d/%d", LangGetString(LS_PageStr), p, NrPages);
-    FMUC_PutString(rgnSegmentList, StartTextField_X + 10, BelowTextArea_Y + 2, EndTextField_X - 2*19 - 3, PageStr, COLOR_White, COLOR_None, &Calibri_10_FontDataUC, FALSE, ALIGN_LEFT);
+    FMUC_PutString(rgnSegmentList, StartTextField_X + 11, BelowTextArea_Y + 2, EndTextField_X - 2*19 - 3, PageStr, COLOR_White, COLOR_None, &Calibri_10_FontDataUC, FALSE, ALIGN_LEFT);
 
     // Scrollbalken
     if (NrPages > 1)
@@ -2188,7 +2188,7 @@ void OSDInfoDrawPlayIcons(bool Force)
   if(rgnInfo)
   {
     TrickModeSwitch = 0;
-    switch(TrickMode)
+/*    switch(TrickMode)
     {
       case TRICKMODE_Normal:
       case TRICKMODE_Pause: break;
@@ -2197,7 +2197,8 @@ void OSDInfoDrawPlayIcons(bool Force)
       case TRICKMODE_Rewind:   TrickModeSwitch = 0x20; break;
       case TRICKMODE_Slow:     TrickModeSwitch = 0x30; break;
     }
-    TrickModeSwitch += TrickModeSpeed;
+    TrickModeSwitch += TrickModeSpeed; */
+    TrickModeSwitch = (TrickMode << 4) + TrickModeSpeed;
 
     if(Force || (TrickMode != LastTrickMode) || (TrickModeSwitch != LastTrickModeSwitch))
     {
@@ -2811,8 +2812,7 @@ bool isPlaybackRunning(void)
   #endif
 
   TAP_Hdd_GetPlayInfo(&PlayInfo);
-  if((int)PlayInfo.currentBlock < 0)
-    PlayInfo.currentBlock = 0;
+  if((int)PlayInfo.currentBlock < 0) PlayInfo.currentBlock = 0;
 
   if ((PlayInfo.playMode == PLAYMODE_Playing) && !NoPlaybackCheck)
   {
