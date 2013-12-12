@@ -2,13 +2,13 @@
 #define __MOVIECUTTERH__
 
 #define PROGRAM_NAME          "MovieCutter"
-#define VERSION               "V2.0alpha"  // alpha = α,  beta = β, � = ü
+#define VERSION               "V2.0"  // alpha = α,  beta = β, � = ü
 #define TAPID                 0x8E0A4247
 //#define AUTHOR                "FireBird / Christian W�nsch"
 #define AUTHOR                "FireBird / C. Wünsch"
 #define DESCRIPTION           "MovieCutter"
 
-#define NRSEGMENTMARKER       14            // max. number of file markers +1 (marker for the end of file)
+#define NRSEGMENTMARKER       101            // max. number of file markers +1 (marker for the end of file)
 #define NRBOOKMARKS           144
 #define CUTFILEVERSION        2
 #define LOGDIR                "/ProgramFiles/Settings/MovieCutter"
@@ -65,11 +65,13 @@ void  OSDInfoDrawPlayIcons(bool Force);
 void  OSDInfoDrawProgressbar(bool Force);
 void  OSDInfoDrawRecName(void);
 void  OSDRedrawEverything(void);
-void  OSDSegmentListDrawList(word CurrentSegment);
+void  OSDSegmentListDrawList();
 void  Playback_Faster(void);
 void  Playback_FFWD(void);
 void  Playback_JumpBackward(void);
 void  Playback_JumpForward(void);
+void  Playback_JumpNextSegment(void);
+void  Playback_JumpPrevSegment(void);
 void  Playback_JumpNextBookmark(void);
 void  Playback_JumpPrevBookmark(void);
 void  Playback_Normal(void);

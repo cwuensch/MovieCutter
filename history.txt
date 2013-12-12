@@ -42,18 +42,20 @@
                  ** Bookmark-Modus: Nach Drücken der weißen Taste können nun auch im MC Bookmarks
                     angelegt und gelöscht, sowie dazwischen hin- und hergesprungen werden
                     (nochmaliges Drücken der weißen Taste schaltet in den normalen Modus zurück)
+                 ** Springen zwischen Segmenten (v.a. mehrfaches Springen) geht jetzt flüssig
+                    (OSD-Anzeige erfolgt in Echtzeit, die eigentliche Sprung-Operation wird verzögert ausgeführt)
+                  * direkter Segment-Sprung kann nun über die Skip-Tasten [|<] und [>|] durchgeführt werden
+                 ** nach dem Segment-Sprung erfolgt kein kurzes Zurückspringen der Anzeige mehr
+                  * im Bookmark-Modus springen die Skip-Tasten zwischen Bookmarks, im Minutensprung-Modus um die eingestellte Minutenzahl
                   * Minutensprung-Modus erlaubt zweistellige Eingabe
                     (10 min ist nicht mehr [0], sondern [1], dann [0]).
                     Theoretisch bis zu 99 min Sprungweite möglich
                   * Minutensprung-Modus wird nun durch [0] beendet, anstatt [OK] (-> überlebt Menü-Aufruf)
                   * MovieCutter wird jetzt allein durch die Schnitttaste (ohne Playbalken) eingeblendet
+                  * während MC aktiv ist, wird der Wiederholungs-Modus aktiviert, um Beenden der Wiedergabe zu verhindern
                   * Menü verschlankt: Einträge erscheinen kontextsensitiv (nur wenn sie relevant sind)
                   * Markieren der geraden / ungeraden Segmente ist jetzt eine eigene Aktion (-> Schutz vor Fehlbedienung)
                   * Rückfrage-Dialog vor kritischen Aktionen
-                 ** Springen zwischen Segmenten (v.a. mehrfaches Springen) geht jetzt flüssig
-                    (OSD-Anzeige erfolgt in Echtzeit, die eigentliche Sprung-Operation wird verzögert ausgeführt)
-                 ** nach dem Segment-Sprung erfolgt kein kurzes Zurückspringen der Anzeige mehr
-                  * während MC aktiv ist, wird der Wiederholungs-Modus aktiviert, um Beenden der Wiedergabe zu verhindern
                   * OSD: Segmentliste neu gestaltet
                   * OSD: Rote Markierung von kurzen Segmenten aufgehoben
                     (diese werden von der FW anscheinend NICHT gelöscht)
