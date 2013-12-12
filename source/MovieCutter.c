@@ -77,21 +77,12 @@ typedef enum
 
 typedef enum
 {
-  TM_Play,
-  TM_Pause,
-  TM_Fwd,
-  TM_Rwd,
-  TM_Slow
-} tTrickMode;
-
-typedef enum
-{
   MI_SelectFunction,
   MI_SaveSegment,
   MI_DeleteSegment,
   MI_SelectOddSegments,
   MI_SelectEvenSegments,
-  MI_UnselectAll,
+  MI_ClearAll,
   MI_ImportBookmarks,
   MI_DeleteFile,
   MI_ExitMC,
@@ -142,6 +133,7 @@ typedef enum
   LS_SelectMiddle,
   LS_UnselectAll,
   LS_ClearSegmentList,
+  LS_DeleteAllBookmarks,
   LS_PageStr,
   LS_AskConfirmation,
   LS_Yes,
@@ -159,11 +151,12 @@ typedef enum
 tState                  State = ST_Init;
 bool                    AutoOSDPolicy = TRUE;
 bool                    BookmarkMode;
-tTrickMode              TrickMode;
-dword                   TrickModeSpeed;
+TYPE_TrickMode          TrickMode;
+byte                    TrickModeSpeed;
 dword                   MinuteJump;                           //Seconds or 0 if deactivated
 dword                   MinuteJumpBlocks;                     //Number of blocks, which shall be added
 bool                    NoPlaybackCheck;                      //Used to circumvent a race condition during the cutting process
+int                     NrSelectedSegments;
 word                    JumpRequestedSegment = 0xFFFF;        //Is set, when the user presses up/down to jump to another segment
 dword                   JumpRequestedTime = 0;
 dword                   JumpPerformedTime = 0;
@@ -179,10 +172,10 @@ dword                   BlockNrLastSecond;
 dword                   BlockNrLast10Seconds;
 
 // Video parameters
-word                    NrSegmentMarker;
-word                    ActiveSegment;
+int                     NrSegmentMarker;
+int                     ActiveSegment;
 tSegmentMarker          SegmentMarker[NRSEGMENTMARKER];       //[0]=Start of file, [x]=End of file
-word                    NrBookmarks;
+int                     NrBookmarks;
 dword                   Bookmarks[NRBOOKMARKS];
 dword                   NrTimeStamps = 0;
 tTimeStamp             *TimeStamps = NULL;
@@ -312,6 +305,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           {
             case MI_SaveSegment:        MovieCutterSaveSegments(); break;
             case MI_DeleteSegment:      MovieCutterDeleteSegments(); break;
+            case MI_ClearAll:           (BookmarkMode) ? DeleteAllBookmarks() : DeleteAllSegmentMarkers(); break;
             case MI_DeleteFile:         MovieCutterDeleteFile(); break;
           }
         }
@@ -387,7 +381,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 //          if(RecFileSize <= 0)
           if(!HDD_GetFileSizeAndInode(&PlaybackDirectory[strlen(TAPFSROOT)], PlaybackName, NULL, &RecFileSize))
           {
-            WriteLogMC(PROGRAM_NAME, ".rec size could not be detected");
+            WriteLogMC(PROGRAM_NAME, ".rec size could not be detected!");
             OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_NoRecSize));
             OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
             OSDMenuMessageBoxShow();
@@ -403,7 +397,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           //Check if a nav is available
           if(!isNavAvailable(PlaybackName))
           {
-            WriteLogMC(PROGRAM_NAME, ".nav is missing");
+            WriteLogMC(PROGRAM_NAME, ".nav is missing!");
             OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_MissingNav));
             OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
             OSDMenuMessageBoxShow();
@@ -414,7 +408,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           // Detect if video stream is in HD
           if (!isHDVideo(PlaybackName, &HDVideo))
           {
-            WriteLogMC(PROGRAM_NAME, "could not detect type of video stream.");
+            WriteLogMC(PROGRAM_NAME, "Could not detect type of video stream!");
             OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_HDDetectionFailed));
             OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
             OSDMenuMessageBoxShow();
@@ -455,7 +449,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           }
           else
           {
-            WriteLogMC(PROGRAM_NAME, "error loading the .nav file");
+            WriteLogMC(PROGRAM_NAME, "Error loading the .nav file!");
             OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_NavLoadFailed));
             OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
             OSDMenuMessageBoxShow();
@@ -467,11 +461,14 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           // Check if nav has correct length! ***CW***
           if(labs(TimeStamps[NrTimeStamps-1].Timems - (1000 * (60*PlayInfo.duration + PlayInfo.durationSec))) > 3000)
           {
-            WriteLogMC(PROGRAM_NAME, ".nav file length not matching duration");
+            WriteLogMC(PROGRAM_NAME, ".nav file length not matching duration!");
 
             // [COMPATIBILITY LAYER - fill holes in old nav file]
             if (PatchOldNavFile(PlaybackName, HDVideo))
+            {
+              WriteLogMC(PROGRAM_NAME, ".nav file patched by Compatibility Layer.");
               OSDMenuMessageBoxInitialize(PROGRAM_NAME, ".nav duration mismatch. Patched!\nPlease try again.");
+            }
             else
               OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_WrongNavLength));
             OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
@@ -483,7 +480,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           //Check if it is crypted
           if(isCrypted(PlaybackName))
           {
-            WriteLogMC(PROGRAM_NAME, "file is crypted");
+            WriteLogMC(PROGRAM_NAME, "File is crypted!");
             OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_IsCrypted));
             OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
             OSDMenuMessageBoxShow();
@@ -605,10 +602,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               OSDSegmentListDrawList(JumpRequestedSegment);
               OSDInfoDrawProgressbar(TRUE);
 //              OSDInfoDrawCurrentPosition(FALSE);
-              TAP_Osd_Sync();
+//              TAP_Osd_Sync();
               JumpRequestedTime = TAP_GetTick();
               if (!JumpRequestedTime) JumpRequestedTime = 1;
-//              if(TrickMode == TM_Pause) Playback_Normal();
+//              if(TrickMode == TRICKMODE_Pause) Playback_Normal();
 //              TAP_Hdd_ChangePlaybackPos(SegmentMarker[ActiveSegment].Block);
             }
             break;
@@ -627,10 +624,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               OSDSegmentListDrawList(JumpRequestedSegment);
               OSDInfoDrawProgressbar(TRUE);
 //              OSDInfoDrawCurrentPosition(TRUE);
-              TAP_Osd_Sync();
+//              TAP_Osd_Sync();
               JumpRequestedTime = TAP_GetTick();
               if (!JumpRequestedTime) JumpRequestedTime = 1;
-//              if(TrickMode == TM_Pause) Playback_Normal();
+//              if(TrickMode == TRICKMODE_Pause) Playback_Normal();
 //              TAP_Hdd_ChangePlaybackPos(SegmentMarker[ActiveSegment].Block);
             }
             break;
@@ -693,7 +690,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
           case RKEY_Ok:
           {
-            if(TrickMode != TM_Pause)
+            if(TrickMode != TRICKMODE_Pause)
             {
               Playback_Pause();
             }
@@ -792,7 +789,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       if(labs(TAP_GetTick() - LastDraw) > 10) {
         if ((JumpRequestedSegment != 0xFFFF) && (JumpRequestedTime) && (labs(TAP_GetTick() - JumpRequestedTime) >= 100))
         {
-          if(TrickMode == TM_Pause) Playback_Normal();
+          if(TrickMode == TRICKMODE_Pause) Playback_Normal();
           TAP_Hdd_ChangePlaybackPos(SegmentMarker[JumpRequestedSegment].Block);
 //          JumpRequestedSegment = 0xFFFF;
           JumpRequestedTime = 0;
@@ -829,7 +826,12 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           {
             if(ActionMenuItem != MI_SelectFunction)
             {
-              if (ActionMenuItem==MI_SaveSegment || ActionMenuItem==MI_DeleteSegment || ActionMenuItem==MI_DeleteFile)
+              // Deaktivierte Aktionen
+              if ((ActionMenuItem==MI_SaveSegment || ActionMenuItem==MI_DeleteSegment || ActionMenuItem==MI_SelectOddSegments || ActionMenuItem==MI_SelectEvenSegments) && NrSegmentMarker<=2)
+                break;
+
+              // Aktionen mit Confirmation-Dialog
+              if (ActionMenuItem==MI_SaveSegment || ActionMenuItem==MI_DeleteSegment || (ActionMenuItem==MI_ClearAll && NrSelectedSegments==0) || ActionMenuItem==MI_DeleteFile)
               {
                 ShowConfirmationDialog();
                 break;
@@ -843,7 +845,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 //                case MI_DeleteSegment:      MovieCutterDeleteSegments(); break;
                 case MI_SelectOddSegments:  MovieCutterSelectOddSegments();  ActionMenuDraw(); State = ST_ActionDialog; break;
                 case MI_SelectEvenSegments: MovieCutterSelectEvenSegments(); ActionMenuDraw(); State = ST_ActionDialog; break;
-                case MI_UnselectAll:        MovieCutterUnselectAll(); break;
+                case MI_ClearAll:           MovieCutterUnselectAll(); break;
 //                case MI_DeleteFile:         MovieCutterDeleteFile(); break;
                 case MI_ImportBookmarks:    AddBookmarksToSegmentList(); break;
                 case MI_ExitMC:             State = ST_Exit; break;
@@ -897,12 +899,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       FMUC_FreeFontFile(&Calibri_10_FontDataUC);
       FMUC_FreeFontFile(&Calibri_12_FontDataUC);
       FMUC_FreeFontFile(&Calibri_14_FontDataUC);
-
-      #if STACKTRACE == TRUE
-        CallTraceExit(NULL);
-      #endif
       TAP_Exit();
-      return param1;
       break;
     }
   }
@@ -1143,18 +1140,18 @@ void AddBookmarksToSegmentList(void)
     CallTraceEnter("AddBookmarksToSegmentList");
   #endif
 
-  word i;
+  int i;
 
   // first, delete all present segment markers (*CW*)
   DeleteAllSegmentMarkers();
 
   // second, add a segment marker for each bookmark
-  TAP_SPrint(LogString, "Importing %u of %u bookmarks", min(NrBookmarks, NRSEGMENTMARKER-2), NrBookmarks);
+  TAP_SPrint(LogString, "Importing %d of %d bookmarks", min(NrBookmarks, NRSEGMENTMARKER-2), NrBookmarks);
   WriteLogMC(PROGRAM_NAME, LogString);
 
   for(i = 0; i < min(NrBookmarks, NRSEGMENTMARKER-2); i++)
   { 
-    TAP_SPrint(LogString, "Bookmark %u @ %u", i + 1, Bookmarks[i]);
+    TAP_SPrint(LogString, "Bookmark %d @ %u", i + 1, Bookmarks[i]);
     WriteLogMC(PROGRAM_NAME, LogString);
     AddSegmentMarker(Bookmarks[i]);
   }
@@ -1186,13 +1183,13 @@ bool AddSegmentMarker(dword Block)
     CallTraceEnter("AddSegmentMarker");
   #endif
 
-  word                  i, j;
+  int                   i, j;
   dword                 newTime;
   char                  StartTime[16];
 
   if(NrSegmentMarker >= NRSEGMENTMARKER)
   {
-    WriteLogMC(PROGRAM_NAME, "AddSegmentMarker: SegmentMarker list is full");
+    WriteLogMC(PROGRAM_NAME, "AddSegmentMarker: SegmentMarker list is full!");
     OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_ListIsFull));
     OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
     OSDMenuMessageBoxShow();
@@ -1225,7 +1222,7 @@ bool AddSegmentMarker(dword Block)
   printf(" erster  TimeStamp[    0]:  Block=%8u,  Time= %s\n", TimeStamps[0].BlockNr, TimeStr);
   MSecToTimeString(TimeStamps[NrTimeStamps-1].Timems, TimeStr);
   printf(" letzter TimeStamp[%5u]:  Block=%8u,  Time= %s\n", NrTimeStamps-1, TimeStamps[NrTimeStamps-1].BlockNr, TimeStr);
-  printf(" Anzahl SegmentMarker: %u\n", NrSegmentMarker);
+  printf(" Anzahl SegmentMarker: %d\n", NrSegmentMarker);
   for(i=0; i<NrSegmentMarker; i++) {
     MSecToTimeString(SegmentMarker[i].Timems, TimeStr);
     printf("  %2d. Segment:\tBlock=%8u,  Time= %s,  Sel=%s,  Perct=%2.1f\n", i, SegmentMarker[i].Block, TimeStr, ((SegmentMarker[i].Selected)?"y":"n"), SegmentMarker[i].Percent);
@@ -1274,7 +1271,7 @@ bool AddSegmentMarker(dword Block)
   printf(" erster  TimeStamp[    0]:  Block=%8u,  Time= %s\n", TimeStamps[0].BlockNr, TimeStr);
   MSecToTimeString(TimeStamps[NrTimeStamps-1].Timems, TimeStr);
   printf(" letzter TimeStamp[%5u]:  Block=%8u,  Time= %s\n", NrTimeStamps-1, TimeStamps[NrTimeStamps-1].BlockNr, TimeStr);
-  printf(" Anzahl SegmentMarker: %u\n", NrSegmentMarker);
+  printf(" Anzahl SegmentMarker: %d\n", NrSegmentMarker);
   for(i=0; i<NrSegmentMarker; i++) {
     MSecToTimeString(SegmentMarker[i].Timems, TimeStr);
     printf("  %2d. Segment:\tBlock=%8u,  Time= %s,  Sel=%s,  Perct=%2.1f\n", i, SegmentMarker[i].Block, TimeStr, ((SegmentMarker[i].Selected)?"y":"n"), SegmentMarker[i].Percent);
@@ -1530,7 +1527,7 @@ void SaveBookmarksToInf(void)
   byte                 *Buffer;
   TYPE_File            *fInf;
   dword                 FileSize, BufferSize;
-  word                  i;
+  int                   i;
 
 #ifdef FULLDEBUG
   TAP_PrintNet("SaveBookmarksToInf()\n");
@@ -1544,7 +1541,7 @@ void SaveBookmarksToInf(void)
   fInf = TAP_Hdd_Fopen(InfFileName);
   if(!fInf)
   {
-    WriteLogMC(PROGRAM_NAME, "SaveBookmarksToInf: failed to open the inf file");
+    WriteLogMC(PROGRAM_NAME, "SaveBookmarksToInf: failed to open the inf file!");
 
     #if STACKTRACE == TRUE
       CallTraceExit(NULL);
@@ -1590,11 +1587,11 @@ bool AddBookmark(dword Block)
     CallTraceEnter("AddBookmark");
   #endif
 
-  word i, j;
+  int i, j;
 
   if(NrBookmarks >= NRBOOKMARKS)
   {
-    WriteLogMC(PROGRAM_NAME, "AddBookmark: Bookmark list is full");
+    WriteLogMC(PROGRAM_NAME, "AddBookmark: Bookmark list is full!");
 
     #if STACKTRACE == TRUE
       CallTraceExit(NULL);
@@ -1603,7 +1600,7 @@ bool AddBookmark(dword Block)
   }
 
   //Find the point where to insert the new marker so that the list stays sorted
-  if (Block > Bookmarks[NrBookmarks - 1])
+  if ((NrBookmarks == 0) || (Block > Bookmarks[NrBookmarks - 1]))
   {
     Bookmarks[NrBookmarks] = Block;
   }
@@ -1638,7 +1635,7 @@ int FindNearestBookmark(void)
 
   int                   NearestBookmarkIndex;
   long                  MinDelta;
-  word                  i;
+  int                   i;
 
   NearestBookmarkIndex = -1;
   if(NrBookmarks > 0)
@@ -1683,13 +1680,32 @@ void DeleteBookmark(word BookmarkIndex)
     CallTraceEnter("DeleteBookmark");
   #endif
 
-  word i;
+  int i;
 
   for(i = BookmarkIndex; i < NrBookmarks - 1; i++)
     Bookmarks[i] = Bookmarks[i + 1];
   Bookmarks[NrBookmarks - 1] = 0;
 
   NrBookmarks--;
+  SaveBookmarks();
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+}
+
+void DeleteAllBookmarks(void)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("DeleteAllBookmarks");
+  #endif
+
+  int i;
+
+  for(i = 0; i < NrBookmarks; i++)
+    Bookmarks[i] = 0;
+
+  NrBookmarks = 0;
   SaveBookmarks();
 
   #if STACKTRACE == TRUE
@@ -1719,7 +1735,7 @@ bool CutFileLoad(void)
   // Check, if cut-File exists
   if(!TAP_Hdd_Exist(Name))
   {
-    WriteLogMC(PROGRAM_NAME, "CutFileLoad: .cut doesn't exist");
+    WriteLogMC(PROGRAM_NAME, "CutFileLoad: .cut doesn't exist!");
 
     #if STACKTRACE == TRUE
       CallTraceExit(NULL);
@@ -1731,7 +1747,7 @@ bool CutFileLoad(void)
   fCut = TAP_Hdd_Fopen(Name);
   if(!fCut)
   {
-    WriteLogMC(PROGRAM_NAME, "CutFileLoad: failed to open .cut");
+    WriteLogMC(PROGRAM_NAME, "CutFileLoad: failed to open .cut!");
 
     #if STACKTRACE == TRUE
       CallTraceExit(NULL);
@@ -1743,7 +1759,7 @@ bool CutFileLoad(void)
   TAP_Hdd_Fread(&Version, sizeof(byte), 1, fCut);    // read only one byte for compatibility with V.1  [COMPATIBILITY LAYER]
   if(Version > CUTFILEVERSION)
   {
-    WriteLogMC(PROGRAM_NAME, "CutFileLoad: .cut version mismatch");
+    WriteLogMC(PROGRAM_NAME, "CutFileLoad: .cut version mismatch!");
     TAP_Hdd_Fclose(fCut);
 
     #if STACKTRACE == TRUE
@@ -1758,7 +1774,7 @@ bool CutFileLoad(void)
   TAP_Hdd_Fread(&FileSize, sizeof(__off64_t), 1, fCut);
   if(RecFileSize != FileSize)
   {
-    WriteLogMC(PROGRAM_NAME, "CutFileLoad: .cut file size mismatch");
+    WriteLogMC(PROGRAM_NAME, "CutFileLoad: .cut file size mismatch!");
     TAP_Hdd_Fclose(fCut);
 
     #if STACKTRACE == TRUE
@@ -1767,6 +1783,8 @@ bool CutFileLoad(void)
     return FALSE;
   }
 
+  NrSegmentMarker = 0;
+  ActiveSegment = 0;
   TAP_Hdd_Fread(&NrSegmentMarker, sizeof(word), 1, fCut);
   if (NrSegmentMarker > NRSEGMENTMARKER) NrSegmentMarker = NRSEGMENTMARKER;
   if (Version == 1)
@@ -1800,7 +1818,7 @@ bool CutFileLoad(void)
 
   // Wenn cut-File Version 1 hat, dann ermittle neue TimeStamps und vergleiche diese mit den alten (DEBUG)  [COMPATIBILITY LAYER]
   if (Version == 1) {
-    word i;
+    int i;
     dword oldTime, newTime;
     char oldTimeStr[12], newTimeStr[16];
 
@@ -1922,7 +1940,7 @@ void CutDumpList(void)
   #endif
 
   char                  TimeString[16];
-  word                   i;
+  int                   i;
 
   WriteLogMC(PROGRAM_NAME, "Seg      Block Time        Pct Sel Act");
   for(i = 0; i < NrSegmentMarker; i++)
@@ -1997,11 +2015,11 @@ void OSDSegmentListDrawList(word CurrentSegment)
   const dword           C1 = COLOR_Yellow;
   const dword           C2 = COLOR_White;
 
-  dword                 ScrollButtonHeight, ScrollButtonPos;
+  word                  ScrollButtonHeight, ScrollButtonPos;
   char                  StartTime[12], EndTime[12], OutStr[5];
-  char                  PageStr[15];
-  word                  p, NrPages;
-  word                  Start;
+  char                  PageStr[25];
+  int                   p, NrPages;
+  int                   Start;
   dword                 PosX, PosY, UseColor;
   word                  i;
 
@@ -2019,8 +2037,8 @@ void OSDSegmentListDrawList(word CurrentSegment)
     // Seitenzahl
     NrPages = ((NrSegmentMarker - 2) / 10) + 1;
     p       = (CurrentSegment / 10) + 1;
-    TAP_SPrint(PageStr, "%s %u/%u", LangGetString(LS_PageStr), p, NrPages);
-    FMUC_PutString(rgnSegmentList, StartTextField_X + 1, BelowTextArea_Y + 2, EndTextField_X - 2*19 - 3, PageStr, COLOR_White, COLOR_None, &Calibri_10_FontDataUC, FALSE, ALIGN_LEFT);
+    TAP_SPrint(PageStr, "%s %d/%d", LangGetString(LS_PageStr), p, NrPages);
+    FMUC_PutString(rgnSegmentList, StartTextField_X + 10, BelowTextArea_Y + 2, EndTextField_X - 2*19 - 3, PageStr, COLOR_White, COLOR_None, &Calibri_10_FontDataUC, FALSE, ALIGN_LEFT);
 
     // Scrollbalken
     if (NrPages > 1)
@@ -2057,12 +2075,12 @@ void OSDSegmentListDrawList(word CurrentSegment)
         PosY = StartTextField_Y + i*(TextFieldHeight+TextFieldDist) + 3;
         UseColor = (SegmentMarker[Start + i].Selected) ? C1 : C2;
 
-        TAP_SPrint(OutStr, "%u.", Start + i + 1);
-        FMUC_PutString(rgnSegmentList, PosX, PosY, PosX + NrWidth,    OutStr,                                            UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_RIGHT);
+        TAP_SPrint(OutStr, "%d.", Start + i + 1);
+        FMUC_PutString(rgnSegmentList, PosX, PosY, PosX + NrWidth,    OutStr,                                             UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_RIGHT);
         PosX += NrWidth;
-        FMUC_PutString(rgnSegmentList, PosX, PosY, PosX + TimeWidth,  (Start+i == 0) ? "Anfang" : StartTime,             UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_RIGHT);
+        FMUC_PutString(rgnSegmentList, PosX, PosY, PosX + TimeWidth,  (Start+i == 0) ? "Anfang" : StartTime,              UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_RIGHT);
         PosX += TimeWidth;
-        FMUC_PutString(rgnSegmentList, PosX, PosY, PosX + DashWidth,  "-",                                               UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_CENTER);
+        FMUC_PutString(rgnSegmentList, PosX, PosY, PosX + DashWidth,  "-",                                                UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_CENTER);
         PosX += DashWidth;
         FMUC_PutString(rgnSegmentList, PosX, PosY, EndTextField_X+15, (Start+i == NrSegmentMarker-2) ? " Ende" : EndTime, UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_LEFT);
       }
@@ -2162,22 +2180,22 @@ void OSDInfoDrawPlayIcons(bool Force)
     CallTraceEnter("OSDInfoDrawPlayIcons");
   #endif
 
-  TYPE_GrData          *Btn_Play, *Btn_Pause, *Btn_Fwd, *Btn_Rwd, *Btn_Slow;
-  static tTrickMode     LastTrickMode = TM_Slow;
-  static byte           LastTrickModeSwitch = 0;
-  byte                  TrickModeSwitch;
+  TYPE_GrData           *Btn_Play, *Btn_Pause, *Btn_Fwd, *Btn_Rwd, *Btn_Slow;
+  static TYPE_TrickMode  LastTrickMode = TRICKMODE_Slow;
+  static byte            LastTrickModeSwitch = 0;
+  byte                   TrickModeSwitch;
 
   if(rgnInfo)
   {
     TrickModeSwitch = 0;
     switch(TrickMode)
     {
-      case TM_Play:
-      case TM_Pause: break;
+      case TRICKMODE_Normal:
+      case TRICKMODE_Pause: break;
 
-      case TM_Fwd:  TrickModeSwitch = 0x10; break;
-      case TM_Rwd:  TrickModeSwitch = 0x20; break;
-      case TM_Slow: TrickModeSwitch = 0x30; break;
+      case TRICKMODE_Forward:  TrickModeSwitch = 0x10; break;
+      case TRICKMODE_Rewind:   TrickModeSwitch = 0x20; break;
+      case TRICKMODE_Slow:     TrickModeSwitch = 0x30; break;
     }
     TrickModeSwitch += TrickModeSpeed;
 
@@ -2191,11 +2209,11 @@ void OSDInfoDrawPlayIcons(bool Force)
 
       switch(TrickMode)
       {
-        case TM_Play:  Btn_Play  = &_Button_Play_Active_Gd; break;
-        case TM_Fwd:   Btn_Fwd   = &_Button_Ffwd_Active_Gd; break;
-        case TM_Rwd:   Btn_Rwd   = &_Button_Rwd_Active_Gd; break;
-        case TM_Slow:  Btn_Slow  = &_Button_Slow_Active_Gd; break;
-        case TM_Pause: Btn_Pause = &_Button_Pause_Active_Gd; break;
+        case TRICKMODE_Normal:   Btn_Play  = &_Button_Play_Active_Gd; break;
+        case TRICKMODE_Forward:  Btn_Fwd   = &_Button_Ffwd_Active_Gd; break;
+        case TRICKMODE_Rewind:   Btn_Rwd   = &_Button_Rwd_Active_Gd; break;
+        case TRICKMODE_Slow:     Btn_Slow  = &_Button_Slow_Active_Gd; break;
+        case TRICKMODE_Pause:    Btn_Pause = &_Button_Pause_Active_Gd; break;
       }
 
       TAP_Osd_PutGd(rgnInfo, 557, 8, Btn_Rwd, FALSE);
@@ -2296,7 +2314,7 @@ void OSDInfoDrawProgressbar(bool Force)
             pos = (dword)((float)SegmentMarker[i].Block * 653 / totalBlock);
           else
             pos = 0;
-          TAP_Osd_PutGd(rgnInfo, 31 + pos, 93, &_SegmentMarker_Gd, TRUE);
+          TAP_Osd_PutGd(rgnInfo, 31 + pos, 93, ((BookmarkMode) ? &_SegmentMarker_gray_Gd : &_SegmentMarker_Gd), TRUE);
         }
 
         // Draw requested jump
@@ -2314,7 +2332,7 @@ void OSDInfoDrawProgressbar(bool Force)
             pos = (dword)((float)Bookmarks[i] * 653 / totalBlock);
           else
             pos = 0;
-          TAP_Osd_PutGd(rgnInfo, 31 + pos, 112, &_BookmarkMarker_Gd, TRUE);
+          TAP_Osd_PutGd(rgnInfo, 31 + pos, 112, ((BookmarkMode) ? &_BookmarkMarker_Gd : &_BookmarkMarker_gray_Gd), TRUE);
         }
 
         //Draw the current position
@@ -2446,41 +2464,41 @@ void Playback_Faster(void)
 
   switch(TrickMode)
   {
-    case TM_Pause:
+    case TRICKMODE_Pause:
     {
       // 1/16xFWD
       TrickModeSpeed = 4;
-      Appl_SetPlaybackSpeed(3, TrickModeSpeed, TRUE);
-      TrickMode = TM_Slow;
+      Appl_SetPlaybackSpeed(TRICKMODE_Slow, TrickModeSpeed, TRUE);
+      TrickMode = TRICKMODE_Slow;
       break;
     }
 
-    case TM_Rwd:
+    case TRICKMODE_Rewind:
     {
       if(TrickModeSpeed > 1)
       {
         // 64xRWD down to 2xRWD
         TrickModeSpeed--;
-        Appl_SetPlaybackSpeed(2, TrickModeSpeed, TRUE);
+        Appl_SetPlaybackSpeed(TRICKMODE_Rewind, TrickModeSpeed, TRUE);
       }
       else
       {
         // 1/16xFWD
         TrickModeSpeed = 4;
-        Appl_SetPlaybackSpeed(3, TrickModeSpeed, TRUE);
-        TrickMode = TM_Slow;
+        Appl_SetPlaybackSpeed(TRICKMODE_Slow, TrickModeSpeed, TRUE);
+        TrickMode = TRICKMODE_Slow;
       }
 
       break;
     }
 
-    case TM_Slow:
+    case TRICKMODE_Slow:
     {
       if(TrickModeSpeed > 1)
       {
         // 1/16xFWD up to 1/2xFWD
         TrickModeSpeed--;
-        Appl_SetPlaybackSpeed(3, TrickModeSpeed, TRUE);
+        Appl_SetPlaybackSpeed(TRICKMODE_Slow, TrickModeSpeed, TRUE);
       }
       else
       {
@@ -2491,14 +2509,14 @@ void Playback_Faster(void)
       break;
     }
 
-    case TM_Play:
+    case TRICKMODE_Normal:
     {
       // 2xFWD
       Playback_FFWD();
       break;
     }
 
-    case TM_Fwd:
+    case TRICKMODE_Forward:
     {
       // 2xFWD to 64xFWD
       Playback_FFWD();
@@ -2519,13 +2537,13 @@ void Playback_Slower(void)
 
   switch(TrickMode)
   {
-    case TM_Fwd:
+    case TRICKMODE_Forward:
     {
       if(TrickModeSpeed > 1)
       {
         // 64xFWD down to 2xFWD
         TrickModeSpeed--;
-        Appl_SetPlaybackSpeed(1, TrickModeSpeed, TRUE);
+        Appl_SetPlaybackSpeed(TRICKMODE_Forward, TrickModeSpeed, TRUE);
       }
       else
       {
@@ -2535,14 +2553,14 @@ void Playback_Slower(void)
       break;
     }
 
-    case TM_Play:
+    case TRICKMODE_Normal:
     {
       // 1/2xFWD
       Playback_Slow();
       break;
     }
 
-    case TM_Slow:
+    case TRICKMODE_Slow:
     {
       if(TrickModeSpeed < 4)
       {
@@ -2558,14 +2576,14 @@ void Playback_Slower(void)
       break;
     }
 
-    case TM_Pause:
+    case TRICKMODE_Pause:
     {
       // 2xRWD
       Playback_RWD();
       break;
     }
 
-    case TM_Rwd:
+    case TRICKMODE_Rewind:
     {
       // 2xRWD down to 64xRWD
       Playback_RWD();
@@ -2585,7 +2603,7 @@ void Playback_Normal(void)
   #endif
 
   Appl_SetPlaybackSpeed(0, 1, TRUE);
-  TrickMode = TM_Play;
+  TrickMode = TRICKMODE_Normal;
   TrickModeSpeed = 0;
 
   #if STACKTRACE == TRUE
@@ -2600,7 +2618,7 @@ void Playback_Pause(void)
   #endif
 
   Appl_SetPlaybackSpeed(4, 0, TRUE);
-  TrickMode = TM_Pause;
+  TrickMode = TRICKMODE_Pause;
   TrickModeSpeed = 0;
 
   #if STACKTRACE == TRUE
@@ -2622,8 +2640,8 @@ void Playback_FFWD(void)
   //Appl_SetPlaybackSpeed(1, 6, true) 64x FFWD
 
   if(TrickModeSpeed < 6) TrickModeSpeed++;
-  Appl_SetPlaybackSpeed(1, TrickModeSpeed, TRUE);
-  TrickMode = TM_Fwd;
+  Appl_SetPlaybackSpeed(TRICKMODE_Forward, TrickModeSpeed, TRUE);
+  TrickMode = TRICKMODE_Forward;
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
@@ -2644,8 +2662,8 @@ void Playback_RWD(void)
   //Appl_SetPlaybackSpeed(2, 6, true) 64x RWD
 
   if(TrickModeSpeed < 6) TrickModeSpeed++;
-  Appl_SetPlaybackSpeed(2, TrickModeSpeed, TRUE);
-  TrickMode = TM_Rwd;
+  Appl_SetPlaybackSpeed(TRICKMODE_Rewind, TrickModeSpeed, TRUE);
+  TrickMode = TRICKMODE_Rewind;
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
@@ -2664,8 +2682,8 @@ void Playback_Slow(void)
   //Appl_SetPlaybackSpeed(3, 4, true) 1/16x Slow
 
   if(TrickModeSpeed < 4) TrickModeSpeed++;
-  Appl_SetPlaybackSpeed(3, TrickModeSpeed, TRUE);
-  TrickMode = TM_Slow;
+  Appl_SetPlaybackSpeed(TRICKMODE_Slow, TrickModeSpeed, TRUE);
+  TrickMode = TRICKMODE_Slow;
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
@@ -2681,7 +2699,7 @@ void Playback_JumpForward(void)
   dword                 JumpBlock;
   JumpBlock = min(PlayInfo.currentBlock + MinuteJumpBlocks, BlockNrLastSecond);
 
-  if(TrickMode == TM_Pause) Playback_Normal();
+  if(TrickMode == TRICKMODE_Pause) Playback_Normal();
   TAP_Hdd_ChangePlaybackPos(JumpBlock);
 
   #if STACKTRACE == TRUE
@@ -2698,7 +2716,7 @@ void Playback_JumpBackward(void)
   dword                 JumpBlock;
   JumpBlock = max(PlayInfo.currentBlock - MinuteJumpBlocks, 0);
 
-  if(TrickMode == TM_Pause) Playback_Normal();
+  if(TrickMode == TRICKMODE_Pause) Playback_Normal();
   TAP_Hdd_ChangePlaybackPos(JumpBlock);
 
   #if STACKTRACE == TRUE
@@ -2716,7 +2734,7 @@ void Playback_JumpNextBookmark(void)
 
   if ((NrBookmarks > 0) && (PlayInfo.currentBlock > Bookmarks[NrBookmarks-1]))
   {
-    if(TrickMode == TM_Pause) Playback_Normal();
+    if(TrickMode == TRICKMODE_Pause) Playback_Normal();
     TAP_Hdd_ChangePlaybackPos(Bookmarks[0]);
 
     #if STACKTRACE == TRUE
@@ -2729,7 +2747,7 @@ void Playback_JumpNextBookmark(void)
   {
     if(PlayInfo.currentBlock < Bookmarks[i])
     {
-      if(TrickMode == TM_Pause) Playback_Normal();
+      if(TrickMode == TRICKMODE_Pause) Playback_Normal();
       TAP_Hdd_ChangePlaybackPos(Bookmarks[i]);
 
       #if STACKTRACE == TRUE
@@ -2755,7 +2773,7 @@ void Playback_JumpPrevBookmark(void)
 
   if ((NrBookmarks > 0) && (PlayInfo.currentBlock < Bookmarks[0]))
   {
-    if(TrickMode == TM_Pause) Playback_Normal();
+    if(TrickMode == TRICKMODE_Pause) Playback_Normal();
     TAP_Hdd_ChangePlaybackPos(Bookmarks[NrBookmarks-1]);
 
     #if STACKTRACE == TRUE
@@ -2769,7 +2787,7 @@ void Playback_JumpPrevBookmark(void)
   {
     if(Bookmarks[i] < (PlayInfo.currentBlock - ThirtySeconds))
     {
-      if(TrickMode == TM_Pause) Playback_Normal();
+      if(TrickMode == TRICKMODE_Pause) Playback_Normal();
       TAP_Hdd_ChangePlaybackPos(Bookmarks[i]);
 
       #if STACKTRACE == TRUE
@@ -2793,7 +2811,14 @@ bool isPlaybackRunning(void)
   #endif
 
   TAP_Hdd_GetPlayInfo(&PlayInfo);
-  if((int)PlayInfo.currentBlock < 0) PlayInfo.currentBlock = 0;
+  if((int)PlayInfo.currentBlock < 0)
+    PlayInfo.currentBlock = 0;
+
+  if ((PlayInfo.playMode == PLAYMODE_Playing) && !NoPlaybackCheck)
+  {
+    TrickMode = (TYPE_TrickMode)PlayInfo.trickMode;
+    TrickModeSpeed = PlayInfo.speed;
+  }
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
@@ -2817,14 +2842,21 @@ void CalcLastSeconds(void)
 
 void CheckLastSeconds(void)
 {
+  static bool LastSecondsPaused = FALSE;
+
   #if STACKTRACE == TRUE
     CallTraceEnter("CheckLastSecond");
   #endif
 
-  if((PlayInfo.currentBlock > BlockNrLastSecond) && (TrickMode != TM_Pause))
-    Playback_Pause();
-  else if((PlayInfo.currentBlock > BlockNrLast10Seconds) && (TrickMode == TM_Fwd)) 
+  if((PlayInfo.currentBlock > BlockNrLastSecond) && (TrickMode != TRICKMODE_Pause))
+  {
+    if (!LastSecondsPaused) Playback_Pause();
+    LastSecondsPaused = TRUE;
+  }
+  else if((PlayInfo.currentBlock > BlockNrLast10Seconds) && (TrickMode == TRICKMODE_Forward)) 
     Playback_Normal();
+  else
+    LastSecondsPaused = FALSE;
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
@@ -2842,8 +2874,8 @@ void ActionMenuDraw(void)
   int    x, y, i;
   char   TempStr[128];
   char*  DisplayStr;
-  word   NrSelectedSegments = 0;
 
+  NrSelectedSegments = 0;
   for(i = 0; i < NrSegmentMarker - 1; i++)
   {
     if(SegmentMarker[i].Selected) NrSelectedSegments++;
@@ -2927,10 +2959,13 @@ void ActionMenuDraw(void)
         if (NrSegmentMarker <= 2) DisplayColor = C4;
         break;
       }
-      case MI_UnselectAll:
+      case MI_ClearAll:
       {
-        DisplayStr = LangGetString(LS_UnselectAll);
-        if (NrSelectedSegments == 0) DisplayColor = C4;
+        if (NrSelectedSegments > 0)
+          DisplayStr = LangGetString(LS_UnselectAll);
+        else
+          DisplayStr = (BookmarkMode) ? LangGetString(LS_DeleteAllBookmarks) : LangGetString(LS_ClearSegmentList);
+//        if (NrSelectedSegments == 0) DisplayColor = C4;
         break;
       }
       case MI_DeleteFile:         DisplayStr = LangGetString(LS_DeleteFile); DisplayColor = C3; break;
@@ -3033,11 +3068,12 @@ void MovieCutterDeleteSegments(void)
 
 void MovieCutterSelectOddSegments(void)
 {
+  if (NrSegmentMarker <= 2) return;
   #if STACKTRACE == TRUE
     CallTraceEnter("MovieCutterSelectOddSegments");
   #endif
 
-  word i;
+  int i;
 
   for(i = 0; i < NrSegmentMarker-1; i++)
     SegmentMarker[i].Selected = ((i & 1) == 0);
@@ -3058,7 +3094,7 @@ void MovieCutterSelectEvenSegments(void)
     CallTraceEnter("MovieCutterSelectEvenSegments");
   #endif
 
-  word i;
+  int i;
 
   for(i = 0; i < NrSegmentMarker-1; i++)
     SegmentMarker[i].Selected = ((i & 1) == 1);
@@ -3079,7 +3115,7 @@ void MovieCutterUnselectAll(void)
     CallTraceEnter("MovieCutterUnselectAll");
   #endif
 
-  word i;
+  int i;
 
   for(i = 0; i < NrSegmentMarker-1; i++)
     SegmentMarker[i].Selected = FALSE;
@@ -3117,7 +3153,7 @@ void MovieCutterProcess(bool KeepCut)
     CallTraceEnter("MovieCutterProcess");
   #endif
 
-  int                   NrSelectedSegments;
+//  int                   NrSelectedSegments;
   bool                  isMultiSelect, CutEnding;
   word                  WorkingSegment;
   char                  CutFileName[MAX_FILE_NAME_SIZE + 1];
@@ -3293,7 +3329,7 @@ void MovieCutterProcess(bool KeepCut)
       {
         if((ret==RC_Warning) || !TAP_Hdd_Exist(PlaybackName) || TAP_Hdd_Exist(TempFileName))
         {
-          WriteLogMC(PROGRAM_NAME, "Error processing the last segment: Renaming or nav-generation failed.");
+          WriteLogMC(PROGRAM_NAME, "Error processing the last segment: Renaming or nav-generation failed!");
           State = ST_CutFailDialog;
           break;
         }
@@ -3386,7 +3422,7 @@ dword NavGetBlockTimeStamp(dword PlaybackBlockNr)
 
   if(TimeStamps == NULL)
   {
-    WriteLogMC(PROGRAM_NAME, "Someone is trying to get a timestamp while the array is empty");
+    WriteLogMC(PROGRAM_NAME, "Someone is trying to get a timestamp while the array is empty!");
 
     #if STACKTRACE == TRUE
       CallTraceExit(NULL);

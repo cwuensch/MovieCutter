@@ -39,6 +39,7 @@ void  CutFileDelete(void);
 bool  CutFileLoad(void);
 void  CutFileSave(void);
 void  DeleteBookmark(word BookmarkIndex);
+void  DeleteAllBookmarks(void);
 void  DeleteSegmentMarker(word MarkerIndex);
 void  DeleteAllSegmentMarkers(void);
 int   FindNearestBookmark(void);
