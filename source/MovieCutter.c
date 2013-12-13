@@ -1516,6 +1516,12 @@ bool ReadBookmarks(void)
   {
     NrBookmarks = 0;
     WriteLogMC(PROGRAM_NAME, "ReadBookmarks: Fatal error - inf cache entry point not found!");
+
+    char s[512];
+
+    TAP_SPrint(s, "TempRecSlot=%p", TempRecSlot);
+    if(TempRecSlot) TAP_SPrint(&s[strlen(s)], ", *TempRecSlot=%d, HDD_NumberOfRECSlots()=%d", *TempRecSlot, HDD_NumberOfRECSlots());
+    WriteLogMC(PROGRAM_NAME, s);
   }
 
   #if STACKTRACE == TRUE
