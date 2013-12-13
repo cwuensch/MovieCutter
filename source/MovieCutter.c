@@ -11,7 +11,7 @@
 #include                "MovieCutter_TAPCOM.h"
 #include                "Graphics/SegmentList_Background.gd"
 #include                "Graphics/Selection_Blue.gd"
-#include                "Graphics/Selection_Blue_small.gd"
+//#include                "Graphics/Selection_Blue_small.gd"
 //#include                "Graphics/Selection_Red.gd"
 #include                "Graphics/SegmentList_ScrollBar.gd"
 #include                "Graphics/SegmentList_ScrollButton.gd"
@@ -25,8 +25,8 @@
 #include                "Graphics/Button_Rwd_Inactive.gd"
 #include                "Graphics/Button_Slow_Active.gd"
 #include                "Graphics/Button_Slow_Inactive.gd"
-#include                "Graphics/Button_Left.gd"
-#include                "Graphics/Button_Right.gd"
+#include                "Graphics/Button_SkipLeft.gd"
+#include                "Graphics/Button_SkipRight.gd"
 #include                "Graphics/Button_Up.gd"
 #include                "Graphics/Button_Up_small.gd"
 #include                "Graphics/Button_Down.gd"
@@ -169,6 +169,7 @@ char                    PlaybackName[MAX_FILE_NAME_SIZE + 1];
 char                    PlaybackDirectory[512];
 __off64_t               RecFileSize;
 dword                   LastTotalBlocks = 0;
+dword                   BlocksOneSecond;
 dword                   BlockNrLastSecond;
 dword                   BlockNrLast10Seconds;
 
@@ -191,6 +192,7 @@ word                    rgnSegmentList = 0;
 word                    rgnInfo = 0;
 word                    rgnActionMenu = 0;
 int                     ActionMenuItem;
+dword                   BookmarkMode_x;
 
 char                    LogString[512];
 
@@ -571,7 +573,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           case RKEY_Option:
           {
             BookmarkMode = !BookmarkMode;
-            OSDRedrawEverything();
+//            OSDRedrawEverything();
+            OSDInfoDrawProgressbar(TRUE);
+            OSDInfoDrawBookmarkMode();
+            OSDInfoDrawMinuteJump();
             break;
           }
         
@@ -697,12 +702,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           case RKEY_Yellow:
           {
             if (BookmarkMode) {
-              MoveBookmark(PlayInfo.currentBlock);
+              if(MoveBookmark(PlayInfo.currentBlock)) OSDInfoDrawProgressbar(TRUE);
             } else {
-              MoveSegmentMarker();
+              if(MoveSegmentMarker(PlayInfo.currentBlock)) {OSDSegmentListDrawList(); OSDInfoDrawProgressbar(TRUE);};
             }
-            OSDSegmentListDrawList();
-            OSDInfoDrawProgressbar(TRUE);
 //            OSDRedrawEverything();
             break;
           }
@@ -1178,7 +1181,9 @@ void AddBookmarksToSegmentList(void)
     AddSegmentMarker(Bookmarks[i]);
   }
 
-  OSDRedrawEverything();
+  OSDSegmentListDrawList();
+  OSDInfoDrawProgressbar(TRUE);
+//  OSDRedrawEverything();
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
@@ -1222,18 +1227,13 @@ bool AddSegmentMarker(dword Block)
     return FALSE;
   }
 
-  if (Block == 0)
-    newTime = 0;
-  else
+  newTime = NavGetBlockTimeStamp(Block);
+  if((newTime == 0) && (Block > 3 * BlocksOneSecond))
   {
-    newTime = NavGetBlockTimeStamp(Block);
-    if(newTime == 0)
-    {
-      #if STACKTRACE == TRUE
-        CallTraceExit(NULL);
-      #endif
-      return FALSE;
-    }
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return FALSE;
   }
 
 #ifdef FULLDEBUG
@@ -1269,6 +1269,15 @@ bool AddSegmentMarker(dword Block)
     {
       if(SegmentMarker[i].Block > Block)
       {
+        // Erlaube kein Segment mit weniger als 3 Sekunden
+        if ((SegmentMarker[i-1].Block + 3*BlocksOneSecond >= Block) || (Block + 3*BlocksOneSecond >= SegmentMarker[i].Block))
+        {
+          #if STACKTRACE == TRUE
+            CallTraceExit(NULL);
+          #endif
+          return FALSE;
+        }
+
         for(j = NrSegmentMarker; j > i; j--)
           memcpy(&SegmentMarker[j], &SegmentMarker[j - 1], sizeof(tSegmentMarker));
 
@@ -1336,35 +1345,40 @@ int FindNearestSegmentMarker(void)
   return NearestMarkerIndex;
 }
 
-void MoveSegmentMarker(void)
+bool MoveSegmentMarker(dword newBlock)
 {
   #if STACKTRACE == TRUE
     CallTraceEnter("MoveSegmentMarker");
   #endif
 
   dword newTime;
-  dword newBlock = PlayInfo.currentBlock;
   int NearestMarkerIndex = FindNearestSegmentMarker();
 
   if(NearestMarkerIndex != -1)
   {
-    newTime = NavGetBlockTimeStamp(newBlock);
-    if((PlayInfo.currentBlock > 0) && (newTime == 0))
+    // Erlaube kein Segment mit weniger als 3 Sekunden
+    if ((SegmentMarker[NearestMarkerIndex-1].Block + 3*BlocksOneSecond < newBlock) && (newBlock + 3*BlocksOneSecond < SegmentMarker[NearestMarkerIndex+1].Block))
     {
-      #if STACKTRACE == TRUE
-        CallTraceExit(NULL);
-      #endif
-      return;
-    }
+      // neue Zeit ermitteln
+      newTime = NavGetBlockTimeStamp(newBlock);
+      if((newTime != 0) || (newBlock <= 3 * BlocksOneSecond))
+      {
+        SegmentMarker[NearestMarkerIndex].Block = newBlock;
+        SegmentMarker[NearestMarkerIndex].Timems = newTime;
+        SegmentMarker[NearestMarkerIndex].Percent = (float)PlayInfo.currentBlock * 100 / PlayInfo.totalBlock;
 
-    SegmentMarker[NearestMarkerIndex].Block = newBlock;
-    SegmentMarker[NearestMarkerIndex].Timems = newTime;
-    SegmentMarker[NearestMarkerIndex].Percent = (float)PlayInfo.currentBlock * 100 / PlayInfo.totalBlock;
+        #if STACKTRACE == TRUE
+          CallTraceExit(NULL);
+        #endif
+        return TRUE;
+      }
+    }
   }
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
   #endif
+  return FALSE;
 }
 
 void DeleteSegmentMarker(word MarkerIndex)
@@ -1478,7 +1492,7 @@ void SelectSegmentMarker(void)
 
 //Bookmarks werden jetzt aus dem inf-Cache der Firmware aus dem Speicher ausgelesen.
 //Das geschieht bei jedem Einblenden des MC-OSDs, da sie sonst nicht benötigt werden
-void ReadBookmarks(void)
+bool ReadBookmarks(void)
 {
   #if STACKTRACE == TRUE
     CallTraceEnter("ReadBookmarks");
@@ -1506,10 +1520,11 @@ void ReadBookmarks(void)
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
   #endif
+  return(PlayInfoBookmarkStruct != NULL);
 }
 
 //Experimentelle Methode, um Bookmarks direkt in der Firmware abzuspeichern.
-void SaveBookmarks(void)
+bool SaveBookmarks(void)
 {
   #if STACKTRACE == TRUE
     CallTraceEnter("SaveBookmarks");
@@ -1537,9 +1552,10 @@ void SaveBookmarks(void)
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
   #endif
+  return(PlayInfoBookmarkStruct != NULL);
 }
 
-void SaveBookmarksToInf(void)
+bool SaveBookmarksToInf(void)
 {
   #if STACKTRACE == TRUE
     CallTraceEnter("SaveBookmarksToInf");
@@ -1569,7 +1585,7 @@ void SaveBookmarksToInf(void)
     #if STACKTRACE == TRUE
       CallTraceExit(NULL);
     #endif
-    return;
+    return FALSE;
   }
 
   FileSize = TAP_Hdd_Flen(fInf);
@@ -1602,6 +1618,7 @@ void SaveBookmarksToInf(void)
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
   #endif
+  return TRUE;
 }
 
 bool AddBookmark(dword Block)
@@ -1623,8 +1640,18 @@ bool AddBookmark(dword Block)
   }
 
   //Find the point where to insert the new marker so that the list stays sorted
-  if ((NrBookmarks == 0) || (Block > Bookmarks[NrBookmarks - 1]))
+  if (NrBookmarks == 0)
+    Bookmarks[0] = Block;
+  else if (Block > Bookmarks[NrBookmarks - 1])
   {
+    // Erlaube keinen Abschnitt mit weniger als 3 Sekunden
+    if (Bookmarks[NrBookmarks-1] + 3*BlocksOneSecond >= Block)
+    {
+      #if STACKTRACE == TRUE
+        CallTraceExit(NULL);
+      #endif
+      return FALSE;
+    }
     Bookmarks[NrBookmarks] = Block;
   }
   else
@@ -1633,6 +1660,15 @@ bool AddBookmark(dword Block)
     {
       if(Bookmarks[i] > Block)
       {
+        // Erlaube keinen Abschnitt mit weniger als 3 Sekunden
+        if ((Bookmarks[i-1] + 3*BlocksOneSecond >= Block) || (Block + 3*BlocksOneSecond >= Bookmarks[i]))
+        {
+          #if STACKTRACE == TRUE
+            CallTraceExit(NULL);
+          #endif
+          return FALSE;
+        }
+
         for(j = NrBookmarks; j > i; j--)
           Bookmarks[j] = Bookmarks[j - 1];
 
@@ -1680,21 +1716,32 @@ int FindNearestBookmark(void)
   return NearestBookmarkIndex;
 }
 
-void MoveBookmark(dword Block)
+bool MoveBookmark(dword newBlock)
 {
   #if STACKTRACE == TRUE
     CallTraceEnter("MoveBookmark");
   #endif
 
   int NearestBookmarkIndex = FindNearestBookmark();
-
   if(NearestBookmarkIndex != -1)
-    Bookmarks[NearestBookmarkIndex] = Block;
-  SaveBookmarks();
+  {
+    // Erlaube keinen Abschnitt mit weniger als 3 Sekunden
+    if ((Bookmarks[NearestBookmarkIndex-1] + 3*BlocksOneSecond < newBlock) && (newBlock + 3*BlocksOneSecond < Bookmarks[NearestBookmarkIndex+1]))
+    {
+      Bookmarks[NearestBookmarkIndex] = newBlock;
+      SaveBookmarks();
+
+      #if STACKTRACE == TRUE
+        CallTraceExit(NULL);
+      #endif
+      return TRUE;
+    }
+  }
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
   #endif
+  return FALSE;
 }
 
 void DeleteBookmark(word BookmarkIndex)
@@ -1849,8 +1896,7 @@ bool CutFileLoad(void)
     for (i = 0; i < NrSegmentMarker; i++) {
       oldTime = SegmentMarker[i].Timems;
       newTime = NavGetBlockTimeStamp(SegmentMarker[i].Block);
-      SegmentMarker[i].Timems = newTime;
-
+      SegmentMarker[i].Timems = (newTime) ? newTime : oldTime;
       SecToTimeString(oldTime, oldTimeStr);
       MSecToTimeString(newTime, newTimeStr);
       TAP_SPrint(LogString, " %s%2u.)  BlockNr=%8u   oldTimeStamp=%s   newTimeStamp=%s", (labs(oldTime*1000-newTime) > 1000) ? "!!" : "  ", i, SegmentMarker[i].Block, oldTimeStr, newTimeStr);
@@ -2015,6 +2061,7 @@ void OSDRedrawEverything(void)
   SetCurrentSegment();
   OSDInfoDrawCurrentPosition(TRUE);
   OSDInfoDrawClock(TRUE);
+  OSDInfoDrawBookmarkMode();
   OSDInfoDrawMinuteJump();
 
   #if STACKTRACE == TRUE
@@ -2068,17 +2115,6 @@ void OSDSegmentListDrawList(void)
     TAP_SPrint(PageStr, "%s %d/%d", LangGetString(LS_PageStr), p, NrPages);
     FMUC_PutString(rgnSegmentList, StartTextField_X + 11, BelowTextArea_Y + 3, EndTextField_X - 2*19 - 3, PageStr, COLOR_White, COLOR_None, &Calibri_10_FontDataUC, FALSE, ALIGN_LEFT);
 
-    // Scrollbalken
-    if (NrPages > 1)
-    {
-      TAP_Osd_PutGd(rgnSegmentList, EndTextField_X, StartTextField_Y, &_SegmentList_ScrollBar_Gd, FALSE);
-      ScrollButtonHeight = (ScrollbarHeight / NrPages);
-      ScrollButtonPos    = Scrollbar_Y + (ScrollbarHeight * (p - 1) / NrPages);
-//      TAP_Osd_Draw3dBoxFill(rgnSegmentList, Scrollbar_X+2, ScrollButtonPos, ScrollbarWidth-4, ScrollButtonHeight, COLOR_Yellow, COLOR_Red, COLOR_DarkGray);
-      for (i = 0; i < ScrollButtonHeight; i++)
-        TAP_Osd_PutGd(rgnSegmentList, Scrollbar_X, ScrollButtonPos + i, &_SegmentList_ScrollButton_Gd, FALSE);
-    }
-
     // Segmente
     if(NrSegmentMarker > 2)
     {
@@ -2093,7 +2129,7 @@ void OSDSegmentListDrawList(void)
 //          if((SegmentMarker[p+i + 1].Timems - SegmentMarker[p+i].Timems) < 60001)
 //            TAP_Osd_PutGd(rgnSegmentList, 3, 44 + 28*i, &_Selection_Red_Gd, FALSE);
 //          else
-          TAP_Osd_PutGd(rgnSegmentList, StartTextField_X, StartTextField_Y + i*(TextFieldHeight+TextFieldDist), ((NrPages > 1) ? &_Selection_Blue_small_Gd : &_Selection_Blue_Gd), FALSE);
+          TAP_Osd_PutGd(rgnSegmentList, StartTextField_X, StartTextField_Y + i*(TextFieldHeight+TextFieldDist), &_Selection_Blue_Gd, FALSE);
         }
 
         SecToTimeString((SegmentMarker[Start + i].Timems) / 1000, StartTime);
@@ -2111,8 +2147,19 @@ void OSDSegmentListDrawList(void)
         PosX += TimeWidth;
         FMUC_PutString(rgnSegmentList, PosX, PosY, PosX + DashWidth,  "-",                                                                  UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_CENTER);
         PosX += DashWidth;
-        FMUC_PutString(rgnSegmentList, PosX, PosY, EndTextField_X+15, (Start+i == NrSegmentMarker-2) ? LangGetString(LS_EndStr) : EndTime,  UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_LEFT);
+        FMUC_PutString(rgnSegmentList, PosX, PosY, EndTextField_X+10, (Start+i == NrSegmentMarker-2) ? LangGetString(LS_EndStr) : EndTime,  UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_LEFT);
       }
+    }
+
+    // Scrollbalken
+    if (NrPages > 1)
+    {
+      TAP_Osd_PutGd(rgnSegmentList, EndTextField_X, StartTextField_Y, &_SegmentList_ScrollBar_Gd, FALSE);
+      ScrollButtonHeight = (ScrollbarHeight / NrPages);
+      ScrollButtonPos    = Scrollbar_Y + (ScrollbarHeight * (p - 1) / NrPages);
+//      TAP_Osd_Draw3dBoxFill(rgnSegmentList, Scrollbar_X+2, ScrollButtonPos, ScrollbarWidth-4, ScrollButtonHeight, COLOR_Yellow, COLOR_Red, COLOR_DarkGray);
+      for (i = 0; i < ScrollButtonHeight; i++)
+        TAP_Osd_PutGd(rgnSegmentList, Scrollbar_X, ScrollButtonPos + i, &_SegmentList_ScrollButton_Gd, FALSE);
     }
   }
 
@@ -2171,11 +2218,7 @@ void OSDInfoDrawBackground(void)
     FMUC_PutString(rgnInfo, x, 67, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
     x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
     
-    if (BookmarkMode)
-      TAP_SPrint(s, "Bookmarks");
-    else
-      TAP_SPrint(s, "Segments");
-    FMUC_PutString(rgnInfo, x, 67, 720, s, COLOR_White, COLOR_None, &Calibri_10_FontDataUC, TRUE, ALIGN_LEFT);
+    BookmarkMode_x = x;
   }
 
   #if STACKTRACE == TRUE
@@ -2196,6 +2239,82 @@ void OSDInfoDrawRecName(void)
     strcpy(Name, PlaybackName);
     Name[strlen(Name) - 4] = '\0';
     FMUC_PutString(rgnInfo, 65, 11, 490, Name, COLOR_White, COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT);
+  }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+}
+
+void OSDInfoDrawClock(bool Force)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("OSDInfoDrawClock");
+  #endif
+
+  word                  mjd;
+  byte                  hour, min, sec;
+  static byte           LastMin = 99;
+  char                  Time[8];
+
+  if(rgnInfo)
+  {
+    TAP_GetTime(&mjd, &hour, &min, &sec);
+    if((min != LastMin) || Force)
+    {
+      TAP_SPrint(Time, "%2.2d:%2.2d", hour, min);
+      TAP_Osd_FillBox(rgnInfo, 638, 65, 60, 25, RGB(16, 16, 16));
+      FMUC_PutString(rgnInfo, 638, 65, 710, Time, COLOR_White, COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT);
+      LastMin = min;
+      TAP_Osd_Sync();
+    }
+  }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+}
+
+void OSDInfoDrawBookmarkMode(void)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("OSDInfoDrawBookmarkMode");
+  #endif
+
+  if(rgnInfo)
+  {
+    TAP_Osd_FillBox(rgnInfo, BookmarkMode_x, 8, 50, 35, RGB(51, 51, 51));
+    FMUC_PutString(rgnInfo, BookmarkMode_x, 67, 720, ((BookmarkMode ? "Bookmarks" : "Segments")), COLOR_White, COLOR_None, &Calibri_10_FontDataUC, TRUE, ALIGN_LEFT);
+    TAP_Osd_Sync();
+  }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+}
+
+void OSDInfoDrawMinuteJump(void)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("OSDInfoDrawMinuteJump");
+  #endif
+
+  char                  Time[5];
+
+  if(rgnInfo)
+  {
+    TAP_Osd_FillBox(rgnInfo, 507, 8, 50, 35, RGB(51, 51, 51));
+    TAP_Osd_PutGd(rgnInfo, 507, 8, &_Button_SkipLeft_Gd, TRUE);
+    TAP_Osd_PutGd(rgnInfo, 507 + 1 + _Button_SkipLeft_Gd.width, 8, &_Button_SkipRight_Gd, TRUE);
+    if(BookmarkMode || MinuteJump)
+    {
+      if (MinuteJump)
+        TAP_SPrint(Time, "%u'", MinuteJump);
+      else
+        TAP_SPrint(Time, "BM");
+      FMUC_PutString(rgnInfo, 508, 26, 555, Time, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER);
+    }
+    TAP_Osd_Sync();
   }
 
   #if STACKTRACE == TRUE
@@ -2431,63 +2550,6 @@ void OSDInfoDrawCurrentPosition(bool Force)
   #endif
 }
 
-void OSDInfoDrawClock(bool Force)
-{
-  #if STACKTRACE == TRUE
-    CallTraceEnter("OSDInfoDrawClock");
-  #endif
-
-  word                  mjd;
-  byte                  hour, min, sec;
-  static byte           LastMin = 99;
-  char                  Time[8];
-
-  if(rgnInfo)
-  {
-    TAP_GetTime(&mjd, &hour, &min, &sec);
-    if((min != LastMin) || Force)
-    {
-      TAP_SPrint(Time, "%2.2d:%2.2d", hour, min);
-      TAP_Osd_FillBox(rgnInfo, 638, 65, 60, 25, RGB(16, 16, 16));
-      FMUC_PutString(rgnInfo, 638, 65, 710, Time, COLOR_White, COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT);
-      LastMin = min;
-      TAP_Osd_Sync();
-    }
-  }
-
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
-}
-
-void OSDInfoDrawMinuteJump(void)
-{
-  #if STACKTRACE == TRUE
-    CallTraceEnter("OSDInfoDrawMinuteJump");
-  #endif
-
-  char                  Time[5];
-
-  if(rgnInfo)
-  {
-    TAP_Osd_FillBox(rgnInfo, 507, 8, 50, 35, RGB(51, 51, 51));
-    if(MinuteJump)
-    {
-      TAP_Osd_PutGd(rgnInfo, 507, 8, &_Button_Left_Gd, TRUE);
-      TAP_Osd_PutGd(rgnInfo, 507 + 1 + _Button_Left_Gd.width, 8, &_Button_Right_Gd, TRUE);
-
-      TAP_SPrint(Time, "%u'", MinuteJump);
-
-      FMUC_PutString(rgnInfo, 508, 26, 555, Time, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER);
-    }
-    TAP_Osd_Sync();
-  }
-
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
-}
-
 
 //Playback functions
 void Playback_Faster(void)
@@ -2632,7 +2694,7 @@ void Playback_Normal(void)
 
   Appl_SetPlaybackSpeed(TRICKMODE_Normal, 1, TRUE);
   TrickMode = TRICKMODE_Normal;
-  TrickModeSpeed = 0;
+  TrickModeSpeed = 1;
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
@@ -2670,9 +2732,10 @@ void Playback_FFWD(void)
   if (TrickMode != TRICKMODE_Forward) 
     TrickModeSpeed = 0;
 
-  if(TrickModeSpeed < 5)
+  if(TrickModeSpeed < 6)
   {
-    TrickModeSpeed += 2;
+    TrickModeSpeed++;
+    if (TrickModeSpeed < 6) TrickModeSpeed++;
     Appl_SetPlaybackSpeed(TRICKMODE_Forward, TrickModeSpeed, TRUE);
     TrickMode = TRICKMODE_Forward;
   }
@@ -2700,9 +2763,10 @@ void Playback_RWD(void)
   if (TrickMode != TRICKMODE_Rewind)
     TrickModeSpeed = 0;
 
-  if(TrickModeSpeed < 5)
+  if(TrickModeSpeed < 6)
   {
-    TrickModeSpeed += 2;
+    TrickModeSpeed++;
+    if (TrickModeSpeed < 6) TrickModeSpeed++;
     Appl_SetPlaybackSpeed(TRICKMODE_Rewind, TrickModeSpeed, TRUE);
     TrickMode = TRICKMODE_Rewind;
   }
@@ -2930,7 +2994,8 @@ void CalcLastSeconds(void)
     CallTraceEnter("CalcLastSecond");
   #endif
 
-  BlockNrLastSecond    = PlayInfo.totalBlock -      (PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec));
+  BlocksOneSecond      = PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec);
+  BlockNrLastSecond    = PlayInfo.totalBlock - BlocksOneSecond;
   BlockNrLast10Seconds = PlayInfo.totalBlock - (10 * PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec));
 
   #if STACKTRACE == TRUE
