@@ -37,7 +37,7 @@
                 *** alle Zeitangaben werden präzise aus der nav berechnet
                   * Hin- und Herspringen der Spielzeit-Anzeige behoben
                   * Nummerierung der geschnittenen Teile nun aufsteigend
-                 ** mehr Segmente können angelegt werden (aktuell nur 12, später bis zu 99)
+                 ** mehr Segmente können angelegt werden (bis zu 100)
                  ** Bookmarks werden korrekt zwischen MC und Firmware ausgetauscht
                  ** Bookmark-Modus: Nach Drücken der weißen Taste können nun auch im MC Bookmarks
                     angelegt und gelöscht, sowie dazwischen hin- und hergesprungen werden

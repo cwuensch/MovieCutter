@@ -134,6 +134,8 @@ typedef enum
   LS_UnselectAll,
   LS_ClearSegmentList,
   LS_DeleteAllBookmarks,
+  LS_BeginStr,
+  LS_EndStr,
   LS_PageStr,
   LS_AskConfirmation,
   LS_Yes,
@@ -2103,13 +2105,13 @@ void OSDSegmentListDrawList(void)
 
         TAP_SPrint(OutStr, "%d.", Start + i + 1);
         if (Start + i + 1 >= 100) TAP_SPrint(OutStr, "00.");
-        FMUC_PutString(rgnSegmentList, PosX, PosY, PosX + NrWidth,    OutStr,                                             UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_RIGHT);
+        FMUC_PutString(rgnSegmentList, PosX, PosY, PosX + NrWidth,    OutStr,                                                               UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_RIGHT);
         PosX += NrWidth;
-        FMUC_PutString(rgnSegmentList, PosX, PosY, PosX + TimeWidth,  (Start+i == 0) ? "Anfang" : StartTime,              UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_RIGHT);
+        FMUC_PutString(rgnSegmentList, PosX, PosY, PosX + TimeWidth,  (Start+i == 0) ? LangGetString(LS_BeginStr) : StartTime,              UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_RIGHT);
         PosX += TimeWidth;
-        FMUC_PutString(rgnSegmentList, PosX, PosY, PosX + DashWidth,  "-",                                                UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_CENTER);
+        FMUC_PutString(rgnSegmentList, PosX, PosY, PosX + DashWidth,  "-",                                                                  UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_CENTER);
         PosX += DashWidth;
-        FMUC_PutString(rgnSegmentList, PosX, PosY, EndTextField_X+15, (Start+i == NrSegmentMarker-2) ? " Ende" : EndTime, UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_LEFT);
+        FMUC_PutString(rgnSegmentList, PosX, PosY, EndTextField_X+15, (Start+i == NrSegmentMarker-2) ? LangGetString(LS_EndStr) : EndTime,  UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_LEFT);
       }
     }
   }
