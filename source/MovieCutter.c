@@ -803,13 +803,17 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
       // VORSICHT!!! Das hier wird interaktiv ausgeführt
       if(labs(TAP_GetTick() - LastDraw) > 10) {
-        if ((JumpRequestedSegment != 0xFFFF) && (JumpRequestedTime) && (labs(TAP_GetTick() - JumpRequestedTime) >= 100))
+        if (JumpRequestedTime && (labs(TAP_GetTick() - JumpRequestedTime) >= 100))
         {
-          if(TrickMode == TRICKMODE_Pause) Playback_Normal();
-          TAP_Hdd_ChangePlaybackPos(SegmentMarker[JumpRequestedSegment].Block);
-//          JumpRequestedSegment = 0xFFFF;
+          if (JumpRequestedSegment != 0xFFFF)
+          {
+            if(TrickMode == TRICKMODE_Pause) Playback_Normal();
+            TAP_Hdd_ChangePlaybackPos(SegmentMarker[JumpRequestedSegment].Block);
+            ActiveSegment = JumpRequestedSegment;
+            JumpPerformedTime = TAP_GetTick();
+          }
+          JumpRequestedSegment = 0xFFFF;
           JumpRequestedTime = 0;
-          JumpPerformedTime = TAP_GetTick();
         }
         CheckLastSeconds();
         OSDInfoDrawProgressbar(FALSE);
@@ -1419,8 +1423,9 @@ void SetCurrentSegment(void)
 
   int                   i;
 
-  if(NrSegmentMarker < 3)
+  if(NrSegmentMarker <= 2)
   {
+    ActiveSegment = 0;
     #if STACKTRACE == TRUE
       CallTraceExit(NULL);
     #endif
@@ -1433,6 +1438,8 @@ void SetCurrentSegment(void)
     #endif
     return;
   }
+  JumpRequestedSegment = 0xFFFF;
+  JumpPerformedTime = 0;
 
   for(i = 1; i < NrSegmentMarker; i++)
   {
@@ -1441,8 +1448,6 @@ void SetCurrentSegment(void)
       if(ActiveSegment != (i - 1))
       {
         ActiveSegment = i - 1;
-        JumpRequestedSegment = 0xFFFF;
-        JumpPerformedTime = 0;
         OSDSegmentListDrawList();
         OSDInfoDrawProgressbar(TRUE);
       }
@@ -2305,13 +2310,17 @@ void OSDInfoDrawProgressbar(bool Force)
         //The background
         TAP_Osd_PutGd(rgnInfo, 28, 90, &_Info_Progressbar_Gd, FALSE);
 
-        x1 = 34 + (int)((float)653 * SegmentMarker[ActiveSegment].Percent / 100);
-        x2 = 34 + (int)((float)653 * SegmentMarker[ActiveSegment + 1].Percent / 100);
+        //Fill the active segment
+        if (NrSegmentMarker >= 3)
+        {
+          x1 = 34 + (int)((float)653 * SegmentMarker[ActiveSegment].Percent / 100);
+          x2 = 34 + (int)((float)653 * SegmentMarker[ActiveSegment + 1].Percent / 100);
 
-//        if((SegmentMarker[ActiveSegment + 1].Timems - SegmentMarker[ActiveSegment].Timems) < 60001)
-//          TAP_Osd_FillBox(rgnInfo, x1, 102, x2 - x1, 10, RGB(238, 63, 63));
-//        else
-          TAP_Osd_FillBox(rgnInfo, x1, 102, x2 - x1, 10, RGB(73, 206, 239));
+//          if((SegmentMarker[ActiveSegment + 1].Timems - SegmentMarker[ActiveSegment].Timems) < 60001)
+//            TAP_Osd_FillBox(rgnInfo, x1, 102, x2 - x1, 10, RGB(238, 63, 63));
+//          else
+            TAP_Osd_FillBox(rgnInfo, x1, 102, x2 - x1, 10, RGB(73, 206, 239));
+        }
 
         //SegmentMarker: 0% = 31/93,  100% = 683/93
         //Draw the selection for segment 0
