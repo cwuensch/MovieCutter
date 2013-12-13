@@ -134,9 +134,10 @@ typedef enum
   LS_UnselectAll,
   LS_ClearSegmentList,
   LS_DeleteAllBookmarks,
+  LS_Bookmarks,
+  LS_PageStr,
   LS_BeginStr,
   LS_EndStr,
-  LS_PageStr,
   LS_AskConfirmation,
   LS_Yes,
   LS_No,
@@ -2283,8 +2284,8 @@ void OSDInfoDrawBookmarkMode(void)
 
   if(rgnInfo)
   {
-    TAP_Osd_FillBox(rgnInfo, BookmarkMode_x, 8, 50, 35, RGB(51, 51, 51));
-    FMUC_PutString(rgnInfo, BookmarkMode_x, 67, 720, ((BookmarkMode ? "Bookmarks" : "Segments")), COLOR_White, COLOR_None, &Calibri_10_FontDataUC, TRUE, ALIGN_LEFT);
+    TAP_Osd_FillBox(rgnInfo, BookmarkMode_x-3, 68, 60, 19, RGB(51, 51, 51));
+    FMUC_PutString(rgnInfo, BookmarkMode_x-3, 70, BookmarkMode_x+58, ((BookmarkMode ? LangGetString(LS_Bookmarks) : LangGetString(LS_Segments))), ((BookmarkMode) ? RGB(60,255,60) : RGB(250,139,18)), COLOR_None, &Calibri_10_FontDataUC, TRUE, ALIGN_CENTER);
     TAP_Osd_Sync();
   }
 
@@ -2299,20 +2300,21 @@ void OSDInfoDrawMinuteJump(void)
     CallTraceEnter("OSDInfoDrawMinuteJump");
   #endif
 
-  char                  Time[5];
+  char InfoStr[5];
 
   if(rgnInfo)
   {
     TAP_Osd_FillBox(rgnInfo, 507, 8, 50, 35, RGB(51, 51, 51));
-    TAP_Osd_PutGd(rgnInfo, 507, 8, &_Button_SkipLeft_Gd, TRUE);
-    TAP_Osd_PutGd(rgnInfo, 507 + 1 + _Button_SkipLeft_Gd.width, 8, &_Button_SkipRight_Gd, TRUE);
     if(BookmarkMode || MinuteJump)
     {
+      TAP_Osd_PutGd(rgnInfo, 507, 8, &_Button_SkipLeft_Gd, TRUE);
+      TAP_Osd_PutGd(rgnInfo, 507 + 1 + _Button_SkipLeft_Gd.width, 8, &_Button_SkipRight_Gd, TRUE);
+
       if (MinuteJump)
-        TAP_SPrint(Time, "%u'", MinuteJump);
+        TAP_SPrint(InfoStr, "%u'", MinuteJump);
       else
-        TAP_SPrint(Time, "BM");
-      FMUC_PutString(rgnInfo, 508, 26, 555, Time, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER);
+        TAP_SPrint(InfoStr, "BM");
+      FMUC_PutString(rgnInfo, 508, 26, 555, InfoStr, COLOR_White, COLOR_None, &Calibri_10_FontDataUC, TRUE, ALIGN_CENTER);
     }
     TAP_Osd_Sync();
   }
