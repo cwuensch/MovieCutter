@@ -2112,7 +2112,7 @@ void OSDSegmentListDrawList(void)
   word                  CurrentSegment;
   word                  ScrollButtonHeight, ScrollButtonPos;
   char                  StartTime[12], EndTime[12], OutStr[5];
-  char                  PageStr[25];
+  char                  PageNrStr[8], *PageStr;
   int                   p, NrPages;
   int                   Start;
   dword                 PosX, PosY, UseColor;
@@ -2136,8 +2136,15 @@ void OSDSegmentListDrawList(void)
     // Seitenzahl
     NrPages = ((NrSegmentMarker - 2) / 10) + 1;
     p       = (CurrentSegment / 10) + 1;
-    TAP_SPrint(PageStr, "%s %d/%d", LangGetString(LS_PageStr), p, NrPages);
-    FMUC_PutString(rgnSegmentList, StartTextField_X + 11, BelowTextArea_Y + 3, EndTextField_X - 2*19 - 3, PageStr, COLOR_White, COLOR_None, &Calibri_10_FontDataUC, FALSE, ALIGN_LEFT);
+    PageStr = LangGetString(LS_PageStr);
+	TAP_SPrint(PageNrStr, "%d/%d", p, NrPages);
+
+	PosX = StartTextField_X + 11;
+	PosY = BelowTextArea_Y + 3;
+	FMUC_PutString(rgnSegmentList, PosX, PosY, EndTextField_X - 2*19 - 3, PageStr,   COLOR_White, COLOR_None, &Calibri_10_FontDataUC, FALSE, ALIGN_LEFT);
+    PosX += FMUC_GetStringWidth(PageStr, &Calibri_10_FontDataUC);
+
+	FMUC_PutString(rgnSegmentList, PosX, PosY, EndTextField_X - 2*19 - 3, PageNrStr, COLOR_White, COLOR_None, &Calibri_10_FontDataUC, FALSE, ALIGN_LEFT);
 
     // Segmente
     if(NrSegmentMarker > 2)
@@ -2199,7 +2206,7 @@ void OSDInfoDrawBackground(void)
   #endif
 
   int                   x;
-  char                  s[50];
+  char                 *s;
 
   if(rgnInfo)
   {
@@ -2208,37 +2215,37 @@ void OSDInfoDrawBackground(void)
     x = 350;
     TAP_Osd_PutGd(rgnInfo, x, 48, &_Button_Red_Gd, TRUE);
     x += _Button_Red_Gd.width;
-    TAP_SPrint(s, LangGetString(LS_Delete));
+    s = LangGetString(LS_Delete);
     FMUC_PutString(rgnInfo, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
     x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
 
     TAP_Osd_PutGd(rgnInfo, x, 48, &_Button_Green_Gd, TRUE);
     x += _Button_Green_Gd.width;
-    TAP_SPrint(s, LangGetString(LS_Add));
+    s = LangGetString(LS_Add);
     FMUC_PutString(rgnInfo, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
     x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
 
     TAP_Osd_PutGd(rgnInfo, x, 48, &_Button_Yellow_Gd, TRUE);
     x += _Button_Yellow_Gd.width;
-    TAP_SPrint(s, LangGetString(LS_Move));
+    s = LangGetString(LS_Move);
     FMUC_PutString(rgnInfo, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
     x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
 
     TAP_Osd_PutGd(rgnInfo, x, 48, &_Button_Blue_Gd, TRUE);
     x += _Button_Blue_Gd.width;
-    TAP_SPrint(s, LangGetString(LS_Select));
+    s = LangGetString(LS_Select);
     FMUC_PutString(rgnInfo, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
 
     x = 350;
     TAP_Osd_PutGd(rgnInfo, x, 68, &_Button_Ok_Gd, TRUE);
     x += _Button_Ok_Gd.width;
-    TAP_SPrint(s, LangGetString(LS_Pause));
+    s = LangGetString(LS_Pause);
     FMUC_PutString(rgnInfo, x, 67, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
     x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
 
     TAP_Osd_PutGd(rgnInfo, x, 68, &_Button_Exit_Gd, TRUE);
     x += _Button_Exit_Gd.width;
-    TAP_SPrint(s, LangGetString(LS_Exit));
+    s = LangGetString(LS_Exit);
     FMUC_PutString(rgnInfo, x, 67, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
     x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
     
@@ -3061,7 +3068,7 @@ void ActionMenuDraw(void)
   dword  C1, C2, C3, C4, DisplayColor;
   int    x, y, i;
   char   TempStr[128];
-  char*  DisplayStr;
+  char  *DisplayStr;
 
   NrSelectedSegments = 0;
   for(i = 0; i < NrSegmentMarker - 1; i++)
