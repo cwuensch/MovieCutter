@@ -294,55 +294,58 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     State = ST_Exit;
   }
 
-  if(OSDMenuMessageBoxIsVisible())
+  if(State == ST_Idle || State == ST_IdleUnacceptedFile || State == ST_ActionDialog || State == ST_CutFailDialog)
   {
-    if (State == ST_ActionDialog && event == EVT_KEY && (param1 == RKEY_Left || param1 == RKEY_Right))
+    if(OSDMenuMessageBoxIsVisible())
     {
-      OSDMenuMessageBoxButtonSelect((OSDMenuMessageBoxLastButton()) ? 0 : 1);
-      param1 = 0;
-    }
-    else if(event == EVT_KEY && (param1 == RKEY_Ok || param1 == RKEY_Exit))
-    {
-      if (State == ST_ActionDialog)
+      if (State == ST_ActionDialog && event == EVT_KEY && (param1 == RKEY_Left || param1 == RKEY_Right))
       {
-        OSDMenuMessageBoxDestroyNoOSDUpdate();
-//        TAP_ExitNormal();
-        TAP_Osd_Sync();
-//        OSDRedrawEverything();
-        if ((param1 == RKEY_Ok) && (OSDMenuMessageBoxLastButton() == 0))
-        {
-          ActionMenuRemove();
-          State = ST_Idle;
-          switch(ActionMenuItem)
-          {
-            case MI_SaveSegment:        MovieCutterSaveSegments(); break;
-            case MI_DeleteSegment:      MovieCutterDeleteSegments(); break;
-            case MI_ClearAll:           (BookmarkMode) ? DeleteAllBookmarks() : DeleteAllSegmentMarkers(); break;
-            case MI_DeleteFile:         MovieCutterDeleteFile(); break;
-          }
-        }
-//        else
-//          ActionMenuDraw();
+        OSDMenuMessageBoxButtonSelect((OSDMenuMessageBoxLastButton()) ? 0 : 1);
+        param1 = 0;
       }
-      else if (State == ST_Idle)
+      else if(event == EVT_KEY && (param1 == RKEY_Ok || param1 == RKEY_Exit))
       {
-        OSDMenuMessageBoxDestroyNoOSDUpdate();
-//        TAP_ExitNormal();
-//        TAP_Osd_Sync();
-        OSDRedrawEverything();
+        if (State == ST_ActionDialog)
+        {
+          OSDMenuMessageBoxDestroyNoOSDUpdate();
+//          TAP_ExitNormal();
+          TAP_Osd_Sync();
+//          OSDRedrawEverything();
+          if ((param1 == RKEY_Ok) && (OSDMenuMessageBoxLastButton() == 0))
+          {
+            ActionMenuRemove();
+            State = ST_Idle;
+            switch(ActionMenuItem)
+            {
+              case MI_SaveSegment:        MovieCutterSaveSegments(); break;
+              case MI_DeleteSegment:      MovieCutterDeleteSegments(); break;
+              case MI_ClearAll:           (BookmarkMode) ? DeleteAllBookmarks() : DeleteAllSegmentMarkers(); break;
+              case MI_DeleteFile:         MovieCutterDeleteFile(); break;
+            }
+          }
+//          else
+//            ActionMenuDraw();
+        }
+        else if (State == ST_Idle)
+        {
+          OSDMenuMessageBoxDestroyNoOSDUpdate();
+//          TAP_ExitNormal();
+//          TAP_Osd_Sync();
+          OSDRedrawEverything();
+        }
+        else
+          OSDMenuMessageBoxDestroy();
+        param1 = 0;
       }
       else
-        OSDMenuMessageBoxDestroy();
-      param1 = 0;
-    }
-    else
-      OSDMenuEvent(&event, &param1, &param2);
+        OSDMenuEvent(&event, &param1, &param2);
     
-    DoNotReenter = FALSE;
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
-    return param1;
+      DoNotReenter = FALSE;
+      #if STACKTRACE == TRUE
+        CallTraceExit(NULL);
+      #endif
+      return param1;
+    }
   }
 
   TAP_GetState(&SysState, &SysSubState);
@@ -374,6 +377,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         if((int)PlayInfo.totalBlock > 0)
         {
           if(SysState != STATE_Normal) break;
+// ***CW*** HIER evtl. noch prüfen, ob gerade eine Timeshift-Aufnahme läuft... nur wie!?
           LastTotalBlocks = PlayInfo.totalBlock;  // *CW*
 
           //"Calculate" the file name (.rec or .mpg)
