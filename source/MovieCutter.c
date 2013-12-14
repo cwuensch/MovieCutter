@@ -305,10 +305,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     {
       if (State == ST_ActionDialog)
       {
-        OSDMenuMessageBoxDoNotEnterNormalMode(TRUE);
         OSDMenuMessageBoxDestroyNoOSDUpdate();
 //        TAP_ExitNormal();
-//        TAP_Osd_Sync();
+        TAP_Osd_Sync();
 //        OSDRedrawEverything();
         if ((param1 == RKEY_Ok) && (OSDMenuMessageBoxLastButton() == 0))
         {
@@ -327,7 +326,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       }
       else if (State == ST_Idle)
       {
-        OSDMenuMessageBoxDoNotEnterNormalMode(TRUE);
         OSDMenuMessageBoxDestroyNoOSDUpdate();
 //        TAP_ExitNormal();
 //        TAP_Osd_Sync();
@@ -486,14 +484,22 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             if (PatchOldNavFile(PlaybackName, HDVideo))
             {
               WriteLogMC(PROGRAM_NAME, ".nav file patched by Compatibility Layer.");
-              OSDMenuMessageBoxInitialize(PROGRAM_NAME, ".nav duration mismatch. Patched!\nPlease try again.");
+              OSDMenuMessageBoxInitialize(PROGRAM_NAME, ".nav duration mismatch. Patched!\nWill try again.");
+              LastTotalBlocks = 0;
             }
             else
+            {
               OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_WrongNavLength));
+              State = ST_IdleUnacceptedFile;
+            }
             OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
             OSDMenuMessageBoxShow();
-            State = ST_IdleUnacceptedFile;
-            break;
+
+            DoNotReenter = FALSE;
+            #if STACKTRACE == TRUE
+              CallTraceExit(NULL);
+            #endif
+            return 0;
           }
 
           //Check if it is crypted
@@ -951,6 +957,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 void ShowConfirmationDialog(void)
 {
   OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_AskConfirmation));
+  OSDMenuMessageBoxDoNotEnterNormalMode(TRUE);
   OSDMenuMessageBoxButtonAdd(LangGetString(LS_Yes));
   OSDMenuMessageBoxButtonAdd(LangGetString(LS_No));
   OSDMenuMessageBoxButtonSelect(1);
@@ -1229,6 +1236,7 @@ bool AddSegmentMarker(dword Block)
   {
     WriteLogMC(PROGRAM_NAME, "AddSegmentMarker: SegmentMarker list is full!");
     OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_ListIsFull));
+    OSDMenuMessageBoxDoNotEnterNormalMode(TRUE);
     OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
     OSDMenuMessageBoxShow();
 
