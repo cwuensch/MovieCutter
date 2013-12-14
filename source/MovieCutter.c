@@ -296,14 +296,20 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
   if(OSDMenuMessageBoxIsVisible())
   {
-    if(event == EVT_KEY && (param1 == RKEY_Ok || param1 == RKEY_Exit))
+    if (State == ST_ActionDialog && event == EVT_KEY && (param1 == RKEY_Left || param1 == RKEY_Right))
     {
-      OSDMenuMessageBoxDestroy();
+      OSDMenuMessageBoxButtonSelect((OSDMenuMessageBoxLastButton()) ? 0 : 1);
+      param1 = 0;
+    }
+    else if(event == EVT_KEY && (param1 == RKEY_Ok || param1 == RKEY_Exit))
+    {
       if (State == ST_ActionDialog)
       {
-        TAP_ExitNormal();
-        TAP_Osd_Sync();
-        OSDRedrawEverything();
+        OSDMenuMessageBoxDoNotEnterNormalMode(TRUE);
+        OSDMenuMessageBoxDestroyNoOSDUpdate();
+//        TAP_ExitNormal();
+//        TAP_Osd_Sync();
+//        OSDRedrawEverything();
         if ((param1 == RKEY_Ok) && (OSDMenuMessageBoxLastButton() == 0))
         {
           ActionMenuRemove();
@@ -316,15 +322,19 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             case MI_DeleteFile:         MovieCutterDeleteFile(); break;
           }
         }
-        else
-          ActionMenuDraw();
+//        else
+//          ActionMenuDraw();
       }
       else if (State == ST_Idle)
       {
-        TAP_ExitNormal();
-        TAP_Osd_Sync();
+        OSDMenuMessageBoxDoNotEnterNormalMode(TRUE);
+        OSDMenuMessageBoxDestroyNoOSDUpdate();
+//        TAP_ExitNormal();
+//        TAP_Osd_Sync();
         OSDRedrawEverything();
       }
+      else
+        OSDMenuMessageBoxDestroy();
       param1 = 0;
     }
     else
@@ -1518,7 +1528,6 @@ bool ReadBookmarks(void)
     WriteLogMC(PROGRAM_NAME, "ReadBookmarks: Fatal error - inf cache entry point not found!");
 
     char s[512];
-
     TAP_SPrint(s, "TempRecSlot=%p", TempRecSlot);
     if(TempRecSlot) TAP_SPrint(&s[strlen(s)], ", *TempRecSlot=%d, HDD_NumberOfRECSlots()=%d", *TempRecSlot, HDD_NumberOfRECSlots());
     WriteLogMC(PROGRAM_NAME, s);

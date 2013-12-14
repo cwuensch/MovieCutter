@@ -33,7 +33,7 @@
 2011-08-14 V1.3c  * Fixed a reboot if green is pressed without a running playback
 2011-08-26 V1.3d  * Added the French translations (Thanks to LAL)
 2012-06-23 V1.4   * Added action menu items "Delete event segments" and "Delete odd segments"
-2013-12-06 V2.0  ** vollständiger Unicode-Support
+2013-12-13 V2.0  ** vollständiger Unicode-Support
                 *** alle Zeitangaben werden präzise aus der nav berechnet
                   * Hin- und Herspringen der Spielzeit-Anzeige behoben
                   * Nummerierung der geschnittenen Teile nun aufsteigend
