@@ -1708,6 +1708,16 @@ tTimeStamp* NavLoadSD(char const *SourceFileName, dword *const NrTimeStamps)
   TAP_PrintNet("Returned Nav-Records: %u\n", ret);
 #endif
 
+    // Versuche, nav-Dateien aus Timeshift-Aufnahmen zu unterstützen ***experimentell***
+    if(FirstTime == 0xFFFFFFFF)
+    {
+      if(navBuffer[0].SHOffset == 0x72767062)  // 'bpvr'
+      {
+        fseek(fNav, 1056, SEEK_SET);
+        continue;
+      }
+    }
+
     for(i = 0; i < ret; i++)
     {
       if(FirstTime == 0xFFFFFFFF) FirstTime = navBuffer[i].Timems;
@@ -1836,6 +1846,16 @@ tTimeStamp* NavLoadHD(char const *SourceFileName, dword *const NrTimeStamps)
 #ifdef FULLDEBUG
   TAP_PrintNet("Returned Nav-Records: %u\n", ret);
 #endif
+
+    // Versuche, nav-Dateien aus Timeshift-Aufnahmen zu unterstützen ***experimentell***
+    if(FirstTime == 0xFFFFFFFF)
+    {
+      if(navBuffer[0].LastPPS == 0x72767062)  // 'bpvr'
+      {
+        fseek(fNav, 1056, SEEK_SET);
+        continue;
+      }
+    }
 
     for(i = 0; i < ret; i++)
     {

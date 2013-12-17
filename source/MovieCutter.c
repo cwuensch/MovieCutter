@@ -66,12 +66,12 @@ typedef struct
 typedef enum
 {
   ST_Init,               // TAP start (executed only once)
-  ST_IdleNoPlayback,     // TAP inactive, no file is being played back
-  ST_Idle,               // OSD is active (playback running)
-  ST_IdleInvisible,      // OSD is currently not active, but can be entered (playback running)
-  ST_IdleUnacceptedFile, // TAP is not active and cannot be entered (playback of unsupported file)
-  ST_ActionDialog,       // Action Menu is open, navigation only within menu
-  ST_CutFailDialog,      // Failure Dialog is open, no other actions possible
+  ST_WaitForPlayback,    // (ST_IdleNoPlayback)     // TAP inactive, changes to active mode, as soon as a playback starts
+  ST_ActiveOSD,          // (ST_Idle)               // OSD is active (playback running)
+  ST_InactiveMode,       // (ST_IdleInvisible)      // OSD is currently not active, but can be entered (playback running)
+  ST_UnacceptedFile,     // (ST_IdleUnacceptedFile) // TAP is not active and cannot be entered (playback of unsupported file)
+  ST_ActionMenu,         // Action Menu is open, navigation only within menu
+//  ST_CutFailDialog,      // Failure Dialog is open, no other actions possible
   ST_Exit                // Preparing to exit TAP
 } tState;
 
@@ -254,6 +254,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   dword                 SysState, SysSubState;
   static bool           DoNotReenter = FALSE;
   static bool           OldRepeatMode = FALSE;
+  static bool           PlaybackAlreadyStopped = FALSE;
   static dword          LastMinuteKey = 0;
   static dword          LastDraw = 0;
 
@@ -294,18 +295,18 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     State = ST_Exit;
   }
 
-  if(State == ST_Idle || State == ST_IdleUnacceptedFile || State == ST_ActionDialog || State == ST_CutFailDialog)
+  if(State == ST_Init || State == ST_ActiveOSD || State == ST_UnacceptedFile || State == ST_ActionMenu)
   {
     if(OSDMenuMessageBoxIsVisible())
     {
-      if (State == ST_ActionDialog && event == EVT_KEY && (param1 == RKEY_Left || param1 == RKEY_Right))
+      if (State == ST_ActionMenu && event == EVT_KEY && (param1 == RKEY_Left || param1 == RKEY_Right))
       {
         OSDMenuMessageBoxButtonSelect((OSDMenuMessageBoxLastButton()) ? 0 : 1);
         param1 = 0;
       }
       else if(event == EVT_KEY && (param1 == RKEY_Ok || param1 == RKEY_Exit))
       {
-        if (State == ST_ActionDialog)
+        if (State == ST_ActionMenu)
         {
           OSDMenuMessageBoxDestroyNoOSDUpdate();
 //          TAP_ExitNormal();
@@ -314,7 +315,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           if ((param1 == RKEY_Ok) && (OSDMenuMessageBoxLastButton() == 0))
           {
             ActionMenuRemove();
-            State = ST_Idle;
+            State = ST_ActiveOSD;
             switch(ActionMenuItem)
             {
               case MI_SaveSegment:        MovieCutterSaveSegments(); break;
@@ -326,12 +327,12 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 //          else
 //            ActionMenuDraw();
         }
-        else if (State == ST_Idle)
+        else if (State == ST_ActiveOSD)
         {
           OSDMenuMessageBoxDestroyNoOSDUpdate();
 //          TAP_ExitNormal();
-//          TAP_Osd_Sync();
-          OSDRedrawEverything();
+          TAP_Osd_Sync();
+//          OSDRedrawEverything();
         }
         else
           OSDMenuMessageBoxDestroy();
@@ -348,8 +349,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     }
   }
 
-  TAP_GetState(&SysState, &SysSubState);
-
   switch(State)
   {
     case ST_Init:             //Executed once upon TAP start
@@ -364,11 +363,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       JumpRequestedTime = 0;
       JumpPerformedTime = 0;
 */
-      State = AutoOSDPolicy ? ST_IdleNoPlayback : ST_IdleInvisible;
+      State = AutoOSDPolicy ? ST_WaitForPlayback : ST_InactiveMode;
       break;
     }
 
-    case ST_IdleNoPlayback:   //Idle loop while there is no playback active
+    case ST_WaitForPlayback:   //Idle loop while there is no playback active
     {
       if(isPlaybackRunning())
       {
@@ -376,9 +375,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
         if((int)PlayInfo.totalBlock > 0)
         {
+          TAP_GetState(&SysState, &SysSubState);
           if(SysState != STATE_Normal) break;
-// ***CW*** HIER evtl. noch prüfen, ob gerade eine Timeshift-Aufnahme läuft... nur wie!?
+
           LastTotalBlocks = PlayInfo.totalBlock;  // *CW*
+          PlaybackAlreadyStopped = FALSE;
 
           //"Calculate" the file name (.rec or .mpg)
           if(!PlayInfo.file || !PlayInfo.file->name[0]) PlaybackName[0] = '\0';
@@ -406,7 +407,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_NoRecSize));
             OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
             OSDMenuMessageBoxShow();
-            State = ST_IdleUnacceptedFile;
+            State = ST_UnacceptedFile;
             break;
           }
 
@@ -422,7 +423,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_MissingNav));
             OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
             OSDMenuMessageBoxShow();
-            State = ST_IdleUnacceptedFile;
+            State = ST_UnacceptedFile;
             break;
           }
 
@@ -433,7 +434,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_HDDetectionFailed));
             OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
             OSDMenuMessageBoxShow();
-            State = ST_IdleUnacceptedFile;
+            State = ST_UnacceptedFile;
             break;
           }
           WriteLogMC(PROGRAM_NAME, (HDVideo) ? "Type of recording: HD" : "Type of recording: SD");
@@ -474,7 +475,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_NavLoadFailed));
             OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
             OSDMenuMessageBoxShow();
-            State = ST_IdleUnacceptedFile;
+            State = ST_UnacceptedFile;
             break;
           }
           LastTimeStamp = &TimeStamps[0];
@@ -494,7 +495,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             else
             {
               OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_WrongNavLength));
-              State = ST_IdleUnacceptedFile;
+              State = ST_UnacceptedFile;
             }
             OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
             OSDMenuMessageBoxShow();
@@ -513,7 +514,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_IsCrypted));
             OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
             OSDMenuMessageBoxShow();
-            State = ST_IdleUnacceptedFile;
+            State = ST_UnacceptedFile;
             break;
           }
           
@@ -527,31 +528,49 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           Playback_Normal();
           CalcLastSeconds();
           ReadBookmarks();
-          if(!CutFileLoad()) AddDefaultSegmentMarker();
+          if(!CutFileLoad())
+          {
+            if(!AddDefaultSegmentMarker())
+            {
+              WriteLogMC(PROGRAM_NAME, "Error adding default segment markers!");
+              OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_NavLoadFailed));
+              OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
+              OSDMenuMessageBoxShow();
+              State = ST_UnacceptedFile;
+              break;
+            }
+          }
+
           OldRepeatMode = PlaybackRepeatGet();
           PlaybackRepeatSet(TRUE);
           OSDRedrawEverything();
 //          LastTotalBlocks = PlayInfo.totalBlock;  // *CW*
-          State = ST_Idle;
+          State = ST_ActiveOSD;
         }
       }
       break;
     }
 
-    case ST_IdleInvisible:    //Playback is active but OSD is hidden
+    case ST_InactiveMode:    //Playback can be active or not, but OSD is hidden
     {
       // if playback stopped
-      if (!isPlaybackRunning()) {
+      if (!PlaybackAlreadyStopped && !isPlaybackRunning()) {
         Cleanup(FALSE);
-        if(AutoOSDPolicy) State = ST_IdleNoPlayback;
+        if(AutoOSDPolicy) State = ST_WaitForPlayback;
+        PlaybackAlreadyStopped = TRUE;
         break;
       }
 
-      // if progress-bar is enabled and cut-key is pressed -> show MovieCutter OSD (ST_IdleNoPlayback)
+      // if playback-file changed -> show MovieCutter as soon as next playback is started (ST_WaitForPlayback)
+      if(AutoOSDPolicy && (LastTotalBlocks != PlayInfo.totalBlock)) State = ST_WaitForPlayback;
+
+      // if progress-bar is enabled and cut-key is pressed -> show MovieCutter OSD (ST_WaitForPlayback)
+//      TAP_GetState(&SysState, &SysSubState);
       if(/*SysSubState == SUBSTATE_PvrPlayingSearch &&*/ (event == EVT_KEY) && ((param1 == RKEY_Ab) || (param1 == RKEY_Option)))
       {
+        if (!isPlaybackRunning()) break;
         if (LastTotalBlocks != PlayInfo.totalBlock)
-          State = ST_IdleNoPlayback;
+          State = ST_WaitForPlayback;
         else {
           // beim erneuten Einblenden kann man sich das Neu-Berechnen aller Werte sparen (AUCH wenn 2 Aufnahmen gleiche Blockzahl haben!!)
           BookmarkMode = FALSE;
@@ -564,26 +583,28 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           OldRepeatMode = PlaybackRepeatGet();
           PlaybackRepeatSet(TRUE);
           OSDRedrawEverything();
-          State = ST_Idle;
+          State = ST_ActiveOSD;
         }
         param1 = 0;
       }
-
-      // if playback-file changed -> show MovieCutter as soon as next playback is started (ST_IdleNoPlayback)
-      if(AutoOSDPolicy && (LastTotalBlocks != PlayInfo.totalBlock)) State = ST_IdleNoPlayback;
       break;
     }
 
-    case ST_Idle:             //Playback is active and OSD is visible
+    case ST_ActiveOSD:             //Playback is active and OSD is visible
     {
       if(!isPlaybackRunning())
       {
+#ifdef FULLDEBUG
+  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler(): State=ST_ActiveOSD, !isPlaybackRunning --> Aufruf von CutFileSave()");
+#endif
         CutFileSave();
         Cleanup(TRUE);
-        State = AutoOSDPolicy ? ST_IdleNoPlayback : ST_IdleInvisible;
+        PlaybackAlreadyStopped = TRUE;
+        State = AutoOSDPolicy ? ST_WaitForPlayback : ST_InactiveMode;
         break;
       }
 
+      TAP_GetState(&SysState, &SysSubState);
       if(SysSubState == SUBSTATE_Normal) TAP_ExitNormal();
 
       if(event == EVT_KEY)
@@ -608,10 +629,13 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
           case RKEY_Exit:
           {
+#ifdef FULLDEBUG
+  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler(): State=ST_ActiveOSD, Key=RKEY_Exit --> Aufruf von CutFileSave()");
+#endif
             CutFileSave();
             ClearOSD();
             PlaybackRepeatSet(OldRepeatMode);
-            State = ST_IdleInvisible;
+            State = ST_InactiveMode;
 
             //Exit immediately so that other functions can not interfere with the cleanup
             DoNotReenter = FALSE;
@@ -749,7 +773,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             else
             {
               ActionMenuDraw();
-              State = ST_ActionDialog;
+              State = ST_ActionMenu;
             }
             break;
           }
@@ -852,17 +876,17 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       break;
     }
 
-    case ST_IdleUnacceptedFile: //Playback is active but MC can't use that file and is inactive
+    case ST_UnacceptedFile: //Playback is active but MC can't use that file and is inactive
     {
       if(!isPlaybackRunning() || LastTotalBlocks != PlayInfo.totalBlock)
       { 
         Cleanup(TRUE);
-        State = AutoOSDPolicy ? ST_IdleNoPlayback : ST_IdleInvisible;
+        State = AutoOSDPolicy ? ST_WaitForPlayback : ST_InactiveMode;
       }
       break;
     }
 
-    case ST_ActionDialog:     //Action dialog is visible
+    case ST_ActionMenu:     //Action dialog is visible
     {
       if(event == EVT_KEY)
       {
@@ -884,13 +908,13 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               }
 
               ActionMenuRemove();
-              State = ST_Idle;
+              State = ST_ActiveOSD;
               switch(ActionMenuItem)
               {
 //                case MI_SaveSegment:        MovieCutterSaveSegments(); break;
 //                case MI_DeleteSegment:      MovieCutterDeleteSegments(); break;
-                case MI_SelectOddSegments:  MovieCutterSelectOddSegments();  ActionMenuDraw(); State = ST_ActionDialog; break;
-                case MI_SelectEvenSegments: MovieCutterSelectEvenSegments(); ActionMenuDraw(); State = ST_ActionDialog; break;
+                case MI_SelectOddSegments:  MovieCutterSelectOddSegments();  ActionMenuDraw(); State = ST_ActionMenu; break;
+                case MI_SelectEvenSegments: MovieCutterSelectEvenSegments(); ActionMenuDraw(); State = ST_ActionMenu; break;
                 case MI_ClearAll:           MovieCutterUnselectAll(); break;
 //                case MI_DeleteFile:         MovieCutterDeleteFile(); break;
                 case MI_ImportBookmarks:    AddBookmarksToSegmentList(); break;
@@ -916,7 +940,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           case RKEY_Exit:
           {
             ActionMenuRemove();
-            State = ST_Idle;
+            State = ST_ActiveOSD;
             break;
           }
         }
@@ -925,20 +949,15 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       break;
     }
 
-    case ST_CutFailDialog:    //Cut fail dialog is visible
-    {
-      OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_CutHasFailed));
-      OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
-      OSDMenuMessageBoxShow();
-      NoPlaybackCheck = FALSE;
-      State = ST_IdleUnacceptedFile;
-      break;
-    }
-
     case ST_Exit:             //Preparing to terminate the TAP
     {
       if (strlen(PlaybackName) > 0)
+      {
+#ifdef FULLDEBUG
+  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler(): State=ST_Exit --> Aufruf von CutFileSave()");
+#endif
         CutFileSave();
+      }
       PlaybackRepeatSet(OldRepeatMode);
       Cleanup(TRUE);
       LangUnloadStrings();
@@ -986,7 +1005,7 @@ dword TMSCommander_handler(dword param1)
 
     case TMSCMDR_UserEvent:
     {
-      if(State == ST_IdleInvisible) State = ST_IdleNoPlayback;
+      if(State == ST_InactiveMode) State = ST_WaitForPlayback;
 
       #if STACKTRACE == TRUE
         CallTraceExit(NULL);
@@ -1212,18 +1231,20 @@ void AddBookmarksToSegmentList(void)
   #endif
 }
 
-void AddDefaultSegmentMarker(void)
+bool AddDefaultSegmentMarker(void)
 {
+  bool ret;
   #if STACKTRACE == TRUE
     CallTraceEnter("AddDefaultSegmentMarker");
   #endif
 
-  AddSegmentMarker(0);
-  AddSegmentMarker(PlayInfo.totalBlock);
+  ret = AddSegmentMarker(0);
+  ret = ret && AddSegmentMarker(PlayInfo.totalBlock);
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
   #endif
+  return ret;
 }
 
 bool AddSegmentMarker(dword Block)
@@ -2141,14 +2162,14 @@ void OSDSegmentListDrawList(void)
     NrPages = ((NrSegmentMarker - 2) / 10) + 1;
     p       = (CurrentSegment / 10) + 1;
     PageStr = LangGetString(LS_PageStr);
-	TAP_SPrint(PageNrStr, "%d/%d", p, NrPages);
+    TAP_SPrint(PageNrStr, "%d/%d", p, NrPages);
 
-	PosX = StartTextField_X + 11;
-	PosY = BelowTextArea_Y + 3;
-	FMUC_PutString(rgnSegmentList, PosX, PosY, EndTextField_X - 2*19 - 3, PageStr,   COLOR_White, COLOR_None, &Calibri_10_FontDataUC, FALSE, ALIGN_LEFT);
+    PosX = StartTextField_X + 11;
+    PosY = BelowTextArea_Y + 3;
+    FMUC_PutString(rgnSegmentList, PosX, PosY, EndTextField_X - 2*19 - 3, PageStr,   COLOR_White, COLOR_None, &Calibri_10_FontDataUC, FALSE, ALIGN_LEFT);
     PosX += FMUC_GetStringWidth(PageStr, &Calibri_10_FontDataUC);
 
-	FMUC_PutString(rgnSegmentList, PosX, PosY, EndTextField_X - 2*19 - 3, PageNrStr, COLOR_White, COLOR_None, &Calibri_10_FontDataUC, FALSE, ALIGN_LEFT);
+    FMUC_PutString(rgnSegmentList, PosX, PosY, EndTextField_X - 2*19 - 3, PageNrStr, COLOR_White, COLOR_None, &Calibri_10_FontDataUC, FALSE, ALIGN_LEFT);
 
     // Segmente
     if(NrSegmentMarker > 2)
@@ -3346,6 +3367,23 @@ void MovieCutterDeleteFile(void)
   #endif
 }
 
+void ShowCutFailDialog(void)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("ShowCutFileDialog");
+  #endif
+
+  OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_CutHasFailed));
+  OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
+  OSDMenuMessageBoxShow();
+  NoPlaybackCheck = FALSE;
+  State = ST_UnacceptedFile;
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+}
+
 void MovieCutterProcess(bool KeepCut)
 {
   #if STACKTRACE == TRUE
@@ -3482,7 +3520,7 @@ void MovieCutterProcess(bool KeepCut)
       //Bail out if the cut failed
       if(ret == RC_Error)
       {
-        State = ST_CutFailDialog;
+        ShowCutFailDialog();
         break;
       }
 
@@ -3529,7 +3567,7 @@ void MovieCutterProcess(bool KeepCut)
         if((ret==RC_Warning) || !TAP_Hdd_Exist(PlaybackName) || TAP_Hdd_Exist(TempFileName))
         {
           WriteLogMC(PROGRAM_NAME, "Error processing the last segment: Renaming or nav-generation failed!");
-          State = ST_CutFailDialog;
+          ShowCutFailDialog();
           break;
         }
       }
@@ -3557,7 +3595,7 @@ void MovieCutterProcess(bool KeepCut)
 //  ClearOSD();  // unnötig?
 //  OSDRedrawEverything();
 
-  State = ST_IdleNoPlayback;
+  State = ST_WaitForPlayback;
   NoPlaybackCheck = FALSE;
 
   #if STACKTRACE == TRUE
@@ -3725,12 +3763,24 @@ bool PatchOldNavFileSD(char *SourceFileName)
   //Loop through the nav
   dword Difference = 0;
   dword LastTime = 0;
+  bool FirstRun = TRUE;
 
   navRecs = (tnavSD*) TAP_MemAlloc(NAVRECS_SD * sizeof(tnavSD));
   while(TRUE)
   {
     navsRead = fread(navRecs, sizeof(tnavSD), NAVRECS_SD, fSourceNav);
     if(navsRead == 0) break;
+
+    // Versuche, nav-Dateien aus Timeshift-Aufnahmen zu unterstützen ***experimentell***
+    if(FirstRun)
+    {
+      FirstRun = FALSE;
+      if(navRecs[0].SHOffset == 0x72767062)  // 'bpvr'
+      {
+        fseek(fSourceNav, 1056, SEEK_SET);
+        continue;
+      }
+    }
 
     for(i = 0; i < navsRead; i++)
     {
@@ -3822,12 +3872,24 @@ bool PatchOldNavFileHD(char *SourceFileName)
   //Loop through the nav
   dword Difference = 0;
   dword LastTime = 0;
+  bool FirstRun = TRUE;
 
   navRecs = (tnavHD*) TAP_MemAlloc(NAVRECS_HD * sizeof(tnavHD));
   while(TRUE)
   {
     navsRead = fread(navRecs, sizeof(tnavHD), NAVRECS_HD, fSourceNav);
     if(navsRead == 0) break;
+
+    // Versuche, nav-Dateien aus Timeshift-Aufnahmen zu unterstützen ***experimentell***
+    if(FirstRun)
+    {
+      FirstRun = FALSE;
+      if(navRecs[0].LastPPS == 0x72767062)  // 'bpvr'
+      {
+        fseek(fSourceNav, 1056, SEEK_SET);
+        continue;
+      }
+    }
 
     for(i = 0; i < navsRead; i++)
     {

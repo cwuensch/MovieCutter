@@ -25,7 +25,7 @@ void  ActionMenuRemove(void);
 void  ActionMenuUp(void);
 bool  AddBookmark(dword Block);
 void  AddBookmarksToSegmentList(void);
-void  AddDefaultSegmentMarker(void);
+bool  AddDefaultSegmentMarker(void);
 bool  AddSegmentMarker(dword Block);
 void  CalcLastSeconds(void);
 void  CheckLastSeconds(void);
@@ -89,6 +89,7 @@ bool  SaveBookmarksToInf(void);
 void  SaveINI(void);
 void  SelectSegmentMarker(void);
 void  SetCurrentSegment(void);
+void  ShowCutFailDialog(void);
 dword TMSCommander_handler(dword param1);
 bool PatchOldNavFile(char *SourceFileName, bool isHD);
 
