@@ -1491,7 +1491,7 @@ void SetCurrentSegment(void)
     #endif
     return;
   }
-  if (JumpRequestedTime || (JumpPerformedTime && (labs(TAP_GetTick() - JumpPerformedTime) < 50)))
+  if (JumpRequestedTime || (JumpPerformedTime && (labs(TAP_GetTick() - JumpPerformedTime) < 75)))
   {
     #if STACKTRACE == TRUE
       CallTraceExit(NULL);
