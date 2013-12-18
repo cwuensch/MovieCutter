@@ -55,6 +55,10 @@ TAP_AUTHOR_NAME         (AUTHOR);
 TAP_DESCRIPTION         (DESCRIPTION);
 TAP_ETCINFO             (__DATE__);
 
+// ============================================================================
+//                              Definitionen
+// ============================================================================
+
 typedef struct
 {
   dword                 Block;  //Block nr
@@ -65,14 +69,15 @@ typedef struct
 
 typedef enum
 {
-  ST_Init,               // TAP start (executed only once)
-  ST_WaitForPlayback,    // (ST_IdleNoPlayback)     // TAP inactive, changes to active mode, as soon as a playback starts
-  ST_ActiveOSD,          // (ST_Idle)               // OSD is active (playback running)
-  ST_InactiveMode,       // (ST_IdleInvisible)      // OSD is currently not active, but can be entered (playback running)
-  ST_UnacceptedFile,     // (ST_IdleUnacceptedFile) // TAP is not active and cannot be entered (playback of unsupported file)
-  ST_ActionMenu,         // Action Menu is open, navigation only within menu
-//  ST_CutFailDialog,      // Failure Dialog is open, no other actions possible
-  ST_Exit                // Preparing to exit TAP
+  ST_Init,               //                      // TAP start (executed only once)
+  ST_WaitForPlayback,    // [ST_IdleNoPlayback]  // TAP inactive, changes to active mode, as soon as a playback starts
+  ST_ActiveOSD,          // [ST_Idle]            // OSD is active (playback running)
+  ST_InactiveModePlaying,// [ST_IdleInvisible]   // OSD is hidden, checks if playback stopps or changes to start AutoOSD
+  ST_InactiveMode,       //   "       "          // OSD is hidden and has to be manually activated
+  ST_UnacceptedFile,     // ->[ST_Inact.Playing] // TAP is not active and cannot be entered (playback of unsupported file)
+  ST_ActionMenu,         // [ST_ActionDialog]    // Action Menu is open, navigation only within menu
+//  ST_CutFailDialog,    //                      // Show the failure dialog
+  ST_Exit                //                      // Preparing to exit TAP
 } tState;
 
 typedef enum
@@ -152,13 +157,14 @@ typedef enum
 
 // MovieCutter state variables
 tState                  State = ST_Init;
+bool                    MCShowMessageBox = FALSE;
 bool                    AutoOSDPolicy = TRUE;
 bool                    BookmarkMode;
 TYPE_TrickMode          TrickMode;
 byte                    TrickModeSpeed;
 dword                   MinuteJump;                           //Seconds or 0 if deactivated
 dword                   MinuteJumpBlocks;                     //Number of blocks, which shall be added
-bool                    NoPlaybackCheck;                      //Used to circumvent a race condition during the cutting process
+bool                    NoPlaybackCheck = FALSE;              //Used to circumvent a race condition during the cutting process
 int                     NrSelectedSegments;
 word                    JumpRequestedSegment = 0xFFFF;        //Is set, when the user presses up/down to jump to another segment
 dword                   JumpRequestedTime = 0;
@@ -197,6 +203,9 @@ dword                   BookmarkMode_x;
 
 char                    LogString[512];
 
+// ============================================================================
+//                              IMPLEMENTIERUNG
+// ============================================================================
 
 int TAP_Main(void)
 {
@@ -249,12 +258,14 @@ int TAP_Main(void)
   return 1;
 }
 
+// ----------------------------------------------------------------------------
+//                            TAP EventHandler
+// ----------------------------------------------------------------------------
 dword TAP_EventHandler(word event, dword param1, dword param2)
 {
   dword                 SysState, SysSubState;
   static bool           DoNotReenter = FALSE;
   static bool           OldRepeatMode = FALSE;
-  static bool           PlaybackAlreadyStopped = FALSE;
   static dword          LastMinuteKey = 0;
   static dword          LastDraw = 0;
 
@@ -295,23 +306,21 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     State = ST_Exit;
   }
 
-  if(State == ST_Init || State == ST_ActiveOSD || State == ST_UnacceptedFile || State == ST_ActionMenu)
+  // Behandlung von offenen MesssageBoxen
+  // ------------------------------------
+  if(OSDMenuMessageBoxIsVisible())
   {
-    if(OSDMenuMessageBoxIsVisible())
+    if(MCShowMessageBox)
     {
-      if (State == ST_ActionMenu && event == EVT_KEY && (param1 == RKEY_Left || param1 == RKEY_Right))
-      {
-        OSDMenuMessageBoxButtonSelect((OSDMenuMessageBoxLastButton()) ? 0 : 1);
-        param1 = 0;
-      }
-      else if(event == EVT_KEY && (param1 == RKEY_Ok || param1 == RKEY_Exit))
+      if(event == EVT_KEY && (param1 == RKEY_Ok || param1 == RKEY_Exit))
       {
         if (State == ST_ActionMenu)
         {
           OSDMenuMessageBoxDestroyNoOSDUpdate();
+          MCShowMessageBox = FALSE;
 //          TAP_ExitNormal();
-          TAP_Osd_Sync();
-//          OSDRedrawEverything();
+//          TAP_Osd_Sync();
+          OSDRedrawEverything();
           if ((param1 == RKEY_Ok) && (OSDMenuMessageBoxLastButton() == 0))
           {
             ActionMenuRemove();
@@ -324,38 +333,45 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               case MI_DeleteFile:         MovieCutterDeleteFile(); break;
             }
           }
-//          else
-//            ActionMenuDraw();
+          else
+            ActionMenuDraw();
         }
         else if (State == ST_ActiveOSD)
         {
           OSDMenuMessageBoxDestroyNoOSDUpdate();
+          MCShowMessageBox = FALSE;
 //          TAP_ExitNormal();
-          TAP_Osd_Sync();
-//          OSDRedrawEverything();
+//          TAP_Osd_Sync();
+          OSDRedrawEverything();
         }
         else
+        {
           OSDMenuMessageBoxDestroy();
+          MCShowMessageBox = FALSE;
+          ClearOSD();
+        }
         param1 = 0;
       }
       else
-        OSDMenuEvent(&event, &param1, &param2);
-    
-      DoNotReenter = FALSE;
-      #if STACKTRACE == TRUE
-        CallTraceExit(NULL);
-      #endif
-      return param1;
+        OSDMenuEvent(&event, &param1, &param2);  // Event-Handling der MessageBox (Button wählen, etc.)
     }
+    DoNotReenter = FALSE;
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return param1;
   }
 
   switch(State)
   {
-    case ST_Init:             //Executed once upon TAP start
+    // Initialisierung bei TAP-Start
+    // -----------------------------
+    case ST_Init:
     {
       CleanupCut();
 /*
       LastTotalBlocks = 0;
+      MCShowMessageBox = FALSE;
       NrTimeStamps = 0;
       TimeStamps = NULL;
       LastTimeStamp = NULL;
@@ -367,7 +383,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       break;
     }
 
-    case ST_WaitForPlayback:   //Idle loop while there is no playback active
+    // Warten / Aufnahme analysieren
+    // -----------------------------
+    case ST_WaitForPlayback:    // Idle loop while there is no playback active, shows OSD as soon as playback starts
     {
       if(isPlaybackRunning())
       {
@@ -379,7 +397,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           if(SysState != STATE_Normal) break;
 
           LastTotalBlocks = PlayInfo.totalBlock;  // *CW*
-          PlaybackAlreadyStopped = FALSE;
 
           //"Calculate" the file name (.rec or .mpg)
           if(!PlayInfo.file || !PlayInfo.file->name[0]) PlaybackName[0] = '\0';
@@ -404,9 +421,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           if(!HDD_GetFileSizeAndInode(&PlaybackDirectory[strlen(TAPFSROOT)], PlaybackName, NULL, &RecFileSize))
           {
             WriteLogMC(PROGRAM_NAME, ".rec size could not be detected!");
-            OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_NoRecSize));
-            OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
-            OSDMenuMessageBoxShow();
+            ShowErrorMessage(LangGetString(LS_NoRecSize));
             State = ST_UnacceptedFile;
             break;
           }
@@ -420,9 +435,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           if(!isNavAvailable(PlaybackName))
           {
             WriteLogMC(PROGRAM_NAME, ".nav is missing!");
-            OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_MissingNav));
-            OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
-            OSDMenuMessageBoxShow();
+            ShowErrorMessage(LangGetString(LS_MissingNav));
             State = ST_UnacceptedFile;
             break;
           }
@@ -431,9 +444,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           if (!isHDVideo(PlaybackName, &HDVideo))
           {
             WriteLogMC(PROGRAM_NAME, "Could not detect type of video stream!");
-            OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_HDDetectionFailed));
-            OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
-            OSDMenuMessageBoxShow();
+            ShowErrorMessage(LangGetString(LS_HDDetectionFailed));
             State = ST_UnacceptedFile;
             break;
           }
@@ -472,9 +483,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           else
           {
             WriteLogMC(PROGRAM_NAME, "Error loading the .nav file!");
-            OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_NavLoadFailed));
-            OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
-            OSDMenuMessageBoxShow();
+            ShowErrorMessage(LangGetString(LS_NavLoadFailed));
             State = ST_UnacceptedFile;
             break;
           }
@@ -489,31 +498,32 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             if (PatchOldNavFile(PlaybackName, HDVideo))
             {
               WriteLogMC(PROGRAM_NAME, ".nav file patched by Compatibility Layer.");
-              OSDMenuMessageBoxInitialize(PROGRAM_NAME, ".nav duration mismatch. Patched!\nWill try again.");
+              ShowErrorMessage(".nav duration mismatch. Patched!\nWill try again.");
+//              OSDMenuMessageBoxInitialize(PROGRAM_NAME, ".nav duration mismatch. Patched!\nWill try again.");
               LastTotalBlocks = 0;
             }
             else
             {
-              OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_WrongNavLength));
+              ShowErrorMessage(LangGetString(LS_WrongNavLength));
+//              OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_WrongNavLength));
               State = ST_UnacceptedFile;
             }
-            OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
-            OSDMenuMessageBoxShow();
+//            OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
+//            OSDMenuMessageBoxShow();
 
-            DoNotReenter = FALSE;
+            break;
+/*            DoNotReenter = FALSE;
             #if STACKTRACE == TRUE
               CallTraceExit(NULL);
             #endif
-            return 0;
+            return 0;  */
           }
 
           //Check if it is crypted
           if(isCrypted(PlaybackName))
           {
             WriteLogMC(PROGRAM_NAME, "File is crypted!");
-            OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_IsCrypted));
-            OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
-            OSDMenuMessageBoxShow();
+            ShowErrorMessage(LangGetString(LS_IsCrypted));
             State = ST_UnacceptedFile;
             break;
           }
@@ -533,9 +543,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             if(!AddDefaultSegmentMarker())
             {
               WriteLogMC(PROGRAM_NAME, "Error adding default segment markers!");
-              OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_NavLoadFailed));
-              OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
-              OSDMenuMessageBoxShow();
+              ShowErrorMessage(LangGetString(LS_NavLoadFailed));
               State = ST_UnacceptedFile;
               break;
             }
@@ -551,22 +559,31 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       break;
     }
 
-    case ST_InactiveMode:    //Playback can be active or not, but OSD is hidden
+    // Inaktiver Modus
+    // ---------------
+    case ST_UnacceptedFile:
+    case ST_InactiveModePlaying:  // OSD is hidden, checks if playback stopps or changes to start AutoOSD
     {
-      // if playback stopped
-      if (!PlaybackAlreadyStopped && !isPlaybackRunning()) {
+/*      if (State != ST_UnacceptedFile && !AutoOSDPolicy)
+      {
+        State = ST_InactiveMode;
+        break;
+      } 
+*/
+      // if playback stopped or changed -> show MovieCutter as soon as next playback is started (ST_WaitForPlayback)
+      if (!isPlaybackRunning() || (LastTotalBlocks != PlayInfo.totalBlock)) {
         Cleanup(FALSE);
-        if(AutoOSDPolicy) State = ST_WaitForPlayback;
-        PlaybackAlreadyStopped = TRUE;
+        State = (AutoOSDPolicy) ? ST_WaitForPlayback : ST_InactiveMode;
         break;
       }
 
-      // if playback-file changed -> show MovieCutter as soon as next playback is started (ST_WaitForPlayback)
-      if(AutoOSDPolicy && (LastTotalBlocks != PlayInfo.totalBlock)) State = ST_WaitForPlayback;
-
-      // if progress-bar is enabled and cut-key is pressed -> show MovieCutter OSD (ST_WaitForPlayback)
-//      TAP_GetState(&SysState, &SysSubState);
-      if(/*SysSubState == SUBSTATE_PvrPlayingSearch &&*/ (event == EVT_KEY) && ((param1 == RKEY_Ab) || (param1 == RKEY_Option)))
+      if (State == ST_UnacceptedFile) break;
+      // else continue with ST_InactiveMode
+    }
+    case ST_InactiveMode:    // OSD is hidden and has to be manually activated
+    {
+      // if cut-key is pressed -> show MovieCutter OSD (ST_WaitForPlayback)
+      if((event == EVT_KEY) && ((param1 == RKEY_Ab) || (param1 == RKEY_Option)))
       {
         if (!isPlaybackRunning()) break;
         if (LastTotalBlocks != PlayInfo.totalBlock)
@@ -590,6 +607,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       break;
     }
 
+    // Aktiver OSD-Modus
+    // -----------------
     case ST_ActiveOSD:             //Playback is active and OSD is visible
     {
       if(!isPlaybackRunning())
@@ -599,12 +618,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 #endif
         CutFileSave();
         Cleanup(TRUE);
-        PlaybackAlreadyStopped = TRUE;
         State = AutoOSDPolicy ? ST_WaitForPlayback : ST_InactiveMode;
         break;
       }
 
-      TAP_GetState(&SysState, &SysSubState);
+      TAP_GetState(&SysState, &SysSubState);   // *** Was macht diese Zeile!?
       if(SysSubState == SUBSTATE_Normal) TAP_ExitNormal();
 
       if(event == EVT_KEY)
@@ -635,7 +653,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             CutFileSave();
             ClearOSD();
             PlaybackRepeatSet(OldRepeatMode);
-            State = ST_InactiveMode;
+            State = ST_InactiveModePlaying;
 
             //Exit immediately so that other functions can not interfere with the cleanup
             DoNotReenter = FALSE;
@@ -876,17 +894,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       break;
     }
 
-    case ST_UnacceptedFile: //Playback is active but MC can't use that file and is inactive
-    {
-      if(!isPlaybackRunning() || LastTotalBlocks != PlayInfo.totalBlock)
-      { 
-        Cleanup(TRUE);
-        State = AutoOSDPolicy ? ST_WaitForPlayback : ST_InactiveMode;
-      }
-      break;
-    }
-
-    case ST_ActionMenu:     //Action dialog is visible
+    // ActionMenu eingeblendet
+    // -----------------------
+    case ST_ActionMenu:        //Action dialog is visible
     {
       if(event == EVT_KEY)
       {
@@ -949,6 +959,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       break;
     }
 
+    // Beendigung des TAPs
+    // -------------------
     case ST_Exit:             //Preparing to terminate the TAP
     {
       if (strlen(PlaybackName) > 0)
@@ -977,14 +989,44 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   return param1;
 }
 
+// ----------------------------------------------------------------------------
+//                           MessageBox-Funktionen
+// ----------------------------------------------------------------------------
 void ShowConfirmationDialog(void)
 {
+  #if STACKTRACE == TRUE
+    CallTraceEnter("ShowConfirmationDialog");
+  #endif
+
   OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_AskConfirmation));
   OSDMenuMessageBoxDoNotEnterNormalMode(TRUE);
+  OSDMenuMessageBoxAllowScrollOver();
   OSDMenuMessageBoxButtonAdd(LangGetString(LS_Yes));
   OSDMenuMessageBoxButtonAdd(LangGetString(LS_No));
   OSDMenuMessageBoxButtonSelect(1);
   OSDMenuMessageBoxShow();
+  MCShowMessageBox = TRUE;
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+}
+
+void ShowErrorMessage(char* MessageStr)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("ShowErrorMessage");
+  #endif
+
+  OSDMenuMessageBoxInitialize(PROGRAM_NAME, MessageStr);
+  OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
+  OSDMenuMessageBoxShow();
+  MCShowMessageBox = TRUE;
+  NoPlaybackCheck = FALSE;
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
 }
 
 dword TMSCommander_handler(dword param1)
@@ -1005,7 +1047,8 @@ dword TMSCommander_handler(dword param1)
 
     case TMSCMDR_UserEvent:
     {
-      if(State == ST_InactiveMode) State = ST_WaitForPlayback;
+      if(State == ST_InactiveMode || State == ST_InactiveModePlaying)
+        State = ST_WaitForPlayback;
 
       #if STACKTRACE == TRUE
         CallTraceExit(NULL);
@@ -1038,6 +1081,9 @@ dword TMSCommander_handler(dword param1)
   return TMSCMDR_UnknownFunction;
 }
 
+// ----------------------------------------------------------------------------
+//                            Reset-Funktionen
+// ----------------------------------------------------------------------------
 void ClearOSD(void)
 {
   #if STACKTRACE == TRUE
@@ -1136,6 +1182,9 @@ void CleanupCut(void)
   #endif
 }
 
+// ----------------------------------------------------------------------------
+//                             INI-Funktionen
+// ----------------------------------------------------------------------------
 void CreateSettingsDir(void)
 {
   #if STACKTRACE == TRUE
@@ -1199,7 +1248,9 @@ void SaveINI(void)
 }
 
 
-//Segment marker functions
+// ----------------------------------------------------------------------------
+//                         SegmentMarker-Funktionen
+// ----------------------------------------------------------------------------
 void AddBookmarksToSegmentList(void)
 {
   #if STACKTRACE == TRUE
@@ -1260,10 +1311,8 @@ bool AddSegmentMarker(dword Block)
   if(NrSegmentMarker >= NRSEGMENTMARKER)
   {
     WriteLogMC(PROGRAM_NAME, "AddSegmentMarker: SegmentMarker list is full!");
-    OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_ListIsFull));
-    OSDMenuMessageBoxDoNotEnterNormalMode(TRUE);
-    OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
-    OSDMenuMessageBoxShow();
+    ShowErrorMessage(LangGetString(LS_ListIsFull));
+//    OSDMenuMessageBoxDoNotEnterNormalMode(TRUE);
 
     #if STACKTRACE == TRUE
       CallTraceExit(NULL);
@@ -1475,51 +1524,6 @@ void DeleteAllSegmentMarkers(void)
   #endif
 }
 
-void SetCurrentSegment(void)
-{
-  #if STACKTRACE == TRUE
-    CallTraceEnter("SetCurrentSegment");
-  #endif
-
-  int                   i;
-
-  if(NrSegmentMarker <= 2)
-  {
-    ActiveSegment = 0;
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
-    return;
-  }
-  if (JumpRequestedTime || (JumpPerformedTime && (labs(TAP_GetTick() - JumpPerformedTime) < 75)))
-  {
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
-    return;
-  }
-  JumpRequestedSegment = 0xFFFF;
-  JumpPerformedTime = 0;
-
-  for(i = 1; i < NrSegmentMarker; i++)
-  {
-    if(SegmentMarker[i].Block > PlayInfo.currentBlock)
-    {
-      if(ActiveSegment != (i - 1))
-      {
-        ActiveSegment = i - 1;
-        OSDSegmentListDrawList();
-        OSDInfoDrawProgressbar(TRUE);
-      }
-      break;
-    }
-  }
-
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
-}
-
 void SelectSegmentMarker(void)
 {
   #if STACKTRACE == TRUE
@@ -1534,6 +1538,9 @@ void SelectSegmentMarker(void)
 }
 
 
+// ----------------------------------------------------------------------------
+//                           Bookmark-Funktionen
+// ----------------------------------------------------------------------------
 //Bookmarks werden jetzt aus dem inf-Cache der Firmware aus dem Speicher ausgelesen.
 //Das geschieht bei jedem Einblenden des MC-OSDs, da sie sonst nicht benötigt werden
 bool ReadBookmarks(void)
@@ -1832,8 +1839,9 @@ void DeleteAllBookmarks(void)
   #endif
 }
 
-
-//Cut file functions
+// ----------------------------------------------------------------------------
+//                           CutFile-Funktionen
+// ----------------------------------------------------------------------------
 bool CutFileLoad(void)
 {
   #if STACKTRACE == TRUE
@@ -2074,7 +2082,9 @@ void CutDumpList(void)
 }
 
 
-//OSD functions
+// ----------------------------------------------------------------------------
+//                              OSD-Funktionen
+// ----------------------------------------------------------------------------
 void CreateOSD(void)
 {
   #if STACKTRACE == TRUE
@@ -2118,6 +2128,8 @@ void OSDRedrawEverything(void)
   #endif
 }
 
+// Segment-Liste
+// -------------
 void OSDSegmentListDrawList(void)
 {
   #if STACKTRACE == TRUE
@@ -2224,235 +2236,45 @@ void OSDSegmentListDrawList(void)
   #endif
 }
 
-void OSDInfoDrawBackground(void)
+// SetCurrentSegment
+// -----------------
+void SetCurrentSegment(void)
 {
   #if STACKTRACE == TRUE
-    CallTraceEnter("OSDInfoDrawBackground");
+    CallTraceEnter("SetCurrentSegment");
   #endif
 
-  int                   x;
-  char                 *s;
+  int                   i;
 
-  if(rgnInfo)
+  if(NrSegmentMarker <= 2)
   {
-    TAP_Osd_PutGd(rgnInfo, 0, 0, &_Info_Background_Gd, FALSE);
-
-    x = 350;
-    TAP_Osd_PutGd(rgnInfo, x, 48, &_Button_Red_Gd, TRUE);
-    x += _Button_Red_Gd.width;
-    s = LangGetString(LS_Delete);
-    FMUC_PutString(rgnInfo, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
-    x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
-
-    TAP_Osd_PutGd(rgnInfo, x, 48, &_Button_Green_Gd, TRUE);
-    x += _Button_Green_Gd.width;
-    s = LangGetString(LS_Add);
-    FMUC_PutString(rgnInfo, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
-    x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
-
-    TAP_Osd_PutGd(rgnInfo, x, 48, &_Button_Yellow_Gd, TRUE);
-    x += _Button_Yellow_Gd.width;
-    s = LangGetString(LS_Move);
-    FMUC_PutString(rgnInfo, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
-    x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
-
-    TAP_Osd_PutGd(rgnInfo, x, 48, &_Button_Blue_Gd, TRUE);
-    x += _Button_Blue_Gd.width;
-    s = LangGetString(LS_Select);
-    FMUC_PutString(rgnInfo, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
-
-    x = 350;
-    TAP_Osd_PutGd(rgnInfo, x, 68, &_Button_Ok_Gd, TRUE);
-    x += _Button_Ok_Gd.width;
-    s = LangGetString(LS_Pause);
-    FMUC_PutString(rgnInfo, x, 67, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
-    x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
-
-    TAP_Osd_PutGd(rgnInfo, x, 68, &_Button_Exit_Gd, TRUE);
-    x += _Button_Exit_Gd.width;
-    s = LangGetString(LS_Exit);
-    FMUC_PutString(rgnInfo, x, 67, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
-    x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
-    
-    BookmarkMode_x = x;
+    ActiveSegment = 0;
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return;
   }
-
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
-}
-
-void OSDInfoDrawRecName(void)
-{
-  #if STACKTRACE == TRUE
-    CallTraceEnter("OSDInfoDrawRecName");
-  #endif
-
-  char                  Name[MAX_FILE_NAME_SIZE + 1];
-
-  if(rgnInfo)
+  if (JumpRequestedTime || (JumpPerformedTime && (labs(TAP_GetTick() - JumpPerformedTime) < 75)))
   {
-    strcpy(Name, PlaybackName);
-    Name[strlen(Name) - 4] = '\0';
-    FMUC_PutString(rgnInfo, 65, 11, 490, Name, COLOR_White, COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT);
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return;
   }
+  JumpRequestedSegment = 0xFFFF;
+  JumpPerformedTime = 0;
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
-}
-
-void OSDInfoDrawClock(bool Force)
-{
-  #if STACKTRACE == TRUE
-    CallTraceEnter("OSDInfoDrawClock");
-  #endif
-
-  word                  mjd;
-  byte                  hour, min, sec;
-  static byte           LastMin = 99;
-  char                  Time[8];
-
-  if(rgnInfo)
+  for(i = 1; i < NrSegmentMarker; i++)
   {
-    TAP_GetTime(&mjd, &hour, &min, &sec);
-    if((min != LastMin) || Force)
+    if(SegmentMarker[i].Block > PlayInfo.currentBlock)
     {
-      TAP_SPrint(Time, "%2.2d:%2.2d", hour, min);
-      TAP_Osd_FillBox(rgnInfo, 638, 65, 60, 25, RGB(16, 16, 16));
-      FMUC_PutString(rgnInfo, 638, 65, 710, Time, COLOR_White, COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT);
-      LastMin = min;
-      TAP_Osd_Sync();
-    }
-  }
-
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
-}
-
-void OSDInfoDrawBookmarkMode(void)
-{
-  #if STACKTRACE == TRUE
-    CallTraceEnter("OSDInfoDrawBookmarkMode");
-  #endif
-
-  if(rgnInfo)
-  {
-    TAP_Osd_FillBox(rgnInfo, BookmarkMode_x-3, 68, 60, 19, RGB(51, 51, 51));
-    FMUC_PutString(rgnInfo, BookmarkMode_x-3, 70, BookmarkMode_x+58, ((BookmarkMode ? LangGetString(LS_Bookmarks) : LangGetString(LS_Segments))), ((BookmarkMode) ? RGB(60,255,60) : RGB(250,139,18)), COLOR_None, &Calibri_10_FontDataUC, TRUE, ALIGN_CENTER);
-    TAP_Osd_Sync();
-  }
-
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
-}
-
-void OSDInfoDrawMinuteJump(void)
-{
-  #if STACKTRACE == TRUE
-    CallTraceEnter("OSDInfoDrawMinuteJump");
-  #endif
-
-  char InfoStr[5];
-
-  if(rgnInfo)
-  {
-    TAP_Osd_FillBox(rgnInfo, 507, 8, 50, 35, RGB(51, 51, 51));
-    if(BookmarkMode || MinuteJump)
-    {
-      TAP_Osd_PutGd(rgnInfo, 507, 8, &_Button_SkipLeft_Gd, TRUE);
-      TAP_Osd_PutGd(rgnInfo, 507 + 1 + _Button_SkipLeft_Gd.width, 8, &_Button_SkipRight_Gd, TRUE);
-
-      if (MinuteJump)
-        TAP_SPrint(InfoStr, "%u'", MinuteJump);
-      else
-        TAP_SPrint(InfoStr, "BM");
-      FMUC_PutString(rgnInfo, 508, 26, 555, InfoStr, COLOR_White, COLOR_None, &Calibri_10_FontDataUC, TRUE, ALIGN_CENTER);
-    }
-    TAP_Osd_Sync();
-  }
-
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
-}
-
-void OSDInfoDrawPlayIcons(bool Force)
-{
-  #if STACKTRACE == TRUE
-    CallTraceEnter("OSDInfoDrawPlayIcons");
-  #endif
-
-  TYPE_GrData           *Btn_Play, *Btn_Pause, *Btn_Fwd, *Btn_Rwd, *Btn_Slow;
-  static TYPE_TrickMode  LastTrickMode = TRICKMODE_Slow;
-  static byte            LastTrickModeSwitch = 0;
-  byte                   TrickModeSwitch;
-
-  if(rgnInfo)
-  {
-    TrickModeSwitch = 0;
-/*    switch(TrickMode)
-    {
-      case TRICKMODE_Normal:
-      case TRICKMODE_Pause: break;
-
-      case TRICKMODE_Forward:  TrickModeSwitch = 0x10; break;
-      case TRICKMODE_Rewind:   TrickModeSwitch = 0x20; break;
-      case TRICKMODE_Slow:     TrickModeSwitch = 0x30; break;
-    }
-    TrickModeSwitch += TrickModeSpeed; */
-    TrickModeSwitch = (TrickMode << 4) + TrickModeSpeed;
-
-    if(Force || (TrickMode != LastTrickMode) || (TrickModeSwitch != LastTrickModeSwitch))
-    {
-      Btn_Play  = &_Button_Play_Inactive_Gd;
-      Btn_Pause = &_Button_Pause_Inactive_Gd;
-      Btn_Fwd   = &_Button_Ffwd_Inactive_Gd;
-      Btn_Rwd   = &_Button_Rwd_Inactive_Gd;
-      Btn_Slow  = &_Button_Slow_Inactive_Gd;
-
-      switch(TrickMode)
+      if(ActiveSegment != (i - 1))
       {
-        case TRICKMODE_Normal:   Btn_Play  = &_Button_Play_Active_Gd; break;
-        case TRICKMODE_Forward:  Btn_Fwd   = &_Button_Ffwd_Active_Gd; break;
-        case TRICKMODE_Rewind:   Btn_Rwd   = &_Button_Rwd_Active_Gd; break;
-        case TRICKMODE_Slow:     Btn_Slow  = &_Button_Slow_Active_Gd; break;
-        case TRICKMODE_Pause:    Btn_Pause = &_Button_Pause_Active_Gd; break;
+        ActiveSegment = i - 1;
+        OSDSegmentListDrawList();
+        OSDInfoDrawProgressbar(TRUE);
       }
-
-      TAP_Osd_PutGd(rgnInfo, 557, 8, Btn_Rwd, FALSE);
-      TAP_Osd_PutGd(rgnInfo, 584, 8, Btn_Pause, FALSE);
-      TAP_Osd_PutGd(rgnInfo, 611, 8, Btn_Slow, FALSE);
-      TAP_Osd_PutGd(rgnInfo, 638, 8, Btn_Play, FALSE);
-      TAP_Osd_PutGd(rgnInfo, 665, 8, Btn_Fwd, FALSE);
-
-      LastTrickMode = TrickMode;
-
-      TAP_Osd_FillBox(rgnInfo, 552, 26, 145, 19, RGB(51, 51, 51));
-      switch(TrickModeSwitch)
-      {
-        case 0x11: FMUC_PutString(rgnInfo, 657, 26, 697, "2x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x12: FMUC_PutString(rgnInfo, 657, 26, 697, "4x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x13: FMUC_PutString(rgnInfo, 657, 26, 697, "8x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x14: FMUC_PutString(rgnInfo, 657, 26, 697, "16x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x15: FMUC_PutString(rgnInfo, 657, 26, 697, "32x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x16: FMUC_PutString(rgnInfo, 657, 26, 697, "64x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x21: FMUC_PutString(rgnInfo, 549, 26, 589, "2x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x22: FMUC_PutString(rgnInfo, 549, 26, 589, "4x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x23: FMUC_PutString(rgnInfo, 549, 26, 589, "8x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x24: FMUC_PutString(rgnInfo, 549, 26, 589, "16x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x25: FMUC_PutString(rgnInfo, 549, 26, 589, "32x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x26: FMUC_PutString(rgnInfo, 549, 26, 589, "64x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x31: FMUC_PutString(rgnInfo, 602, 26, 642, "1/2x",  COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x32: FMUC_PutString(rgnInfo, 602, 26, 642, "1/4x",  COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x33: FMUC_PutString(rgnInfo, 602, 26, 642, "1/8x",  COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x34: FMUC_PutString(rgnInfo, 602, 26, 642, "1/16x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-      }
-      LastTrickModeSwitch = TrickModeSwitch;
-
-      TAP_Osd_Sync();
+      break;
     }
   }
 
@@ -2461,6 +2283,8 @@ void OSDInfoDrawPlayIcons(bool Force)
   #endif
 }
 
+// Fortschrittsbalken
+// ------------------
 void OSDInfoDrawProgressbar(bool Force)
 {
   #if STACKTRACE == TRUE
@@ -2608,7 +2432,249 @@ void OSDInfoDrawCurrentPosition(bool Force)
 }
 
 
-//Playback functions
+// Info-Bereich
+// ------------
+void OSDInfoDrawBackground(void)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("OSDInfoDrawBackground");
+  #endif
+
+  int                   x;
+  char                 *s;
+
+  if(rgnInfo)
+  {
+    TAP_Osd_PutGd(rgnInfo, 0, 0, &_Info_Background_Gd, FALSE);
+
+    x = 350;
+    TAP_Osd_PutGd(rgnInfo, x, 48, &_Button_Red_Gd, TRUE);
+    x += _Button_Red_Gd.width;
+    s = LangGetString(LS_Delete);
+    FMUC_PutString(rgnInfo, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
+    x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
+
+    TAP_Osd_PutGd(rgnInfo, x, 48, &_Button_Green_Gd, TRUE);
+    x += _Button_Green_Gd.width;
+    s = LangGetString(LS_Add);
+    FMUC_PutString(rgnInfo, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
+    x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
+
+    TAP_Osd_PutGd(rgnInfo, x, 48, &_Button_Yellow_Gd, TRUE);
+    x += _Button_Yellow_Gd.width;
+    s = LangGetString(LS_Move);
+    FMUC_PutString(rgnInfo, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
+    x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
+
+    TAP_Osd_PutGd(rgnInfo, x, 48, &_Button_Blue_Gd, TRUE);
+    x += _Button_Blue_Gd.width;
+    s = LangGetString(LS_Select);
+    FMUC_PutString(rgnInfo, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
+
+    x = 350;
+    TAP_Osd_PutGd(rgnInfo, x, 68, &_Button_Ok_Gd, TRUE);
+    x += _Button_Ok_Gd.width;
+    s = LangGetString(LS_Pause);
+    FMUC_PutString(rgnInfo, x, 67, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
+    x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
+
+    TAP_Osd_PutGd(rgnInfo, x, 68, &_Button_Exit_Gd, TRUE);
+    x += _Button_Exit_Gd.width;
+    s = LangGetString(LS_Exit);
+    FMUC_PutString(rgnInfo, x, 67, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
+    x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
+    
+    BookmarkMode_x = x;
+  }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+}
+
+void OSDInfoDrawRecName(void)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("OSDInfoDrawRecName");
+  #endif
+
+  char                  Name[MAX_FILE_NAME_SIZE + 1];
+
+  if(rgnInfo)
+  {
+    strcpy(Name, PlaybackName);
+    Name[strlen(Name) - 4] = '\0';
+    FMUC_PutString(rgnInfo, 65, 11, 490, Name, COLOR_White, COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT);
+  }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+}
+
+void OSDInfoDrawPlayIcons(bool Force)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("OSDInfoDrawPlayIcons");
+  #endif
+
+  TYPE_GrData           *Btn_Play, *Btn_Pause, *Btn_Fwd, *Btn_Rwd, *Btn_Slow;
+  static TYPE_TrickMode  LastTrickMode = TRICKMODE_Slow;
+  static byte            LastTrickModeSwitch = 0;
+  byte                   TrickModeSwitch;
+
+  if(rgnInfo)
+  {
+    TrickModeSwitch = 0;
+/*    switch(TrickMode)
+    {
+      case TRICKMODE_Normal:
+      case TRICKMODE_Pause: break;
+
+      case TRICKMODE_Forward:  TrickModeSwitch = 0x10; break;
+      case TRICKMODE_Rewind:   TrickModeSwitch = 0x20; break;
+      case TRICKMODE_Slow:     TrickModeSwitch = 0x30; break;
+    }
+    TrickModeSwitch += TrickModeSpeed; */
+    TrickModeSwitch = (TrickMode << 4) + TrickModeSpeed;
+
+    if(Force || (TrickMode != LastTrickMode) || (TrickModeSwitch != LastTrickModeSwitch))
+    {
+      Btn_Play  = &_Button_Play_Inactive_Gd;
+      Btn_Pause = &_Button_Pause_Inactive_Gd;
+      Btn_Fwd   = &_Button_Ffwd_Inactive_Gd;
+      Btn_Rwd   = &_Button_Rwd_Inactive_Gd;
+      Btn_Slow  = &_Button_Slow_Inactive_Gd;
+
+      switch(TrickMode)
+      {
+        case TRICKMODE_Normal:   Btn_Play  = &_Button_Play_Active_Gd; break;
+        case TRICKMODE_Forward:  Btn_Fwd   = &_Button_Ffwd_Active_Gd; break;
+        case TRICKMODE_Rewind:   Btn_Rwd   = &_Button_Rwd_Active_Gd; break;
+        case TRICKMODE_Slow:     Btn_Slow  = &_Button_Slow_Active_Gd; break;
+        case TRICKMODE_Pause:    Btn_Pause = &_Button_Pause_Active_Gd; break;
+      }
+
+      TAP_Osd_PutGd(rgnInfo, 557, 8, Btn_Rwd, FALSE);
+      TAP_Osd_PutGd(rgnInfo, 584, 8, Btn_Pause, FALSE);
+      TAP_Osd_PutGd(rgnInfo, 611, 8, Btn_Slow, FALSE);
+      TAP_Osd_PutGd(rgnInfo, 638, 8, Btn_Play, FALSE);
+      TAP_Osd_PutGd(rgnInfo, 665, 8, Btn_Fwd, FALSE);
+
+      LastTrickMode = TrickMode;
+
+      TAP_Osd_FillBox(rgnInfo, 552, 26, 145, 19, RGB(51, 51, 51));
+      switch(TrickModeSwitch)
+      {
+        case 0x11: FMUC_PutString(rgnInfo, 657, 26, 697, "2x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x12: FMUC_PutString(rgnInfo, 657, 26, 697, "4x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x13: FMUC_PutString(rgnInfo, 657, 26, 697, "8x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x14: FMUC_PutString(rgnInfo, 657, 26, 697, "16x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x15: FMUC_PutString(rgnInfo, 657, 26, 697, "32x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x16: FMUC_PutString(rgnInfo, 657, 26, 697, "64x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x21: FMUC_PutString(rgnInfo, 549, 26, 589, "2x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x22: FMUC_PutString(rgnInfo, 549, 26, 589, "4x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x23: FMUC_PutString(rgnInfo, 549, 26, 589, "8x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x24: FMUC_PutString(rgnInfo, 549, 26, 589, "16x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x25: FMUC_PutString(rgnInfo, 549, 26, 589, "32x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x26: FMUC_PutString(rgnInfo, 549, 26, 589, "64x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x31: FMUC_PutString(rgnInfo, 602, 26, 642, "1/2x",  COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x32: FMUC_PutString(rgnInfo, 602, 26, 642, "1/4x",  COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x33: FMUC_PutString(rgnInfo, 602, 26, 642, "1/8x",  COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+        case 0x34: FMUC_PutString(rgnInfo, 602, 26, 642, "1/16x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
+      }
+      LastTrickModeSwitch = TrickModeSwitch;
+
+      TAP_Osd_Sync();
+    }
+  }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+}
+
+void OSDInfoDrawClock(bool Force)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("OSDInfoDrawClock");
+  #endif
+
+  word                  mjd;
+  byte                  hour, min, sec;
+  static byte           LastMin = 99;
+  char                  Time[8];
+
+  if(rgnInfo)
+  {
+    TAP_GetTime(&mjd, &hour, &min, &sec);
+    if((min != LastMin) || Force)
+    {
+      TAP_SPrint(Time, "%2.2d:%2.2d", hour, min);
+      TAP_Osd_FillBox(rgnInfo, 638, 65, 60, 25, RGB(16, 16, 16));
+      FMUC_PutString(rgnInfo, 638, 65, 710, Time, COLOR_White, COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT);
+      LastMin = min;
+      TAP_Osd_Sync();
+    }
+  }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+}
+
+void OSDInfoDrawBookmarkMode(void)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("OSDInfoDrawBookmarkMode");
+  #endif
+
+  if(rgnInfo)
+  {
+    TAP_Osd_FillBox(rgnInfo, BookmarkMode_x-3, 68, 60, 19, RGB(51, 51, 51));
+    FMUC_PutString(rgnInfo, BookmarkMode_x-3, 70, BookmarkMode_x+58, ((BookmarkMode ? LangGetString(LS_Bookmarks) : LangGetString(LS_Segments))), ((BookmarkMode) ? RGB(60,255,60) : RGB(250,139,18)), COLOR_None, &Calibri_10_FontDataUC, TRUE, ALIGN_CENTER);
+    TAP_Osd_Sync();
+  }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+}
+
+void OSDInfoDrawMinuteJump(void)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("OSDInfoDrawMinuteJump");
+  #endif
+
+  char InfoStr[5];
+
+  if(rgnInfo)
+  {
+    TAP_Osd_FillBox(rgnInfo, 507, 8, 50, 35, RGB(51, 51, 51));
+    if(BookmarkMode || MinuteJump)
+    {
+      TAP_Osd_PutGd(rgnInfo, 507, 8, &_Button_SkipLeft_Gd, TRUE);
+      TAP_Osd_PutGd(rgnInfo, 507 + 1 + _Button_SkipLeft_Gd.width, 8, &_Button_SkipRight_Gd, TRUE);
+
+      if (MinuteJump)
+        TAP_SPrint(InfoStr, "%u'", MinuteJump);
+      else
+        TAP_SPrint(InfoStr, "BM");
+      FMUC_PutString(rgnInfo, 508, 26, 555, InfoStr, COLOR_White, COLOR_None, &Calibri_10_FontDataUC, TRUE, ALIGN_CENTER);
+    }
+    TAP_Osd_Sync();
+  }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+}
+
+
+// ----------------------------------------------------------------------------
+//                            Playback-Funktionen
+// ----------------------------------------------------------------------------
 void Playback_Faster(void)
 {
   #if STACKTRACE == TRUE
@@ -3023,7 +3089,9 @@ void Playback_JumpPrevBookmark(void)
 }
 
 
-//Some generic functions
+// ----------------------------------------------------------------------------
+//                              Hilfsfunktionen
+// ----------------------------------------------------------------------------
 bool isPlaybackRunning(void)
 {
   #if STACKTRACE == TRUE
@@ -3083,7 +3151,10 @@ void CheckLastSeconds(void)
   #endif
 }
 
-//Action Menu
+
+// ----------------------------------------------------------------------------
+//                          ActionMenu-Funktionen
+// ----------------------------------------------------------------------------
 void ActionMenuDraw(void)
 {
   #if STACKTRACE == TRUE
@@ -3257,7 +3328,9 @@ void ActionMenuRemove(void)
 }
 
 
-//MovieCutter functions
+// ----------------------------------------------------------------------------
+//                        MovieCutter-Funktionalität
+// ----------------------------------------------------------------------------
 void MovieCutterSaveSegments(void)
 {
   #if STACKTRACE == TRUE
@@ -3361,23 +3434,6 @@ void MovieCutterDeleteFile(void)
   CutFileDelete();
   HDD_Delete(PlaybackName);
   NoPlaybackCheck = FALSE;
-
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
-}
-
-void ShowCutFailDialog(void)
-{
-  #if STACKTRACE == TRUE
-    CallTraceEnter("ShowCutFileDialog");
-  #endif
-
-  OSDMenuMessageBoxInitialize(PROGRAM_NAME, LangGetString(LS_CutHasFailed));
-  OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
-  OSDMenuMessageBoxShow();
-  NoPlaybackCheck = FALSE;
-  State = ST_UnacceptedFile;
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
@@ -3520,7 +3576,8 @@ void MovieCutterProcess(bool KeepCut)
       //Bail out if the cut failed
       if(ret == RC_Error)
       {
-        ShowCutFailDialog();
+        ShowErrorMessage(LangGetString(LS_CutHasFailed));
+        State = ST_UnacceptedFile;
         break;
       }
 
@@ -3567,7 +3624,8 @@ void MovieCutterProcess(bool KeepCut)
         if((ret==RC_Warning) || !TAP_Hdd_Exist(PlaybackName) || TAP_Hdd_Exist(TempFileName))
         {
           WriteLogMC(PROGRAM_NAME, "Error processing the last segment: Renaming or nav-generation failed!");
-          ShowCutFailDialog();
+          ShowErrorMessage(LangGetString(LS_CutHasFailed));
+          State = ST_UnacceptedFile;
           break;
         }
       }
@@ -3592,7 +3650,7 @@ void MovieCutterProcess(bool KeepCut)
   //OSDMenuProgressBarDestroy();
   Playback_Normal(); */
   TAP_Hdd_ChangePlaybackPos(SegmentMarker[min(ActiveSegment, NrSegmentMarker-2)].Block);
-//  ClearOSD();  // unnötig?
+  ClearOSD();
 //  OSDRedrawEverything();
 
   State = ST_WaitForPlayback;
@@ -3604,6 +3662,9 @@ void MovieCutterProcess(bool KeepCut)
 }
 
 
+// ----------------------------------------------------------------------------
+//                           System-Funktionen
+// ----------------------------------------------------------------------------
 // Sets the Playback Repeat Mode: 0=NoRepeat, 1=RepeatFromTo, 2=RepeatAll.
 // If RepeatMode != 1, the other parameters are without function.
 // Returns the old value if success, 0xFF if failure
@@ -3651,6 +3712,9 @@ bool PlaybackRepeatGet()
 }
 
 
+// ----------------------------------------------------------------------------
+//                            NAV-Funktionen
+// ----------------------------------------------------------------------------
 dword NavGetBlockTimeStamp(dword PlaybackBlockNr)
 {
   #if STACKTRACE == TRUE
@@ -3694,8 +3758,9 @@ dword NavGetBlockTimeStamp(dword PlaybackBlockNr)
   return LastTimeStamp->Timems;
 }
 
-
-// ------ [COMPATIBILITY LAYER] ------
+// ----------------------------------------------------------------------------
+//                           Compatibility-Layer
+// ----------------------------------------------------------------------------
 // Die Implementierung berücksichtigt (aus Versehen) auch negative Sprünge und Überlauf.
 // SOLLTE eine nav-Datei einen Überlauf beinhalten, wird dieser durch PatchOldNavFile korrigiert.
 bool PatchOldNavFileSD(char *SourceFileName)

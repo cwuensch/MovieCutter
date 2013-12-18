@@ -26,6 +26,9 @@ tTimeStamp* NavLoadHD(char const *SourceFileName, dword *const NrTimeStamps);
 char                    LogString[512];
 
 
+// ----------------------------------------------------------------------------
+//                           Hilfsfunktionen
+// ----------------------------------------------------------------------------
 void WriteLogMC(char *ProgramName, char *s)
 {
   static bool FirstCall = TRUE;
@@ -92,6 +95,37 @@ void MSecToTimeString(dword Timems, char *const TimeString)  // needs max. 4 + 1
   #endif
 }
 
+void GetNextFreeCutName(char const *SourceFileName, char *CutFileName, word LeaveNamesOut)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("GetNextFreeCutName");
+  #endif
+
+  int                   NameLen;
+  int                   i;
+  char                  NextFileName[MAX_FILE_NAME_SIZE + 1];
+
+  NameLen = strlen(SourceFileName) - 4;  // ".rec" entfernen
+
+  i = 0;
+  do
+  {
+    i++;
+    strncpy(NextFileName, SourceFileName, NameLen);
+    strncpy(CutFileName, SourceFileName, NameLen);
+    TAP_SPrint(&NextFileName[NameLen], " (Cut-%d)%s", i, &SourceFileName[NameLen]);
+    TAP_SPrint(&CutFileName[NameLen], " (Cut-%d)%s", i + LeaveNamesOut, &SourceFileName[NameLen]);
+  }while(TAP_Hdd_Exist(NextFileName) || TAP_Hdd_Exist(CutFileName));
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+}
+
+
+// ----------------------------------------------------------------------------
+//                       MovieCutter-Schnittfunktion
+// ----------------------------------------------------------------------------
 tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepCut, bool isHD)
 {
   #if STACKTRACE == TRUE
@@ -337,7 +371,154 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
   return ((SuppressNavGeneration) ? RC_Warning : RC_Ok);
 }
 
+// ----------------------------------------------------------------------------
+//              Firmware-Funktion zum Durchführen des Schnitts
+// ----------------------------------------------------------------------------
+bool FileCut(char *SourceFileName, char *CutFileName, dword StartBlock, dword NrBlocks)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("FileCut");
+  #endif
 
+  tDirEntry             FolderStruct, *pFolderStruct;
+  dword                 x;
+  dword                 ret;
+  TYPE_PlayInfo         PlayInfo;
+  char                  CurrentDir[512], TAPDir[512];
+
+  #ifdef FULLDEBUG
+    WriteLogMC("MovieCutterLib", "FileCut()");
+  #endif
+
+  //Initialize the directory structure
+  memset(&FolderStruct, 0, sizeof(tDirEntry));
+  FolderStruct.Magic = 0xbacaed31;
+  HDD_TAP_GetCurrentDir(TAPDir);
+
+  TAP_Hdd_Delete(CutFileName);
+
+  //Save the current directory resources and change into our directory (current directory of the TAP)
+  ApplHdd_SaveWorkFolder();
+  strcpy(CurrentDir, &TAPFSROOT[1]); //do not include the leading slash
+  HDD_TAP_GetCurrentDir(&CurrentDir[strlen(CurrentDir)]);
+  ApplHdd_SelectFolder(&FolderStruct, CurrentDir);
+  DevHdd_DeviceOpen(&pFolderStruct, &FolderStruct);
+  ApplHdd_SetWorkFolder(&FolderStruct);
+
+  //If a playback is running, stop it
+  TAP_Hdd_GetPlayInfo(&PlayInfo);
+  if(PlayInfo.playMode == PLAYMODE_Playing)
+  {
+    Appl_StopPlaying();
+    Appl_WaitEvt(0xE507, &x, 1, 0xFFFFFFFF, 300);
+  }
+
+  //Do the cutting
+  ret = ApplHdd_FileCutPaste(SourceFileName, StartBlock, NrBlocks, CutFileName);
+
+  //Restore all resources
+  DevHdd_DeviceClose(&pFolderStruct);
+  ApplHdd_RestoreWorkFolder();
+
+//  TAP_Hdd_ChangeDir(TAPDir);
+  HDD_ChangeDir(TAPDir);
+
+  if(ret)
+  {
+    WriteLogMC("MovieCutterLib", "FileCut() E0501. Cut file not created.");
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return FALSE;
+  }
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+  return TRUE;
+}
+
+
+// ----------------------------------------------------------------------------
+//                         Dateisystem-Funktionen
+// ----------------------------------------------------------------------------
+long64 HDD_GetFileSize(char const *FileName)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("HDD_GetFileSize");
+  #endif
+
+  TYPE_File            *f;
+  long64                FileSize;
+
+  f = TAP_Hdd_Fopen(FileName);
+  if(!f)
+  {
+    WriteLogMC("MovieCutterLib", "HDD_GetFileSize(): E0d01");
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return -1;
+  }
+  FileSize = f->size;
+  TAP_Hdd_Fclose(f);
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+  return FileSize;
+}
+
+bool HDD_SetFileDateTime(char const *Directory, char const *FileName, dword NewDateTime)
+{
+  #if STACKTRACE == TRUE
+    CallTraceEnter("HDD_SetFileDateTime");
+  #endif
+
+  char                  AbsFileName[256];
+  tstat64               statbuf;
+  int                   status;
+  struct utimbuf        utimebuf;
+
+  TAP_SPrint(AbsFileName, "%s%s/%s", TAPFSROOT, Directory, FileName);
+  if((status = lstat64(AbsFileName, &statbuf)))
+  {
+    TAP_SPrint(LogString, "HDD_SetFileDateTime(%s) E0a01.", AbsFileName);
+    WriteLogMC("MovieCutterLib", LogString);
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return FALSE;
+  }
+
+  if(NewDateTime > 0xd0790000)
+  {
+    utimebuf.actime = statbuf.st_atime;
+    utimebuf.modtime = TF2UnixTime(NewDateTime);
+    utime(AbsFileName, &utimebuf);
+
+    #if STACKTRACE == TRUE
+      CallTraceExit(NULL);
+    #endif
+    return TRUE;
+  }
+
+  TAP_SPrint(LogString, "HDD_SetFileDateTime(%s) E0a02.", AbsFileName);
+  WriteLogMC("MovieCutterLib", LogString);
+
+  #if STACKTRACE == TRUE
+    CallTraceExit(NULL);
+  #endif
+  return FALSE;
+}
+
+
+// ----------------------------------------------------------------------------
+//                         Analyse von REC-Files
+// ----------------------------------------------------------------------------
 bool isNavAvailable(char const *SourceFileName)
 {
   #if STACKTRACE == TRUE
@@ -436,6 +617,9 @@ bool isHDVideo(char const *SourceFileName, bool *const isHD)
 }
 
 
+// ----------------------------------------------------------------------------
+//                          Patchen von REC-Files
+// ----------------------------------------------------------------------------
 bool WriteByteToFile(char const *FileName, off_t BytePosition, char OldValue, char NewValue)
 {
   #if STACKTRACE == TRUE
@@ -620,6 +804,9 @@ bool UnpatchRecFiles(char const *SourceFileName, char const *CutFileName, off_t 
 }
 
 
+// ----------------------------------------------------------------------------
+//               Ermittlung der tatsächlichen Schnittposition
+// ----------------------------------------------------------------------------
 bool ReadCutPointArea(char const *SourceFileName, off_t CutPosition, byte CutPointArray[])
 {
   #if STACKTRACE == TRUE
@@ -797,98 +984,10 @@ bool FindCutPointOffset(const byte CutPacket[], const byte CutPointArray[], long
   return TRUE;
 }
 
-void GetNextFreeCutName(char const *SourceFileName, char *CutFileName, word LeaveNamesOut)
-{
-  #if STACKTRACE == TRUE
-    CallTraceEnter("GetNextFreeCutName");
-  #endif
 
-  int                   NameLen;
-  int                   i;
-  char                  NextFileName[MAX_FILE_NAME_SIZE + 1];
-
-  NameLen = strlen(SourceFileName) - 4;  // ".rec" entfernen
-
-  i = 0;
-  do
-  {
-    i++;
-    strncpy(NextFileName, SourceFileName, NameLen);
-    strncpy(CutFileName, SourceFileName, NameLen);
-    TAP_SPrint(&NextFileName[NameLen], " (Cut-%d)%s", i, &SourceFileName[NameLen]);
-    TAP_SPrint(&CutFileName[NameLen], " (Cut-%d)%s", i + LeaveNamesOut, &SourceFileName[NameLen]);
-  }while(TAP_Hdd_Exist(NextFileName) || TAP_Hdd_Exist(CutFileName));
-
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
-}
-
-bool FileCut(char *SourceFileName, char *CutFileName, dword StartBlock, dword NrBlocks)
-{
-  #if STACKTRACE == TRUE
-    CallTraceEnter("FileCut");
-  #endif
-
-  tDirEntry             FolderStruct, *pFolderStruct;
-  dword                 x;
-  dword                 ret;
-  TYPE_PlayInfo         PlayInfo;
-  char                  CurrentDir[512], TAPDir[512];
-
-  #ifdef FULLDEBUG
-    WriteLogMC("MovieCutterLib", "FileCut()");
-  #endif
-
-  //Initialize the directory structure
-  memset(&FolderStruct, 0, sizeof(tDirEntry));
-  FolderStruct.Magic = 0xbacaed31;
-  HDD_TAP_GetCurrentDir(TAPDir);
-
-  TAP_Hdd_Delete(CutFileName);
-
-  //Save the current directory resources and change into our directory (current directory of the TAP)
-  ApplHdd_SaveWorkFolder();
-  strcpy(CurrentDir, &TAPFSROOT[1]); //do not include the leading slash
-  HDD_TAP_GetCurrentDir(&CurrentDir[strlen(CurrentDir)]);
-  ApplHdd_SelectFolder(&FolderStruct, CurrentDir);
-  DevHdd_DeviceOpen(&pFolderStruct, &FolderStruct);
-  ApplHdd_SetWorkFolder(&FolderStruct);
-
-  //If a playback is running, stop it
-  TAP_Hdd_GetPlayInfo(&PlayInfo);
-  if(PlayInfo.playMode == PLAYMODE_Playing)
-  {
-    Appl_StopPlaying();
-    Appl_WaitEvt(0xE507, &x, 1, 0xFFFFFFFF, 300);
-  }
-
-  //Do the cutting
-  ret = ApplHdd_FileCutPaste(SourceFileName, StartBlock, NrBlocks, CutFileName);
-
-  //Restore all resources
-  DevHdd_DeviceClose(&pFolderStruct);
-  ApplHdd_RestoreWorkFolder();
-
-//  TAP_Hdd_ChangeDir(TAPDir);
-  HDD_ChangeDir(TAPDir);
-
-  if(ret)
-  {
-    WriteLogMC("MovieCutterLib", "FileCut() E0501. Cut file not created.");
-
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
-    return FALSE;
-  }
-
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
-  return TRUE;
-}
-
+// ----------------------------------------------------------------------------
+//                              INF-Funktionen
+// ----------------------------------------------------------------------------
 dword GetRecDateFromInf(char const *FileName, dword *const DateTime)
 {
   #if STACKTRACE == TRUE
@@ -1150,6 +1249,9 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
 }
 
 
+// ----------------------------------------------------------------------------
+//                              NAV-Patchen
+// ----------------------------------------------------------------------------
 bool PatchNavFiles(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, bool isHD, dword *const OutCutStartTime, dword *const OutBehindCutTime)
 {
   #if STACKTRACE == TRUE
@@ -1264,10 +1366,22 @@ bool PatchNavFilesSD(char const *SourceFileName, char const *CutFileName, off_t 
   FirstCutTime = 0xFFFFFFFF;
   LastCutTime = 0;
   FirstSourceTime = 0;
+  bool FirstRun = TRUE;
   while(TRUE)
   {
     navsRead = fread(navSource, sizeof(tnavSD), NAVRECS_SD, fSourceNav);
     if(navsRead == 0) break;
+
+    // Versuche, nav-Dateien aus Timeshift-Aufnahmen zu unterstützen ***experimentell***
+    if(FirstRun)
+    {
+      FirstRun = FALSE;
+      if(navSource[0].SHOffset == 0x72767062)  // 'bpvr'
+      {
+        fseek(fSourceNav, 1056, SEEK_SET);
+        continue;
+      }
+    }
 
     for(i = 0; i < navsRead; i++)
     {
@@ -1450,10 +1564,22 @@ bool PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t 
   FirstCutTime = 0xFFFFFFFF;
   LastCutTime = 0;
   FirstSourceTime = 0;
+  bool FirstRun = TRUE;
   while(TRUE)
   {
     navsRead = fread(navSource, sizeof(tnavHD), NAVRECS_HD, fSourceNav);
     if(navsRead == 0) break;
+
+    // Versuche, nav-Dateien aus Timeshift-Aufnahmen zu unterstützen ***experimentell***
+    if(FirstRun)
+    {
+      FirstRun = FALSE;
+      if(navSource[0].LastPPS == 0x72767062)  // 'bpvr'
+      {
+        fseek(fSourceNav, 1056, SEEK_SET);
+        continue;
+      }
+    }
 
     for(i = 0; i < navsRead; i++)
     {
@@ -1541,80 +1667,9 @@ bool PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t 
   return TRUE;
 }
 
-long64 HDD_GetFileSize(char const *FileName)
-{
-  #if STACKTRACE == TRUE
-    CallTraceEnter("HDD_GetFileSize");
-  #endif
-
-  TYPE_File            *f;
-  long64                FileSize;
-
-  f = TAP_Hdd_Fopen(FileName);
-  if(!f)
-  {
-    WriteLogMC("MovieCutterLib", "HDD_GetFileSize(): E0d01");
-
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
-    return -1;
-  }
-  FileSize = f->size;
-  TAP_Hdd_Fclose(f);
-
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
-  return FileSize;
-}
-
-bool HDD_SetFileDateTime(char const *Directory, char const *FileName, dword NewDateTime)
-{
-  #if STACKTRACE == TRUE
-    CallTraceEnter("HDD_SetFileDateTime");
-  #endif
-
-  char                  AbsFileName[256];
-  tstat64               statbuf;
-  int                   status;
-  struct utimbuf        utimebuf;
-
-  TAP_SPrint(AbsFileName, "%s%s/%s", TAPFSROOT, Directory, FileName);
-  if((status = lstat64(AbsFileName, &statbuf)))
-  {
-    TAP_SPrint(LogString, "HDD_SetFileDateTime(%s) E0a01.", AbsFileName);
-    WriteLogMC("MovieCutterLib", LogString);
-
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
-    return FALSE;
-  }
-
-  if(NewDateTime > 0xd0790000)
-  {
-    utimebuf.actime = statbuf.st_atime;
-    utimebuf.modtime = TF2UnixTime(NewDateTime);
-    utime(AbsFileName, &utimebuf);
-
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
-    return TRUE;
-  }
-
-  TAP_SPrint(LogString, "HDD_SetFileDateTime(%s) E0a02.", AbsFileName);
-  WriteLogMC("MovieCutterLib", LogString);
-
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
-  return FALSE;
-}
-
-
-//.nav functions
+// ----------------------------------------------------------------------------
+//                               NAV-Einlesen
+// ----------------------------------------------------------------------------
 tTimeStamp* NavLoad(char const *SourceFileName, dword *NrTimeStamps, bool isHD)
 {
   #if STACKTRACE == TRUE

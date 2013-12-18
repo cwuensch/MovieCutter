@@ -89,7 +89,7 @@ bool  SaveBookmarksToInf(void);
 void  SaveINI(void);
 void  SelectSegmentMarker(void);
 void  SetCurrentSegment(void);
-void  ShowCutFailDialog(void);
+void  ShowErrorMessage(char* MessageStr);
 dword TMSCommander_handler(dword param1);
 bool PatchOldNavFile(char *SourceFileName, bool isHD);
 
