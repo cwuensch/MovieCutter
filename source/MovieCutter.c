@@ -319,7 +319,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           OSDMenuMessageBoxDestroyNoOSDUpdate();
           MCShowMessageBox = FALSE;
 //          TAP_ExitNormal();
-//          TAP_Osd_Sync();
+          TAP_Osd_Sync();
           OSDRedrawEverything();
           if ((param1 == RKEY_Ok) && (OSDMenuMessageBoxLastButton() == 0))
           {
@@ -341,7 +341,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           OSDMenuMessageBoxDestroyNoOSDUpdate();
           MCShowMessageBox = FALSE;
 //          TAP_ExitNormal();
-//          TAP_Osd_Sync();
+          TAP_Osd_Sync();
           OSDRedrawEverything();
         }
         else
@@ -1089,6 +1089,12 @@ void ClearOSD(void)
   #if STACKTRACE == TRUE
     CallTraceEnter("ClearOSD");
   #endif
+
+  if(rgnActionMenu)
+  {
+    TAP_Osd_Delete(rgnActionMenu);
+    rgnActionMenu = 0;
+  }
 
   if(rgnSegmentList)
   {
@@ -1853,6 +1859,7 @@ bool CutFileLoad(void)
   word                  Padding;
   TYPE_File            *fCut;
   __off64_t             FileSize;
+  int                   i;
 
   // Create name of cut-file
   strcpy(Name, PlaybackName);
@@ -1927,6 +1934,11 @@ bool CutFileLoad(void)
       CallTraceExit(NULL);
     #endif
     return FALSE;
+  }
+
+  for (i = 0; i < NrSegmentMarker; i++)
+  {
+    SegmentMarker[i].Percent = ((float)SegmentMarker[i].Block / PlayInfo.totalBlock) * 100;
   }
 
   if (SegmentMarker[NrSegmentMarker - 1].Block != PlayInfo.totalBlock) {
@@ -3320,7 +3332,7 @@ void ActionMenuRemove(void)
   TAP_Osd_Delete(rgnActionMenu);
   rgnActionMenu = 0;
   OSDRedrawEverything();
-  TAP_Osd_Sync();
+//  TAP_Osd_Sync();
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
@@ -3482,7 +3494,7 @@ void MovieCutterProcess(bool KeepCut)
   isMultiSelect = (NrSelectedSegments > 0);
   if (!NrSelectedSegments) NrSelectedSegments = 1;
 
-  //ClearOSD();
+  ClearOSD();
 
   for(i = NrSegmentMarker - 2; i >= 0 /*-1*/; i--)
   {
@@ -3650,8 +3662,10 @@ void MovieCutterProcess(bool KeepCut)
   //OSDMenuProgressBarDestroy();
   Playback_Normal(); */
   TAP_Hdd_ChangePlaybackPos(SegmentMarker[min(ActiveSegment, NrSegmentMarker-2)].Block);
+
+  TAP_Osd_Sync();
   ClearOSD();
-//  OSDRedrawEverything();
+//  OSDRedrawEverything()  // *** das führt zum Absturz...??? 
 
   State = ST_WaitForPlayback;
   NoPlaybackCheck = FALSE;

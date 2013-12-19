@@ -256,6 +256,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
       // if cut start point was not found, re-calculate it from cut file size
       if (SuppressNavGeneration && (CutFileSize != 0)) {
         CutStartPos = BehindCutPos - CutFileSize;
+        CutStartPosOffset = CutStartPos - ((off_t)CutStartPoint->BlockNr * BLOCKSIZE);  // unnötig
         SuppressNavGeneration = FALSE;
       }
     }
@@ -264,7 +265,10 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
       WriteLogMC("MovieCutterLib", "MovieCutter() W0006: Cut end position not found.");
       // if cut end point was not found, re-calculate it from cut file size
       if (!SuppressNavGeneration && (CutFileSize != 0))
+      {
         BehindCutPos = CutStartPos + CutFileSize;
+        BehindCutPosOffset = BehindCutPos - ((off_t)BehindCutPoint->BlockNr * BLOCKSIZE);  // unnötig
+      }
       else
         SuppressNavGeneration = TRUE;
     }
