@@ -334,7 +334,13 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             {
               case MI_SaveSegment:        MovieCutterSaveSegments(); break;
               case MI_DeleteSegment:      MovieCutterDeleteSegments(); break;
-              case MI_ClearAll:           (BookmarkMode) ? DeleteAllBookmarks() : DeleteAllSegmentMarkers(); break;
+              case MI_ClearAll:
+              {
+                (BookmarkMode) ? DeleteAllBookmarks() : DeleteAllSegmentMarkers(); 
+                OSDSegmentListDrawList();
+                OSDInfoDrawProgressbar(TRUE);
+                break;
+              }
               case MI_DeleteFile:         MovieCutterDeleteFile(); break;
             }
           }
@@ -858,7 +864,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
           case RKEY_Ok:
           {
-            if(TrickMode != TRICKMODE_Pause)
+            if(TrickMode == TRICKMODE_Normal)
             {
               Playback_Pause();
             }
