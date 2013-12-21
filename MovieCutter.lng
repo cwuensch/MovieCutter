@@ -71,7 +71,9 @@ de_044=Liste der Segment-Marker ist voll.
 de_045=Dateigröße der Aufnahme ist inkorrekt.
 de_046=HD-Video Erkennung fehlgeschlagen.
 de_047=Die .nav-Datei konnte nicht geladen werden.
-de_048=Länge der .nav-Datei ist inkorrekt.
+de_048=Länge der .nav-Datei ist inkorrekt.\nTrotzdem fortfahren?
+de_049=Receiver vor dem Schneiden neu starten!\nTrotzdem fortfahren?
+de_050=.nav-Datei scheint inkorrekt. Repariert!\nWird erneut geladen...
        
 #English
 en_000= Add 
@@ -92,7 +94,7 @@ en_014=OK
 en_015=Remove padding
 en_016=Save the selected segments
 en_017=Segments
-en_018=-- Select a function --
+en_018=â€• Select a function â€•
 en_019=The cut has failed!\nplease check the log!
 en_020=The file is (partly) crypted.
 en_021=Cutting recoding
@@ -122,7 +124,9 @@ en_044=SegmentMarker list is full.
 en_045=Rec file size is incorrect.
 en_046=HD-video detection failed.
 en_047=Error loading the .nav file.
-en_048=.nav file length not matching duration.
+en_048=.nav file length not matching duration.\nProceed anyways?
+en_049=Please reboot the receiver before cutting!\nProceed anyways?
+en_050=.nav duration mismatch. Patched!\nWill try again...
 
 
 #French
@@ -144,7 +148,7 @@ fr_014=OK
 fr_015=Supprimer premier+dernier segment
 fr_016=Sauvegarder segments sélectionnés
 fr_017=Segments
-fr_018=-- Sélectionner une fonction --
+fr_018=â€• Sélectionner une fonction â€•
 fr_019=Le découpage a échoué !\nConsulter le log.
 fr_020=Le fichier est (partiellement) encrypté.
 fr_021=Découpage en cours
@@ -174,4 +178,6 @@ fr_044=La liste des segments marqués est pleine.
 fr_045=La taille du fichier .rec est incorrecte.
 fr_046=Échec de la détection vidéo HD.
 fr_047=Echec du chargement du fichier .nav.
-fr_048=Longueur du fichier .nav incorrecte.
+fr_048=Longueur du fichier .nav incorrecte.\nProceed anyways?
+fr_049=Please reboot the receiver before cutting!\nProceed anyways?
+fr_050=.nav duration mismatch. Patched!\nWill try again...

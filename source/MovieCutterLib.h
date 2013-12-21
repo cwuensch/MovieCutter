@@ -69,7 +69,7 @@ void        Print64BitLong(long64 Number, char *const OutString);    // needs ma
 bool        isCrypted(char const *SourceFileName);
 bool        isHDVideo(char const *SourceFileName, bool *const isHD);
 bool        isNavAvailable(char const *SourceFileName);
-dword       GetRecDateFromInf(char const *FileName, dword *const DateTime);
+bool        GetRecDateFromInf(char const *FileName, dword *const DateTime);
 long64      HDD_GetFileSize(char const *FileName);
 bool        HDD_SetFileDateTime(char const *Directory, char const *FileName, dword NewDateTime);
 tTimeStamp* NavLoad(char const *SourceFileName, dword *const NrTimeStamps, bool isHDVideo);

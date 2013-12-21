@@ -101,21 +101,21 @@ void GetNextFreeCutName(char const *SourceFileName, char *CutFileName, word Leav
     CallTraceEnter("GetNextFreeCutName");
   #endif
 
-  int                   NameLen;
+  size_t                NameLen;
   int                   i;
   char                  NextFileName[MAX_FILE_NAME_SIZE + 1];
 
   NameLen = strlen(SourceFileName) - 4;  // ".rec" entfernen
+  strncpy(NextFileName, SourceFileName, NameLen);
+  strncpy(CutFileName, SourceFileName, NameLen);
 
   i = 0;
   do
   {
     i++;
-    strncpy(NextFileName, SourceFileName, NameLen);
-    strncpy(CutFileName, SourceFileName, NameLen);
     TAP_SPrint(&NextFileName[NameLen], " (Cut-%d)%s", i, &SourceFileName[NameLen]);
     TAP_SPrint(&CutFileName[NameLen], " (Cut-%d)%s", i + LeaveNamesOut, &SourceFileName[NameLen]);
-  }while(TAP_Hdd_Exist(NextFileName) || TAP_Hdd_Exist(CutFileName));
+  } while (TAP_Hdd_Exist(NextFileName) || TAP_Hdd_Exist(CutFileName));
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
@@ -313,7 +313,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
     BehindCutPoint->BlockNr = CutStartPoint->BlockNr + CalcBlockSize(BehindCutPos - CutStartPos + 9023);
   }
 
-  // Patch the rec-File to prevent the firmware from cutting in the middle of a packet
+  // Unpatch the rec-File
   if (!SuppressNavGeneration)
     UnpatchRecFiles(SourceFileName, CutFileName, CutStartPos, BehindCutPos, PatchedBytes, 8);
 
@@ -992,7 +992,7 @@ bool FindCutPointOffset(const byte CutPacket[], const byte CutPointArray[], long
 // ----------------------------------------------------------------------------
 //                              INF-Funktionen
 // ----------------------------------------------------------------------------
-dword GetRecDateFromInf(char const *FileName, dword *const DateTime)
+bool GetRecDateFromInf(char const *FileName, dword *const DateTime)
 {
   #if STACKTRACE == TRUE
     CallTraceEnter("GetRecDateFromInf");
@@ -1097,11 +1097,10 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
 
   SecToTimeString(SourcePlayTime, T1);
   SecToTimeString(CutPlayTime, T2);
-  SecToTimeString(SourcePlayTime - CutPlayTime, T3);
+  SourcePlayTime -= min(CutPlayTime, SourcePlayTime);
+  SecToTimeString(SourcePlayTime, T3);
   TAP_SPrint(LogString, "Playtimes: Orig = %s, Cut = %s, New = %s", T1, T2, T3);
   WriteLogMC("MovieCutterLib", LogString);
-
-  SourcePlayTime -= CutPlayTime;
 
   //Change the new source play time
   RECHeaderInfo.HeaderDuration = (word)(SourcePlayTime / 60);
@@ -1129,7 +1128,7 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
   //Copy all bookmarks which are < CutPointA or >= CutPointB
   //Move the second group by (CutPointB - CutPointA)
   SetCutBookmark = TRUE;
-  if ((CutStartPoint->BlockNr <= 1) || (BehindCutPoint->Timems >= SourcePlayTime+CutPlayTime-3000))
+  if ((CutStartPoint->BlockNr <= 1) || (CutStartPoint->Timems+3000 >= SourcePlayTime*1000) /*(BehindCutPoint->Timems+3000 >= (SourcePlayTime+CutPlayTime)*1000)*/)
     SetCutBookmark = FALSE;
 
   if(Bookmarks)
@@ -1152,7 +1151,7 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
           }
           RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks] = Bookmarks[i] - (BehindCutPoint->BlockNr - CutStartPoint->BlockNr);
         }
-        TAP_SPrint(&LogString[strlen(LogString)], "%u ", Bookmarks[i]);
+        TAP_SPrint(&LogString[strlen(LogString)], "%u ", RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks]);
         RECHeaderInfo.NrBookmarks++;
       }
       if(Bookmarks[i+1] == 0) break;
@@ -1223,7 +1222,7 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
       if((Bookmarks[i] >= CutStartPoint->BlockNr + 100) && (Bookmarks[i] + 100 < BehindCutPoint->BlockNr))
       {
         RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks] = Bookmarks[i] - CutStartPoint->BlockNr;
-        TAP_SPrint(&LogString[strlen(LogString)], "%u ", Bookmarks[i]);
+        TAP_SPrint(&LogString[strlen(LogString)], "%u ", RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks]);
         RECHeaderInfo.NrBookmarks++;
       }
       if(Bookmarks[i+1] == 0) break;

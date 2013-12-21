@@ -2,7 +2,7 @@
 #define __MOVIECUTTERH__
 
 #define PROGRAM_NAME          "MovieCutter"
-#define VERSION               "V2.0c"  // alpha = α,  beta = β, � = ü
+#define VERSION               "V2.0d"  // alpha = α,  beta = β, � = ü
 #define TAPID                 0x8E0A4247
 //#define AUTHOR                "FireBird / Christian W�nsch"
 #define AUTHOR                "FireBird / C. Wünsch"
@@ -26,14 +26,14 @@ void  ActionMenuUp(void);
 bool  AddBookmark(dword Block);
 void  AddBookmarksToSegmentList(void);
 bool  AddDefaultSegmentMarker(void);
-bool  AddSegmentMarker(dword Block);
+bool  AddSegmentMarker(dword Block, bool RejectSmallSegments);
 void  CalcLastSeconds(void);
 void  CheckLastSeconds(void);
 void  Cleanup(bool DoClearOSD);
 void  CleanupCut(void);
 void  CreateOSD(void);
 void  CreateSettingsDir(void);
-void  ClearOSD(void);
+void  ClearOSD(bool EnterNormal);
 void  CutDumpList(void);
 void  CutFileDelete(void);
 bool  CutFileLoad(void);
@@ -44,7 +44,6 @@ void  DeleteSegmentMarker(word MarkerIndex);
 void  DeleteAllSegmentMarkers(void);
 int   FindNearestBookmark(void);
 int   FindNearestSegmentMarker(void);
-void  ShowConfirmationDialog(void);
 dword NavGetBlockTimeStamp(dword PlaybackBlockNr);
 bool  isPlaybackRunning(void);
 void  LoadINI(void);
@@ -89,6 +88,7 @@ bool  SaveBookmarksToInf(void);
 void  SaveINI(void);
 void  SelectSegmentMarker(void);
 void  SetCurrentSegment(void);
+void  ShowConfirmationDialog(char* MessageStr);
 void  ShowErrorMessage(char* MessageStr);
 dword TMSCommander_handler(dword param1);
 bool PatchOldNavFile(char *SourceFileName, bool isHD);
