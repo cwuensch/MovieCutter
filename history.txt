@@ -1,3 +1,13 @@
+2013-12-21 V2.0d  * Bedienung:
+         (stable)   - OK hat nun die Funktion Play/Pause (nicht mehr Menü)
+                    - Menu ruft jetzt das Schnittmenü auf
+                    - Pfeil nach rechts im schnellsten Zeitlupe-Modus wechselt zu Play
+                  * Warnung bei inkorrekter .nav-Länge, Fortsetzung ist jetzt trotzdem möglich
+                  * Warnung, wenn zwischen Aufnahme und Schnitt kein Neustart erfolgt ist (Beschädigung des Endes möglich!)
+                  * vor allen kritischen Methoden wird in das PlaybackDir gewechselt
+                    (andere TAPs verändern manchmal zwischendurch das Arbeitsverzeichnis)
+                 ** zahlreiche Bugfixes! (u.a. Bookmarks und OSD-Ausblenden nach dem Schnitt)
+2013-12-19 V2.0c  * OSD-Ausblendung bei fehlgeschlagenem Schnitt
 2013-12-18 V2.0b ** kein PlaybackCheck im inaktiven Modus mehr (AutoOSDPolicy=0) -> Verbesserung der Interaktion mit anderen TAPs(?)
                  ** Code (Zustände) intern rearrangiert
                   * Unterstützung von Timeshift-Aufnahmen (leicht anderes .nav-Format) - *experimentell*
