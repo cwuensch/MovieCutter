@@ -3838,8 +3838,10 @@ void MovieCutterProcess(bool KeepCut)
 
     if(!isMultiSelect || SegmentMarker[WorkingSegment].Selected)
     {
+      NoPlaybackCheck = FALSE;
       if (isPlaybackRunning())
         TAP_Hdd_StopTs();
+      NoPlaybackCheck = TRUE;
       TAP_SPrint(LogString, "Processing segment %u", WorkingSegment);
       WriteLogMC(PROGRAM_NAME, LogString);
 
