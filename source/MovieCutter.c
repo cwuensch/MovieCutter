@@ -3874,7 +3874,8 @@ void MovieCutterProcess(bool KeepCut)
       GetNextFreeCutName(PlaybackName, CutFileName, NrSelectedSegments - 1);
       if (CutEnding)
       {
-        strncpy(TempString, PlaybackName, strlen(PlaybackName) - 4);
+        strcpy(TempString, PlaybackName);
+        TempString[strlen(PlaybackName) - 4] = '\0';
         TAP_SPrint(TempFileName, "%s_temp.rec", TempString);
         HDD_Delete(TempFileName);
       }
@@ -3883,7 +3884,7 @@ void MovieCutterProcess(bool KeepCut)
       ret = MovieCutter(PlaybackName, ((CutEnding) ? TempFileName : CutFileName), &CutStartPoint, &BehindCutPoint, (KeepCut || CutEnding), HDVideo);
 
       // Das erzeugte CutFile wird zum neuen SourceFile
-      if (CutEnding)
+      if (ret && CutEnding)
       {
         if (KeepCut)
         {
