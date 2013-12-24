@@ -221,6 +221,9 @@ int TAP_Main(void)
     CallTraceEnter("TAP_Main");
   #endif
 
+  TAP_SPrint(LogString, "MovieCutter %s started!", VERSION);
+  WriteLogMC(PROGRAM_NAME, LogString);
+
   CreateSettingsDir();
   LoadINI();
   KeyTranslate(TRUE, &TAP_EventHandler);

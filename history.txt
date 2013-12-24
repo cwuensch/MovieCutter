@@ -1,3 +1,11 @@
+2013-12-21 V2.0e  * Mini-Bugfix: OSD-Tastenübersicht zeigte noch "Ok"-Taste für den Menüaufruf an
+                  * Mini-Bugfix: Wenn kein SegmentMarker angelegt, konnte das Hauptsegment selektiert werden
+                  * die Abweichung der .nav-Länge von der .inf-Länge in Sekunden wird angezeigt
+                  * ausgegraute Menü-Elemente können nicht mehr angesprungen werden
+                  * die SegmentMarker können nun als Bookmarks exportiert werden (im Bookmark-Modus)
+                  * während das Schnittmenü geöffnet ist, lässt sich zwischen Segment- und Bookmark-Modus wechseln
+                  * wenn keine Segmente angelegt sind, wird auch keine .cut-Datei mehr angelegt (bzw. die vorhandene gelöscht)
+                  * bei nicht übereinstimmender .cut-Datei werden die TimeStamps importiert und die zugehörigen Blocknummern neu berechnet.
 2013-12-21 V2.0d  * Bedienung:
          (stable)   - OK hat nun die Funktion Play/Pause (nicht mehr Menü)
                     - Menu ruft jetzt das Schnittmenü auf
