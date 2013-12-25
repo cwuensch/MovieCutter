@@ -106,10 +106,8 @@ void GetNextFreeCutName(char const *SourceFileName, char *CutFileName, word Leav
   char                  NextFileName[MAX_FILE_NAME_SIZE + 1];
 
   NameLen = strlen(SourceFileName) - 4;  // ".rec" entfernen
-  strcpy(NextFileName, SourceFileName);
-  NextFileName[NameLen] = '\0';
-  strcpy(CutFileName, SourceFileName);
-  CutFileName[NameLen] = '\0';
+  strncpy(NextFileName, SourceFileName, NameLen);
+  strncpy(CutFileName, SourceFileName, NameLen);
 
   i = 0;
   do

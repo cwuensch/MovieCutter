@@ -3763,7 +3763,7 @@ void MovieCutterProcess(bool KeepCut)
   bool                  isMultiSelect, CutEnding;
   word                  WorkingSegment;
   char                  CutFileName[MAX_FILE_NAME_SIZE + 1];
-  char                  TempFileName[MAX_FILE_NAME_SIZE + 1], TempString[MAX_FILE_NAME_SIZE + 1];
+  char                  TempFileName[MAX_FILE_NAME_SIZE + 1];
   tTimeStamp            CutStartPoint, BehindCutPoint;
   dword                 DeltaTime, DeltaBlock;
   int                   i, j;
@@ -3877,9 +3877,9 @@ void MovieCutterProcess(bool KeepCut)
       GetNextFreeCutName(PlaybackName, CutFileName, NrSelectedSegments - 1);
       if (CutEnding)
       {
-        strcpy(TempString, PlaybackName);
-        TempString[strlen(PlaybackName) - 4] = '\0';
-        TAP_SPrint(TempFileName, "%s_temp.rec", TempString);
+        strcpy(TempFileName, PlaybackName);
+//        TempFileName[strlen(PlaybackName) - 4] = '\0';
+        TAP_SPrint(&TempFileName[strlen(PlaybackName) - 4], "_temp.rec");
         HDD_Delete(TempFileName);
       }
 
