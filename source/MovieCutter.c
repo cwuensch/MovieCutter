@@ -584,7 +584,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           }
 
           // Check if nav has correct length!
-          if(labs(TimeStamps[NrTimeStamps-1].Timems - (1000 * (60*PlayInfo.duration + PlayInfo.durationSec))) > 3000)
+          if(labs(TimeStamps[NrTimeStamps-1].Timems - (1000 * (60*PlayInfo.duration + PlayInfo.durationSec))) > 5000)
           {
             WriteLogMC(PROGRAM_NAME, ".nav file length not matching duration!");
 
@@ -1810,9 +1810,13 @@ void ExportSegmentsToBookmarks(void)
   {
     // first, delete all present bookmarks
     DeleteAllBookmarks();
+    NrBookmarks = 0;
 
     // second, add a bookmark for each SegmentMarker
-    for(i = 1; i <= min(NRBOOKMARKS, NrSegmentMarker-2); i++)
+    TAP_SPrint(LogString, "Exporting %d of %d segment markers", min(NrSegmentMarker-2, NRBOOKMARKS), NrSegmentMarker-2);
+    WriteLogMC(PROGRAM_NAME, LogString);
+
+    for(i = 1; i <= min(NrSegmentMarker-2, NRBOOKMARKS); i++)
     { 
       Bookmarks[NrBookmarks] = SegmentMarker[i].Block;
       NrBookmarks++;
@@ -3650,7 +3654,10 @@ void MovieCutterSaveSegments(void)
   #endif
 
   if (NrSegmentMarker > 2)
+  {
+    WriteLogMC(PROGRAM_NAME, "Action 'Save Segments' started...");
     MovieCutterProcess(TRUE);
+  }
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
@@ -3664,7 +3671,10 @@ void MovieCutterDeleteSegments(void)
   #endif
 
   if (NrSegmentMarker > 2)
+  {
+    WriteLogMC(PROGRAM_NAME, "Action 'Delete Segments' started...");
     MovieCutterProcess(FALSE);
+  }
 
   #if STACKTRACE == TRUE
     CallTraceExit(NULL);
@@ -4196,7 +4206,7 @@ bool PatchOldNavFileSD(char *SourceFileName)
 
     for(i = 0; i < navsRead; i++)
     {
-      if (navRecs[i].Timems - LastTime > 1000)
+      if (navRecs[i].Timems - LastTime >= 3000)
       {
         Difference += (navRecs[i].Timems - LastTime) - 1000;
 
@@ -4304,7 +4314,7 @@ bool PatchOldNavFileHD(char *SourceFileName)
 
     for(i = 0; i < navsRead; i++)
     {
-      if (navRecs[i].Timems - LastTime > 1000)
+      if (navRecs[i].Timems - LastTime >= 3000)
       {
         Difference += (navRecs[i].Timems - LastTime) - 1000;
 

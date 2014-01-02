@@ -1,3 +1,5 @@
+2013-12-24 V2.0f  * kritischer Bugfix: Wenn beim Löschen des letzten Segments ein Fehler auftritt, wird die Aufnahme nicht mehr zerstört!
+                  * kritischer Bugfix 2: Beim Generieren des temporären Cut-Namens konnte ein String-Überlauf auftreten! (-> TMS 2100 Absturz)
 2013-12-21 V2.0e  * Mini-Bugfix: OSD-Tastenübersicht zeigte noch "Ok"-Taste für den Menüaufruf an
                   * Mini-Bugfix: Wenn kein SegmentMarker angelegt, konnte das Hauptsegment selektiert werden
                   * die Abweichung der .nav-Länge von der .inf-Länge in Sekunden wird angezeigt
