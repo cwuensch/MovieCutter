@@ -6,8 +6,23 @@
 #define NAVRECS_HD              1000
 #define BLOCKSIZE               9024
 #define CUTPOINTSEARCHRADIUS    9024   // in both directions
-#define PACKETSIZE               192   // number of bytes to compare (in fact the actual packet size doesn't matter)
+#define PACKETSIZE               192   // number of bytes to compare (in fact the actual packet size doesn't matter, except for PatchRecFile)
+#if PACKETSIZE == 192
+  #define PACKETOFFSET             4
+#else
+  #define PACKETOFFSET             0
+#endif
+
 //#define TEMPCUTNAME        "__tempcut__.ts"
+
+#if STACKTRACE == TRUE
+  #define TRACEENTER()    CallTraceEnter((char*)__FUNCTION__)
+  #define TRACEEXIT()     CallTraceExit(NULL)
+#else
+  #define TRACEENTER()
+  #define TRACEEXIT()
+#endif
+
 
 typedef enum
 {

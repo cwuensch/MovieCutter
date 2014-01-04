@@ -218,7 +218,7 @@ int TAP_Main(void)
   #if STACKTRACE == TRUE
     CallTraceInit();
     CallTraceEnable(TRUE);
-    CallTraceEnter("TAP_Main");
+    TRACEENTER();
   #endif
 
   TAP_SPrint(LogString, "MovieCutter %s started!", VERSION);
@@ -235,9 +235,8 @@ int TAP_Main(void)
     FMUC_FreeFontFile(&Calibri_10_FontDataUC);
     FMUC_FreeFontFile(&Calibri_12_FontDataUC);
     FMUC_FreeFontFile(&Calibri_14_FontDataUC);
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+
+    TRACEEXIT();
     return 0;
   }
 
@@ -255,15 +254,12 @@ int TAP_Main(void)
     FMUC_FreeFontFile(&Calibri_10_FontDataUC);
     FMUC_FreeFontFile(&Calibri_12_FontDataUC);
     FMUC_FreeFontFile(&Calibri_14_FontDataUC);
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+
+    TRACEEXIT();
     return 0;
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
   return 1;
 }
 
@@ -286,18 +282,14 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   if(DoNotReenter) return param1;
   DoNotReenter = TRUE;
 
-  #if STACKTRACE == TRUE
-    CallTraceEnter("TAP_EventHandler");
-  #endif
+  TRACEENTER();
 
   if(event == EVT_TMSCommander)
   {
     dword ret = TMSCommander_handler(param1);
 
     DoNotReenter = FALSE;
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return ret;
   }
 
@@ -417,9 +409,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         OSDMenuEvent(&event, &param1, &param2);  // Event-Handling der MessageBox (Button wählen, etc.)
     }
     DoNotReenter = FALSE;
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return param1;
   }
 
@@ -737,9 +727,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
             //Exit immediately so that other functions can not interfere with the cleanup
             DoNotReenter = FALSE;
-            #if STACKTRACE == TRUE
-              CallTraceExit(NULL);
-            #endif
+            TRACEEXIT();
             return 0;
           }
 
@@ -1092,10 +1080,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   }
 
   DoNotReenter = FALSE;
-
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
   return param1;
 }
 
@@ -1104,9 +1089,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 // ----------------------------------------------------------------------------
 void ShowConfirmationDialog(char* MessageStr)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("ShowConfirmationDialog");
-  #endif
+  TRACEENTER();
 
   OSDMenuMessageBoxInitialize(PROGRAM_NAME, MessageStr);
   OSDMenuMessageBoxDoNotEnterNormalMode(TRUE);
@@ -1117,16 +1100,12 @@ void ShowConfirmationDialog(char* MessageStr)
   OSDMenuMessageBoxShow();
   MCShowMessageBox = TRUE;
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void ShowErrorMessage(char* MessageStr)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("ShowErrorMessage");
-  #endif
+  TRACEENTER();
 
   OSDMenuMessageBoxInitialize(PROGRAM_NAME, MessageStr);
   OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
@@ -1134,24 +1113,18 @@ void ShowErrorMessage(char* MessageStr)
   MCShowMessageBox = TRUE;
   NoPlaybackCheck = FALSE;
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 dword TMSCommander_handler(dword param1)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("TMSCommander_handler");
-  #endif
+  TRACEENTER();
 
   switch (param1)
   {
     case TMSCMDR_Capabilities:
     {
-      #if STACKTRACE == TRUE
-        CallTraceExit(NULL);
-      #endif
+      TRACEEXIT();
       return (dword)(TMSCMDR_CanBeStopped | TMSCMDR_HaveUserEvent);
     }
 
@@ -1160,17 +1133,13 @@ dword TMSCommander_handler(dword param1)
       if(State == ST_InactiveMode || State == ST_InactiveModePlaying)
         State = ST_WaitForPlayback;
 
-      #if STACKTRACE == TRUE
-        CallTraceExit(NULL);
-      #endif
+      TRACEEXIT();
       return TMSCMDR_OK;
     }
 
     case TMSCMDR_Menu:
     {
-      #if STACKTRACE == TRUE
-        CallTraceExit(NULL);
-      #endif
+      TRACEEXIT();
       return TMSCMDR_NotOK;
     }
 
@@ -1178,16 +1147,12 @@ dword TMSCommander_handler(dword param1)
     {
       State = ST_Exit;
 
-      #if STACKTRACE == TRUE
-        CallTraceExit(NULL);
-      #endif
+      TRACEEXIT();
       return TMSCMDR_OK;
     }
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
   return TMSCMDR_UnknownFunction;
 }
 
@@ -1196,9 +1161,7 @@ dword TMSCommander_handler(dword param1)
 // ----------------------------------------------------------------------------
 void ClearOSD(bool EnterNormal)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("ClearOSD");
-  #endif
+  TRACEENTER();
 
   if(rgnActionMenu)
   {
@@ -1221,16 +1184,13 @@ void ClearOSD(bool EnterNormal)
   TAP_Osd_Sync();
   if (EnterNormal) TAP_EnterNormal();
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void Cleanup(bool DoClearOSD)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("Cleanup");
-  #endif
+  TRACEENTER();
+
   LastTotalBlocks = 0;
   JumpRequestedSegment = 0xFFFF;
   JumpRequestedTime = 0;
@@ -1243,20 +1203,16 @@ void Cleanup(bool DoClearOSD)
 //  NrTimeStamps = 0;
   if (DoClearOSD) ClearOSD(TRUE);
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void CleanupCut(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("CleanupCut");
-  #endif
-
   int                   NrFiles, i;
   TYPE_FolderEntry      FolderEntry;
   char                  RecFileName[MAX_FILE_NAME_SIZE + 1];
+
+  TRACEENTER();
 
   HDD_TAP_PushDir();
   HDD_ChangeDir("/DataFiles");
@@ -1293,9 +1249,7 @@ void CleanupCut(void)
   }
   HDD_TAP_PopDir();
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 // ----------------------------------------------------------------------------
@@ -1303,9 +1257,7 @@ void CleanupCut(void)
 // ----------------------------------------------------------------------------
 void CreateSettingsDir(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("CreateSettingsDir");
-  #endif
+  TRACEENTER();
 
   HDD_TAP_PushDir();
   HDD_ChangeDir("/ProgramFiles");
@@ -1314,16 +1266,12 @@ void CreateSettingsDir(void)
   if(!TAP_Hdd_Exist("MovieCutter")) TAP_Hdd_Create("MovieCutter", ATTR_FOLDER);
   HDD_TAP_PopDir();
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void LoadINI(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("LoadINI");
-  #endif
+  TRACEENTER();
 
   INILOCATION IniFileState;
 
@@ -1339,16 +1287,12 @@ void LoadINI(void)
     SaveINI();
   HDD_TAP_PopDir();
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void SaveINI(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("SaveINI");
-  #endif
+  TRACEENTER();
 
   HDD_TAP_PushDir();
   HDD_ChangeDir(LOGDIR);
@@ -1358,9 +1302,7 @@ void SaveINI(void)
   INICloseFile();
   HDD_TAP_PopDir();
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 
@@ -1369,11 +1311,9 @@ void SaveINI(void)
 // ----------------------------------------------------------------------------
 void AddBookmarksToSegmentList(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("AddBookmarksToSegmentList");
-  #endif
-
   int i;
+
+  TRACEENTER();
 
   if (NrBookmarks > 0)
   {
@@ -1395,36 +1335,28 @@ void AddBookmarksToSegmentList(void)
     OSDInfoDrawProgressbar(TRUE);
 //    OSDRedrawEverything();
   }
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 bool AddDefaultSegmentMarker(void)
 {
   bool ret;
-  #if STACKTRACE == TRUE
-    CallTraceEnter("AddDefaultSegmentMarker");
-  #endif
+  TRACEENTER();
 
   ret = AddSegmentMarker(0, FALSE);
   ret = ret && AddSegmentMarker(PlayInfo.totalBlock, FALSE);
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
   return ret;
 }
 
 bool AddSegmentMarker(dword Block, bool RejectSmallSegments)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("AddSegmentMarker");
-  #endif
-
   int                   i, j;
   dword                 newTime;
   char                  StartTime[16];
+
+  TRACEENTER();
 
   if(NrSegmentMarker >= NRSEGMENTMARKER)
   {
@@ -1432,18 +1364,14 @@ bool AddSegmentMarker(dword Block, bool RejectSmallSegments)
     ShowErrorMessage(LangGetString(LS_ListIsFull));
 //    OSDMenuMessageBoxDoNotEnterNormalMode(TRUE);
 
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return FALSE;
   }
 
   newTime = NavGetBlockTimeStamp(Block);
   if((newTime == 0) && (Block > 3 * BlocksOneSecond))
   {
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return FALSE;
   }
 
@@ -1483,9 +1411,7 @@ bool AddSegmentMarker(dword Block, bool RejectSmallSegments)
         // Erlaube kein Segment mit weniger als 3 Sekunden
         if (RejectSmallSegments && ((SegmentMarker[i-1].Block + 3*BlocksOneSecond >= Block) || (Block + 3*BlocksOneSecond >= SegmentMarker[i].Block)))
         {
-          #if STACKTRACE == TRUE
-            CallTraceExit(NULL);
-          #endif
+          TRACEEXIT();
           return FALSE;
         }
 
@@ -1520,21 +1446,17 @@ bool AddSegmentMarker(dword Block, bool RejectSmallSegments)
   }
 #endif
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
   return TRUE;
 }
 
 int FindNearestSegmentMarker(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("FindNearestSegmentMarker");
-  #endif
-
   int                   NearestMarkerIndex;
   long                  MinDelta;
   int                   i;
+
+  TRACEENTER();
 
   NearestMarkerIndex = -1;
   if(NrSegmentMarker > 2)   // at least one segment marker present
@@ -1550,20 +1472,16 @@ int FindNearestSegmentMarker(void)
     }
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
   return NearestMarkerIndex;
 }
 
 bool MoveSegmentMarker(dword newBlock)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("MoveSegmentMarker");
-  #endif
-
   dword newTime;
   int NearestMarkerIndex = FindNearestSegmentMarker();
+
+  TRACEENTER();
 
   if(NearestMarkerIndex != -1)
   {
@@ -1578,33 +1496,25 @@ bool MoveSegmentMarker(dword newBlock)
         SegmentMarker[NearestMarkerIndex].Timems = newTime;
         SegmentMarker[NearestMarkerIndex].Percent = (float)PlayInfo.currentBlock * 100 / PlayInfo.totalBlock;
 
-        #if STACKTRACE == TRUE
-          CallTraceExit(NULL);
-        #endif
+        TRACEEXIT();
         return TRUE;
       }
     }
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
   return FALSE;
 }
 
 bool DeleteSegmentMarker(word MarkerIndex)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("DeleteSegmentMarker");
-  #endif
-
   int i;
+
+  TRACEENTER();
 
   if((MarkerIndex <= 0) || (MarkerIndex >= (NrSegmentMarker - 1)))
   {
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return FALSE;
   }
 
@@ -1618,17 +1528,13 @@ bool DeleteSegmentMarker(word MarkerIndex)
   if(NrSegmentMarker < 3) SegmentMarker[0].Selected = FALSE;  // there is only one segment (from start to end)
   if(ActiveSegment >= NrSegmentMarker - 1) ActiveSegment = NrSegmentMarker - 2;
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
   return TRUE;
 }
 
 void DeleteAllSegmentMarkers(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("DeleteAllSegmentMarkers");
-  #endif
+  TRACEENTER();
 
   if (NrSegmentMarker > 2) {
     memcpy(&SegmentMarker[1], &SegmentMarker[NrSegmentMarker-1], sizeof(tSegmentMarker));
@@ -1638,23 +1544,17 @@ void DeleteAllSegmentMarkers(void)
   SegmentMarker[0].Selected = FALSE;
   ActiveSegment = 0;
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void SelectSegmentMarker(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("SelectSegmentMarker");
-  #endif
+  TRACEENTER();
 
   if (NrSegmentMarker > 2)
     SegmentMarker[ActiveSegment].Selected = !SegmentMarker[ActiveSegment].Selected;
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 
@@ -1665,12 +1565,10 @@ void SelectSegmentMarker(void)
 //Das geschieht bei jedem Einblenden des MC-OSDs, da sie sonst nicht benötigt werden
 bool ReadBookmarks(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("ReadBookmarks");
-  #endif
-
   dword                *PlayInfoBookmarkStruct;
   byte                 *TempRecSlot;
+
+  TRACEENTER();
 
   PlayInfoBookmarkStruct = NULL;
   TempRecSlot = (byte*)FIS_vTempRecSlot();
@@ -1693,21 +1591,17 @@ bool ReadBookmarks(void)
     WriteLogMC(PROGRAM_NAME, s);
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
   return(PlayInfoBookmarkStruct != NULL);
 }
 
 //Experimentelle Methode, um Bookmarks direkt in der Firmware abzuspeichern.
 bool SaveBookmarks(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("SaveBookmarks");
-  #endif
-
   dword                *PlayInfoBookmarkStruct;
   byte                 *TempRecSlot;
+
+  TRACEENTER();
 
   PlayInfoBookmarkStruct = NULL;
   TempRecSlot = (byte*)FIS_vTempRecSlot();
@@ -1725,24 +1619,20 @@ bool SaveBookmarks(void)
     WriteLogMC(PROGRAM_NAME, "SaveBookmarks: Fatal error - inf cache entry point not found!");
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
   return(PlayInfoBookmarkStruct != NULL);
 }
 
 bool SaveBookmarksToInf(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("SaveBookmarksToInf");
-  #endif
-
   char                  InfFileName[MAX_FILE_NAME_SIZE + 1];
   tRECHeaderInfo        RECHeaderInfo;
   byte                 *Buffer;
   TYPE_File            *fInf;
   dword                 FileSize, BufferSize;
   int                   i;
+
+  TRACEENTER();
 
 #ifdef FULLDEBUG
   TAP_PrintNet("SaveBookmarksToInf()\n");
@@ -1758,10 +1648,7 @@ bool SaveBookmarksToInf(void)
   if(!fInf)
   {
     WriteLogMC(PROGRAM_NAME, "SaveBookmarksToInf: failed to open the inf file!");
-
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return FALSE;
   }
 
@@ -1792,19 +1679,15 @@ bool SaveBookmarksToInf(void)
   TAP_Hdd_Fclose(fInf);
   TAP_MemFree(Buffer);
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
   return TRUE;
 }
 
 void ExportSegmentsToBookmarks(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("ExportSegmentsToBookmarks");
-  #endif
-
   int i;
+
+  TRACEENTER();
 
   if (NrSegmentMarker > 2)
   {
@@ -1826,26 +1709,19 @@ void ExportSegmentsToBookmarks(void)
     OSDInfoDrawProgressbar(TRUE);
 //    OSDRedrawEverything();
   }
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 bool AddBookmark(dword Block)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("AddBookmark");
-  #endif
-
   int i, j;
+
+  TRACEENTER();
 
   if(NrBookmarks >= NRBOOKMARKS)
   {
     WriteLogMC(PROGRAM_NAME, "AddBookmark: Bookmark list is full!");
-
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return FALSE;
   }
 
@@ -1857,9 +1733,7 @@ bool AddBookmark(dword Block)
     // Erlaube keinen Abschnitt mit weniger als 3 Sekunden
     if (Bookmarks[NrBookmarks-1] + 3*BlocksOneSecond >= Block)
     {
-      #if STACKTRACE == TRUE
-        CallTraceExit(NULL);
-      #endif
+      TRACEEXIT();
       return FALSE;
     }
     Bookmarks[NrBookmarks] = Block;
@@ -1873,9 +1747,7 @@ bool AddBookmark(dword Block)
         // Erlaube keinen Abschnitt mit weniger als 3 Sekunden
         if ((Bookmarks[i-1] + 3*BlocksOneSecond >= Block) || (Block + 3*BlocksOneSecond >= Bookmarks[i]))
         {
-          #if STACKTRACE == TRUE
-            CallTraceExit(NULL);
-          #endif
+          TRACEEXIT();
           return FALSE;
         }
 
@@ -1890,21 +1762,17 @@ bool AddBookmark(dword Block)
   NrBookmarks++;
   SaveBookmarks();
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
   return TRUE;
 }
 
 int FindNearestBookmark(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("FindNearestBookmark");
-  #endif
-
   int                   NearestBookmarkIndex;
   long                  MinDelta;
   int                   i;
+
+  TRACEENTER();
 
   NearestBookmarkIndex = -1;
   if(NrBookmarks > 0)
@@ -1920,17 +1788,13 @@ int FindNearestBookmark(void)
     }
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
   return NearestBookmarkIndex;
 }
 
 bool MoveBookmark(dword newBlock)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("MoveBookmark");
-  #endif
+  TRACEENTER();
 
   int NearestBookmarkIndex = FindNearestBookmark();
   if(NearestBookmarkIndex != -1)
@@ -1940,28 +1804,21 @@ bool MoveBookmark(dword newBlock)
     {
       Bookmarks[NearestBookmarkIndex] = newBlock;
       SaveBookmarks();
-
-      #if STACKTRACE == TRUE
-        CallTraceExit(NULL);
-      #endif
+      TRACEEXIT();
       return TRUE;
     }
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
   return FALSE;
 }
 
 bool DeleteBookmark(word BookmarkIndex)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("DeleteBookmark");
-  #endif
-
   bool ret = FALSE;
   int i;
+
+  TRACEENTER();
 
   if (BookmarkIndex < NrBookmarks)
   {
@@ -1974,19 +1831,15 @@ bool DeleteBookmark(word BookmarkIndex)
     ret = TRUE;
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
   return ret;
 }
 
 void DeleteAllBookmarks(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("DeleteAllBookmarks");
-  #endif
-
   int i;
+
+  TRACEENTER();
 
   for(i = 0; i < NrBookmarks; i++)
     Bookmarks[i] = 0;
@@ -1994,9 +1847,7 @@ void DeleteAllBookmarks(void)
   NrBookmarks = 0;
   SaveBookmarks();
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 // ----------------------------------------------------------------------------
@@ -2004,10 +1855,6 @@ void DeleteAllBookmarks(void)
 // ----------------------------------------------------------------------------
 bool CutFileLoad(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("CutFileLoad");
-  #endif
-
   char                  Name[MAX_FILE_NAME_SIZE + 1];
   word                  Version = 0;
   word                  Padding;
@@ -2015,6 +1862,8 @@ bool CutFileLoad(void)
   __off64_t             SavedSize;
   int                   i;
   tTimeStamp           *CurTimeStamp;
+
+  TRACEENTER();
 
   // Create name of cut-file
   strcpy(Name, PlaybackName);
@@ -2026,10 +1875,7 @@ bool CutFileLoad(void)
   if(!TAP_Hdd_Exist(Name))
   {
     WriteLogMC(PROGRAM_NAME, "CutFileLoad: .cut doesn't exist!");
-
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return FALSE;
   }
 
@@ -2038,10 +1884,7 @@ bool CutFileLoad(void)
   if(!fCut)
   {
     WriteLogMC(PROGRAM_NAME, "CutFileLoad: failed to open .cut!");
-
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return FALSE;
   }
 
@@ -2051,10 +1894,7 @@ bool CutFileLoad(void)
   {
     WriteLogMC(PROGRAM_NAME, "CutFileLoad: .cut version mismatch!");
     TAP_Hdd_Fclose(fCut);
-
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return FALSE;
   }
   if (Version > 1)
@@ -2066,10 +1906,7 @@ bool CutFileLoad(void)
   {
     WriteLogMC(PROGRAM_NAME, "CutFileLoad: .cut file size mismatch!");
 /*    TAP_Hdd_Fclose(fCut);
-
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return FALSE; */
   }
 
@@ -2149,9 +1986,7 @@ bool CutFileLoad(void)
     NrSegmentMarker = 0;
     ActiveSegment = 0;
     WriteLogMC(PROGRAM_NAME, "CutFileLoad: Less than 2 timestamps imported, resetting!"); 
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return FALSE;
   }
 
@@ -2196,29 +2031,23 @@ bool CutFileLoad(void)
     }
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
   return TRUE;
 }
 
 void CutFileSave(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("CutFileSave");
-  #endif
-
   char                  Name[MAX_FILE_NAME_SIZE + 1];
   word                  Version;
   TYPE_File            *fCut;
+
+  TRACEENTER();
 
 /*  //Save the file size to check if the file didn't change
   fRec = TAP_Hdd_Fopen(PlaybackName);
   if(!fRec)
   {
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return;
   }
 
@@ -2231,17 +2060,13 @@ void CutFileSave(void)
   if(NrSegmentMarker <= 2)
   {
     CutFileDelete();
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return;
   }
 
   if(!HDD_GetFileSizeAndInode(PlaybackDir, PlaybackName, NULL, &RecFileSize))
   {
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return;
   }
 
@@ -2263,9 +2088,7 @@ void CutFileSave(void)
   fCut = TAP_Hdd_Fopen(Name);
   if(!fCut)
   {
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return;
   }
 
@@ -2281,18 +2104,14 @@ word Padding=0;
   TAP_Hdd_Fwrite(SegmentMarker, sizeof(tSegmentMarker), NrSegmentMarker, fCut);
   TAP_Hdd_Fclose(fCut);
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void CutFileDelete(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("CutFileDelete");
-  #endif
-
   char                  Name[MAX_FILE_NAME_SIZE + 1];
+
+  TRACEENTER();
 
   HDD_ChangeDir(PlaybackDir);
   strcpy(Name, PlaybackName);
@@ -2300,19 +2119,15 @@ void CutFileDelete(void)
   strcat(Name, ".cut");
   TAP_Hdd_Delete(Name);
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void CutDumpList(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("CutDumpList");
-  #endif
-
   char                  TimeString[16];
   int                   i;
+
+  TRACEENTER();
 
   WriteLogMC(PROGRAM_NAME, "Seg      Block Time        Pct Sel Act");
   for(i = 0; i < NrSegmentMarker; i++)
@@ -2322,9 +2137,7 @@ void CutDumpList(void)
     WriteLogMC(PROGRAM_NAME, LogString);
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 
@@ -2333,9 +2146,7 @@ void CutDumpList(void)
 // ----------------------------------------------------------------------------
 void CreateOSD(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("CreateOSD");
-  #endif
+  TRACEENTER();
 
   if(!rgnSegmentList)
   {
@@ -2346,16 +2157,12 @@ void CreateOSD(void)
   }
   if(!rgnInfo) rgnInfo = TAP_Osd_Create(0, 576 - _Info_Background_Gd.height, _Info_Background_Gd.width, _Info_Background_Gd.height, 0, 0);
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void OSDRedrawEverything(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("OSDRedrawEverything");
-  #endif
+  TRACEENTER();
 
   CreateOSD();
   OSDSegmentListDrawList();
@@ -2369,19 +2176,13 @@ void OSDRedrawEverything(void)
   OSDInfoDrawBookmarkMode();
   OSDInfoDrawMinuteJump();
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 // Segment-Liste
 // -------------
 void OSDSegmentListDrawList(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("OSDSegmentListDrawList");
-  #endif
-
   const int             RegionWidth    = 164,  BelowTextArea_Y = 307;
   const int             StartTextField_X = 5,  StartTextField_Y = 29,  EndTextField_X = 148;
   const int             TextFieldHeight = 26,  TextFieldDist    =  2;
@@ -2400,6 +2201,8 @@ void OSDSegmentListDrawList(void)
   int                   Start;
   dword                 PosX, PosY, UseColor;
   word                  i;
+
+  TRACEENTER();
 
   if(rgnSegmentList)
   {
@@ -2477,34 +2280,26 @@ void OSDSegmentListDrawList(void)
     }
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 // SetCurrentSegment
 // -----------------
 void SetCurrentSegment(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("SetCurrentSegment");
-  #endif
-
   int                   i;
+
+  TRACEENTER();
 
   if(NrSegmentMarker <= 2)
   {
     ActiveSegment = 0;
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return;
   }
   if (JumpRequestedTime || (JumpPerformedTime && (labs(TAP_GetTick() - JumpPerformedTime) < 75)))
   {
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return;
   }
   JumpRequestedSegment = 0xFFFF;
@@ -2524,25 +2319,21 @@ void SetCurrentSegment(void)
     }
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 // Fortschrittsbalken
 // ------------------
 void OSDInfoDrawProgressbar(bool Force)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("OSDInfoDrawProgressbar");
-  #endif
-
   int                   y, i;
   dword                 pos = 0;
   dword                 x1, x2;
   dword                 totalBlock;
   static dword          LastDraw = 0;
   static dword          LastPos = 999;
+
+  TRACEENTER();
 
   totalBlock = PlayInfo.totalBlock;
   if(rgnInfo)
@@ -2627,9 +2418,7 @@ void OSDInfoDrawProgressbar(bool Force)
     }
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void OSDInfoDrawCurrentPosition(bool Force)
@@ -2643,9 +2432,7 @@ void OSDInfoDrawCurrentPosition(bool Force)
 //  static dword          LastDraw = 0;  // TODO: ich nehme an, es kann in 2 verschiedenen Funktionen je eine lokale statische Variable mit gleichem Namen aber unterschiedlichem Inhalt geben...
 //  static dword          maxBlock = 0;
 
-  #if STACKTRACE == TRUE
-    CallTraceEnter("OSDInfoDrawCurrentPosition");
-  #endif
+  TRACEENTER();
 
   // Experiment: Stabilisierung der vor- und zurückspringenden Zeit-Anzeige (noch linear)
 //  if (PlayInfo.currentBlock > maxBlock) maxBlock = PlayInfo.currentBlock;
@@ -2672,9 +2459,7 @@ void OSDInfoDrawCurrentPosition(bool Force)
 //    LastDraw = TAP_GetTick();
 //  }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 
@@ -2682,12 +2467,10 @@ void OSDInfoDrawCurrentPosition(bool Force)
 // ------------
 void OSDInfoDrawBackground(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("OSDInfoDrawBackground");
-  #endif
-
   int                   x;
   char                 *s;
+
+  TRACEENTER();
 
   if(rgnInfo)
   {
@@ -2733,23 +2516,19 @@ void OSDInfoDrawBackground(void)
     BookmarkMode_x = x;
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void OSDInfoDrawRecName(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("OSDInfoDrawRecName");
-  #endif
-
   const dword           TimeWidth = FMUC_GetStringWidth("99:99:99", &Calibri_12_FontDataUC);
   char                  NameStr[MAX_FILE_NAME_SIZE + 1];
   char                  TimeStr[12], *pTimeStr;
   char                 *LastSpace = NULL;
   char                 *EndOfName = NULL;
   int                   EndOfNameWidth;
+
+  TRACEENTER();
 
   if(rgnInfo)
   {
@@ -2789,21 +2568,17 @@ void OSDInfoDrawRecName(void)
     FMUC_PutString(rgnInfo, 500-TimeWidth, 14, 500, pTimeStr, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_RIGHT);
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void OSDInfoDrawPlayIcons(bool Force)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("OSDInfoDrawPlayIcons");
-  #endif
-
   TYPE_GrData           *Btn_Play, *Btn_Pause, *Btn_Fwd, *Btn_Rwd, *Btn_Slow;
   static TYPE_TrickMode  LastTrickMode = TRICKMODE_Slow;
   static byte            LastTrickModeSwitch = 0;
   byte                   TrickModeSwitch;
+
+  TRACEENTER();
 
   if(rgnInfo)
   {
@@ -2871,21 +2646,17 @@ void OSDInfoDrawPlayIcons(bool Force)
     }
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void OSDInfoDrawClock(bool Force)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("OSDInfoDrawClock");
-  #endif
-
   word                  mjd;
   byte                  hour, min, sec;
   static byte           LastMin = 99;
   char                  Time[8];
+
+  TRACEENTER();
 
   if(rgnInfo)
   {
@@ -2900,16 +2671,12 @@ void OSDInfoDrawClock(bool Force)
     }
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void OSDInfoDrawBookmarkMode(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("OSDInfoDrawBookmarkMode");
-  #endif
+  TRACEENTER();
 
   if(rgnInfo)
   {
@@ -2918,18 +2685,14 @@ void OSDInfoDrawBookmarkMode(void)
     TAP_Osd_Sync();
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void OSDInfoDrawMinuteJump(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("OSDInfoDrawMinuteJump");
-  #endif
-
   char InfoStr[5];
+
+  TRACEENTER();
 
   if(rgnInfo)
   {
@@ -2948,9 +2711,7 @@ void OSDInfoDrawMinuteJump(void)
     TAP_Osd_Sync();
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 
@@ -2959,9 +2720,7 @@ void OSDInfoDrawMinuteJump(void)
 // ----------------------------------------------------------------------------
 void Playback_Faster(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("Playback_Faster");
-  #endif
+  TRACEENTER();
 
   switch(TrickMode)
   {
@@ -3022,16 +2781,12 @@ void Playback_Faster(void)
     }
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void Playback_Slower(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("Playback_Slower");
-  #endif
+  TRACEENTER();
 
   switch(TrickMode)
   {
@@ -3091,46 +2846,34 @@ void Playback_Slower(void)
     }
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void Playback_Normal(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("Playback_Normal");
-  #endif
+  TRACEENTER();
 
   Appl_SetPlaybackSpeed(TRICKMODE_Normal, 1, TRUE);
   TrickMode = TRICKMODE_Normal;
   TrickModeSpeed = 1;
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void Playback_Pause(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("Playback_Pause");
-  #endif
+  TRACEENTER();
 
   Appl_SetPlaybackSpeed(TRICKMODE_Pause, 0, TRUE);
   TrickMode = TRICKMODE_Pause;
   TrickModeSpeed = 0;
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void Playback_FFWD(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("Playback_FFWD");
-  #endif
+  TRACEENTER();
 
   //Appl_SetPlaybackSpeed(1, 1, true) 2x FFWD
   //Appl_SetPlaybackSpeed(1, 2, true) 4x FFWD
@@ -3152,16 +2895,12 @@ void Playback_FFWD(void)
   else
     Playback_Normal();
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void Playback_RWD(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("Playback_RWD");
-  #endif
+  TRACEENTER();
 
   //Appl_SetPlaybackSpeed(2, 1, true) 2x RWD
   //Appl_SetPlaybackSpeed(2, 2, true) 4x RWD
@@ -3183,16 +2922,12 @@ void Playback_RWD(void)
   else
     Playback_Normal();
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void Playback_Slow(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("Playback_Slow");
-  #endif
+  TRACEENTER();
 
   //Appl_SetPlaybackSpeed(3, 1, true) 1/2x Slow
   //Appl_SetPlaybackSpeed(3, 2, true) 1/4x Slow
@@ -3207,50 +2942,38 @@ void Playback_Slow(void)
   Appl_SetPlaybackSpeed(TRICKMODE_Slow, TrickModeSpeed, TRUE);
   TrickMode = TRICKMODE_Slow;
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void Playback_JumpForward(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("Playback_JumpForward");
-  #endif
-
   dword                 JumpBlock;
+
+  TRACEENTER();
   JumpBlock = min(PlayInfo.currentBlock + MinuteJumpBlocks, BlockNrLastSecond);
 
   if(TrickMode == TRICKMODE_Pause) Playback_Normal();
   TAP_Hdd_ChangePlaybackPos(JumpBlock);
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void Playback_JumpBackward(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("Playback_JumpBackward");
-  #endif
-
   dword                 JumpBlock;
+
+  TRACEENTER();
   JumpBlock = max(PlayInfo.currentBlock - MinuteJumpBlocks, 0);
 
   if(TrickMode == TRICKMODE_Pause) Playback_Normal();
   TAP_Hdd_ChangePlaybackPos(JumpBlock);
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void Playback_JumpNextSegment(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("Playback_JumpNextSegment");
-  #endif
+  TRACEENTER();
 
   if(NrSegmentMarker > 2)
   {
@@ -3265,16 +2988,13 @@ void Playback_JumpNextSegment(void)
     OSDSegmentListDrawList();
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void Playback_JumpPrevSegment(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("Playback_JumpPrevSegment");
-  #endif
+  TRACEENTER();
+
   const dword FiveSeconds = PlayInfo.totalBlock * 5 / (60*PlayInfo.duration + PlayInfo.durationSec);
 
   if(NrSegmentMarker > 2)
@@ -3293,27 +3013,20 @@ void Playback_JumpPrevSegment(void)
     OSDSegmentListDrawList();
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void Playback_JumpNextBookmark(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("Playback_JumpNextBookmark");
-  #endif
-
   int i;
+
+  TRACEENTER();
 
   if ((NrBookmarks > 0) && (PlayInfo.currentBlock > Bookmarks[NrBookmarks-1]))
   {
     if(TrickMode == TRICKMODE_Pause) Playback_Normal();
     TAP_Hdd_ChangePlaybackPos(Bookmarks[0]);
-
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return;
   }
   
@@ -3323,24 +3036,17 @@ void Playback_JumpNextBookmark(void)
     {
       if(TrickMode == TRICKMODE_Pause) Playback_Normal();
       TAP_Hdd_ChangePlaybackPos(Bookmarks[i]);
-
-      #if STACKTRACE == TRUE
-        CallTraceExit(NULL);
-      #endif
+      TRACEEXIT();
       return;
     }
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void Playback_JumpPrevBookmark(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("Playback_JumpPrevBookmark");
-  #endif
+  TRACEENTER();
 
   const dword           ThirtySeconds = PlayInfo.totalBlock * 30 / (60*PlayInfo.duration + PlayInfo.durationSec);
   int                   i;
@@ -3349,10 +3055,7 @@ void Playback_JumpPrevBookmark(void)
   {
     if(TrickMode == TRICKMODE_Pause) Playback_Normal();
     TAP_Hdd_ChangePlaybackPos(Bookmarks[NrBookmarks-1]);
-
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return;
   }
   
@@ -3362,17 +3065,12 @@ void Playback_JumpPrevBookmark(void)
     {
       if(TrickMode == TRICKMODE_Pause) Playback_Normal();
       TAP_Hdd_ChangePlaybackPos(Bookmarks[i]);
-
-      #if STACKTRACE == TRUE
-        CallTraceExit(NULL);
-      #endif
+      TRACEEXIT();
       return;
     }
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 
@@ -3381,9 +3079,7 @@ void Playback_JumpPrevBookmark(void)
 // ----------------------------------------------------------------------------
 bool isPlaybackRunning(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("isPlaybackRunning");
-  #endif
+  TRACEENTER();
 
   TAP_Hdd_GetPlayInfo(&PlayInfo);
   if((int)PlayInfo.currentBlock < 0) PlayInfo.currentBlock = 0;
@@ -3394,34 +3090,26 @@ bool isPlaybackRunning(void)
     TrickModeSpeed = PlayInfo.speed;
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
   return ((PlayInfo.playMode == PLAYMODE_Playing) || NoPlaybackCheck);
 }
 
 void CalcLastSeconds(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("CalcLastSecond");
-  #endif
+  TRACEENTER();
 
   BlocksOneSecond      = PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec);
   BlockNrLastSecond    = PlayInfo.totalBlock - BlocksOneSecond;
   BlockNrLast10Seconds = PlayInfo.totalBlock - (10 * PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec));
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void CheckLastSeconds(void)
 {
   static bool LastSecondsPaused = FALSE;
 
-  #if STACKTRACE == TRUE
-    CallTraceEnter("CheckLastSecond");
-  #endif
+  TRACEENTER();
 
   if((PlayInfo.currentBlock > BlockNrLastSecond) && (TrickMode != TRICKMODE_Pause))
   {
@@ -3433,9 +3121,7 @@ void CheckLastSeconds(void)
   else
     LastSecondsPaused = FALSE;
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 
@@ -3444,14 +3130,12 @@ void CheckLastSeconds(void)
 // ----------------------------------------------------------------------------
 void ActionMenuDraw(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("ActionMenuDraw");
-  #endif
-
   dword                 C1, C2, C3, C4, DisplayColor;
   int                   x, y, i;
   static char           TempStr[128];
   char                 *DisplayStr;
+
+  TRACEENTER();
 
   NrSelectedSegments = 0;
   for(i = 0; i < NrSegmentMarker - 1; i++)
@@ -3579,17 +3263,12 @@ void ActionMenuDraw(void)
   }
 
   TAP_Osd_Sync();
-
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void ActionMenuDown(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("ActionMenuDown");
-  #endif
+  TRACEENTER();
 
   do
   {
@@ -3601,16 +3280,12 @@ void ActionMenuDown(void)
 
   ActionMenuDraw();
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void ActionMenuUp(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("ActionMenuUp");
-  #endif
+  TRACEENTER();
 
   do
   {
@@ -3622,25 +3297,19 @@ void ActionMenuUp(void)
 
   ActionMenuDraw();
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void ActionMenuRemove(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("ActionMenuRemove");
-  #endif
+  TRACEENTER();
 
   TAP_Osd_Delete(rgnActionMenu);
   rgnActionMenu = 0;
   OSDRedrawEverything();
 //  TAP_Osd_Sync();
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 
@@ -3649,9 +3318,7 @@ void ActionMenuRemove(void)
 // ----------------------------------------------------------------------------
 void MovieCutterSaveSegments(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("MovieCutterSaveSegments");
-  #endif
+  TRACEENTER();
 
   if (NrSegmentMarker > 2)
   {
@@ -3659,16 +3326,12 @@ void MovieCutterSaveSegments(void)
     MovieCutterProcess(TRUE);
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void MovieCutterDeleteSegments(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("MovieCutterDeleteSegments");
-  #endif
+  TRACEENTER();
 
   if (NrSegmentMarker > 2)
   {
@@ -3676,20 +3339,16 @@ void MovieCutterDeleteSegments(void)
     MovieCutterProcess(FALSE);
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void MovieCutterSelectOddSegments(void)
 {
   if (NrSegmentMarker <= 2) return;
-  #if STACKTRACE == TRUE
-    CallTraceEnter("MovieCutterSelectOddSegments");
-  #endif
+
+  TRACEENTER();
 
   int i;
-
   for(i = 0; i < NrSegmentMarker-1; i++)
     SegmentMarker[i].Selected = ((i & 1) == 0);
 
@@ -3698,19 +3357,14 @@ void MovieCutterSelectOddSegments(void)
 //  OSDRedrawEverything();
 //  MovieCutterProcess(TRUE, FALSE);
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void MovieCutterSelectEvenSegments(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("MovieCutterSelectEvenSegments");
-  #endif
+  TRACEENTER();
 
   int i;
-
   for(i = 0; i < NrSegmentMarker-1; i++)
     SegmentMarker[i].Selected = ((i & 1) == 1);
 
@@ -3719,19 +3373,14 @@ void MovieCutterSelectEvenSegments(void)
 //  OSDRedrawEverything();
 //  MovieCutterProcess(TRUE, FALSE);
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void MovieCutterUnselectAll(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("MovieCutterUnselectAll");
-  #endif
+  TRACEENTER();
 
   int i;
-
   for(i = 0; i < NrSegmentMarker-1; i++)
     SegmentMarker[i].Selected = FALSE;
 
@@ -3740,16 +3389,12 @@ void MovieCutterUnselectAll(void)
 //  OSDRedrawEverything();
 //  MovieCutterProcess(TRUE, FALSE);
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void MovieCutterDeleteFile(void)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("MovieCutterDeleteFile");
-  #endif
+  TRACEENTER();
 
   NoPlaybackCheck = TRUE;
   HDD_ChangeDir(PlaybackDir);
@@ -3758,17 +3403,11 @@ void MovieCutterDeleteFile(void)
   HDD_Delete(PlaybackName);
   NoPlaybackCheck = FALSE;
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 void MovieCutterProcess(bool KeepCut)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("MovieCutterProcess");
-  #endif
-
 //  int                   NrSelectedSegments;
   bool                  isMultiSelect, CutEnding;
   word                  WorkingSegment;
@@ -3778,6 +3417,8 @@ void MovieCutterProcess(bool KeepCut)
   dword                 DeltaTime, DeltaBlock;
   int                   i, j;
   tResultCode           ret;
+
+  TRACEENTER();
 
   NoPlaybackCheck = TRUE;
   HDD_ChangeDir(PlaybackDir);
@@ -3889,7 +3530,7 @@ void MovieCutterProcess(bool KeepCut)
       {
         strcpy(TempFileName, PlaybackName);
 //        TempFileName[strlen(PlaybackName) - 4] = '\0';
-        TAP_SPrint(&TempFileName[strlen(PlaybackName) - 4], "_temp.rec");
+        TAP_SPrint(&TempFileName[strlen(PlaybackName) - 4], "_CUT.rec");
         HDD_Delete(TempFileName);
       }
 
@@ -4014,9 +3655,7 @@ void MovieCutterProcess(bool KeepCut)
     State = ST_WaitForPlayback;
   NoPlaybackCheck = FALSE;
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
 }
 
 
@@ -4075,17 +3714,12 @@ bool PlaybackRepeatGet()
 // ----------------------------------------------------------------------------
 dword NavGetBlockTimeStamp(dword PlaybackBlockNr)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("NavGetBlockTimeStamp");
-  #endif
+  TRACEENTER();
 
   if(TimeStamps == NULL)
   {
     WriteLogMC(PROGRAM_NAME, "Someone is trying to get a timestamp while the array is empty!");
-
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return 0;
   }
 
@@ -4103,16 +3737,12 @@ dword NavGetBlockTimeStamp(dword PlaybackBlockNr)
     while((LastTimeStamp->BlockNr > PlaybackBlockNr) && (LastTimeStamp > TimeStamps))
       LastTimeStamp--;
     if(LastTimeStamp->BlockNr > PlaybackBlockNr) {
-      #if STACKTRACE == TRUE
-        CallTraceExit(NULL);
-      #endif
+      TRACEEXIT();
       return 0;
     }
   }
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
   return LastTimeStamp->Timems;
 }
 
@@ -4123,10 +3753,6 @@ dword NavGetBlockTimeStamp(dword PlaybackBlockNr)
 // SOLLTE eine nav-Datei einen Überlauf beinhalten, wird dieser durch PatchOldNavFile korrigiert.
 bool PatchOldNavFileSD(char *SourceFileName)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("PatchOldNavFileSD");
-  #endif
-
   FILE                 *fSourceNav;
   TYPE_File            *fNewNav;
   char                  FileName[MAX_FILE_NAME_SIZE + 1];
@@ -4135,6 +3761,7 @@ bool PatchOldNavFileSD(char *SourceFileName)
   size_t                navsRead, i;
   char                  AbsFileName[512];
 
+  TRACEENTER();
   WriteLogMC(PROGRAM_NAME, "Checking source nav file (possibly older version with incorrect Times)...");
 
   HDD_ChangeDir(PlaybackDir);
@@ -4144,9 +3771,7 @@ bool PatchOldNavFileSD(char *SourceFileName)
   //If nav already patched -> exit function
   if (TAP_Hdd_Exist(BakFileName))
   {
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return FALSE;
   }
 
@@ -4159,10 +3784,7 @@ bool PatchOldNavFileSD(char *SourceFileName)
   if(!fSourceNav)
   {
     WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E0d01.");
-
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return FALSE;
   }
 
@@ -4175,10 +3797,7 @@ bool PatchOldNavFileSD(char *SourceFileName)
   {
     fclose(fSourceNav);
     WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E0d02.");
-
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return FALSE;
   }
 
@@ -4223,18 +3842,12 @@ bool PatchOldNavFileSD(char *SourceFileName)
   TAP_Hdd_Fclose(fNewNav);
   TAP_MemFree(navRecs);
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
   return (Difference > 0);
 }
 
 bool PatchOldNavFileHD(char *SourceFileName)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("PatchOldNavFileHD");
-  #endif
-
   FILE                 *fSourceNav;
   TYPE_File            *fNewNav;
   char                  FileName[MAX_FILE_NAME_SIZE + 1];
@@ -4243,6 +3856,7 @@ bool PatchOldNavFileHD(char *SourceFileName)
   size_t                navsRead, i;
   char                  AbsFileName[512];
 
+  TRACEENTER();
   WriteLogMC(PROGRAM_NAME, "Checking source nav file (possibly older version with incorrect Times)...");
 
   HDD_ChangeDir(PlaybackDir);
@@ -4252,9 +3866,7 @@ bool PatchOldNavFileHD(char *SourceFileName)
   //If nav already patched -> exit function
   if (TAP_Hdd_Exist(BakFileName))
   {
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return FALSE;
   }
 
@@ -4267,10 +3879,7 @@ bool PatchOldNavFileHD(char *SourceFileName)
   if(!fSourceNav)
   {
     WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E0e01.");
-
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return FALSE;
   }
 
@@ -4283,10 +3892,7 @@ bool PatchOldNavFileHD(char *SourceFileName)
   {
     fclose(fSourceNav);
     WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E0e02.");
-
-    #if STACKTRACE == TRUE
-      CallTraceExit(NULL);
-    #endif
+    TRACEEXIT();
     return FALSE;
   }
 
@@ -4331,27 +3937,20 @@ bool PatchOldNavFileHD(char *SourceFileName)
   TAP_Hdd_Fclose(fNewNav);
   TAP_MemFree(navRecs);
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
   return (Difference > 0);
 }
 
 bool PatchOldNavFile(char *SourceFileName, bool isHD)
 {
-  #if STACKTRACE == TRUE
-    CallTraceEnter("PatchOldNavFile");
-  #endif
+  TRACEENTER();
 
   bool ret;
-
   if(isHD)
     ret = PatchOldNavFileHD(SourceFileName);
   else
     ret = PatchOldNavFileSD(SourceFileName);
 
-  #if STACKTRACE == TRUE
-    CallTraceExit(NULL);
-  #endif
+  TRACEEXIT();
   return ret;
 }
