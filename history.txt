@@ -1,3 +1,10 @@
+2014-01-06 V2.0g ** Full support of cutting algorithms on Australian devices!
+                  * SaveEnding doch wieder durch Umkehrung realisiert (u.a. wegen CutPoint-Ermittlung auf australischen Geräten, und weil es an der Korrumption des Endes nichts zu ändern scheint)
+                 ** nav-Behandlung überarbeitet (HD-Funktionen sind nun in SD integriert)
+                  * nav-Prüfung feingetuned (kleine Abweichungen, die im Bereich des Normalen liegen, werden toleriert)
+                  * Kompatibilität mit INFplus (Zusatzinfos in .inf-Dateien bleiben erhalten, Aufnahmedatum wird neu berechnet)
+                  * ConfirmationDialog nun auch bei Import/Export Bookmarks (wenn Segmentliste bzw. Bookmarks gelöscht werden)
+                  * neuer ini-Schalter: DirectSegmentsCut=1 bewirkt direktes Löschen der (un)geraden Segmente
 2013-12-24 V2.0f  * kritischer Bugfix: Wenn beim Löschen des letzten Segments ein Fehler auftritt, wird die Aufnahme nicht mehr zerstört!
                   * kritischer Bugfix 2: Beim Generieren des temporären Cut-Namens konnte ein String-Überlauf auftreten! (-> TMS 2100 Absturz)
 2013-12-21 V2.0e  * Mini-Bugfix: OSD-Tastenübersicht zeigte noch "Ok"-Taste für den Menüaufruf an
