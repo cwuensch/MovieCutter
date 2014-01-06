@@ -5,15 +5,9 @@
 #define NAVRECS_SD              2000
 #define NAVRECS_HD              1000
 #define BLOCKSIZE               9024
-#define CUTPOINTSEARCHRADIUS    9024   // in both directions
-#define PACKETSIZE               192   // number of bytes to compare (in fact the actual packet size doesn't matter, except for PatchRecFile)
-#if PACKETSIZE == 192
-  #define PACKETOFFSET             4
-#else
-  #define PACKETOFFSET             0
-#endif
-
 //#define TEMPCUTNAME        "__tempcut__.ts"
+
+#define FULLDEBUG               TRUE
 
 #if STACKTRACE == TRUE
   #define TRACEENTER()    CallTraceEnter((char*)__FUNCTION__)
@@ -81,6 +75,7 @@ void        GetNextFreeCutName(char const *SourceFileName, char *CutFileName, wo
 void        SecToTimeString(dword Time, char *const TimeString);     // needs max. 4 + 1 + 2 + 1 + 2 + 1 = 11 chars
 void        MSecToTimeString(dword Timems, char *const TimeString);  // needs max. 4 + 1 + 2 + 1 + 2 + 1 + 3 + 1 = 15 chars
 void        Print64BitLong(long64 Number, char *const OutString);    // needs max. 2 + 2*9 + 1 = 19 chars
+int         DetectPacketSize(char const *SourceFileName);
 bool        isCrypted(char const *SourceFileName);
 bool        isHDVideo(char const *SourceFileName, bool *const isHD);
 bool        isNavAvailable(char const *SourceFileName);

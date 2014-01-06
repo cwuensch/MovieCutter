@@ -160,10 +160,13 @@ typedef enum
 } tLngStrings;
 
 
+// MovieCutter INI-Flags
+bool                    AutoOSDPolicy = TRUE;
+bool                    DirectSegmentsCut = FALSE;
+
 // MovieCutter state variables
 tState                  State = ST_Init;
 bool                    MCShowMessageBox = FALSE;
-bool                    AutoOSDPolicy = TRUE;
 bool                    BookmarkMode;
 TYPE_TrickMode          TrickMode;
 byte                    TrickModeSpeed;
@@ -331,8 +334,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             State = ST_ActiveOSD;
             switch(ActionMenuItem)
             {
-              case MI_SaveSegment:        MovieCutterSaveSegments(); break;
-              case MI_DeleteSegment:      MovieCutterDeleteSegments(); break;
+              case MI_SaveSegment:         MovieCutterSaveSegments(); break;
+              case MI_DeleteSegment:       MovieCutterDeleteSegments(); break;
+              case MI_SelectOddSegments:   MovieCutterSelectOddSegments(); break;  // DirectSegmentsCut
+              case MI_SelectEvenSegments:  MovieCutterSelectEvenSegments(); break; // DirectSegmentsCut
               case MI_ClearAll:
               {
                 (BookmarkMode) ? DeleteAllBookmarks() : DeleteAllSegmentMarkers(); 
@@ -340,7 +345,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 OSDInfoDrawProgressbar(TRUE);
                 break;
               }
-              case MI_DeleteFile:         MovieCutterDeleteFile(); break;
+              case MI_DeleteFile:          MovieCutterDeleteFile(); break;
+              case MI_ImportBookmarks:     (BookmarkMode) ? ExportSegmentsToBookmarks() : AddBookmarksToSegmentList(); break;
             }
           }
           else
@@ -993,7 +999,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 break;
 
               // Aktionen mit Confirmation-Dialog
-              if (ActionMenuItem==MI_SaveSegment || ActionMenuItem==MI_DeleteSegment || (ActionMenuItem==MI_ClearAll && NrSelectedSegments==0) || ActionMenuItem==MI_DeleteFile)
+              if (ActionMenuItem==MI_SaveSegment || ActionMenuItem==MI_DeleteSegment || (ActionMenuItem==MI_ClearAll && NrSelectedSegments==0) || ActionMenuItem==MI_DeleteFile || (ActionMenuItem==MI_ImportBookmarks && ((!BookmarkMode && NrSegmentMarker>2) || (BookmarkMode && NrBookmarks>0))) || (DirectSegmentsCut && (ActionMenuItem==MI_SelectOddSegments || ActionMenuItem==MI_SelectEvenSegments)))
               {
                 ShowConfirmationDialog(LangGetString(LS_AskConfirmation));
                 // Beim Speichern/Löschen einer Szene aus der Mitte, wird häufig das Ende der Original-Aufnahme korrumpiert!!
@@ -1008,15 +1014,15 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               State = ST_ActiveOSD;
               switch(ActionMenuItem)
               {
-//                case MI_SaveSegment:        MovieCutterSaveSegments(); break;
-//                case MI_DeleteSegment:      MovieCutterDeleteSegments(); break;
-                case MI_SelectOddSegments:  MovieCutterSelectOddSegments();  ActionMenuDraw(); State = ST_ActionMenu; break;
-                case MI_SelectEvenSegments: MovieCutterSelectEvenSegments(); ActionMenuDraw(); State = ST_ActionMenu; break;
-                case MI_ClearAll:           MovieCutterUnselectAll(); break;
-//                case MI_DeleteFile:         MovieCutterDeleteFile(); break;
-                case MI_ImportBookmarks:    (BookmarkMode) ? ExportSegmentsToBookmarks() : AddBookmarksToSegmentList(); break;
-                case MI_ExitMC:             State = ST_Exit; break;
-                case MI_NrMenuItems:        break;
+//                case MI_SaveSegment:         MovieCutterSaveSegments(); break;
+//                case MI_DeleteSegment:       MovieCutterDeleteSegments(); break;
+                case MI_SelectOddSegments:   MovieCutterSelectOddSegments();  /*if(!DirectSegmentsCut) {ActionMenuDraw(); State = ST_ActionMenu;}*/ break;
+                case MI_SelectEvenSegments:  MovieCutterSelectEvenSegments(); /*if(!DirectSegmentsCut) {ActionMenuDraw(); State = ST_ActionMenu;}*/ break;
+                case MI_ClearAll:            MovieCutterUnselectAll(); break;
+//                case MI_DeleteFile:          MovieCutterDeleteFile(); break;
+                case MI_ImportBookmarks:     (BookmarkMode) ? ExportSegmentsToBookmarks() : AddBookmarksToSegmentList(); break;
+                case MI_ExitMC:              State = ST_Exit; break;
+                case MI_NrMenuItems:         break;
               }
             }
             break;
@@ -1210,7 +1216,7 @@ void CleanupCut(void)
 {
   int                   NrFiles, i;
   TYPE_FolderEntry      FolderEntry;
-  char                  RecFileName[MAX_FILE_NAME_SIZE + 1];
+  char                  RecFileName[MAX_FILE_NAME_SIZE + 1], MpgFileName[MAX_FILE_NAME_SIZE + 1];
 
   TRACEENTER();
 
@@ -1226,7 +1232,10 @@ void CleanupCut(void)
       strcpy(RecFileName, FolderEntry.name);
       RecFileName[strlen(RecFileName) - 4] = '\0';
       strcat(RecFileName, ".rec");
-      if(!TAP_Hdd_Exist(RecFileName)) TAP_Hdd_Delete(FolderEntry.name);
+      strcpy(MpgFileName, FolderEntry.name);
+      MpgFileName[strlen(MpgFileName) - 4] = '\0';
+      strcat(MpgFileName, ".mpg");
+      if(!TAP_Hdd_Exist(RecFileName) && !TAP_Hdd_Exist(MpgFileName)) TAP_Hdd_Delete(FolderEntry.name);
     }
     TAP_Hdd_FindNext(&FolderEntry);
   }
@@ -1238,11 +1247,14 @@ void CleanupCut(void)
     if(FolderEntry.attr == ATTR_NORMAL)
     {
       strcpy(RecFileName, FolderEntry.name);
+      strcpy(MpgFileName, FolderEntry.name);
       if (strncmp(RecFileName + strlen(RecFileName) - 8, ".cut.bak", 8) == 0)
       {
         RecFileName[strlen(RecFileName) - 8] = '\0';
+        MpgFileName[strlen(MpgFileName) - 8] = '\0';
         strcat(RecFileName, ".rec");
-        if(!TAP_Hdd_Exist(RecFileName)) TAP_Hdd_Delete(FolderEntry.name);
+        strcat(MpgFileName, ".mpg");
+        if(!TAP_Hdd_Exist(RecFileName) && !TAP_Hdd_Exist(MpgFileName)) TAP_Hdd_Delete(FolderEntry.name);
       }
     }
     TAP_Hdd_FindNext(&FolderEntry);
@@ -1280,7 +1292,8 @@ void LoadINI(void)
   IniFileState = INIOpenFile(INIFILENAME, PROGRAM_NAME);
   if((IniFileState != INILOCATION_NotFound) && (IniFileState != INILOCATION_NewFile))
   {
-    AutoOSDPolicy = INIGetInt("AutoOSDPolicy", 1, 0, 1) != 0;
+    AutoOSDPolicy     = INIGetInt("AutoOSDPolicy", 1, 0, 1) != 0;
+    DirectSegmentsCut = INIGetInt("DirectSegmentsCut", 0, 0, 1) == 1;
   }
   INICloseFile();
   if(IniFileState == INILOCATION_NewFile)
@@ -1298,6 +1311,7 @@ void SaveINI(void)
   HDD_ChangeDir(LOGDIR);
   INIOpenFile(INIFILENAME, PROGRAM_NAME);
   INISetInt("AutoOSDPolicy", AutoOSDPolicy ? 1 : 0);
+  INISetInt("DirectSegmentsCut", DirectSegmentsCut ? 1 : 0);
   INISaveFile(INIFILENAME, INILOCATION_AtCurrentDir, NULL);
   INICloseFile();
   HDD_TAP_PopDir();
@@ -3212,12 +3226,16 @@ void ActionMenuDraw(void)
       case MI_SelectOddSegments:
       {
         DisplayStr = (NrSegmentMarker == 4) ? LangGetString(LS_SelectPadding) : LangGetString(LS_SelectOddSegments);
+        if (DirectSegmentsCut)
+          DisplayStr = (NrSegmentMarker == 4) ? LangGetString(LS_RemovePadding) : LangGetString(LS_DeleteOddSegments);
         if (NrSegmentMarker <= 2) DisplayColor = C4;
         break;
       }
       case MI_SelectEvenSegments:
       {
         DisplayStr = (NrSegmentMarker == 4) ? LangGetString(LS_SelectMiddle) : LangGetString(LS_SelectEvenSegments);
+        if (DirectSegmentsCut)
+          DisplayStr = LangGetString(LS_DeleteEvenSegments);
         if (NrSegmentMarker <= 2) DisplayColor = C4;
         break;
       }
@@ -3322,7 +3340,7 @@ void MovieCutterSaveSegments(void)
 
   if (NrSegmentMarker > 2)
   {
-    WriteLogMC(PROGRAM_NAME, "Action 'Save Segments' started...");
+    WriteLogMC(PROGRAM_NAME, "Action 'Save segments' started...");
     MovieCutterProcess(TRUE);
   }
 
@@ -3335,7 +3353,7 @@ void MovieCutterDeleteSegments(void)
 
   if (NrSegmentMarker > 2)
   {
-    WriteLogMC(PROGRAM_NAME, "Action 'Delete Segments' started...");
+    WriteLogMC(PROGRAM_NAME, "Action 'Delete segments' started...");
     MovieCutterProcess(FALSE);
   }
 
@@ -3355,8 +3373,12 @@ void MovieCutterSelectOddSegments(void)
   OSDSegmentListDrawList();
   OSDInfoDrawProgressbar(TRUE);
 //  OSDRedrawEverything();
-//  MovieCutterProcess(TRUE, FALSE);
 
+  if (DirectSegmentsCut)
+  {
+    WriteLogMC(PROGRAM_NAME, "Action 'Delete odd segments' started...");
+    MovieCutterProcess(FALSE);
+  }
   TRACEEXIT();
 }
 
@@ -3371,8 +3393,12 @@ void MovieCutterSelectEvenSegments(void)
   OSDSegmentListDrawList();
   OSDInfoDrawProgressbar(TRUE);
 //  OSDRedrawEverything();
-//  MovieCutterProcess(TRUE, FALSE);
 
+  if (DirectSegmentsCut)
+  {
+    WriteLogMC(PROGRAM_NAME, "Action 'Delete even segments' started...");
+    MovieCutterProcess(FALSE);
+  }
   TRACEEXIT();
 }
 
@@ -3387,7 +3413,6 @@ void MovieCutterUnselectAll(void)
   OSDSegmentListDrawList();
   OSDInfoDrawProgressbar(TRUE);
 //  OSDRedrawEverything();
-//  MovieCutterProcess(TRUE, FALSE);
 
   TRACEEXIT();
 }
@@ -3496,6 +3521,8 @@ void MovieCutterProcess(bool KeepCut)
       if (isPlaybackRunning())
         TAP_Hdd_StopTs();
       NoPlaybackCheck = TRUE;
+TAP_Delay(50);  // ******* TEST V!deotext ************
+
       TAP_SPrint(LogString, "Processing segment %u", WorkingSegment);
       WriteLogMC(PROGRAM_NAME, LogString);
 
@@ -3509,10 +3536,10 @@ void MovieCutterProcess(bool KeepCut)
       CutEnding = FALSE;
       if (WorkingSegment == NrSegmentMarker - 2)
       {
-        if (KeepCut)
+//        if (KeepCut)
           //letztes Segment soll gespeichert werden -> versuche bis zum tatsächlichen Ende zu gehen
-          BehindCutPoint.BlockNr = 0xFFFFFFFF;
-        else
+//          BehindCutPoint.BlockNr = 0xFFFFFFFF;
+//        else
         {
           //letztes Segment soll geschnitten werden -> speichere stattdessen den vorderen Teil der Aufnahme und tausche mit dem Original
           CutEnding = TRUE;
@@ -3525,12 +3552,13 @@ void MovieCutterProcess(bool KeepCut)
       }
 
       // Ermittlung des Dateinamens für das CutFile
+HDD_ChangeDir(PlaybackDir);  // *********** TEST V!deotext
       GetNextFreeCutName(PlaybackName, CutFileName, NrSelectedSegments - 1);
       if (CutEnding)
       {
         strcpy(TempFileName, PlaybackName);
 //        TempFileName[strlen(PlaybackName) - 4] = '\0';
-        TAP_SPrint(&TempFileName[strlen(PlaybackName) - 4], "_CUT.rec");
+        TAP_SPrint(&TempFileName[strlen(PlaybackName) - 4], "_CUT%s", &PlaybackName[strlen(PlaybackName) - 4]);
         HDD_Delete(TempFileName);
       }
 
@@ -3751,7 +3779,7 @@ dword NavGetBlockTimeStamp(dword PlaybackBlockNr)
 // ----------------------------------------------------------------------------
 // Die Implementierung berücksichtigt (aus Versehen) auch negative Sprünge und Überlauf.
 // SOLLTE eine nav-Datei einen Überlauf beinhalten, wird dieser durch PatchOldNavFile korrigiert.
-bool PatchOldNavFileSD(char *SourceFileName)
+bool PatchOldNavFile(char *SourceFileName, bool isHD)
 {
   FILE                 *fSourceNav;
   TYPE_File            *fNewNav;
@@ -3825,11 +3853,14 @@ bool PatchOldNavFileSD(char *SourceFileName)
 
     for(i = 0; i < navsRead; i++)
     {
+      // Falls HD: Betrachte jeden tnavHD-Record als 2 tnavSD-Records, verwende den ersten und überspringe den zweiten
+      if (isHD && (i % 2 != 0)) continue;
+
       if (navRecs[i].Timems - LastTime >= 3000)
       {
         Difference += (navRecs[i].Timems - LastTime) - 1000;
 
-        TAP_SPrint(LogString, "  - Gap found at nav record nr. %u:  Offset=%llu, TimeStamp(before)=%u, TimeStamp(after)=%u, GapSize=%u", ftell(fSourceNav)/sizeof(tnavSD) - navsRead + i, ((off_t)(navRecs[i].PHOffsetHigh) << 32) | navRecs[i].PHOffset, navRecs[i].Timems, navRecs[i].Timems-Difference, navRecs[i].Timems-LastTime);
+        TAP_SPrint(LogString, "  - Gap found at nav record nr. %u:  Offset=%llu, TimeStamp(before)=%u, TimeStamp(after)=%u, GapSize=%u", ftell(fSourceNav)/sizeof(tnavSD) - navsRead + ((isHD) ? i/2 : i), ((off_t)(navRecs[i].PHOffsetHigh) << 32) | navRecs[i].PHOffset, navRecs[i].Timems, navRecs[i].Timems-Difference, navRecs[i].Timems-LastTime);
         WriteLogMC(PROGRAM_NAME, LogString);
       }
       LastTime = navRecs[i].Timems;
@@ -3941,7 +3972,7 @@ bool PatchOldNavFileHD(char *SourceFileName)
   return (Difference > 0);
 }
 
-bool PatchOldNavFile(char *SourceFileName, bool isHD)
+/*bool PatchOldNavFile(char *SourceFileName, bool isHD)
 {
   TRACEENTER();
 
@@ -3953,4 +3984,4 @@ bool PatchOldNavFile(char *SourceFileName, bool isHD)
 
   TRACEEXIT();
   return ret;
-}
+} */
