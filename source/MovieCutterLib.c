@@ -265,22 +265,24 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
 
 #ifdef FULLDEBUG
     int i;
-    off_t GuessedCutStartPos=0, GuessedBehindCutPos=0;
+    off_t GuessedCutStartPos = 0, GuessedBehindCutPos = 0;
+    off_t ReqCutStartPos  = (off_t)CutStartPoint->BlockNr * BLOCKSIZE;
+    off_t ReqBehindCutPos = (off_t)BehindCutPoint->BlockNr * BLOCKSIZE;
 
     for (i = 0; i < CUTPOINTSECTORRADIUS; i++)
     {
-      GuessedCutStartPos = ((CutStartPos >> 12) << 12) - (i * 4096);
+      GuessedCutStartPos = ((ReqCutStartPos >> 12) << 12) - (i * 4096);
 //      if (GuessedCutStartPos % 192 == 0) break;
-      if (CutPointArea1[(int)(GuessedCutStartPos - CutStartPos) + CUTPOINTSEARCHRADIUS + 4] == 'G') break;
-      GuessedCutStartPos = ((CutStartPos >> 12) << 12) + ((i+1) * 4096);
-      if (CutPointArea1[(int)(GuessedCutStartPos - CutStartPos) + CUTPOINTSEARCHRADIUS + 4] == 'G') break;
+      if (CutPointArea1[(int)(GuessedCutStartPos - ReqCutStartPos) + CUTPOINTSEARCHRADIUS + 4] == 'G') break;
+      GuessedCutStartPos = ((ReqCutStartPos >> 12) << 12) + ((i+1) * 4096);
+      if (CutPointArea1[(int)(GuessedCutStartPos - ReqCutStartPos) + CUTPOINTSEARCHRADIUS + 4] == 'G') break;
     }
     for (i = 0; i < CUTPOINTSECTORRADIUS; i++)
     {
-      GuessedBehindCutPos = ((BehindCutPos >> 12) << 12) - (i * 4096);
-      if (CutPointArea2[(int)(GuessedBehindCutPos - BehindCutPos) + CUTPOINTSEARCHRADIUS + 4] == 'G') break;
-      GuessedBehindCutPos = ((BehindCutPos >> 12) << 12) + ((i+1) * 4096);
-      if (CutPointArea2[(int)(GuessedBehindCutPos - BehindCutPos) + CUTPOINTSEARCHRADIUS + 4] == 'G') break;
+      GuessedBehindCutPos = ((ReqBehindCutPos >> 12) << 12) - (i * 4096);
+      if (CutPointArea2[(int)(GuessedBehindCutPos - ReqBehindCutPos) + CUTPOINTSEARCHRADIUS + 4] == 'G') break;
+      GuessedBehindCutPos = ((ReqBehindCutPos >> 12) << 12) + ((i+1) * 4096);
+      if (CutPointArea2[(int)(GuessedBehindCutPos - ReqBehindCutPos) + CUTPOINTSEARCHRADIUS + 4] == 'G') break;
     }
 
     if ((CutStartPos == GuessedCutStartPos) && (BehindCutPos == GuessedBehindCutPos))
