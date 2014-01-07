@@ -336,8 +336,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             {
               case MI_SaveSegment:         MovieCutterSaveSegments(); break;
               case MI_DeleteSegment:       MovieCutterDeleteSegments(); break;
-              case MI_SelectOddSegments:   MovieCutterSelectOddSegments(); break;  // DirectSegmentsCut
-              case MI_SelectEvenSegments:  MovieCutterSelectEvenSegments(); break; // DirectSegmentsCut
               case MI_ClearAll:
               {
                 (BookmarkMode) ? DeleteAllBookmarks() : DeleteAllSegmentMarkers(); 
@@ -999,7 +997,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 break;
 
               // Aktionen mit Confirmation-Dialog
-              if (ActionMenuItem==MI_SaveSegment || ActionMenuItem==MI_DeleteSegment || (ActionMenuItem==MI_ClearAll && NrSelectedSegments==0) || ActionMenuItem==MI_DeleteFile || (ActionMenuItem==MI_ImportBookmarks && ((!BookmarkMode && NrSegmentMarker>2) || (BookmarkMode && NrBookmarks>0))) || (DirectSegmentsCut && (ActionMenuItem==MI_SelectOddSegments || ActionMenuItem==MI_SelectEvenSegments)))
+              if (ActionMenuItem==MI_SaveSegment || ActionMenuItem==MI_DeleteSegment || (ActionMenuItem==MI_ClearAll && NrSelectedSegments==0) || ActionMenuItem==MI_DeleteFile || (ActionMenuItem==MI_ImportBookmarks && ((!BookmarkMode && NrSegmentMarker>2) || (BookmarkMode && NrBookmarks>0))))
               {
                 ShowConfirmationDialog(LangGetString(LS_AskConfirmation));
                 // Beim Speichern/Löschen einer Szene aus der Mitte, wird häufig das Ende der Original-Aufnahme korrumpiert!!
@@ -3322,8 +3320,11 @@ void ActionMenuRemove(void)
 {
   TRACEENTER();
 
-  TAP_Osd_Delete(rgnActionMenu);
-  rgnActionMenu = 0;
+  if(rgnActionMenu)
+  {
+    TAP_Osd_Delete(rgnActionMenu);
+    rgnActionMenu = 0;
+  }
   OSDRedrawEverything();
 //  TAP_Osd_Sync();
 
@@ -3376,8 +3377,11 @@ void MovieCutterSelectOddSegments(void)
 
   if (DirectSegmentsCut)
   {
-    WriteLogMC(PROGRAM_NAME, "Action 'Delete odd segments' started...");
-    MovieCutterProcess(FALSE);
+    State = ST_ActionMenu;
+    ActionMenuDraw();
+    ActionMenuItem = MI_DeleteSegments;
+    WriteLogMC(PROGRAM_NAME, "Action 'Delete odd segments' selected...");
+    ShowConfirmationDialog(LangGetString(LS_AskConfirmation));
   }
   TRACEEXIT();
 }
@@ -3396,8 +3400,11 @@ void MovieCutterSelectEvenSegments(void)
 
   if (DirectSegmentsCut)
   {
-    WriteLogMC(PROGRAM_NAME, "Action 'Delete even segments' started...");
-    MovieCutterProcess(FALSE);
+    State = ST_ActionMenu;
+    ActionMenuDraw();
+    ActionMenuItem = MI_DeleteSegments;
+    WriteLogMC(PROGRAM_NAME, "Action 'Delete even segments' selected...");
+    ShowConfirmationDialog(LangGetString(LS_AskConfirmation));
   }
   TRACEEXIT();
 }

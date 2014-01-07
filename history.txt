@@ -5,6 +5,7 @@
                   * Kompatibilität mit INFplus (Zusatzinfos in .inf-Dateien bleiben erhalten, Aufnahmedatum wird neu berechnet)
                   * ConfirmationDialog nun auch bei Import/Export Bookmarks (wenn Segmentliste bzw. Bookmarks gelöscht werden)
                   * neuer ini-Schalter: DirectSegmentsCut=1 bewirkt direktes Löschen der (un)geraden Segmente
+                  * Experimente zur Kompatibilität mit V!deotext-TAP
 2013-12-24 V2.0f  * kritischer Bugfix: Wenn beim Löschen des letzten Segments ein Fehler auftritt, wird die Aufnahme nicht mehr zerstört!
                   * kritischer Bugfix 2: Beim Generieren des temporären Cut-Namens konnte ein String-Überlauf auftreten! (-> TMS 2100 Absturz)
 2013-12-21 V2.0e  * Mini-Bugfix: OSD-Tastenübersicht zeigte noch "Ok"-Taste für den Menüaufruf an
