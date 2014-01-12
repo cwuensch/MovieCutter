@@ -84,8 +84,8 @@ typedef enum
 typedef enum
 {
   MI_SelectFunction,
-  MI_SaveSegment,
-  MI_DeleteSegment,
+  MI_SaveSegments,
+  MI_DeleteSegments,
   MI_SelectOddSegments,
   MI_SelectEvenSegments,
   MI_ClearAll,
@@ -224,7 +224,14 @@ int TAP_Main(void)
     TRACEENTER();
   #endif
 
-  TAP_SPrint(LogString, "MovieCutter %s started!", VERSION);
+  TAP_SPrint(LogString, "***  MovieCutter %s started!  ***", VERSION);
+  WriteLogMC(PROGRAM_NAME, LogString);
+  WriteLogMC(PROGRAM_NAME, "====================================");
+  TAP_SPrint(LogString, "Receiver Model: %s (%u)", GetToppyString(GetSysID()), GetSysID());
+  WriteLogMC(PROGRAM_NAME, LogString);
+  word FwYear; byte FwMonth, FwDay, FwDayOfWeek;
+  TAP_ExtractMjd(FirmwareDatMJD(), &FwYear, &FwMonth, &FwDay, &FwDayOfWeek);
+  TAP_SPrint(LogString, "Firmware: %s (%u-%2.2u-%2.2u)", GetApplVer(), FwYear, FwMonth, FwDay);
   WriteLogMC(PROGRAM_NAME, LogString);
 
   CreateSettingsDir();
@@ -286,6 +293,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   DoNotReenter = TRUE;
 
   TRACEENTER();
+  #if STACKTRACE == TRUE
+    TAP_PrintNet("Status = %u\n", State);
+  #endif
 
   if(event == EVT_TMSCommander)
   {
@@ -313,6 +323,17 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     State = ST_Exit;
   }
 
+  // Notfall-AUS
+  #ifdef FULLDEBUG
+    if(event == EVT_KEY && param1 == RKEY_Sleep)
+    {
+      if (OSDMenuMessageBoxIsVisible()) OSDMenuMessageBoxDestroy();
+      TAP_EnterNormal();
+      State = ST_Exit;
+      param1 = 0;
+    }
+  #endif
+
   // Behandlung von offenen MesssageBoxen
   // ------------------------------------
   if(OSDMenuMessageBoxIsVisible())
@@ -326,6 +347,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         {
           OSDMenuMessageBoxDestroyNoOSDUpdate();
           MCShowMessageBox = FALSE;
+//          OSDMenuFreeStdFonts();
           TAP_Osd_Sync();
           OSDRedrawEverything();
           if ((param1 == RKEY_Ok) && (OSDMenuMessageBoxLastButton() == 0))
@@ -334,8 +356,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             State = ST_ActiveOSD;
             switch(ActionMenuItem)
             {
-              case MI_SaveSegment:         MovieCutterSaveSegments(); break;
-              case MI_DeleteSegment:       MovieCutterDeleteSegments(); break;
+              case MI_SaveSegments:        MovieCutterSaveSegments(); break;
+              case MI_DeleteSegments:      MovieCutterDeleteSegments(); break;
               case MI_ClearAll:
               {
                 (BookmarkMode) ? DeleteAllBookmarks() : DeleteAllSegmentMarkers(); 
@@ -355,6 +377,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         {
           OSDMenuMessageBoxDestroyNoOSDUpdate();
           MCShowMessageBox = FALSE;
+//          OSDMenuFreeStdFonts();
           TAP_Osd_Sync();
 
           if (RebootMessage || NavLengthMessage)
@@ -390,11 +413,18 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               ClearOSD(TRUE);
             }
           }
+          else
+          {
+            PlaybackRepeatSet(OldRepeatMode);
+//            ClearOSD(TRUE);
+            TAP_EnterNormalNoInfo();
+          }
         }
         // ST_ActiveOSD: SegmentListIsFull-Message
         else if (State == ST_ActiveOSD)
         {
           OSDMenuMessageBoxDestroyNoOSDUpdate();
+//          OSDMenuFreeStdFonts();
           MCShowMessageBox = FALSE;
           TAP_Osd_Sync();
           OSDRedrawEverything();
@@ -486,9 +516,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 //          if(RecFileSize <= 0)
           if(!HDD_GetFileSizeAndInode(PlaybackDir, PlaybackName, NULL, &RecFileSize))
           {
+            State = ST_UnacceptedFile;
             WriteLogMC(PROGRAM_NAME, ".rec size could not be detected!");
             ShowErrorMessage(LangGetString(LS_NoRecSize));
-            State = ST_UnacceptedFile;
             break;
           }
 
@@ -500,27 +530,27 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           //Check if a nav is available
           if(!isNavAvailable(PlaybackName))
           {
+            State = ST_UnacceptedFile;
             WriteLogMC(PROGRAM_NAME, ".nav is missing!");
             ShowErrorMessage(LangGetString(LS_MissingNav));
-            State = ST_UnacceptedFile;
             break;
           }
 
           //Check if it is crypted
           if(isCrypted(PlaybackName))
           {
+            State = ST_UnacceptedFile;
             WriteLogMC(PROGRAM_NAME, "File is crypted!");
             ShowErrorMessage(LangGetString(LS_IsCrypted));
-            State = ST_UnacceptedFile;
             break;
           }
           
           // Detect if video stream is in HD
           if (!isHDVideo(PlaybackName, &HDVideo))
           {
+            State = ST_UnacceptedFile;
             WriteLogMC(PROGRAM_NAME, "Could not detect type of video stream!");
             ShowErrorMessage(LangGetString(LS_HDDetectionFailed));
-            State = ST_UnacceptedFile;
             break;
           }
           WriteLogMC(PROGRAM_NAME, (HDVideo) ? "Type of recording: HD" : "Type of recording: SD");
@@ -554,9 +584,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           }
           else
           {
+            State = ST_UnacceptedFile;
             WriteLogMC(PROGRAM_NAME, "Error loading the .nav file!");
             ShowErrorMessage(LangGetString(LS_NavLoadFailed));
-            State = ST_UnacceptedFile;
             break;
           }
           LastTimeStamp = &TimeStamps[0];
@@ -585,9 +615,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             // [COMPATIBILITY LAYER - fill holes in old nav file]
             if (PatchOldNavFile(PlaybackName, HDVideo))
             {
+              PlaybackRepeatSet(TRUE);
+              LastTotalBlocks = 0;
               WriteLogMC(PROGRAM_NAME, ".nav file patched by Compatibility Layer.");
               ShowErrorMessage(LangGetString(LS_NavPatched));
-              LastTotalBlocks = 0;
               break;
             }
             else
@@ -604,12 +635,12 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           {
             if(!AddDefaultSegmentMarker())
             {
-              WriteLogMC(PROGRAM_NAME, "Error adding default segment markers!");
-              ShowErrorMessage(LangGetString(LS_NavLoadFailed));
-              
-              State = ST_UnacceptedFile;
               RebootMessage = FALSE;
               NavLengthMessage = FALSE;
+              State = ST_UnacceptedFile;
+
+              WriteLogMC(PROGRAM_NAME, "Error adding default segment markers!");
+              ShowErrorMessage(LangGetString(LS_NavLoadFailed));
               break;
             }
           }
@@ -862,8 +893,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             {
               Playback_Pause();
             }
-            ActionMenuDraw();
             State = ST_ActionMenu;
+            ActionMenuItem = 0;
+            ActionMenuDraw();
             break;
           }
 
@@ -876,8 +908,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             else
             {
               Playback_Normal();
-//              ActionMenuDraw();
 //              State = ST_ActionMenu;
+//              ActionMenuItem = 0;
+//              ActionMenuDraw();
             }
             break;
           }
@@ -993,11 +1026,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             if(ActionMenuItem != MI_SelectFunction)
             {
               // Deaktivierte Aktionen
-              if ((ActionMenuItem==MI_SaveSegment || ActionMenuItem==MI_DeleteSegment || ActionMenuItem==MI_SelectOddSegments || ActionMenuItem==MI_SelectEvenSegments) && NrSegmentMarker<=2)
+              if ((ActionMenuItem==MI_SaveSegments || ActionMenuItem==MI_DeleteSegments || ActionMenuItem==MI_SelectOddSegments || ActionMenuItem==MI_SelectEvenSegments) && NrSegmentMarker<=2)
                 break;
 
               // Aktionen mit Confirmation-Dialog
-              if (ActionMenuItem==MI_SaveSegment || ActionMenuItem==MI_DeleteSegment || (ActionMenuItem==MI_ClearAll && NrSelectedSegments==0) || ActionMenuItem==MI_DeleteFile || (ActionMenuItem==MI_ImportBookmarks && ((!BookmarkMode && NrSegmentMarker>2) || (BookmarkMode && NrBookmarks>0))))
+              if (ActionMenuItem==MI_SaveSegments || ActionMenuItem==MI_DeleteSegments || (ActionMenuItem==MI_ClearAll && NrSelectedSegments==0) || ActionMenuItem==MI_DeleteFile || (ActionMenuItem==MI_ImportBookmarks && ((!BookmarkMode && NrSegmentMarker>2) || (BookmarkMode && NrBookmarks>0))))
               {
                 ShowConfirmationDialog(LangGetString(LS_AskConfirmation));
                 // Beim Speichern/Löschen einer Szene aus der Mitte, wird häufig das Ende der Original-Aufnahme korrumpiert!!
@@ -1078,6 +1111,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       FMUC_FreeFontFile(&Calibri_10_FontDataUC);
       FMUC_FreeFontFile(&Calibri_12_FontDataUC);
       FMUC_FreeFontFile(&Calibri_14_FontDataUC);
+//      OSDMenuFreeStdFonts();
       TAP_Exit();
       break;
     }
@@ -1987,7 +2021,7 @@ bool CutFileLoad(void)
     }
     else
     {
-      WriteLogMC(PROGRAM_NAME, "CutFileLoad: Less than 2 timestamps imported, or NavTimeStamps=NULL!"); 
+      WriteLogMC(PROGRAM_NAME, "CutFileLoad: Two or less timestamps imported, or NavTimeStamps=NULL!"); 
       NrSegmentMarker = 0;
     }
   }
@@ -1997,7 +2031,7 @@ bool CutFileLoad(void)
   {
     NrSegmentMarker = 0;
     ActiveSegment = 0;
-    WriteLogMC(PROGRAM_NAME, "CutFileLoad: Less than 2 timestamps imported, resetting!"); 
+    WriteLogMC(PROGRAM_NAME, "CutFileLoad: Two or less timestamps imported, resetting!"); 
     TRACEEXIT();
     return FALSE;
   }
@@ -3158,7 +3192,7 @@ void ActionMenuDraw(void)
   if(!rgnActionMenu)
   {
     rgnActionMenu = TAP_Osd_Create(((720 - _ActionMenu9_Gd.width) >> 1) +25, 70, _ActionMenu9_Gd.width, _ActionMenu9_Gd.height, 0, 0);
-    ActionMenuItem = 0;
+//    ActionMenuItem = 0;
   }
 
   TAP_Osd_PutGd(rgnActionMenu, 0, 0, &_ActionMenu9_Gd, FALSE);
@@ -3189,7 +3223,7 @@ void ActionMenuDraw(void)
     switch(i)
     {
       case MI_SelectFunction:     DisplayStr = LangGetString(LS_SelectFunction); break;
-      case MI_SaveSegment:
+      case MI_SaveSegments:
       {
         if (NrSelectedSegments == 0)
         {
@@ -3205,7 +3239,7 @@ void ActionMenuDraw(void)
         }
         break;
       }
-      case MI_DeleteSegment:
+      case MI_DeleteSegments:
       {
         if (NrSelectedSegments == 0)
         {
@@ -3341,7 +3375,7 @@ void MovieCutterSaveSegments(void)
 
   if (NrSegmentMarker > 2)
   {
-    WriteLogMC(PROGRAM_NAME, "Action 'Save segments' started...");
+    WriteLogMC(PROGRAM_NAME, "[Action 'Save segments' started...]");
     MovieCutterProcess(TRUE);
   }
 
@@ -3354,7 +3388,7 @@ void MovieCutterDeleteSegments(void)
 
   if (NrSegmentMarker > 2)
   {
-    WriteLogMC(PROGRAM_NAME, "Action 'Delete segments' started...");
+    WriteLogMC(PROGRAM_NAME, "[Action 'Delete segments' started...]");
     MovieCutterProcess(FALSE);
   }
 
@@ -3380,7 +3414,7 @@ void MovieCutterSelectOddSegments(void)
     State = ST_ActionMenu;
     ActionMenuDraw();
     ActionMenuItem = MI_DeleteSegments;
-    WriteLogMC(PROGRAM_NAME, "Action 'Delete odd segments' selected...");
+    WriteLogMC(PROGRAM_NAME, "[Action 'Delete odd segments' selected...]");
     ShowConfirmationDialog(LangGetString(LS_AskConfirmation));
   }
   TRACEEXIT();
@@ -3403,7 +3437,7 @@ void MovieCutterSelectEvenSegments(void)
     State = ST_ActionMenu;
     ActionMenuDraw();
     ActionMenuItem = MI_DeleteSegments;
-    WriteLogMC(PROGRAM_NAME, "Action 'Delete even segments' selected...");
+    WriteLogMC(PROGRAM_NAME, "[Action 'Delete even segments' selected...]");
     ShowConfirmationDialog(LangGetString(LS_AskConfirmation));
   }
   TRACEEXIT();
@@ -3565,7 +3599,7 @@ HDD_ChangeDir(PlaybackDir);  // *********** TEST V!deotext
       {
         strcpy(TempFileName, PlaybackName);
 //        TempFileName[strlen(PlaybackName) - 4] = '\0';
-        TAP_SPrint(&TempFileName[strlen(PlaybackName) - 4], "_CUT%s", &PlaybackName[strlen(PlaybackName) - 4]);
+        TAP_SPrint(&TempFileName[strlen(PlaybackName) - 4], "_temp%s", &PlaybackName[strlen(PlaybackName) - 4]);
         HDD_Delete(TempFileName);
       }
 
@@ -3581,7 +3615,7 @@ HDD_ChangeDir(PlaybackDir);  // *********** TEST V!deotext
           WriteLogMC(PROGRAM_NAME, LogString);
           HDD_Rename(PlaybackName, CutFileName);
         }
-        else 
+        else
           HDD_Delete(PlaybackName);
         TAP_SPrint(LogString, "Renaming cutfile '%s' to '%s'", TempFileName, PlaybackName);
         WriteLogMC(PROGRAM_NAME, LogString);
@@ -3600,8 +3634,8 @@ HDD_ChangeDir(PlaybackDir);  // *********** TEST V!deotext
       //Bail out if the cut failed
       if(ret == RC_Error)
       {
-        ShowErrorMessage(LangGetString(LS_CutHasFailed));
         State = ST_UnacceptedFile;
+        ShowErrorMessage(LangGetString(LS_CutHasFailed));
         break;
       }
 
@@ -3648,9 +3682,9 @@ HDD_ChangeDir(PlaybackDir);  // *********** TEST V!deotext
       {
         if((ret==RC_Warning) || !TAP_Hdd_Exist(PlaybackName) || TAP_Hdd_Exist(TempFileName))
         {
+          State = ST_UnacceptedFile;
           WriteLogMC(PROGRAM_NAME, "Error processing the last segment: Renaming or nav-generation failed!");
           ShowErrorMessage(LangGetString(LS_CutHasFailed));
-          State = ST_UnacceptedFile;
           break;
         }
       }
@@ -3797,7 +3831,6 @@ bool PatchOldNavFile(char *SourceFileName, bool isHD)
   char                  AbsFileName[512];
 
   TRACEENTER();
-  WriteLogMC(PROGRAM_NAME, "Checking source nav file (possibly older version with incorrect Times)...");
 
   HDD_ChangeDir(PlaybackDir);
   TAP_SPrint(FileName, "%s.nav", SourceFileName);
@@ -3809,6 +3842,8 @@ bool PatchOldNavFile(char *SourceFileName, bool isHD)
     TRACEEXIT();
     return FALSE;
   }
+
+  WriteLogMC(PROGRAM_NAME, "Checking source nav file (possibly older version with incorrect Times)...");
 
   //Rename the original nav file to bak
   TAP_Hdd_Rename(FileName, BakFileName);
@@ -3867,7 +3902,7 @@ bool PatchOldNavFile(char *SourceFileName, bool isHD)
       {
         Difference += (navRecs[i].Timems - LastTime) - 1000;
 
-        TAP_SPrint(LogString, "  - Gap found at nav record nr. %u:  Offset=%llu, TimeStamp(before)=%u, TimeStamp(after)=%u, GapSize=%u", ftell(fSourceNav)/sizeof(tnavSD) - navsRead + ((isHD) ? i/2 : i), ((off_t)(navRecs[i].PHOffsetHigh) << 32) | navRecs[i].PHOffset, navRecs[i].Timems, navRecs[i].Timems-Difference, navRecs[i].Timems-LastTime);
+        TAP_SPrint(LogString, "  - Gap found at nav record nr. %u:  Offset=%llu, TimeStamp(before)=%u, TimeStamp(after)=%u, GapSize=%u", (ftell(fSourceNav)/sizeof(tnavSD) - navsRead + i) / ((isHD) ? 2 : 1), ((off_t)(navRecs[i].PHOffsetHigh) << 32) | navRecs[i].PHOffset, navRecs[i].Timems, navRecs[i].Timems-Difference, navRecs[i].Timems-LastTime);
         WriteLogMC(PROGRAM_NAME, LogString);
       }
       LastTime = navRecs[i].Timems;

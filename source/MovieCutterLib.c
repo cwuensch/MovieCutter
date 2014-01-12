@@ -16,8 +16,8 @@ bool        UnpatchRecFile(char const *SourceFileName, char const *CutFileName, 
 bool        ReadCutPointArea(char const *SourceFileName, off_t CutPosition, byte CutPointArray[]);
 bool        ReadFirstAndLastCutPacket(char const *FileName, byte FirstCutPacket[], byte LastCutPacket[]);
 bool        FindCutPointOffset(const byte CutPacket[], const byte CutPointArray[], long *const Offset);
-bool        PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeStamp const *CutStartPoint, tTimeStamp const *BehindCutPoint);
-bool        PatchNavFiles(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, bool isHD, dword *const CutStartTime, dword *const BehindCutTime);
+bool        PatchInfFiles(char const *SourceFileName, char const *CutFileName, dword SourcePlayTime, tTimeStamp const *CutStartPoint, tTimeStamp const *BehindCutPoint);
+bool        PatchNavFiles(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, bool isHD, dword *const OutCutStartTime, dword *const OutBehindCutTime, dword *const OutSourcePlayTime);
 //bool        PatchNavFilesSD(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, dword *const OutCutStartTime, dword *const OutBehindCutTime);
 //bool        PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, dword *const OutCutStartTime, dword *const OutBehindCutTime);
 //tTimeStamp* NavLoadSD(char const *SourceFileName, dword *const NrTimeStamps);
@@ -125,6 +125,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
   dword                 SourceFileBlocks;
   off_t                 CutStartPos, BehindCutPos;
   long                  CutStartPosOffset, BehindCutPosOffset;
+  dword                 SourcePlayTime = 0;
   bool                  SuppressNavGeneration;
   dword                 RecDate;
 //  char                  TimeStr[16];
@@ -183,6 +184,31 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
     WriteLogMC("MovieCutterLib", "MovieCutter() W0002: nav creation suppressed.");
     SuppressNavGeneration = TRUE;
   }
+
+// *********** V!deotext Test
+  char                 AbsFileName[MAX_FILE_NAME_SIZE + 1];
+  FILE                *test;
+  int                  iterations = 0;
+
+  HDD_TAP_GetCurrentDir(CurrentDir);
+  TAP_SPrint(AbsFileName, "%s%s/%s", TAPFSROOT, CurrentDir, SourceFileName);
+  do
+  {
+    test = fopen(AbsFileName, "r+b");
+    if (test == 0)
+    {
+      TAP_SPrint(LogString, "Could not obtain write handle for rec-file '%s'!", AbsFileName);
+      WriteLogMC("MovieCutterLib", LogString);
+      TAP_Delay(10);
+    }
+    iterations++;
+  } while ((iterations <= 200) && (test == 0));
+  if (test != 0)
+  {
+    WriteLogMC("MovieCutterLib", "Write handle for rec-file successfully obtained!");
+    fclose(test);
+  }
+// *********** V!deotext Test End
 
   // Patch the rec-File to prevent the firmware from cutting in the middle of a packet
   if (!SuppressNavGeneration)
@@ -275,14 +301,20 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
 //      if (GuessedCutStartPos % 192 == 0) break;
       if (CutPointArea1[(int)(GuessedCutStartPos - ReqCutStartPos) + CUTPOINTSEARCHRADIUS + 4] == 'G') break;
       GuessedCutStartPos = ((ReqCutStartPos >> 12) << 12) + ((i+1) * 4096);
-      if (CutPointArea1[(int)(GuessedCutStartPos - ReqCutStartPos) + CUTPOINTSEARCHRADIUS + 4] == 'G') break;
+      if (CutPointArea1[(int)(GuessedCutStartPos - ReqCutStartPos) + CUTPOINTSEARCHRADIUS + 4] == 'G')
+        break;
+      else
+        GuessedCutStartPos = 0;
     }
     for (i = 0; i < CUTPOINTSECTORRADIUS; i++)
     {
       GuessedBehindCutPos = ((ReqBehindCutPos >> 12) << 12) - (i * 4096);
       if (CutPointArea2[(int)(GuessedBehindCutPos - ReqBehindCutPos) + CUTPOINTSEARCHRADIUS + 4] == 'G') break;
       GuessedBehindCutPos = ((ReqBehindCutPos >> 12) << 12) + ((i+1) * 4096);
-      if (CutPointArea2[(int)(GuessedBehindCutPos - ReqBehindCutPos) + CUTPOINTSEARCHRADIUS + 4] == 'G') break;
+      if (CutPointArea2[(int)(GuessedBehindCutPos - ReqBehindCutPos) + CUTPOINTSEARCHRADIUS + 4] == 'G')
+        break;
+      else
+        GuessedBehindCutPos = 0;
     }
 
     if ((CutStartPos == GuessedCutStartPos) && (BehindCutPos == GuessedBehindCutPos))
@@ -320,7 +352,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
   // Patch the nav files (and get the TimeStamps for the actual cutting positions)
   if(!SuppressNavGeneration)
   {
-    if(PatchNavFiles(SourceFileName, CutFileName, CutStartPos, BehindCutPos, isHD, &(CutStartPoint->Timems), &(BehindCutPoint->Timems)))
+    if(PatchNavFiles(SourceFileName, CutFileName, CutStartPos, BehindCutPos, isHD, &(CutStartPoint->Timems), &(BehindCutPoint->Timems), &SourcePlayTime))
       TAP_Hdd_Delete(BakFileName);
     else
     {
@@ -334,7 +366,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
   }
 
   // Copy the inf file and patch both play lengths
-  if (!PatchInfFiles(SourceFileName, CutFileName, CutStartPoint, BehindCutPoint))
+  if (!PatchInfFiles(SourceFileName, CutFileName, SourcePlayTime, CutStartPoint, BehindCutPoint))
     WriteLogMC("MovieCutterLib", "MovieCutter() W0009: inf creation failed.");
 
   // Fix the date info of all involved files
@@ -662,7 +694,6 @@ bool WriteByteToFile(char const *FileName, off_t BytePosition, char OldValue, ch
 // Patches the rec-File to prevent the firmware from cutting in the middle of a packet
 bool PatchRecFile(char const *SourceFileName, off_t RequestedCutPosition, byte CutPointArray[], off_t OutPatchedBytes[])
 {
-  const byte           *MidArray;
   off_t                 pos;
   int                   ArrayPos;
   int                   i, j;
@@ -674,7 +705,7 @@ bool PatchRecFile(char const *SourceFileName, off_t RequestedCutPosition, byte C
     WriteLogMC("MovieCutterLib", "PatchRecFile()");
 //  #endif
 
-  MidArray = &CutPointArray[CUTPOINTSEARCHRADIUS];  
+  byte *const           MidArray = &CutPointArray[CUTPOINTSEARCHRADIUS];
 
   // For each of the 4 (Austr: 48) possible cut positions
   for (i = -(CUTPOINTSECTORRADIUS-1); i <= CUTPOINTSECTORRADIUS; i++)
@@ -705,7 +736,7 @@ bool PatchRecFile(char const *SourceFileName, off_t RequestedCutPosition, byte C
         if (WriteByteToFile(SourceFileName, pos+4, 'G', 'F'))
         {
           OutPatchedBytes[i + (CUTPOINTSECTORRADIUS-1)] = pos+4;
-          CutPointArray[ArrayPos+4] = 'F';  // ACHTUNG! Nötig, damit die neue Schätzung der CutPosition korrekt funktioniert.
+          MidArray[ArrayPos+4] = 'F';       // ACHTUNG! Nötig, damit die neue Schätzung der CutPosition korrekt funktioniert.
         }                                   // Könnte aber ein Problem geben bei der (alten) CutPoint-Identifikation (denn hier wird der noch ungepatchte Wert aus dem Cache gelesen)!
         else
           ret = FALSE;
@@ -940,18 +971,19 @@ bool GetRecDateFromInf(char const *FileName, dword *const DateTime)
   return TRUE;
 }
 
-bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeStamp const *CutStartPoint, tTimeStamp const *BehindCutPoint)
+bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, dword SourcePlayTime, tTimeStamp const *CutStartPoint, tTimeStamp const *BehindCutPoint)
 {
   char                  InfFileName[MAX_FILE_NAME_SIZE + 1];
   char                  CurrentDir[512];
   char                  T1[12], T2[10], T3[12];
   byte                  Buffer[INFSIZE];
   tRECHeaderInfo        RECHeaderInfo;
-  TYPE_File            *f;
-  FILE                 *f2;
+  TYPE_File            *f2;
+  FILE                 *f;
   dword                 fs;
   dword                 Bookmarks[177];
-  dword                 SourcePlayTime, CutPlayTime;
+  dword                 CutPlayTime;
+  dword                 OrigHeaderStartTime;
   word                  i;
   bool                  SetCutBookmark;
   bool                  result = TRUE;
@@ -965,10 +997,22 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
   TAP_SPrint(LogString, "cp \"%s%s/%s.inf\" \"%s%s/%s.inf\"", TAPFSROOT, CurrentDir, SourceFileName, TAPFSROOT, CurrentDir, CutFileName);
   system(LogString);
 
+
+// DEBUG
+//Calculate the new play times
+CutPlayTime = (dword)(((BehindCutPoint->Timems - CutStartPoint->Timems) + 500) / 1000);
+SecToTimeString(CutPlayTime, T2);
+TAP_SPrint(LogString, "Playtimes: Cut = %s", T2);
+WriteLogMC("MovieCutterLib", LogString);
+// DEBUG
+
+
   //Read the source .inf
   HDD_TAP_GetCurrentDir(CurrentDir);
-  TAP_SPrint(InfFileName, "%s.inf", SourceFileName);
-  f = TAP_Hdd_Fopen(InfFileName);
+//  TAP_SPrint(InfFileName, "%s.inf", SourceFileName);
+//  f2 = TAP_Hdd_Fopen(InfFileName);
+  TAP_SPrint(InfFileName, "%s%s/%s.inf", TAPFSROOT, CurrentDir, SourceFileName);
+  f = fopen(InfFileName, "rb");
   if(!f)
   {
     WriteLogMC("MovieCutterLib", "PatchInfFiles() E0901: source inf not patched, cut inf not created.");
@@ -976,9 +1020,16 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
     return FALSE;
   }
 
-  fs = TAP_Hdd_Flen(f);
-  TAP_Hdd_Fread(Buffer, 1, INFSIZE, f);
-  TAP_Hdd_Fclose(f);
+//  fs = TAP_Hdd_Flen(f2);
+//  TAP_Hdd_Fread(Buffer, 1, INFSIZE, f2);
+//  TAP_Hdd_Fclose(f2);
+  fseek(f, 0, SEEK_END);
+  fs = ftell(f);
+  rewind(f);
+dword BytesRead = fread(Buffer, 1, INFSIZE, f);
+  fclose(f);
+TAP_SPrint(LogString, "PatchInfFiles(): %u / %u Bytes read.", BytesRead, fs);
+WriteLogMC("MovieCutterLib", LogString);
 
   //Decode the source .inf
   if(!HDD_DecodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN))
@@ -987,9 +1038,13 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
     TRACEEXIT();
     return FALSE;
   }
+WriteLogMC("MovieCutterLib", "Header erfolgreich decoded!");
 
   //Calculate the new play times
-  SourcePlayTime = 60 * RECHeaderInfo.HeaderDuration + RECHeaderInfo.HeaderDurationSec;
+  if (SourcePlayTime)
+    SourcePlayTime = (dword)((SourcePlayTime + 500) / 1000);
+  else
+    SourcePlayTime = 60 * RECHeaderInfo.HeaderDuration + RECHeaderInfo.HeaderDurationSec;
   CutPlayTime = (dword)(((BehindCutPoint->Timems - CutStartPoint->Timems) + 500) / 1000);
   SecToTimeString(SourcePlayTime, T1);
   SecToTimeString(CutPlayTime, T2);
@@ -1004,8 +1059,9 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
   RECHeaderInfo.HeaderDurationSec = SourcePlayTime % 60;
 
   //Set recording time of the source file
+  OrigHeaderStartTime = RECHeaderInfo.HeaderStartTime;
   if (CutStartPoint->BlockNr == 0)
-    RECHeaderInfo.HeaderStartTime = AddTime(RECHeaderInfo.HeaderStartTime, BehindCutPoint->Timems / 60000);  // *********** TESTEN!!! (das ist eine TFTime, wie addiert man da Minuten/Sekunden!? ****************
+    RECHeaderInfo.HeaderStartTime = AddTime(OrigHeaderStartTime, BehindCutPoint->Timems / 60000);
 
   //Save all bookmarks to a temporary array
   memcpy(Bookmarks, RECHeaderInfo.Bookmark, 177 * sizeof(dword));
@@ -1064,12 +1120,12 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
   if(HDD_EncodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN))
   {
     TAP_SPrint(InfFileName, "%s%s/%s.inf", TAPFSROOT, CurrentDir, SourceFileName);
-    f2 = fopen(InfFileName, "r+b");
-    if(f2 != 0)
+    f = fopen(InfFileName, "r+b");
+    if(f != 0)
     {
-      fseek(f2, 0, SEEK_SET);
-      fwrite(Buffer, 1, min(fs, INFSIZE), f2);
-      fclose(f2);
+      fseek(f, 0, SEEK_SET);
+      fwrite(Buffer, 1, min(fs, INFSIZE), f);
+      fclose(f);
     }
     else
     {
@@ -1089,7 +1145,7 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
   RECHeaderInfo.HeaderDurationSec = CutPlayTime % 60;
 
   //Set recording time of the cut file
-  RECHeaderInfo.HeaderStartTime = AddTime(RECHeaderInfo.HeaderStartTime, CutStartPoint->Timems / 60000);  // *********** TESTEN!!! (das ist eine TFTime, wie addiert man da Minuten/Sekunden!? ****************
+  RECHeaderInfo.HeaderStartTime = AddTime(OrigHeaderStartTime, CutStartPoint->Timems / 60000);
 
   //Clear all source Bookmarks
   memset(RECHeaderInfo.Bookmark, 0, 177 * sizeof(dword));
@@ -1117,12 +1173,12 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
     if(!TAP_Hdd_Exist(InfFileName)) TAP_Hdd_Create(InfFileName, ATTR_NORMAL);
 
     TAP_SPrint(InfFileName, "%s%s/%s.inf", TAPFSROOT, CurrentDir, CutFileName);
-    f2 = fopen(InfFileName, "r+b");
-    if(f2 != 0)
+    f = fopen(InfFileName, "r+b");
+    if(f != 0)
     {
-      fseek(f2, 0, SEEK_SET);
-      fwrite(Buffer, 1, min(fs, INFSIZE), f2);
-      fclose(f2);
+      fseek(f, 0, SEEK_SET);
+      fwrite(Buffer, 1, min(fs, INFSIZE), f);
+      fclose(f);
     }
     else
     {
@@ -1159,7 +1215,7 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, tTimeSta
   return ret;
 } */
 
-bool PatchNavFiles(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, bool isHD, dword *const OutCutStartTime, dword *const OutBehindCutTime)
+bool PatchNavFiles(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, bool isHD, dword *const OutCutStartTime, dword *const OutBehindCutTime, dword *const OutSourcePlayTime)
 {
   FILE                 *fSourceNav;
   TYPE_File            *fCutNav, *fSourceNavNew;
@@ -1170,7 +1226,7 @@ bool PatchNavFiles(char const *SourceFileName, char const *CutFileName, off_t Cu
   bool                  IFrameCut, IFrameSource;
   char                  CurrentDir[512];
   char                  AbsFileName[512];
-  dword                 FirstCutTime, LastCutTime, FirstSourceTime;
+  dword                 FirstCutTime, LastCutTime, FirstSourceTime, LastSourceTime;
 
   TRACEENTER();
   #ifdef FULLDEBUG
@@ -1241,6 +1297,7 @@ bool PatchNavFiles(char const *SourceFileName, char const *CutFileName, off_t Cu
   FirstCutTime = 0xFFFFFFFF;
   LastCutTime = 0;
   FirstSourceTime = 0;
+  LastSourceTime = 0;
   bool FirstRun = TRUE;
   while(TRUE)
   {
@@ -1306,8 +1363,10 @@ bool PatchNavFiles(char const *SourceFileName, char const *CutFileName, off_t Cu
         }
 
         if (PictureHeaderOffset >= BehindCutPos)
+        {
           if (FirstSourceTime == 0) FirstSourceTime = navSource[i].Timems; 
-//        LastSourceTime = navSource[i].Timems;
+          LastSourceTime = navSource[i].Timems;
+        }
 
         if((navSource[i].SHOffset >> 24) == 1) IFrameSource = TRUE;
         if(IFrameSource)
@@ -1326,7 +1385,7 @@ bool PatchNavFiles(char const *SourceFileName, char const *CutFileName, off_t Cu
 
           if (isHD)
           {
-            memcpy(&navSourceNew[navRecsSourceNew], &navSource[i], sizeof(tnavSD));
+            memcpy(&navSourceNew[navRecsSourceNew], &navSource[i+1], sizeof(tnavSD));
             navRecsSourceNew++;
           }
         }
@@ -1348,6 +1407,7 @@ bool PatchNavFiles(char const *SourceFileName, char const *CutFileName, off_t Cu
 
   *OutCutStartTime = FirstCutTime;
   *OutBehindCutTime = (FirstSourceTime) ? FirstSourceTime : LastCutTime;
+  *OutSourcePlayTime = (LastSourceTime) ? LastSourceTime : LastCutTime;
 
   //Delete the orig source nav and make the new source nav the active one
 //  TAP_SPrint(FileName, "%s.nav.bak", SourceFileName);
@@ -1566,6 +1626,7 @@ tTimeStamp* NavLoad(char const *SourceFileName, dword *const NrTimeStamps, bool 
   tnavSD               *navBuffer = NULL;
   tTimeStamp           *TimeStampBuffer = NULL;
   tTimeStamp           *TimeStamps = NULL;
+  dword                 NavRecordsNr;
   dword                 ret, i;
   dword                 FirstTime;
   dword                 LastTimeStamp;
@@ -1590,7 +1651,9 @@ tTimeStamp* NavLoad(char const *SourceFileName, dword *const NrTimeStamps, bool 
   fseek(fNav, 0, SEEK_END);
   NavSize = ftell(fNav);
   rewind(fNav);
-  TimeStampBuffer = (tTimeStamp*) TAP_MemAlloc(sizeof(tTimeStamp) * (NavSize / sizeof(tnavSD)));
+  NavRecordsNr = NavSize / (sizeof(tnavSD) * ((isHD) ? 2 : 1));
+
+  TimeStampBuffer = (tTimeStamp*) TAP_MemAlloc(sizeof(tTimeStamp) * NavRecordsNr);
   if (!TimeStampBuffer)
   {
     fclose(fNav);
@@ -1600,8 +1663,8 @@ tTimeStamp* NavLoad(char const *SourceFileName, dword *const NrTimeStamps, bool 
   }
 
 #ifdef FULLDEBUG
-  TAP_PrintNet("NavSize: %u\t\tBufSize: %u\n", NavSize, sizeof(tTimeStamp) * (NavSize / sizeof(tnavSD)));
-  TAP_PrintNet("Expected Nav-Records: %u\n", NavSize / sizeof(tnavSD));
+  TAP_PrintNet("NavSize: %u\t\tBufSize: %u\n", NavSize, sizeof(tTimeStamp) * NavRecordsNr);
+  TAP_PrintNet("Expected Nav-Records: %u\n", NavRecordsNr);
 #endif
 
   //Count and save all the _different_ time stamps in the .nav

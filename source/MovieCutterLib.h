@@ -7,8 +7,11 @@
 #define BLOCKSIZE               9024
 //#define TEMPCUTNAME        "__tempcut__.ts"
 
-#define FULLDEBUG               TRUE
+#ifndef FULLDEBUG
+  #define FULLDEBUG               TRUE
+#endif
 
+//#define STACKTRACE              TRUE
 #if STACKTRACE == TRUE
   #define TRACEENTER()    CallTraceEnter((char*)__FUNCTION__)
   #define TRACEEXIT()     CallTraceExit(NULL)
