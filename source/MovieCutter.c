@@ -104,7 +104,7 @@ typedef enum
   LS_Move,
   LS_PauseMenu,
   LS_Select,
-  LS_MissingNav,     // error message
+  LS_NoNavMessage,     // error message
  // Menu entries (1)
   LS_DeleteSegments,
   LS_DeleteFile,
@@ -167,6 +167,7 @@ bool                    DirectSegmentsCut = FALSE;
 // MovieCutter state variables
 tState                  State = ST_Init;
 bool                    MCShowMessageBox = FALSE;
+bool                    LinearTimeMode = FALSE;
 bool                    BookmarkMode;
 TYPE_TrickMode          TrickMode;
 byte                    TrickModeSpeed;
@@ -281,6 +282,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   dword                 SysState, SysSubState;
   static bool           DoNotReenter = FALSE;
   static bool           OldRepeatMode = FALSE;
+  static bool           NoNavMessage = FALSE;
   static bool           RebootMessage = FALSE;
   static bool           NavLengthMessage = FALSE;
   static char           NavLengthWrongStr[128];
@@ -372,7 +374,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           else
             ActionMenuDraw();
         }
-        // ST_WaitForPlayback: NavPatched-Meldung UND Reboot- und NavLengthMismatch-Dialog
+        // ST_WaitForPlayback: NoNav- und NavPatched-Meldung UND Reboot- und NavLengthMismatch-Dialog
         else if (State == ST_WaitForPlayback)
         {
           OSDMenuMessageBoxDestroyNoOSDUpdate();
@@ -380,11 +382,17 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 //          OSDMenuFreeStdFonts();
           TAP_Osd_Sync();
 
-          if (RebootMessage || NavLengthMessage)
+          if (NoNavMessage || RebootMessage || NavLengthMessage)
           {
             if ((param1 == RKEY_Ok) && (OSDMenuMessageBoxLastButton() == 0))
             {
-              if (RebootMessage && NavLengthMessage)
+              if (NoNavMessage)
+              {
+                NoNavMessage = FALSE;
+//                PlaybackRepeatSet(OldRepeatMode);
+                TAP_EnterNormalNoInfo();
+              }
+              else if (RebootMessage && NavLengthMessage)
               {
                 RebootMessage = FALSE;
                 TAP_SPrint(NavLengthWrongStr, LangGetString(LS_NavLengthWrong), (int)((TimeStamps[NrTimeStamps-1].Timems/1000) - (60*PlayInfo.duration + PlayInfo.durationSec)));
@@ -400,6 +408,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             }
             else
             {
+              NoNavMessage = FALSE;
               RebootMessage = FALSE;
               NavLengthMessage = FALSE;
               if (AutoOSDPolicy)
@@ -486,6 +495,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           ActiveSegment = 0;
           MinuteJump = 0;
 //          MinuteJumpBlocks = 0;  // nicht unbedingt nötig
+          NoNavMessage = FALSE;
           RebootMessage = FALSE;
           NavLengthMessage = FALSE;
           NoPlaybackCheck = FALSE;
@@ -528,13 +538,22 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           WriteLogMC(PROGRAM_NAME, LogString);
 
           //Check if a nav is available
-          if(!isNavAvailable(PlaybackName))
+          if(!LinearTimeMode)
           {
-            State = ST_UnacceptedFile;
-            WriteLogMC(PROGRAM_NAME, ".nav is missing!");
-            ShowErrorMessage(LangGetString(LS_MissingNav));
-            break;
+            if(!isNavAvailable(PlaybackName))
+            {
+//              State = ST_UnacceptedFile;
+//              PlaybackRepeatSet(TRUE);
+              LastTotalBlocks = 0;
+              LinearTimeMode = TRUE;
+              NoNavMessage = TRUE;
+              WriteLogMC(PROGRAM_NAME, ".nav is missing!");
+              ShowConfirmationDialog(LangGetString(LS_NoNavMessage));
+              break;
+            }
           }
+          else
+            WriteLogMC(PROGRAM_NAME, ".nav file not found! Using linear time mode...");
 
           //Check if it is crypted
           if(isCrypted(PlaybackName))
@@ -546,7 +565,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           }
           
           // Detect if video stream is in HD
-          if (!isHDVideo(PlaybackName, &HDVideo))
+          HDVideo = FALSE;
+          if (!LinearTimeMode && !isHDVideo(PlaybackName, &HDVideo))
           {
             State = ST_UnacceptedFile;
             WriteLogMC(PROGRAM_NAME, "Could not detect type of video stream!");
@@ -565,31 +585,34 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 //          LastTimeStamp = NULL;
 
           // Try to load the nav
-          TimeStamps = NavLoad(PlaybackName, &NrTimeStamps, HDVideo);
-          if (TimeStamps)
+          if (!LinearTimeMode)
           {
-            // Write duration to log file
-            char TimeStr[16];
-            TAP_SPrint(LogString, ".nav-file loaded: %u different TimeStamps found.", NrTimeStamps);
-            WriteLogMC(PROGRAM_NAME, LogString);
-            MSecToTimeString(TimeStamps[0].Timems, TimeStr);
-            TAP_SPrint(LogString, "First Timestamp: Block=%u, Time=%s", TimeStamps[0].BlockNr, TimeStr);
-            WriteLogMC(PROGRAM_NAME, LogString);
-            MSecToTimeString(TimeStamps[NrTimeStamps-1].Timems, TimeStr);
-            TAP_SPrint(LogString, "Playback Duration (from nav): %s", TimeStr);
-            WriteLogMC(PROGRAM_NAME, LogString);
-            SecToTimeString(60*PlayInfo.duration + PlayInfo.durationSec, TimeStr);
-            TAP_SPrint(LogString, "Playback Duration (from inf): %s", TimeStr);
-            WriteLogMC(PROGRAM_NAME, LogString);
+            TimeStamps = NavLoad(PlaybackName, &NrTimeStamps, HDVideo);
+            if (TimeStamps)
+            {
+              // Write duration to log file
+              char TimeStr[16];
+              TAP_SPrint(LogString, ".nav-file loaded: %u different TimeStamps found.", NrTimeStamps);
+              WriteLogMC(PROGRAM_NAME, LogString);
+              MSecToTimeString(TimeStamps[0].Timems, TimeStr);
+              TAP_SPrint(LogString, "First Timestamp: Block=%u, Time=%s", TimeStamps[0].BlockNr, TimeStr);
+              WriteLogMC(PROGRAM_NAME, LogString);
+              MSecToTimeString(TimeStamps[NrTimeStamps-1].Timems, TimeStr);
+              TAP_SPrint(LogString, "Playback Duration (from nav): %s", TimeStr);
+              WriteLogMC(PROGRAM_NAME, LogString);
+              SecToTimeString(60*PlayInfo.duration + PlayInfo.durationSec, TimeStr);
+              TAP_SPrint(LogString, "Playback Duration (from inf): %s", TimeStr);
+              WriteLogMC(PROGRAM_NAME, LogString);
+            }
+            else
+            {
+              State = ST_UnacceptedFile;
+              WriteLogMC(PROGRAM_NAME, "Error loading the .nav file!");
+              ShowErrorMessage(LangGetString(LS_NavLoadFailed));
+              break;
+            }
+            LastTimeStamp = &TimeStamps[0];
           }
-          else
-          {
-            State = ST_UnacceptedFile;
-            WriteLogMC(PROGRAM_NAME, "Error loading the .nav file!");
-            ShowErrorMessage(LangGetString(LS_NavLoadFailed));
-            break;
-          }
-          LastTimeStamp = &TimeStamps[0];
 
           // Check if receiver has been rebooted since the recording
           dword RecDateTime;
@@ -608,7 +631,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           }
 
           // Check if nav has correct length!
-          if(labs(TimeStamps[NrTimeStamps-1].Timems - (1000 * (60*PlayInfo.duration + PlayInfo.durationSec))) > 5000)
+          if(TimeStamps && (labs(TimeStamps[NrTimeStamps-1].Timems - (1000 * (60*PlayInfo.duration + PlayInfo.durationSec))) > 5000))
           {
             WriteLogMC(PROGRAM_NAME, ".nav file length not matching duration!");
 
@@ -732,6 +755,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
       if(event == EVT_KEY)
       {
+        bool ReturnKey = FALSE;
+
         switch(param1)
         {
           case RKEY_Ab:
@@ -756,9 +781,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   WriteLogMC(PROGRAM_NAME, "TAP_EventHandler(): State=ST_ActiveOSD, Key=RKEY_Exit --> Aufruf von CutFileSave()");
 #endif
             CutFileSave();
-            ClearOSD(TRUE);
             PlaybackRepeatSet(OldRepeatMode);
             State = ST_InactiveModePlaying;
+            Cleanup(TRUE);
 
             //Exit immediately so that other functions can not interfere with the cleanup
             DoNotReenter = FALSE;
@@ -984,8 +1009,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             OSDInfoDrawMinuteJump();
             break;
           }
+          default:
+            ReturnKey = TRUE;
         }
-        param1 = 0;
+        if (!ReturnKey)
+          param1 = 0;
       }
 
       // VORSICHT!!! Das hier wird interaktiv ausgeführt
@@ -1098,7 +1126,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     // -------------------
     case ST_Exit:             //Preparing to terminate the TAP
     {
-      if (strlen(PlaybackName) > 0)
+      if (LastTotalBlocks > 0)
       {
 #ifdef FULLDEBUG
   WriteLogMC(PROGRAM_NAME, "TAP_EventHandler(): State=ST_Exit --> Aufruf von CutFileSave()");
@@ -1230,6 +1258,7 @@ void Cleanup(bool DoClearOSD)
   TRACEENTER();
 
   LastTotalBlocks = 0;
+  LinearTimeMode = FALSE;
   JumpRequestedSegment = 0xFFFF;
   JumpRequestedTime = 0;
   JumpPerformedTime = 0;
@@ -1421,23 +1450,6 @@ bool AddSegmentMarker(dword Block, bool RejectSmallSegments)
     return FALSE;
   }
 
-#ifdef FULLDEBUG
-  printf("----------- vorher ---------------\n");
-  printf(" PlayInfo.currentBlock: %u,  PlayInfo.totalBlock: %u\n", PlayInfo.currentBlock, PlayInfo.totalBlock);
-  char TimeStr[16];
-  MSecToTimeString(TimeStamps[0].Timems, TimeStr);
-  printf(" erster  TimeStamp[    0]:  Block=%8u,  Time= %s\n", TimeStamps[0].BlockNr, TimeStr);
-  MSecToTimeString(TimeStamps[NrTimeStamps-1].Timems, TimeStr);
-  printf(" letzter TimeStamp[%5u]:  Block=%8u,  Time= %s\n", NrTimeStamps-1, TimeStamps[NrTimeStamps-1].BlockNr, TimeStr);
-  printf(" Anzahl SegmentMarker: %d\n", NrSegmentMarker);
-  for(i=0; i<NrSegmentMarker; i++) {
-    MSecToTimeString(SegmentMarker[i].Timems, TimeStr);
-    printf("  %2d. Segment:\tBlock=%8u,  Time= %s,  Sel=%s,  Perct=%2.1f\n", i, SegmentMarker[i].Block, TimeStr, ((SegmentMarker[i].Selected)?"y":"n"), SegmentMarker[i].Percent);
-  }
-  MSecToTimeString(newTime, TimeStr);
-  printf(" NEU Segment:\tBlock=%8u,  Time= %s,  Percent=%2.1f\n", Block, TimeStr, ((float)Block / PlayInfo.totalBlock)*100);
-#endif
-
   //Find the point where to insert the new marker so that the list stays sorted
   if(NrSegmentMarker < 2)
   {
@@ -1477,20 +1489,6 @@ bool AddSegmentMarker(dword Block, bool RejectSmallSegments)
     }
     NrSegmentMarker++;
   }
-
-#ifdef FULLDEBUG
-  printf("----------- nachher ---------------\n");
-  printf(" PlayInfo.currentBlock: %u,  PlayInfo.totalBlock: %u\n", PlayInfo.currentBlock, PlayInfo.totalBlock);
-  MSecToTimeString(TimeStamps[0].Timems, TimeStr);
-  printf(" erster  TimeStamp[    0]:  Block=%8u,  Time= %s\n", TimeStamps[0].BlockNr, TimeStr);
-  MSecToTimeString(TimeStamps[NrTimeStamps-1].Timems, TimeStr);
-  printf(" letzter TimeStamp[%5u]:  Block=%8u,  Time= %s\n", NrTimeStamps-1, TimeStamps[NrTimeStamps-1].BlockNr, TimeStr);
-  printf(" Anzahl SegmentMarker: %d\n", NrSegmentMarker);
-  for(i=0; i<NrSegmentMarker; i++) {
-    MSecToTimeString(SegmentMarker[i].Timems, TimeStr);
-    printf("  %2d. Segment:\tBlock=%8u,  Time= %s,  Sel=%s,  Perct=%2.1f\n", i, SegmentMarker[i].Block, TimeStr, ((SegmentMarker[i].Selected)?"y":"n"), SegmentMarker[i].Percent);
-  }
-#endif
 
   TRACEEXIT();
   return TRUE;
@@ -1901,7 +1899,7 @@ void DeleteAllBookmarks(void)
 // ----------------------------------------------------------------------------
 bool CutFileLoad(void)
 {
-  char                  Name[MAX_FILE_NAME_SIZE + 1];
+  char                  CutName[MAX_FILE_NAME_SIZE + 1];
   word                  Version = 0;
   word                  Padding;
   TYPE_File            *fCut;
@@ -1912,13 +1910,13 @@ bool CutFileLoad(void)
   TRACEENTER();
 
   // Create name of cut-file
-  strcpy(Name, PlaybackName);
-  Name[strlen(Name) - 4] = '\0';
-  strcat(Name, ".cut");
+  strcpy(CutName, PlaybackName);
+  CutName[strlen(CutName) - 4] = '\0';
+  strcat(CutName, ".cut");
 
   // Check, if cut-File exists
   HDD_ChangeDir(PlaybackDir);
-  if(!TAP_Hdd_Exist(Name))
+  if(!TAP_Hdd_Exist(CutName))
   {
     WriteLogMC(PROGRAM_NAME, "CutFileLoad: .cut doesn't exist!");
     TRACEEXIT();
@@ -1926,7 +1924,7 @@ bool CutFileLoad(void)
   }
 
   // Try to open cut-File
-  fCut = TAP_Hdd_Fopen(Name);
+  fCut = TAP_Hdd_Fopen(CutName);
   if(!fCut)
   {
     WriteLogMC(PROGRAM_NAME, "CutFileLoad: failed to open .cut!");
@@ -1968,7 +1966,7 @@ bool CutFileLoad(void)
   TAP_Hdd_Fread(SegmentMarker, sizeof(tSegmentMarker), NrSegmentMarker, fCut);
   TAP_Hdd_Fclose(fCut);
 
-  // Sonderfunktion: Import von Cut-Files mit
+  // Sonderfunktion: Import von Cut-Files mit unpassender Aufnahme-Größe
   if (RecFileSize != SavedSize)
   {
     if ((NrSegmentMarker > 2) && (TimeStamps != NULL))
@@ -1993,7 +1991,7 @@ bool CutFileLoad(void)
         if ((SegmentMarker[i].Timems <= CurTimeStamp->Timems) || (CurTimeStamp >= TimeStamps + NrTimeStamps-1))
         {
           if (DeleteSegmentMarker(i)) i--;
-          TAP_SPrint(&LogString[strlen(LogString)], "--> Smaller than last TimeStamp or end of nav reached. Deleted!");
+          TAP_SPrint(&LogString[strlen(LogString)], "--> Smaller than previous TimeStamp or end of nav reached. Deleted!");
         }
         else
         {
@@ -2060,7 +2058,7 @@ bool CutFileLoad(void)
   if(ActiveSegment >= NrSegmentMarker - 1) ActiveSegment = NrSegmentMarker - 2;
 
   // Wenn cut-File Version 1 hat, dann ermittle neue TimeStamps und vergleiche diese mit den alten (DEBUG)  [COMPATIBILITY LAYER]
-  if ((Version == 1) && (RecFileSize == SavedSize)) {
+  if (!LinearTimeMode && (Version == 1) && (RecFileSize == SavedSize)) {
     int i;
     dword oldTime, newTime;
     char oldTimeStr[12], newTimeStr[16];
@@ -2083,7 +2081,7 @@ bool CutFileLoad(void)
 
 void CutFileSave(void)
 {
-  char                  Name[MAX_FILE_NAME_SIZE + 1];
+  char                  CutName[MAX_FILE_NAME_SIZE + 1];
   word                  Version;
   TYPE_File            *fCut;
 
@@ -2103,12 +2101,19 @@ void CutFileSave(void)
 //  RecFileSize = HDD_GetFileSize(PlaybackName);
 //  if(RecFileSize <= 0)
 
-  if(NrSegmentMarker <= 2)
-  {
-    CutFileDelete();
-    TRACEEXIT();
-    return;
-  }
+  Version = CUTFILEVERSION;
+  strcpy(CutName, PlaybackName);
+  CutName[strlen(CutName) - 4] = '\0';
+  strcat(CutName, ".cut");
+
+#ifdef FULLDEBUG
+  char CurDir[512];
+  HDD_TAP_GetCurrentDir(CurDir);
+  TAP_SPrint(LogString, "CutFileSave()! CurrentDir: %s, PlaybackName: %s, CutFileName: %s", CurDir, PlaybackName, CutName);
+  WriteLogMC(PROGRAM_NAME, LogString);
+#endif
+
+  HDD_ChangeDir(PlaybackDir);
 
   if(!HDD_GetFileSizeAndInode(PlaybackDir, PlaybackName, NULL, &RecFileSize))
   {
@@ -2116,22 +2121,16 @@ void CutFileSave(void)
     return;
   }
 
-  Version = CUTFILEVERSION;
-  strcpy(Name, PlaybackName);
-  Name[strlen(Name) - 4] = '\0';
-  strcat(Name, ".cut");
+  if(NrSegmentMarker <= 2)
+  {
+    TAP_Hdd_Delete(CutName);
+    TRACEEXIT();
+    return;
+  }
 
-#ifdef FULLDEBUG
-  char CurDir[512];
-  HDD_TAP_GetCurrentDir(CurDir);
-  TAP_SPrint(LogString, "CutFileSave()! CurrentDir: %s, PlaybackName: %s, CutFileName: %s", CurDir, PlaybackName, Name);
-  WriteLogMC(PROGRAM_NAME, LogString);
-#endif
-
-  HDD_ChangeDir(PlaybackDir);
-  TAP_Hdd_Delete(Name);
-  TAP_Hdd_Create(Name, ATTR_NORMAL);
-  fCut = TAP_Hdd_Fopen(Name);
+  TAP_Hdd_Delete(CutName);
+  TAP_Hdd_Create(CutName, ATTR_NORMAL);
+  fCut = TAP_Hdd_Fopen(CutName);
   if(!fCut)
   {
     TRACEEXIT();
@@ -2155,15 +2154,15 @@ word Padding=0;
 
 void CutFileDelete(void)
 {
-  char                  Name[MAX_FILE_NAME_SIZE + 1];
+  char                  CutName[MAX_FILE_NAME_SIZE + 1];
 
   TRACEENTER();
 
   HDD_ChangeDir(PlaybackDir);
-  strcpy(Name, PlaybackName);
-  Name[strlen(Name) - 4] = '\0';
-  strcat(Name, ".cut");
-  TAP_Hdd_Delete(Name);
+  strcpy(CutName, PlaybackName);
+  CutName[strlen(CutName) - 4] = '\0';
+  strcat(CutName, ".cut");
+  TAP_Hdd_Delete(CutName);
 
   TRACEEXIT();
 }
@@ -3496,11 +3495,14 @@ void MovieCutterProcess(bool KeepCut)
 
   // Lege ein Backup der .cut-Datei an
   CutFileSave();
-  char BackupCutName[MAX_FILE_NAME_SIZE + 1];
-  strcpy(BackupCutName, PlaybackName);
-  BackupCutName[strlen(BackupCutName) - 4] = '\0';
-  TAP_SPrint(LogString, "cp \"%s/%s.cut\" \"%s/%s.cut.bak\"", AbsPlaybackDir, BackupCutName, AbsPlaybackDir, BackupCutName);
-  system(LogString);
+  char CutName[MAX_FILE_NAME_SIZE + 1], BackupCutName[MAX_FILE_NAME_SIZE + 1];
+  strcpy(CutName, PlaybackName);
+  TAP_SPrint(&CutName[strlen(CutName) - 4], ".cut");
+  TAP_SPrint(BackupCutName, "%s.bak", CutName);
+  TAP_Hdd_Rename(CutName, BackupCutName);
+  CutFileSave();
+//  TAP_SPrint(LogString, "cp \"%s/%s.cut\" \"%s/%s.cut.bak\"", AbsPlaybackDir, BackupCutName, AbsPlaybackDir, BackupCutName);
+//  system(LogString);
 
   // Zähle die ausgewählten Segmente
   isMultiSelect = FALSE;
@@ -3680,10 +3682,10 @@ HDD_ChangeDir(PlaybackDir);  // *********** TEST V!deotext
       // Wenn Spezial-Crop-Modus, nochmal testen, ob auch mit der richtigen rec weitergemacht wird
       if(CutEnding)
       {
-        if((ret==RC_Warning) || !TAP_Hdd_Exist(PlaybackName) || TAP_Hdd_Exist(TempFileName))
+        if(/*(ret==RC_Warning) ||*/ !TAP_Hdd_Exist(PlaybackName) || TAP_Hdd_Exist(TempFileName))
         {
           State = ST_UnacceptedFile;
-          WriteLogMC(PROGRAM_NAME, "Error processing the last segment: Renaming or nav-generation failed!");
+          WriteLogMC(PROGRAM_NAME, "Error processing the last segment: Renaming failed!");
           ShowErrorMessage(LangGetString(LS_CutHasFailed));
           break;
         }
@@ -3785,6 +3787,12 @@ dword NavGetBlockTimeStamp(dword PlaybackBlockNr)
 {
   TRACEENTER();
 
+  if(LinearTimeMode)
+  {
+    TRACEEXIT();
+    return ((dword) (((float)PlaybackBlockNr / PlayInfo.totalBlock) * (60*PlayInfo.duration + PlayInfo.durationSec)) * 1000);
+  }
+
   if(TimeStamps == NULL)
   {
     WriteLogMC(PROGRAM_NAME, "Someone is trying to get a timestamp while the array is empty!");
@@ -3874,6 +3882,7 @@ bool PatchOldNavFile(char *SourceFileName, bool isHD)
   //Loop through the nav
   dword Difference = 0;
   dword LastTime = 0;
+  size_t navsCount = 0;
   bool FirstRun = TRUE;
 
   navRecs = (tnavSD*) TAP_MemAlloc(NAVRECS_SD * sizeof(tnavSD));
@@ -3902,11 +3911,12 @@ bool PatchOldNavFile(char *SourceFileName, bool isHD)
       {
         Difference += (navRecs[i].Timems - LastTime) - 1000;
 
-        TAP_SPrint(LogString, "  - Gap found at nav record nr. %u:  Offset=%llu, TimeStamp(before)=%u, TimeStamp(after)=%u, GapSize=%u", (ftell(fSourceNav)/sizeof(tnavSD) - navsRead + i) / ((isHD) ? 2 : 1), ((off_t)(navRecs[i].PHOffsetHigh) << 32) | navRecs[i].PHOffset, navRecs[i].Timems, navRecs[i].Timems-Difference, navRecs[i].Timems-LastTime);
+        TAP_SPrint(LogString, "  - Gap found at nav record nr. %u:  Offset=%llu, TimeStamp(before)=%u, TimeStamp(after)=%u, GapSize=%u", navsCount /*(ftell(fSourceNav)/sizeof(tnavSD) - navsRead + i) / ((isHD) ? 2 : 1)*/, ((off_t)(navRecs[i].PHOffsetHigh) << 32) | navRecs[i].PHOffset, navRecs[i].Timems, navRecs[i].Timems-Difference, navRecs[i].Timems-LastTime);
         WriteLogMC(PROGRAM_NAME, LogString);
       }
       LastTime = navRecs[i].Timems;
       navRecs[i].Timems -= Difference;
+      navsCount++;
     }
     TAP_Hdd_Fwrite(navRecs, sizeof(tnavSD), navsRead, fNewNav);
   }

@@ -1,7 +1,7 @@
 #ifndef __MOVIECUTTERLIB__
 #define __MOVIECUTTERLIB__
 
-#define INFSIZE               499572
+#define INFSIZE               132636  // 499572  // 132632
 #define NAVRECS_SD              2000
 #define NAVRECS_HD              1000
 #define BLOCKSIZE               9024
