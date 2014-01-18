@@ -1,5 +1,5 @@
-2014-01-19 V2.0g ** Full support of cutting algorithms on Australian devices!
-                  * Support of cutting recordings without .nav-files (e.g. radio)!
+2014-01-18 V2.0g ** Full support of cutting algorithms on Australian devices!
+        (stable)  * Support of cutting recordings without .nav-files (e.g. radio)!
                   * SaveEnding doch wieder durch Umkehrung realisiert (u.a. wegen CutPoint-Ermittlung auf australischen Geräten, und weil es an der Korrumption des Endes nichts zu ändern scheint)
                  ** nav-Behandlung überarbeitet (HD-Funktionen sind nun in SD integriert)
                   * nav-Prüfung feingetuned (kleine Abweichungen, die im Bereich des Normalen liegen, werden toleriert)

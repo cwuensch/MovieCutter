@@ -11,6 +11,7 @@
 
 
 bool        FileCut(char *SourceFileName, char *CutFileName, dword StartBlock, dword NrBlocks);
+bool        WriteByteToFile(char const *FileName, off_t BytePosition, char OldValue, char NewValue);
 bool        PatchRecFile(char const *SourceFileName, off_t RequestedCutPosition, byte CutPointArray[], off_t OutPatchedBytes[]);
 bool        UnpatchRecFile(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, off_t const PatchedBytes[], dword NrPatchedBytes);
 bool        ReadCutPointArea(char const *SourceFileName, off_t CutPosition, byte CutPointArray[]);
@@ -19,7 +20,7 @@ bool        FindCutPointOffset(const byte CutPacket[], const byte CutPointArray[
 bool        PatchInfFiles(char const *SourceFileName, char const *CutFileName, dword SourcePlayTime, tTimeStamp const *CutStartPoint, tTimeStamp const *BehindCutPoint);
 bool        PatchNavFiles(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, bool isHD, dword *const OutCutStartTime, dword *const OutBehindCutTime, dword *const OutSourcePlayTime);
 //bool        PatchNavFilesSD(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, dword *const OutCutStartTime, dword *const OutBehindCutTime);
-//bool        PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, dword *const OutCutStartTime, dword *const OutBehindCutTime);
+//bool        PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, dword *const OutCutStartTime, dword *const OutBehindCutTime, dword *const OutSourcePlayTime);
 //tTimeStamp* NavLoadSD(char const *SourceFileName, dword *const NrTimeStamps);
 //tTimeStamp* NavLoadHD(char const *SourceFileName, dword *const NrTimeStamps);
 
@@ -121,6 +122,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
 {
   char                  CurrentDir[512];
   char                  FileName[MAX_FILE_NAME_SIZE + 1];
+  byte                 *CutPointArea1=NULL, *CutPointArea2=NULL;
   off_t                 SourceFileSize, CutFileSize;
   dword                 MaxBehindCutBlock;
   off_t                 CutStartPos, BehindCutPos;
@@ -128,12 +130,11 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
   dword                 SourcePlayTime = 0;
   bool                  SuppressNavGeneration;
   dword                 RecDate;
+  int                   i;
 //  char                  TimeStr[16];
-//  int                   i;
 
   TRACEENTER();
   DetectPacketSize(SourceFileName);
-  byte                  CutPointArea1[CUTPOINTSEARCHRADIUS * 2], CutPointArea2[CUTPOINTSEARCHRADIUS * 2];
   byte                  FirstCutPacket[PACKETSIZE], LastCutPacket[PACKETSIZE];
   off_t                 PatchedBytes[4 * CUTPOINTSECTORRADIUS];
 
@@ -175,59 +176,54 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
   WriteLogMC("MovieCutterLib", LogString);
 
   // Read the two blocks surrounding the cut points from the recording
-  if(!ReadCutPointArea(SourceFileName, CutStartPos, CutPointArea1))
+  CutPointArea1 = (byte*) TAP_MemAlloc(CUTPOINTSEARCHRADIUS * 2);
+  CutPointArea2 = (byte*) TAP_MemAlloc(CUTPOINTSEARCHRADIUS * 2);
+  if (!CutPointArea1 || !CutPointArea2)
   {
     WriteLogMC("MovieCutterLib", "MovieCutter() W0001: nav creation suppressed.");
     SuppressNavGeneration = TRUE;
   }
-  if(!ReadCutPointArea(SourceFileName, BehindCutPos, CutPointArea2))
+  if(CutPointArea1)
   {
-    WriteLogMC("MovieCutterLib", "MovieCutter() W0002: nav creation suppressed.");
-    SuppressNavGeneration = TRUE;
-  }
-
-/* // *********** V!deotext Test
-  char                 AbsFileName[MAX_FILE_NAME_SIZE + 1];
-  FILE                *test;
-  int                  iterations = 0;
-
-  HDD_TAP_GetCurrentDir(CurrentDir);
-  TAP_SPrint(AbsFileName, "%s%s/%s", TAPFSROOT, CurrentDir, SourceFileName);
-  do
-  {
-    test = fopen(AbsFileName, "r+b");
-    if (test == 0)
+    if (!ReadCutPointArea(SourceFileName, CutStartPos, CutPointArea1))
     {
-      TAP_SPrint(LogString, "Could not obtain write handle for rec-file '%s'!", AbsFileName);
-      WriteLogMC("MovieCutterLib", LogString);
-      TAP_Delay(10);
+      WriteLogMC("MovieCutterLib", "MovieCutter() W0002: nav creation suppressed.");
+      SuppressNavGeneration = TRUE;
+      TAP_MemFree(CutPointArea1); CutPointArea1 = NULL;
     }
-    iterations++;
-  } while ((iterations <= 200) && (test == 0));
-  if (test != 0)
-  {
-    WriteLogMC("MovieCutterLib", "Write handle for rec-file successfully obtained!");
-    fclose(test);
   }
-// *********** V!deotext Test End */
+  if(CutPointArea2)
+  {
+    if(!ReadCutPointArea(SourceFileName, BehindCutPos, CutPointArea2))
+    {
+      WriteLogMC("MovieCutterLib", "MovieCutter() W0003: nav creation suppressed.");
+      SuppressNavGeneration = TRUE;
+      TAP_MemFree(CutPointArea2); CutPointArea2 = NULL;
+    }
+  }
 
   // Patch the rec-File to prevent the firmware from cutting in the middle of a packet
-  if (!SuppressNavGeneration)
-  {
+  for (i = 0; i < 4 * CUTPOINTSECTORRADIUS; i++)
+    PatchedBytes[i] = 0;
+  if(CutPointArea1)
     PatchRecFile(SourceFileName, CutStartPos, CutPointArea1, PatchedBytes);
+  if(CutPointArea2)
     PatchRecFile(SourceFileName, BehindCutPos, CutPointArea2, &PatchedBytes[2 * CUTPOINTSECTORRADIUS]);
-  }
 
   // DO THE CUTTING
   if(!FileCut(SourceFileName, CutFileName, CutStartPoint->BlockNr, BehindCutPoint->BlockNr - CutStartPoint->BlockNr))
   {
     WriteLogMC("MovieCutterLib", "MovieCutter() E0002: Firmware cutting routine failed.");
+    TAP_MemFree(CutPointArea1);
+    TAP_MemFree(CutPointArea2);
     TRACEEXIT();
     return RC_Error;
   }
   if(!TAP_Hdd_Exist(CutFileName))
   {
     WriteLogMC("MovieCutterLib", "MovieCutter() E0003: Cut file not created.");
+    TAP_MemFree(CutPointArea1);
+    TAP_MemFree(CutPointArea2);
     TRACEEXIT();
     return RC_Error;
   }
@@ -235,7 +231,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
   // Detect the size of the cut file
   if(!HDD_GetFileSizeAndInode(CurrentDir, CutFileName, NULL, &CutFileSize))
   {
-    WriteLogMC("MovieCutterLib", "MovieCutter() W0003: error detecting size of cut file.");
+    WriteLogMC("MovieCutterLib", "MovieCutter() W0004: error detecting size of cut file.");
     SuppressNavGeneration = TRUE;
   }
   TAP_SPrint(LogString, "Cut file size: %llu Bytes (=%d blocks)", CutFileSize, CalcBlockSize(CutFileSize));
@@ -244,7 +240,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
   // Read the beginning and the ending from the cut file
   if(!ReadFirstAndLastCutPacket(CutFileName, FirstCutPacket, LastCutPacket))
   {
-    WriteLogMC("MovieCutterLib", "MovieCutter() W0004: nav creation suppressed.");
+    WriteLogMC("MovieCutterLib", "MovieCutter() W0005: nav creation suppressed.");
     SuppressNavGeneration = TRUE;
   }
 
@@ -255,7 +251,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
       CutStartPos = CutStartPos + CutStartPosOffset;
     else
     {
-      WriteLogMC("MovieCutterLib", "MovieCutter() W0005: Cut start position not found.");
+      WriteLogMC("MovieCutterLib", "MovieCutter() W0006: Cut start position not found.");
       SuppressNavGeneration = TRUE;
     }
     if (FindCutPointOffset(LastCutPacket, CutPointArea2, &BehindCutPosOffset))
@@ -272,7 +268,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
     }
     else
     {
-      WriteLogMC("MovieCutterLib", "MovieCutter() W0006: Cut end position not found.");
+      WriteLogMC("MovieCutterLib", "MovieCutter() W0007: Cut end position not found.");
       // if cut end point was not found, re-calculate it from cut file size
       if (!SuppressNavGeneration && (CutFileSize != 0))
       {
@@ -283,7 +279,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
         SuppressNavGeneration = TRUE;
     }
     if (SuppressNavGeneration)
-      WriteLogMC("MovieCutterLib", "MovieCutter() W0007: Both cut points not found. Nav creation suppressed.");
+      WriteLogMC("MovieCutterLib", "MovieCutter() W0008: Both cut points not found. Nav creation suppressed.");
     TAP_SPrint(LogString, "Cut start offset: %d Bytes (=%d packets and %d Bytes), Cut end offset: %d Bytes (=%d packets and %d Bytes)", CutStartPosOffset, CutStartPosOffset/PACKETSIZE, labs(CutStartPosOffset%PACKETSIZE), BehindCutPosOffset, BehindCutPosOffset/PACKETSIZE, labs(BehindCutPosOffset%PACKETSIZE));
     WriteLogMC("MovieCutterLib", LogString);
 
@@ -291,7 +287,6 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
     WriteLogMC("MovieCutterLib", LogString);
 
 #ifdef FULLDEBUG
-    int i;
     off_t GuessedCutStartPos = 0, GuessedBehindCutPos = 0;
     off_t ReqCutStartPos  = (off_t)CutStartPoint->BlockNr * BLOCKSIZE;
     off_t ReqBehindCutPos = (off_t)BehindCutPoint->BlockNr * BLOCKSIZE;
@@ -327,6 +322,8 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
     }
 #endif
   }
+  TAP_MemFree(CutPointArea1); CutPointArea1 = NULL;
+  TAP_MemFree(CutPointArea2); CutPointArea2 = NULL;
 
   // Copy the real cutting positions into the cut point parameters to be returned
   if (!SuppressNavGeneration)
@@ -357,7 +354,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
       TAP_Hdd_Delete(BakFileName);
     else
     {
-      WriteLogMC("MovieCutterLib", "MovieCutter() W0008: nav creation failed.");
+      WriteLogMC("MovieCutterLib", "MovieCutter() W0009: nav creation failed.");
       SuppressNavGeneration = TRUE;
       TAP_SPrint(FileName, "%s.nav", SourceFileName);
       TAP_Hdd_Delete(FileName);
@@ -368,7 +365,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
 
   // Copy the inf file and patch both play lengths
   if (!PatchInfFiles(SourceFileName, CutFileName, SourcePlayTime, CutStartPoint, BehindCutPoint))
-    WriteLogMC("MovieCutterLib", "MovieCutter() W0009: inf creation failed.");
+    WriteLogMC("MovieCutterLib", "MovieCutter() W0010: inf creation failed.");
 
   // Fix the date info of all involved files
   if (GetRecDateFromInf(SourceFileName, &RecDate)) {
@@ -462,7 +459,7 @@ bool FileCut(char *SourceFileName, char *CutFileName, dword StartBlock, dword Nr
 // ----------------------------------------------------------------------------
 long64 HDD_GetFileSize(char const *FileName)
 {
-  TYPE_File            *f;
+  TYPE_File            *f = NULL;
   long64                FileSize;
 
   TRACEENTER();
@@ -561,7 +558,7 @@ bool isNavAvailable(char const *SourceFileName)
 // TODO: Auslesen der Stream-Information aus dem InfCache im RAM
 bool isCrypted(char const *SourceFileName)
 {
-  TYPE_File            *f;
+  TYPE_File            *f = NULL;
   byte                  CryptFlag = 2;
   char                  InfFileName[MAX_FILE_NAME_SIZE + 1];
   bool                  ret;
@@ -587,7 +584,7 @@ bool isCrypted(char const *SourceFileName)
 // TODO: Auslesen der Stream-Information aus dem InfCache im RAM
 bool isHDVideo(char const *SourceFileName, bool *const isHD)
 {
-  TYPE_File            *f;
+  TYPE_File            *f = NULL;
   byte                  StreamType = STREAM_UNKNOWN;
   char                  InfFileName[MAX_FILE_NAME_SIZE + 1];
 
@@ -631,7 +628,7 @@ bool WriteByteToFile(char const *FileName, off_t BytePosition, char OldValue, ch
 {
   char                  AbsFileName[512];
   char                  CurrentDir[512];
-  FILE                 *f;
+  FILE                 *f = NULL;
   char                  ret;
 
   TRACEENTER();
@@ -798,7 +795,7 @@ bool ReadCutPointArea(char const *SourceFileName, off_t CutPosition, byte CutPoi
 {
   char                  AbsFileName[512];
   char                  CurrentDir[512];
-  FILE                 *f;
+  FILE                 *f = NULL;
   size_t                ret;
 
   TRACEENTER();
@@ -847,7 +844,7 @@ bool ReadFirstAndLastCutPacket(char const *FileName, byte FirstCutPacket[], byte
 {
   char                  AbsFileName[512];
   char                  CurrentDir[512];
-  FILE                 *f;
+  FILE                 *f = NULL;
   size_t                ret;
 
   TRACEENTER();
@@ -948,7 +945,7 @@ bool FindCutPointOffset(const byte CutPacket[], const byte CutPointArray[], long
 // ----------------------------------------------------------------------------
 bool GetRecDateFromInf(char const *FileName, dword *const DateTime)
 {
-  TYPE_File            *f;
+  TYPE_File            *f = NULL;
   char                  InfFileName[MAX_FILE_NAME_SIZE + 1];
 
   TRACEENTER();
@@ -972,15 +969,92 @@ bool GetRecDateFromInf(char const *FileName, dword *const DateTime)
   return TRUE;
 }
 
+bool SaveBookmarksToInf(char const *SourceFileName, const dword Bookmarks[], int NrBookmarks)
+{
+  char                  InfFileName[MAX_FILE_NAME_SIZE + 1];
+  tRECHeaderInfo        RECHeaderInfo;
+  byte                 *Buffer = NULL;
+  TYPE_File            *fInf = NULL;
+  dword                 FileSize;
+  int                   i;
+
+  TRACEENTER();
+
+#ifdef FULLDEBUG
+  TAP_PrintNet("SaveBookmarksToInf()\n");
+  for (i = 0; i < NrBookmarks; i++) {
+    TAP_PrintNet("%u\n", Bookmarks[i]);
+  }
+#endif
+
+  //Allocate and clear the buffer
+  Buffer = (byte*) TAP_MemAlloc(INFSIZE);
+  if(Buffer) 
+    memset(Buffer, 0, INFSIZE);
+  else
+  {
+    WriteLogMC("MovieCutterLib", "SaveBookmarksToInf() E0f01: failed to allocate the memory!");
+    TRACEEXIT();
+    return FALSE;
+  }
+
+  //Read inf
+  TAP_SPrint(InfFileName, "%s.inf", SourceFileName);
+  fInf = TAP_Hdd_Fopen(InfFileName);
+  if(!fInf)
+  {
+    WriteLogMC("MovieCutterLib", "SaveBookmarksToInf() E0f02: failed to open the inf file!");
+    TAP_MemFree(Buffer);
+    TRACEEXIT();
+    return FALSE;
+  }
+  FileSize = TAP_Hdd_Flen(fInf);
+  TAP_Hdd_Fread(Buffer, 1, min(FileSize, INFSIZE), fInf);
+
+  //decode inf
+  if(!HDD_DecodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN))
+  {
+    WriteLogMC("MovieCutterLib", "SaveBookmarksToInf() E0f03: decoding of rec-header failed.");
+    TAP_Hdd_Fclose(fInf);
+    TAP_MemFree(Buffer);
+    TRACEEXIT();
+    return FALSE;
+  }
+
+  //add new Bookmarks
+  for (i = 0; i < NrBookmarks; i++) {
+    RECHeaderInfo.Bookmark[i] = Bookmarks[i];
+  }
+  for (i = NrBookmarks; i < 177; i++) {
+    RECHeaderInfo.Bookmark[i] = 0;
+  }
+  RECHeaderInfo.NrBookmarks = NrBookmarks;
+
+  //encode and write inf
+  if(HDD_EncodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN))
+  {
+    TAP_Hdd_Fseek(fInf, 0, SEEK_SET);
+    TAP_Hdd_Fwrite(Buffer, 1, min(FileSize, INFSIZE), fInf);
+  }
+  else
+    WriteLogMC("MovieCutterLib", "SaveBookmarksToInf() E0f04: failed to encode the new inf header!");
+
+  TAP_Hdd_Fclose(fInf);
+  TAP_MemFree(Buffer);
+
+  TRACEEXIT();
+  return TRUE;
+}
+
 bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, dword SourcePlayTime, tTimeStamp const *CutStartPoint, tTimeStamp const *BehindCutPoint)
 {
-  char                  AbsSourceInfName[MAX_FILE_NAME_SIZE + 1], SourceInfName[MAX_FILE_NAME_SIZE + 1], CutInfName[MAX_FILE_NAME_SIZE + 1];
+  char                  AbsSourceInfName[MAX_FILE_NAME_SIZE + 1], InfName[MAX_FILE_NAME_SIZE + 1];
   char                  CurrentDir[512];
   char                  T1[12], T2[12], T3[12];
-  byte                  Buffer[INFSIZE];
+  byte                 *Buffer = NULL;
   tRECHeaderInfo        RECHeaderInfo;
-  TYPE_File            *tf;
-  FILE                 *f;
+  TYPE_File            *tf = NULL;
+  FILE                 *f = NULL;
   dword                 fs, ret;
   dword                 Bookmarks[177];
   dword                 CutPlayTime;
@@ -994,8 +1068,16 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, dword So
     WriteLogMC("MovieCutterLib", "PatchInfFiles()");
   #endif
 
-  //Clear the buffer
-  memset(Buffer, 0, INFSIZE);
+  //Allocate and clear the buffer
+  Buffer = (byte*) TAP_MemAlloc(INFSIZE);
+  if(Buffer) 
+    memset(Buffer, 0, INFSIZE);
+  else
+  {
+    WriteLogMC("MovieCutterLib", "PatchInfFiles() E0901: source inf not patched, cut inf not created.");
+    TRACEEXIT();
+    return FALSE;
+  }
 
   //Read the source .inf
   HDD_TAP_GetCurrentDir(CurrentDir);
@@ -1005,7 +1087,8 @@ bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, dword So
   f = fopen(AbsSourceInfName, "rb");
   if(!f)
   {
-    WriteLogMC("MovieCutterLib", "PatchInfFiles() E0901: source inf not patched, cut inf not created.");
+    WriteLogMC("MovieCutterLib", "PatchInfFiles() E0902: source inf not patched, cut inf not created.");
+    TAP_MemFree(Buffer);
     TRACEEXIT();
     return FALSE;
   }
@@ -1024,7 +1107,8 @@ WriteLogMC("MovieCutterLib", LogString);
   //Decode the source .inf
   if(!HDD_DecodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN))
   {
-    WriteLogMC("MovieCutterLib", "PatchInfFiles() E0902: source inf not patched, cut inf not created.");
+    WriteLogMC("MovieCutterLib", "PatchInfFiles() E0903: source inf not patched, cut inf not created.");
+    TAP_MemFree(Buffer);
     TRACEEXIT();
     return FALSE;
   }
@@ -1109,8 +1193,8 @@ WriteLogMC("MovieCutterLib", "Header erfolgreich decoded!");
   //Encode and write the modified source inf
   if(HDD_EncodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN))
   {
-    TAP_SPrint(SourceInfName, "%s.inf", SourceFileName);
-    tf = TAP_Hdd_Fopen(SourceInfName);
+    TAP_SPrint(InfName, "%s.inf", SourceFileName);
+    tf = TAP_Hdd_Fopen(InfName);
 //    TAP_SPrint(AbsSourceInfName, "%s%s/%s.inf", TAPFSROOT, CurrentDir, SourceFileName);
 //    f = fopen(AbsSourceInfName, "r+b");
     if(tf != 0)
@@ -1164,12 +1248,12 @@ WriteLogMC("MovieCutterLib", "Header erfolgreich decoded!");
   //Encode the cut inf and write it to the disk
   if(HDD_EncodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN))
   {
-    TAP_SPrint(CutInfName, "%s.inf", CutFileName);
-    TAP_Hdd_Create(CutInfName, ATTR_NORMAL);
+    TAP_SPrint(InfName, "%s.inf", CutFileName);
+    TAP_Hdd_Create(InfName, ATTR_NORMAL);
 
 //    TAP_SPrint(AbsCutInfName, "%s%s/%s.inf", TAPFSROOT, CurrentDir, CutFileName);
 //    f = fopen(AbsCutInfName, "r+b");
-    tf = TAP_Hdd_Fopen(CutInfName);
+    tf = TAP_Hdd_Fopen(InfName);
     if(tf != 0)
     {
       TAP_Hdd_Fseek(tf, 0, SEEK_SET);
@@ -1191,16 +1275,17 @@ WriteLogMC("MovieCutterLib", "Header erfolgreich decoded!");
     }
     else
     {
-      WriteLogMC("MovieCutterLib", "PatchInfFiles() E0904: cut inf not created.");
+      WriteLogMC("MovieCutterLib", "PatchInfFiles() E0905: cut inf not created.");
       result = FALSE;
     }
   }
   else
   {
-    WriteLogMC("MovieCutterLib", "PatchInfFiles() E0903: cut inf not created.");
+    WriteLogMC("MovieCutterLib", "PatchInfFiles() E0904: cut inf not created.");
     result = FALSE;
   }
 
+  TAP_MemFree(Buffer);
   TRACEEXIT();
   return result;
 }
@@ -1209,16 +1294,16 @@ WriteLogMC("MovieCutterLib", "Header erfolgreich decoded!");
 // ----------------------------------------------------------------------------
 //                              NAV-Patchen
 // ----------------------------------------------------------------------------
-/*bool PatchNavFiles(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, bool isHD, dword *const OutCutStartTime, dword *const OutBehindCutTime)
+/* bool PatchNavFiles(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, bool isHD, dword *const OutCutStartTime, dword *const OutBehindCutTime, dword *const OutSourcePlayTime)
 {
   bool ret;
 
   TRACEENTER();
 
   if(isHD)
-    ret = PatchNavFilesHD(SourceFileName, CutFileName, CutStartPos, BehindCutPos, OutCutStartTime, OutBehindCutTime);
+    ret = PatchNavFilesHD(SourceFileName, CutFileName, CutStartPos, BehindCutPos, OutCutStartTime, OutBehindCutTime, OutSourcePlayTime);
   else
-    ret = PatchNavFilesSD(SourceFileName, CutFileName, CutStartPos, BehindCutPos, OutCutStartTime, OutBehindCutTime);
+    ret = PatchNavFilesSD(SourceFileName, CutFileName, CutStartPos, BehindCutPos, OutCutStartTime, OutBehindCutTime, OutSourcePlayTime);
 
   TRACEEXIT();
   return ret;
@@ -1226,8 +1311,8 @@ WriteLogMC("MovieCutterLib", "Header erfolgreich decoded!");
 
 bool PatchNavFiles(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, bool isHD, dword *const OutCutStartTime, dword *const OutBehindCutTime, dword *const OutSourcePlayTime)
 {
-  FILE                 *fSourceNav;
-  TYPE_File            *fCutNav, *fSourceNavNew;
+  FILE                 *fSourceNav = NULL;
+  TYPE_File            *fCutNav = NULL, *fSourceNavNew = NULL;
   char                  FileName[MAX_FILE_NAME_SIZE + 1];
   off_t                 PictureHeaderOffset;
   tnavSD               *navSource=NULL, *navSourceNew=NULL, *navCut=NULL;

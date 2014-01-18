@@ -2,7 +2,7 @@
 #define __MOVIECUTTERH__
 
 #define PROGRAM_NAME          "MovieCutter"
-#define VERSION               "V2.0g_beta"  // alpha = α,  beta = β, � = ü
+#define VERSION               "V2.0g"  // alpha = α,  beta = β, � = ü
 #define TAPID                 0x8E0A4247
 //#define AUTHOR                "FireBird / Christian W�nsch"
 #define AUTHOR                "FireBird / C. Wünsch"
@@ -85,7 +85,6 @@ bool  PlaybackRepeatSet(bool EnableRepeatAll);
 bool  PlaybackRepeatGet();
 bool  ReadBookmarks(void);
 bool  SaveBookmarks(void);
-bool  SaveBookmarksToInf(void);
 void  SaveINI(void);
 void  SelectSegmentMarker(void);
 void  SetCurrentSegment(void);

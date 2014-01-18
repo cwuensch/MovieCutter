@@ -1,7 +1,7 @@
 #ifndef __MOVIECUTTERLIB__
 #define __MOVIECUTTERLIB__
-
-#define INFSIZE               132636  // 499572  // 132632
+                        // willkürl.    Header   MinInf    NormInf    MaxInf
+#define INFSIZE      499572  // 4096  // 2128  // 3320  // 132636  // 499572
 #define NAVRECS_SD              2000
 #define NAVRECS_HD              1000
 #define BLOCKSIZE               9024
@@ -83,6 +83,7 @@ bool        isCrypted(char const *SourceFileName);
 bool        isHDVideo(char const *SourceFileName, bool *const isHD);
 bool        isNavAvailable(char const *SourceFileName);
 bool        GetRecDateFromInf(char const *FileName, dword *const DateTime);
+bool        SaveBookmarksToInf(char const *SourceFileName, const dword Bookmarks[], int NrBookmarks);
 long64      HDD_GetFileSize(char const *FileName);
 bool        HDD_SetFileDateTime(char const *Directory, char const *FileName, dword NewDateTime);
 tTimeStamp* NavLoad(char const *SourceFileName, dword *const NrTimeStamps, bool isHDVideo);

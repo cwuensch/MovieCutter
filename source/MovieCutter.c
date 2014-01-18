@@ -183,7 +183,7 @@ dword                   JumpPerformedTime = 0;
 TYPE_PlayInfo           PlayInfo;
 char                    PlaybackName[MAX_FILE_NAME_SIZE + 1];
 char                    AbsPlaybackDir[512];
-char                   *PlaybackDir;
+char                   *PlaybackDir = NULL;
 __off64_t               RecFileSize;
 dword                   LastTotalBlocks = 0;
 dword                   BlocksOneSecond;
@@ -1667,66 +1667,6 @@ bool SaveBookmarks(void)
   return(PlayInfoBookmarkStruct != NULL);
 }
 
-bool SaveBookmarksToInf(void)
-{
-  char                  InfFileName[MAX_FILE_NAME_SIZE + 1];
-  tRECHeaderInfo        RECHeaderInfo;
-  byte                 *Buffer;
-  TYPE_File            *fInf;
-  dword                 FileSize, BufferSize;
-  int                   i;
-
-  TRACEENTER();
-
-#ifdef FULLDEBUG
-  TAP_PrintNet("SaveBookmarksToInf()\n");
-  for (i = 0; i < NrBookmarks; i++) {
-    TAP_PrintNet("%u\n", Bookmarks[i]);
-  }
-#endif
-
-  //Read inf
-  HDD_ChangeDir(PlaybackDir);
-  TAP_SPrint(InfFileName, "%s.inf", PlaybackName);
-  fInf = TAP_Hdd_Fopen(InfFileName);
-  if(!fInf)
-  {
-    WriteLogMC(PROGRAM_NAME, "SaveBookmarksToInf: failed to open the inf file!");
-    TRACEEXIT();
-    return FALSE;
-  }
-
-  FileSize = TAP_Hdd_Flen(fInf);
-  BufferSize = (FileSize < 8192 ? 8192 : FileSize);
-  Buffer = (byte*) TAP_MemAlloc(BufferSize);
-  memset(Buffer, 0, BufferSize);
-  TAP_Hdd_Fread(Buffer, FileSize, 1, fInf);
-
-  //decode inf
-  HDD_DecodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN);
-
-  //add new Bookmarks
-  for (i = 0; i < NrBookmarks; i++) {
-    RECHeaderInfo.Bookmark[i] = Bookmarks[i];
-  }
-  for (i = NrBookmarks; i < NRBOOKMARKS; i++) {
-    RECHeaderInfo.Bookmark[i] = 0;
-  }
-  RECHeaderInfo.NrBookmarks = NrBookmarks;
-
-  //enconde inf
-  HDD_EncodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN);
-
-  //write inf
-  TAP_Hdd_Fseek(fInf, 0, SEEK_SET);
-  TAP_Hdd_Fwrite(Buffer, FileSize, 1, fInf);
-  TAP_Hdd_Fclose(fInf);
-  TAP_MemFree(Buffer);
-
-  TRACEEXIT();
-  return TRUE;
-}
-
 void ExportSegmentsToBookmarks(void)
 {
   int i;
@@ -1902,7 +1842,7 @@ bool CutFileLoad(void)
   char                  CutName[MAX_FILE_NAME_SIZE + 1];
   word                  Version = 0;
   word                  Padding;
-  TYPE_File            *fCut;
+  TYPE_File            *fCut = NULL;
   __off64_t             SavedSize;
   int                   i;
   tTimeStamp           *CurTimeStamp;
@@ -2083,7 +2023,7 @@ void CutFileSave(void)
 {
   char                  CutName[MAX_FILE_NAME_SIZE + 1];
   word                  Version;
-  TYPE_File            *fCut;
+  TYPE_File            *fCut = NULL;
 
   TRACEENTER();
 
@@ -3490,7 +3430,7 @@ void MovieCutterProcess(bool KeepCut)
 
   // *CW* FRAGE: Werden die Bookmarks von der Firmware sowieso vor dem Schneiden in die inf gespeichert?
   // -> sonst könnte man der Schnittroutine auch das Bookmark-Array übergeben
-  SaveBookmarksToInf();
+  SaveBookmarksToInf(PlaybackName, Bookmarks, NrBookmarks);
   CutDumpList();
 
   // Lege ein Backup der .cut-Datei an
@@ -3564,7 +3504,6 @@ void MovieCutterProcess(bool KeepCut)
       if (isPlaybackRunning())
         TAP_Hdd_StopTs();
       NoPlaybackCheck = TRUE;
-TAP_Delay(50);  // ******* TEST V!deotext ************
 
       TAP_SPrint(LogString, "Processing segment %u", WorkingSegment);
       WriteLogMC(PROGRAM_NAME, LogString);
@@ -3595,7 +3534,6 @@ TAP_Delay(50);  // ******* TEST V!deotext ************
       }
 
       // Ermittlung des Dateinamens für das CutFile
-HDD_ChangeDir(PlaybackDir);  // *********** TEST V!deotext
       GetNextFreeCutName(PlaybackName, CutFileName, NrSelectedSegments - 1);
       if (CutEnding)
       {
@@ -3830,11 +3768,11 @@ dword NavGetBlockTimeStamp(dword PlaybackBlockNr)
 // SOLLTE eine nav-Datei einen Überlauf beinhalten, wird dieser durch PatchOldNavFile korrigiert.
 bool PatchOldNavFile(char *SourceFileName, bool isHD)
 {
-  FILE                 *fSourceNav;
-  TYPE_File            *fNewNav;
+  FILE                 *fSourceNav = NULL;
+  TYPE_File            *fNewNav = NULL;
   char                  FileName[MAX_FILE_NAME_SIZE + 1];
   char                  BakFileName[MAX_FILE_NAME_SIZE + 1];
-  tnavSD               *navRecs;
+  tnavSD               *navRecs = NULL;
   size_t                navsRead, i;
   char                  AbsFileName[512];
 
@@ -3853,6 +3791,15 @@ bool PatchOldNavFile(char *SourceFileName, bool isHD)
 
   WriteLogMC(PROGRAM_NAME, "Checking source nav file (possibly older version with incorrect Times)...");
 
+  // Allocate the buffer
+  navRecs = (tnavSD*) TAP_MemAlloc(NAVRECS_SD * sizeof(tnavSD));
+  if (!navRecs)
+  {
+    WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E0d01.");
+    TRACEEXIT();
+    return FALSE;
+  }
+
   //Rename the original nav file to bak
   TAP_Hdd_Rename(FileName, BakFileName);
 
@@ -3861,7 +3808,8 @@ bool PatchOldNavFile(char *SourceFileName, bool isHD)
   fSourceNav = fopen(AbsFileName, "rb");
   if(!fSourceNav)
   {
-    WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E0d01.");
+    WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E0d02.");
+    TAP_MemFree(navRecs);
     TRACEEXIT();
     return FALSE;
   }
@@ -3874,7 +3822,8 @@ bool PatchOldNavFile(char *SourceFileName, bool isHD)
   if(!fNewNav)
   {
     fclose(fSourceNav);
-    WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E0d02.");
+    WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E0d03.");
+    TAP_MemFree(navRecs);
     TRACEEXIT();
     return FALSE;
   }
@@ -3885,7 +3834,6 @@ bool PatchOldNavFile(char *SourceFileName, bool isHD)
   size_t navsCount = 0;
   bool FirstRun = TRUE;
 
-  navRecs = (tnavSD*) TAP_MemAlloc(NAVRECS_SD * sizeof(tnavSD));
   while(TRUE)
   {
     navsRead = fread(navRecs, sizeof(tnavSD), NAVRECS_SD, fSourceNav);
