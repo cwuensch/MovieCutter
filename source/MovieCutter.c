@@ -326,15 +326,15 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   }
 
   // Notfall-AUS
-  #ifdef FULLDEBUG
-    if(event == EVT_KEY && param1 == RKEY_Sleep)
-    {
-      if (OSDMenuMessageBoxIsVisible()) OSDMenuMessageBoxDestroy();
-      TAP_EnterNormal();
-      State = ST_Exit;
-      param1 = 0;
-    }
-  #endif
+#ifdef FULLDEBUG
+  if(event == EVT_KEY && param1 == RKEY_Sleep)
+  {
+    if (OSDMenuMessageBoxIsVisible()) OSDMenuMessageBoxDestroy();
+    TAP_EnterNormal();
+    State = ST_Exit;
+    param1 = 0;
+  }
+#endif
 
   // Behandlung von offenen MesssageBoxen
   // ------------------------------------
@@ -719,7 +719,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         else {
           // beim erneuten Einblenden kann man sich das Neu-Berechnen aller Werte sparen (AUCH wenn 2 Aufnahmen gleiche Blockzahl haben!!)
           NoPlaybackCheck = FALSE;
-          BookmarkMode = FALSE;
+//          BookmarkMode = FALSE;
           MinuteJump = 0;
 //          MinuteJumpBlocks = 0;
 //          CreateOSD();
