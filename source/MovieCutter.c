@@ -191,11 +191,11 @@ dword                   BlockNrLastSecond;
 dword                   BlockNrLast10Seconds;
 
 // Video parameters
+tSegmentMarker         *SegmentMarker = NULL;       //[0]=Start of file, [x]=End of file
+dword                  *Bookmarks = NULL;
 int                     NrSegmentMarker;
 int                     ActiveSegment;
-tSegmentMarker          SegmentMarker[NRSEGMENTMARKER];       //[0]=Start of file, [x]=End of file
 int                     NrBookmarks;
-dword                   Bookmarks[NRBOOKMARKS];
 dword                   NrTimeStamps = 0;
 tTimeStamp             *TimeStamps = NULL;
 tTimeStamp             *LastTimeStamp = NULL;
@@ -236,13 +236,14 @@ int TAP_Main(void)
   WriteLogMC(PROGRAM_NAME, LogString);
 
   CreateSettingsDir();
-  LoadINI();
   KeyTranslate(TRUE, &TAP_EventHandler);
 
+  // Load Fonts
   if (!(FMUC_LoadFontFile("Calibri_10.ufnt", &Calibri_10_FontDataUC)
      && FMUC_LoadFontFile("Calibri_12.ufnt", &Calibri_12_FontDataUC)
      && FMUC_LoadFontFile("Calibri_14.ufnt", &Calibri_14_FontDataUC)))
   {
+    WriteLogMC(PROGRAM_NAME, "Loading fonts failed!");
     FMUC_FreeFontFile(&Calibri_10_FontDataUC);
     FMUC_FreeFontFile(&Calibri_12_FontDataUC);
     FMUC_FreeFontFile(&Calibri_14_FontDataUC);
@@ -251,10 +252,11 @@ int TAP_Main(void)
     return 0;
   }
 
+  // Load Language Strings
   if(!LangLoadStrings(LNGFILENAME, LS_NrStrings, LAN_English, PROGRAM_NAME))
   {
-    WriteLogMC(PROGRAM_NAME, "Language file is missing!");
     TAP_SPrint(LogString, "Language file '%s' not found!", LNGFILENAME);
+    WriteLogMC(PROGRAM_NAME, LogString);
     OSDMenuInfoBoxShow(PROGRAM_NAME " " VERSION, LogString, 500);
     do
     {
@@ -269,6 +271,27 @@ int TAP_Main(void)
     TRACEEXIT();
     return 0;
   }
+
+  // Allocate Buffers
+  SegmentMarker = (tSegmentMarker*) TAP_MemAlloc(NRSEGMENTMARKER * sizeof(tSegmentMarker));
+  Bookmarks = (dword*) TAP_MemAlloc(NRBOOKMARKS * sizeof(dword));
+  if (!SegmentMarker || !Bookmarks)
+  {
+    WriteLogMC(PROGRAM_NAME, "Failed to allocate buffers!");
+
+    TAP_MemFree(Bookmarks);
+    TAP_MemFree(SegmentMarker);
+    LangUnloadStrings();
+    FMUC_FreeFontFile(&Calibri_10_FontDataUC);
+    FMUC_FreeFontFile(&Calibri_12_FontDataUC);
+    FMUC_FreeFontFile(&Calibri_14_FontDataUC);
+
+    TRACEEXIT();
+    return 0;
+  }
+
+  // Load INI
+  LoadINI();
 
   TRACEEXIT();
   return 1;
@@ -1135,6 +1158,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       }
       PlaybackRepeatSet(OldRepeatMode);
       Cleanup(TRUE);
+      TAP_MemFree(Bookmarks);
+      TAP_MemFree(SegmentMarker);
       LangUnloadStrings();
       FMUC_FreeFontFile(&Calibri_10_FontDataUC);
       FMUC_FreeFontFile(&Calibri_12_FontDataUC);

@@ -1,7 +1,7 @@
 #ifndef __MOVIECUTTERLIB__
 #define __MOVIECUTTERLIB__
                         // willkürl.    Header   MinInf    NormInf    MaxInf
-#define INFSIZE      499572  // 4096  // 2128  // 3320  // 132636  // 499572
+#define INFSIZE                 4096  // 2128  // 3320  // 132636  // 499572
 #define NAVRECS_SD              2000
 #define NAVRECS_HD              1000
 #define BLOCKSIZE               9024
