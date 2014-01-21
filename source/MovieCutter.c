@@ -782,6 +782,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
         switch(param1)
         {
+          case RKEY_Record:  // Warum das!?
+          {
+            break;
+          }
+
           case RKEY_Ab:
           case RKEY_Option:
           {
@@ -793,11 +798,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             break;
           }
         
-          case RKEY_Record:
-          {
-            break;
-          }
-
           case RKEY_Exit:
           {
 #ifdef FULLDEBUG
@@ -1869,6 +1869,7 @@ bool CutFileLoad(void)
   word                  Padding;
   TYPE_File            *fCut = NULL;
   __off64_t             SavedSize;
+  dword                 Offsetms;
   int                   i;
   tTimeStamp           *CurTimeStamp;
 
@@ -1950,13 +1951,30 @@ bool CutFileLoad(void)
         if (Version == 1)
           SegmentMarker[i].Timems = SegmentMarker[i].Timems * 1000;
 
+        // Wenn ein Bookmark gesetzt ist, dann verschiebe die SegmentMarker so, dass der erste auf dem Bookmark steht
+        if (i == 1 && NrBookmarks > 0)
+        {
+          Offsetms = NavGetBlockTimeStamp(Bookmarks[0]) - SegmentMarker[1].Timems;
+          MSecToTimeString(SegmentMarker[i].Timems + Offsetms, curTimeStr);
+          TAP_SPrint(LogString, "Bookmark found! - First segment marker will be moved to time %s. (Offset=%d ms)", curTimeStr, Offsetms);
+          WriteLogMC(PROGRAM_NAME, LogString);
+        }
+        else
+          Offsetms = 0;
+
         MSecToTimeString(SegmentMarker[i].Timems, curTimeStr);
-        TAP_SPrint(LogString, "%2u.)  oldTimeStamp=%s   oldBlock=%u   ", i+1, curTimeStr, SegmentMarker[i].Block);
+        TAP_SPrint(LogString, "%2u.)  oldTimeStamp=%s   oldBlock=%u", i+1, curTimeStr, SegmentMarker[i].Block);
+        if (Offsetms > 0)
+        {
+          SegmentMarker[i].Timems += Offsetms;
+          MSecToTimeString(SegmentMarker[i].Timems, curTimeStr);
+          TAP_SPrint(&LogString[strlen(LogString)], "  -  movedTimeStamp=%s", curTimeStr);
+        }
 
         if ((SegmentMarker[i].Timems <= CurTimeStamp->Timems) || (CurTimeStamp >= TimeStamps + NrTimeStamps-1))
         {
           if (DeleteSegmentMarker(i)) i--;
-          TAP_SPrint(&LogString[strlen(LogString)], "--> Smaller than previous TimeStamp or end of nav reached. Deleted!");
+          TAP_SPrint(&LogString[strlen(LogString)], "  -->  Smaller than previous TimeStamp or end of nav reached. Deleted!");
         }
         else
         {
@@ -1971,12 +1989,12 @@ bool CutFileLoad(void)
             SegmentMarker[i].Timems = NavGetBlockTimeStamp(SegmentMarker[i].Block);
             SegmentMarker[i].Selected = FALSE;
             MSecToTimeString(SegmentMarker[i].Timems, curTimeStr);
-            TAP_SPrint(&LogString[strlen(LogString)], "--> newBlock=%u   newTimeStamp=%s", SegmentMarker[i].Block, curTimeStr);
+            TAP_SPrint(&LogString[strlen(LogString)], "  -->  newBlock=%u   newTimeStamp=%s", SegmentMarker[i].Block, curTimeStr);
           }
           else
           {
             if (DeleteSegmentMarker(i)) i--;
-            TAP_SPrint(&LogString[strlen(LogString)], "--> TotalBlocks exceeded. Deleted!", SegmentMarker[i].Block, curTimeStr);        
+            TAP_SPrint(&LogString[strlen(LogString)], "  -->  TotalBlocks exceeded. Deleted!", SegmentMarker[i].Block, curTimeStr);        
           }
         }
         WriteLogMC(PROGRAM_NAME, LogString);
