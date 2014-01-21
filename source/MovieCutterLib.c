@@ -480,7 +480,7 @@ long64 HDD_GetFileSize(char const *FileName)
 
 bool HDD_SetFileDateTime(char const *Directory, char const *FileName, dword NewDateTime)
 {
-  char                  AbsFileName[256];
+  char                  AbsFileName[512];
   tstat64               statbuf;
   int                   status;
   struct utimbuf        utimebuf;
@@ -1048,7 +1048,7 @@ bool SaveBookmarksToInf(char const *SourceFileName, const dword Bookmarks[], int
 
 bool PatchInfFiles(char const *SourceFileName, char const *CutFileName, dword SourcePlayTime, tTimeStamp const *CutStartPoint, tTimeStamp const *BehindCutPoint)
 {
-  char                  AbsSourceInfName[MAX_FILE_NAME_SIZE + 1], InfName[MAX_FILE_NAME_SIZE + 1];
+  char                  AbsSourceInfName[512], InfName[MAX_FILE_NAME_SIZE + 1];
   char                  CurrentDir[512];
   char                  T1[12], T2[12], T3[12];
   byte                 *Buffer = NULL;
