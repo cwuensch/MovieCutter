@@ -1260,7 +1260,7 @@ WriteLogMC("MovieCutterLib", "Header erfolgreich decoded!");
       TAP_Hdd_Fwrite(Buffer, 1, min(fs, INFSIZE), tf);
 
       // Kopiere den Rest der Source-inf (falls vorhanden) in die neue inf hinein
-//      TAP_SPrint(InfFileName, "%s%s/%s.inf", TAPFSROOT, CurrentDir, SourceFileName);
+//      TAP_SPrint(AbsSourceInfFileName, "%s%s/%s.inf", TAPFSROOT, CurrentDir, SourceFileName);
       f = fopen(AbsSourceInfName, "rb");
       if(f)
       {
@@ -1511,10 +1511,10 @@ bool PatchNavFiles(char const *SourceFileName, char const *CutFileName, off_t Cu
   return TRUE;
 }
 
-bool PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, dword *const OutCutStartTime, dword *const OutBehindCutTime)
+bool PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t CutStartPos, off_t BehindCutPos, dword *const OutCutStartTime, dword *const OutBehindCutTime, dword *const OutSourcePlayTime)
 {
-  FILE                 *fSourceNav;
-  TYPE_File            *fCutNav, *fSourceNavNew;
+  FILE                 *fSourceNav = NULL;
+  TYPE_File            *fCutNav = NULL, *fSourceNavNew = NULL;
   char                  FileName[MAX_FILE_NAME_SIZE + 1];
   off_t                 PictureHeaderOffset;
   tnavHD               *navSource=NULL, *navSourceNew=NULL, *navCut=NULL;
@@ -1522,7 +1522,7 @@ bool PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t 
   bool                  IFrameCut, IFrameSource;
   char                  CurrentDir[512];
   char                  AbsFileName[512];
-  dword                 FirstCutTime, LastCutTime, FirstSourceTime;
+  dword                 FirstCutTime, LastCutTime, FirstSourceTime, LastSourceTime;
 
   TRACEENTER();
   #ifdef FULLDEBUG
@@ -1593,6 +1593,7 @@ bool PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t 
   FirstCutTime = 0xFFFFFFFF;
   LastCutTime = 0;
   FirstSourceTime = 0;
+  LastSourceTime = 0;
   bool FirstRun = TRUE;
   while(TRUE)
   {
@@ -1649,8 +1650,10 @@ bool PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t 
         }
 
         if (PictureHeaderOffset >= BehindCutPos)
+        {
           if (FirstSourceTime == 0) FirstSourceTime = navSource[i].Timems; 
-//        LastSourceTime = navSource[i].Timems;
+          LastSourceTime = navSource[i].Timems;
+        }
 
         if((navSource[i].LastPPS >> 24) == 1) IFrameSource = TRUE;
         if(IFrameSource)
@@ -1685,6 +1688,7 @@ bool PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t 
 
   *OutCutStartTime = FirstCutTime;
   *OutBehindCutTime = (FirstSourceTime) ? FirstSourceTime : LastCutTime;
+  *OutSourcePlayTime = (LastSourceTime) ? LastSourceTime : LastCutTime;
 
   //Delete the orig source nav and make the new source nav the active one
 //  TAP_SPrint(FileName, "%s.nav.bak", SourceFileName);
@@ -1850,6 +1854,7 @@ tTimeStamp* NavLoadHD(char const *SourceFileName, dword *const NrTimeStamps)
   tnavHD               *navBuffer = NULL;
   tTimeStamp           *TimeStampBuffer = NULL;
   tTimeStamp           *TimeStamps = NULL;
+  dword                 NavRecordsNr;
   dword                 ret, i;
   dword                 FirstTime;
   dword                 LastTimeStamp;
@@ -1874,7 +1879,9 @@ tTimeStamp* NavLoadHD(char const *SourceFileName, dword *const NrTimeStamps)
   fseek(fNav, 0, SEEK_END);
   NavSize = ftell(fNav);
   rewind(fNav);
-  TimeStampBuffer = (tTimeStamp*) TAP_MemAlloc(sizeof(tTimeStamp) * (NavSize / sizeof(tnavHD)));
+  NavRecordsNr = NavSize / (sizeof(tnavHD));
+
+  TimeStampBuffer = (tTimeStamp*) TAP_MemAlloc(sizeof(tTimeStamp) * NavRecordsNr);
   if (!TimeStampBuffer)
   {
     fclose(fNav);
@@ -1884,8 +1891,8 @@ tTimeStamp* NavLoadHD(char const *SourceFileName, dword *const NrTimeStamps)
   }
 
 #ifdef FULLDEBUG
-  TAP_PrintNet("NavSize: %u\t\tBufSize: %u\n", NavSize, sizeof(tTimeStamp) * (NavSize / sizeof(tnavHD)));
-  TAP_PrintNet("Expected Nav-Records: %u\n", NavSize / sizeof(tnavHD));
+  TAP_PrintNet("NavSize: %u\t\tBufSize: %u\n", NavSize, sizeof(tTimeStamp) * NavRecordsNr);
+  TAP_PrintNet("Expected Nav-Records: %u\n", NavRecordsNr);
 #endif
 
   //Count and save all the _different_ time stamps in the .nav
