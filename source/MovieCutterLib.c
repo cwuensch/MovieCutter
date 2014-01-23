@@ -543,13 +543,22 @@ int DetectPacketSize(char const *SourceFileName)
 
 bool isNavAvailable(char const *SourceFileName)
 {
+  char                  CurrentDir[512];
   char                  NavFileName[MAX_FILE_NAME_SIZE + 1];
+  off_t                 NavFileSize;
   bool                  ret;
 
   TRACEENTER();
+  ret = FALSE;
 
   TAP_SPrint(NavFileName, "%s.nav", SourceFileName);
-  ret = TAP_Hdd_Exist(NavFileName);
+  if (TAP_Hdd_Exist(NavFileName))
+  {
+    HDD_TAP_GetCurrentDir(CurrentDir);
+    if (HDD_GetFileSizeAndInode(CurrentDir, NavFileName, NULL, &NavFileSize))
+      if (NavFileSize != 0)
+        ret = TRUE;
+  }
 
   TRACEEXIT();
   return ret;
@@ -1499,9 +1508,12 @@ bool PatchNavFiles(char const *SourceFileName, char const *CutFileName, off_t Cu
   TAP_MemFree(navSourceNew);
   TAP_MemFree(navCut);
 
-  *OutCutStartTime = FirstCutTime;
-  *OutBehindCutTime = (FirstSourceTime) ? FirstSourceTime : LastCutTime;
-  *OutSourcePlayTime = (LastSourceTime) ? LastSourceTime : LastCutTime;
+  if (FirstCutTime != 0xFFFFFFFF)
+  {
+    *OutCutStartTime = FirstCutTime;
+    *OutBehindCutTime = (FirstSourceTime) ? FirstSourceTime : LastCutTime;
+    *OutSourcePlayTime = (LastSourceTime) ? LastSourceTime : LastCutTime;
+  }
 
   //Delete the orig source nav and make the new source nav the active one
 //  TAP_SPrint(FileName, "%s.nav.bak", SourceFileName);
@@ -1686,9 +1698,12 @@ bool PatchNavFilesHD(char const *SourceFileName, char const *CutFileName, off_t 
   TAP_MemFree(navSourceNew);
   TAP_MemFree(navCut);
 
-  *OutCutStartTime = FirstCutTime;
-  *OutBehindCutTime = (FirstSourceTime) ? FirstSourceTime : LastCutTime;
-  *OutSourcePlayTime = (LastSourceTime) ? LastSourceTime : LastCutTime;
+  if (FirstCutTime != 0xFFFFFFFF)
+  {
+    *OutCutStartTime = FirstCutTime;
+    *OutBehindCutTime = (FirstSourceTime) ? FirstSourceTime : LastCutTime;
+    *OutSourcePlayTime = (LastSourceTime) ? LastSourceTime : LastCutTime;
+  }
 
   //Delete the orig source nav and make the new source nav the active one
 //  TAP_SPrint(FileName, "%s.nav.bak", SourceFileName);
@@ -1781,6 +1796,7 @@ tTimeStamp* NavLoad(char const *SourceFileName, dword *const NrTimeStamps, bool 
   do
   {
     ret = fread(navBuffer, sizeof(tnavSD), NAVRECS_SD, fNav);
+    if(ret == 0) break;
 
     // Versuche, nav-Dateien aus Timeshift-Aufnahmen zu unterstützen ***experimentell***
     if(FirstTime == 0xFFFFFFFF)
@@ -1911,6 +1927,7 @@ tTimeStamp* NavLoadHD(char const *SourceFileName, dword *const NrTimeStamps)
   do
   {
     ret = fread(navBuffer, sizeof(tnavHD), NAVRECS_HD, fNav);
+    if(ret == 0) break;
 
     // Versuche, nav-Dateien aus Timeshift-Aufnahmen zu unterstützen ***experimentell***
     if(FirstTime == 0xFFFFFFFF)
