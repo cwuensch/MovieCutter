@@ -42,8 +42,10 @@
 #include                "Graphics/Info_Background.gd"
 #include                "Graphics/Info_Progressbar.gd"
 #include                "Graphics/BookmarkMarker.gd"
+#include                "Graphics/BookmarkMarker_current.gd"
 #include                "Graphics/BookmarkMarker_gray.gd"
 #include                "Graphics/SegmentMarker.gd"
+#include                "Graphics/SegmentMarker_current.gd"
 #include                "Graphics/SegmentMarker_gray.gd"
 #include                "Graphics/ActionMenu9.gd"
 #include                "Graphics/ActionMenu_Bar.gd"
@@ -1477,7 +1479,7 @@ bool AddDefaultSegmentMarker(void)
   return ret;
 }
 
-bool AddSegmentMarker(dword Block, bool RejectSmallSegments)
+bool AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
 {
   int                   i, j;
   dword                 newTime;
@@ -1495,8 +1497,8 @@ bool AddSegmentMarker(dword Block, bool RejectSmallSegments)
     return FALSE;
   }
 
-  newTime = NavGetBlockTimeStamp(Block);
-  if((newTime == 0) && (Block > 3 * BlocksOneSecond))
+  newTime = NavGetBlockTimeStamp(newBlock);
+  if((newTime == 0) && (newBlock > 3 * BlocksOneSecond))
   {
     TRACEEXIT();
     return FALSE;
@@ -1506,9 +1508,9 @@ bool AddSegmentMarker(dword Block, bool RejectSmallSegments)
   if(NrSegmentMarker < 2)
   {
     //If less than 2 markers present, then set marker for start and end of file (called from AddDefaultSegmentMarker)
-    SegmentMarker[NrSegmentMarker].Block = Block;
+    SegmentMarker[NrSegmentMarker].Block = newBlock;
     SegmentMarker[NrSegmentMarker].Timems  = newTime;
-    SegmentMarker[NrSegmentMarker].Percent = ((float)Block / PlayInfo.totalBlock) * 100;
+    SegmentMarker[NrSegmentMarker].Percent = ((float)newBlock / PlayInfo.totalBlock) * 100;
     SegmentMarker[NrSegmentMarker].Selected = FALSE;
     NrSegmentMarker++;
   }
@@ -1516,10 +1518,10 @@ bool AddSegmentMarker(dword Block, bool RejectSmallSegments)
   {
     for(i = 1; i < NrSegmentMarker; i++)
     {
-      if(SegmentMarker[i].Block > Block)
+      if(SegmentMarker[i].Block > newBlock)
       {
         // Erlaube kein Segment mit weniger als 3 Sekunden
-        if (RejectSmallSegments && ((SegmentMarker[i-1].Block + 3*BlocksOneSecond >= Block) || (Block + 3*BlocksOneSecond >= SegmentMarker[i].Block)))
+        if (RejectSmallSegments && ((SegmentMarker[i-1].Block + 3*BlocksOneSecond >= newBlock) || (newBlock + 3*BlocksOneSecond >= SegmentMarker[i].Block)))
         {
           TRACEEXIT();
           return FALSE;
@@ -1528,13 +1530,13 @@ bool AddSegmentMarker(dword Block, bool RejectSmallSegments)
         for(j = NrSegmentMarker; j > i; j--)
           memcpy(&SegmentMarker[j], &SegmentMarker[j - 1], sizeof(tSegmentMarker));
 
-        SegmentMarker[i].Block = Block;
+        SegmentMarker[i].Block = newBlock;
         SegmentMarker[i].Timems  = newTime;
-        SegmentMarker[i].Percent = ((float)Block / PlayInfo.totalBlock) * 100;
+        SegmentMarker[i].Percent = ((float)newBlock / PlayInfo.totalBlock) * 100;
         SegmentMarker[i].Selected = FALSE;
 
         MSecToTimeString(SegmentMarker[i].Timems, StartTime);
-        TAP_SPrint(LogString, "New marker @ block = %u, time = %s, percent = %1.1f%%", Block, StartTime, SegmentMarker[i].Percent);
+        TAP_SPrint(LogString, "New marker @ block = %u, time = %s, percent = %1.1f%%", newBlock, StartTime, SegmentMarker[i].Percent);
         WriteLogMC(PROGRAM_NAME, LogString);
         break;
       }
@@ -1566,6 +1568,8 @@ int FindNearestSegmentMarker(void)
         NearestMarkerIndex = i;
       }
     }
+//    if (NearestMarkerIndex == 0) NearestMarkerIndex = 1;
+//    if (NearestMarkerIndex == NrSegmentMarker-1) NearestMarkerIndex = NrSegmentMarker - 2;
   }
 
   TRACEEXIT();
@@ -1675,7 +1679,7 @@ bool ReadBookmarks(void)
   if(PlayInfoBookmarkStruct)
   {
     NrBookmarks = PlayInfoBookmarkStruct[0];
-    memset(Bookmarks, 0, sizeof(Bookmarks));
+    memset(Bookmarks, 0, NRBOOKMARKS * sizeof(dword));
     memcpy(Bookmarks, &PlayInfoBookmarkStruct[1], NrBookmarks * sizeof(dword));
   }
   else
@@ -1711,7 +1715,7 @@ bool SaveBookmarks(void)
   {
     PlayInfoBookmarkStruct[0] = NrBookmarks;
     memset(&PlayInfoBookmarkStruct[1], 0, NRBOOKMARKS * sizeof(dword));
-    memcpy(&PlayInfoBookmarkStruct[1], Bookmarks, sizeof(Bookmarks));
+    memcpy(&PlayInfoBookmarkStruct[1], Bookmarks, NrBookmarks * sizeof(dword));
   }
   else
   {
@@ -1752,7 +1756,7 @@ void ExportSegmentsToBookmarks(void)
   TRACEEXIT();
 }
 
-bool AddBookmark(dword Block)
+bool AddBookmark(dword newBlock)
 {
   int i, j;
 
@@ -1767,25 +1771,25 @@ bool AddBookmark(dword Block)
 
   //Find the point where to insert the new marker so that the list stays sorted
   if (NrBookmarks == 0)
-    Bookmarks[0] = Block;
-  else if (Block > Bookmarks[NrBookmarks - 1])
+    Bookmarks[0] = newBlock;
+  else if (newBlock > Bookmarks[NrBookmarks - 1])
   {
     // Erlaube keinen Abschnitt mit weniger als 3 Sekunden
-    if (Bookmarks[NrBookmarks-1] + 3*BlocksOneSecond >= Block)
+    if (Bookmarks[NrBookmarks-1] + 3*BlocksOneSecond >= newBlock)
     {
       TRACEEXIT();
       return FALSE;
     }
-    Bookmarks[NrBookmarks] = Block;
+    Bookmarks[NrBookmarks] = newBlock;
   }
   else
   {
     for(i = 0; i < NrBookmarks; i++)
     {
-      if(Bookmarks[i] > Block)
+      if(Bookmarks[i] > newBlock)
       {
         // Erlaube keinen Abschnitt mit weniger als 3 Sekunden
-        if ((Bookmarks[i-1] + 3*BlocksOneSecond >= Block) || (Block + 3*BlocksOneSecond >= Bookmarks[i]))
+        if ((i > 0 && (Bookmarks[i-1] + 3*BlocksOneSecond >= newBlock)) || (newBlock + 3*BlocksOneSecond >= Bookmarks[i]))
         {
           TRACEEXIT();
           return FALSE;
@@ -1794,7 +1798,7 @@ bool AddBookmark(dword Block)
         for(j = NrBookmarks; j > i; j--)
           Bookmarks[j] = Bookmarks[j - 1];
 
-        Bookmarks[i] = Block;
+        Bookmarks[i] = newBlock;
         break;
       }
     }
@@ -1840,7 +1844,7 @@ bool MoveBookmark(dword newBlock)
   if(NearestBookmarkIndex != -1)
   {
     // Erlaube keinen Abschnitt mit weniger als 3 Sekunden
-    if ((Bookmarks[NearestBookmarkIndex-1] + 3*BlocksOneSecond < newBlock) && (newBlock + 3*BlocksOneSecond < Bookmarks[NearestBookmarkIndex+1]))
+    if (((NearestBookmarkIndex == 0) || (Bookmarks[NearestBookmarkIndex-1] + 3*BlocksOneSecond < newBlock)) && ((NearestBookmarkIndex == NrBookmarks-1) || (newBlock + 3*BlocksOneSecond < Bookmarks[NearestBookmarkIndex+1])))
     {
       Bookmarks[NearestBookmarkIndex] = newBlock;
       SaveBookmarks();
@@ -2393,6 +2397,7 @@ void OSDInfoDrawProgressbar(bool Force)
   dword                 pos = 0;
   dword                 x1, x2;
   dword                 totalBlock;
+  int                   NearestMarker = -1;
   static dword          LastDraw = 0;
   static dword          LastPos = 999;
 
@@ -2426,15 +2431,9 @@ void OSDInfoDrawProgressbar(bool Force)
         }
 
         //SegmentMarker: 0% = 31/93,  100% = 683/93
-        //Draw the selection for segment 0
-        if(SegmentMarker[0].Selected)
-        {
-          x1 = 34 + (int)((float)653 * SegmentMarker[0].Percent / 100);
-          x2 = 34 + (int)((float)653 * SegmentMarker[1].Percent / 100);
-          TAP_Osd_DrawRectangle(rgnInfo, x1, 102, x2 - x1, 10, 2, COLOR_Blue);
-        }
-
-        for(i = 1; i < NrSegmentMarker - 1; i++)
+        if (!BookmarkMode)
+          NearestMarker = FindNearestSegmentMarker();
+        for(i = 0; i < NrSegmentMarker - 1; i++)
         {
           //Draw the selection
           if(SegmentMarker[i].Selected)
@@ -2445,10 +2444,18 @@ void OSDInfoDrawProgressbar(bool Force)
           }
 
           //Draw the segment marker
-          if(totalBlock && SegmentMarker[i].Block <= totalBlock)
+          if((i >= 1) && (totalBlock && SegmentMarker[i].Block <= totalBlock))
           {
             pos = (dword)((float)SegmentMarker[i].Block * 653 / totalBlock);
-            TAP_Osd_PutGd(rgnInfo, 31 + pos, 93, ((BookmarkMode) ? &_SegmentMarker_gray_Gd : &_SegmentMarker_Gd), TRUE);
+            if (!BookmarkMode)
+            {
+              if (i == NearestMarker)
+                TAP_Osd_PutGd(rgnInfo, 31 + pos, 93, &_SegmentMarker_current_Gd, TRUE);
+              else
+                TAP_Osd_PutGd(rgnInfo, 31 + pos, 93, &_SegmentMarker_Gd, TRUE);
+            }
+            else
+              TAP_Osd_PutGd(rgnInfo, 31 + pos, 93, &_SegmentMarker_gray_Gd, TRUE);
           }
         }
 
@@ -2461,12 +2468,22 @@ void OSDInfoDrawProgressbar(bool Force)
         }
 
         //Bookmarks: 0% = 31/112, 100% = 683/112
+        if (BookmarkMode)
+          NearestMarker = FindNearestBookmark();
         for(i = 0; i < NrBookmarks; i++)
         {
           if(totalBlock && (Bookmarks[i] <= totalBlock))
           {
             pos = (dword)((float)Bookmarks[i] * 653 / totalBlock);
-            TAP_Osd_PutGd(rgnInfo, 31 + pos, 112, ((BookmarkMode) ? &_BookmarkMarker_Gd : &_BookmarkMarker_gray_Gd), TRUE);
+            if (BookmarkMode)
+            {
+              if (i == NearestMarker)
+                TAP_Osd_PutGd(rgnInfo, 31 + pos, 112, &_BookmarkMarker_current_Gd, TRUE);
+              else
+                TAP_Osd_PutGd(rgnInfo, 31 + pos, 112, &_BookmarkMarker_Gd, TRUE);
+            }
+            else
+              TAP_Osd_PutGd(rgnInfo, 31 + pos, 112, &_BookmarkMarker_gray_Gd, TRUE);
           }
         }
 

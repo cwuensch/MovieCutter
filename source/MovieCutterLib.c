@@ -1751,7 +1751,7 @@ tTimeStamp* NavLoad(char const *SourceFileName, dword *const NrTimeStamps, bool 
   rewind(fNav);
   NavRecordsNr = NavSize / (sizeof(tnavSD) * ((isHD) ? 2 : 1));
 
-  TimeStampBuffer = (tTimeStamp*) TAP_MemAlloc(sizeof(tTimeStamp) * NavRecordsNr);
+  TimeStampBuffer = (tTimeStamp*) TAP_MemAlloc(NavRecordsNr * sizeof(tTimeStamp));
   if (!TimeStampBuffer)
   {
     fclose(fNav);
@@ -1761,7 +1761,7 @@ tTimeStamp* NavLoad(char const *SourceFileName, dword *const NrTimeStamps, bool 
   }
 
 #ifdef FULLDEBUG
-  TAP_PrintNet("NavSize: %u\t\tBufSize: %u\n", NavSize, sizeof(tTimeStamp) * NavRecordsNr);
+  TAP_PrintNet("NavSize: %u\t\tBufSize: %u\n", NavSize, NavRecordsNr * sizeof(tTimeStamp));
   TAP_PrintNet("Expected Nav-Records: %u\n", NavRecordsNr);
 #endif
 
@@ -1881,7 +1881,7 @@ tTimeStamp* NavLoadHD(char const *SourceFileName, dword *const NrTimeStamps)
   rewind(fNav);
   NavRecordsNr = NavSize / (sizeof(tnavHD));
 
-  TimeStampBuffer = (tTimeStamp*) TAP_MemAlloc(sizeof(tTimeStamp) * NavRecordsNr);
+  TimeStampBuffer = (tTimeStamp*) TAP_MemAlloc(NavRecordsNr * sizeof(tTimeStamp));
   if (!TimeStampBuffer)
   {
     fclose(fNav);
@@ -1891,7 +1891,7 @@ tTimeStamp* NavLoadHD(char const *SourceFileName, dword *const NrTimeStamps)
   }
 
 #ifdef FULLDEBUG
-  TAP_PrintNet("NavSize: %u\t\tBufSize: %u\n", NavSize, sizeof(tTimeStamp) * NavRecordsNr);
+  TAP_PrintNet("NavSize: %u\t\tBufSize: %u\n", NavSize, NavRecordsNr * sizeof(tTimeStamp));
   TAP_PrintNet("Expected Nav-Records: %u\n", NavRecordsNr);
 #endif
 
