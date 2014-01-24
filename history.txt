@@ -1,12 +1,18 @@
-2014-01-18 V2.0g ** Full support of cutting algorithms on Australian devices!
-        (stable)  * Support of cutting recordings without .nav-files (e.g. radio)!
+2014-01-24 V2.0g ** new: Full support of cutting algorithms on Australian devices!
+     (empfohlen)  * new: Support of cutting recordings without .nav-files (e.g. radio)!
                   * SaveEnding doch wieder durch Umkehrung realisiert (u.a. wegen CutPoint-Ermittlung auf australischen Geräten, und weil es an der Korrumption des Endes nichts zu ändern scheint)
                  ** nav-Behandlung überarbeitet (HD-Funktionen sind nun in SD integriert)
                   * nav-Prüfung feingetuned (kleine Abweichungen, die im Bereich des Normalen liegen, werden toleriert)
-                  * Kompatibilität mit INFplus (Zusatzinfos in .inf-Dateien bleiben erhalten, Aufnahmedatum wird neu berechnet)
+                 ** Kompatibilität mit INFplus (Zusatzinfos in .inf-Dateien bleiben erhalten, Aufnahmedatum wird neu berechnet)
                   * ConfirmationDialog nun auch bei Import/Export Bookmarks (wenn Segmentliste bzw. Bookmarks gelöscht werden)
+                  * der jeweils nächstgelegene Segment- bzw. BookmarkMarker (der von der gelben oder roten Taste bearbeitet wird) wird farblich hervorgehoben
+                  * beim Import eines cut-Files mit nicht-passender Dateigröße, erfolgt die SegmentMarker-Neuberechnung relativ zum ersten Bookmark
                   * neuer ini-Schalter: DirectSegmentsCut=1 bewirkt direktes Löschen der (un)geraden Segmente
                   * auch bei aktivem MC-OSD werden Tasten an andere TAPs weitergereicht (experimentell!)
+                  * Bugfix: Wenn während der Meldung LS_NavPatched die Wiedergabe beendet wird, reagiert der Receiver nicht mehr
+                  * kritischer Bugfix: Stack-Overflow beim Laden der inf-Datei
+                  * kritischer Bugfix: Buffer-Overrun beim Speichern der Bookmarks
+                  * kritischer Bugfix: 2 weitere mögliche Buffer-Overruns in String-Puffern
 2013-12-24 V2.0f  * kritischer Bugfix: Wenn beim Löschen des letzten Segments ein Fehler auftritt, wird die Aufnahme nicht mehr zerstört!
                   * kritischer Bugfix 2: Beim Generieren des temporären Cut-Namens konnte ein String-Überlauf auftreten! (-> TMS 2100 Absturz)
 2013-12-21 V2.0e  * Mini-Bugfix: OSD-Tastenübersicht zeigte noch "Ok"-Taste für den Menüaufruf an
@@ -18,7 +24,7 @@
                   * wenn keine Segmente angelegt sind, wird auch keine .cut-Datei mehr angelegt (bzw. die vorhandene gelöscht)
                   * bei nicht übereinstimmender .cut-Datei werden die TimeStamps importiert und die zugehörigen Blocknummern neu berechnet.
 2013-12-21 V2.0d  * Bedienung:
-         (stable)   - OK hat nun die Funktion Play/Pause (nicht mehr Menü)
+                    - OK hat nun die Funktion Play/Pause (nicht mehr Menü)
                     - Menu ruft jetzt das Schnittmenü auf
                     - Pfeil nach rechts im schnellsten Zeitlupe-Modus wechselt zu Play
                   * Warnung bei inkorrekter .nav-Länge, Fortsetzung ist jetzt trotzdem möglich

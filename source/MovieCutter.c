@@ -3035,6 +3035,7 @@ void Playback_JumpForward(void)
 
   if(TrickMode == TRICKMODE_Pause) Playback_Normal();
   TAP_Hdd_ChangePlaybackPos(JumpBlock);
+  JumpRequestedSegment = 0xFFFF;
 
   TRACEEXIT();
 }
@@ -3048,6 +3049,7 @@ void Playback_JumpBackward(void)
 
   if(TrickMode == TRICKMODE_Pause) Playback_Normal();
   TAP_Hdd_ChangePlaybackPos(JumpBlock);
+  JumpRequestedSegment = 0xFFFF;
 
   TRACEEXIT();
 }
@@ -3062,8 +3064,10 @@ void Playback_JumpNextSegment(void)
       ActiveSegment++;
     else
       ActiveSegment = 0;
+
     if(TrickMode == TRICKMODE_Pause) Playback_Normal();
     TAP_Hdd_ChangePlaybackPos(SegmentMarker[ActiveSegment].Block);
+    JumpRequestedSegment = 0xFFFF;
     JumpRequestedTime = 0;
     JumpPerformedTime = TAP_GetTick();
     OSDSegmentListDrawList();
@@ -3078,7 +3082,7 @@ void Playback_JumpPrevSegment(void)
 
   const dword FiveSeconds = PlayInfo.totalBlock * 5 / (60*PlayInfo.duration + PlayInfo.durationSec);
 
-  if(NrSegmentMarker > 2)
+  if(NrSegmentMarker >= 2)
   {
     if (PlayInfo.currentBlock < (SegmentMarker[ActiveSegment].Block + FiveSeconds))
     {
@@ -3087,8 +3091,10 @@ void Playback_JumpPrevSegment(void)
       else
         ActiveSegment = NrSegmentMarker - 2;
     }
+
     if(TrickMode == TRICKMODE_Pause) Playback_Normal();
     TAP_Hdd_ChangePlaybackPos(SegmentMarker[ActiveSegment].Block);
+    JumpRequestedSegment = 0xFFFF;
     JumpRequestedTime = 0;
     JumpPerformedTime = TAP_GetTick();
     OSDSegmentListDrawList();
@@ -3107,16 +3113,18 @@ void Playback_JumpNextBookmark(void)
   {
     if(TrickMode == TRICKMODE_Pause) Playback_Normal();
     TAP_Hdd_ChangePlaybackPos(Bookmarks[0]);
+    JumpRequestedSegment = 0xFFFF;
     TRACEEXIT();
     return;
   }
   
   for(i = 0; i < NrBookmarks; i++)
   {
-    if(PlayInfo.currentBlock < Bookmarks[i])
+    if(Bookmarks[i] > PlayInfo.currentBlock)
     {
       if(TrickMode == TRICKMODE_Pause) Playback_Normal();
       TAP_Hdd_ChangePlaybackPos(Bookmarks[i]);
+      JumpRequestedSegment = 0xFFFF;
       TRACEEXIT();
       return;
     }
@@ -3129,27 +3137,31 @@ void Playback_JumpPrevBookmark(void)
 {
   TRACEENTER();
 
-  const dword           ThirtySeconds = PlayInfo.totalBlock * 30 / (60*PlayInfo.duration + PlayInfo.durationSec);
+  const dword           FiveSeconds = PlayInfo.totalBlock * 5 / (60*PlayInfo.duration + PlayInfo.durationSec);
+  dword                 JumpToBlock = PlayInfo.currentBlock;
   int                   i;
 
-  if ((NrBookmarks > 0) && (PlayInfo.currentBlock < Bookmarks[0]))
+  if (NrBookmarks == 0)
+    JumpToBlock = 0;
+  else if (PlayInfo.currentBlock < Bookmarks[0] + FiveSeconds)
   {
-    if(TrickMode == TRICKMODE_Pause) Playback_Normal();
-    TAP_Hdd_ChangePlaybackPos(Bookmarks[NrBookmarks-1]);
-    TRACEEXIT();
-    return;
+    if (PlayInfo.currentBlock >= FiveSeconds)
+      JumpToBlock = 0;
+    else
+      JumpToBlock = Bookmarks[NrBookmarks - 1];
   }
-  
-  for(i = NrBookmarks - 1; i >= 0; i--)
-  {
-    if((Bookmarks[i] + ThirtySeconds) < PlayInfo.currentBlock)
+  else
+    for(i = NrBookmarks - 1; i >= 0; i--)
     {
-      if(TrickMode == TRICKMODE_Pause) Playback_Normal();
-      TAP_Hdd_ChangePlaybackPos(Bookmarks[i]);
-      TRACEEXIT();
-      return;
+      if((Bookmarks[i] + FiveSeconds) <= PlayInfo.currentBlock)
+      {
+        JumpToBlock = Bookmarks[i];
+        break;
+      }
     }
-  }
+  if(TrickMode == TRICKMODE_Pause) Playback_Normal();
+  TAP_Hdd_ChangePlaybackPos(JumpToBlock);
+  JumpRequestedSegment = 0xFFFF;
 
   TRACEEXIT();
 }
