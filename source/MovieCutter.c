@@ -1980,6 +1980,7 @@ bool CutFileLoad(void)
       SegmentMarker[0].Selected = FALSE;
       SegmentMarker[NrSegmentMarker - 1].Block = 0xFFFFFFFF;
 
+      Offsetms = 0;
       CurTimeStamp = TimeStamps;
       for (i = 1; i <= NrSegmentMarker-2; i++)
       {
@@ -1994,8 +1995,6 @@ bool CutFileLoad(void)
           TAP_SPrint(LogString, "Bookmark found! - First segment marker will be moved to time %s. (Offset=%d ms)", curTimeStr, Offsetms);
           WriteLogMC(PROGRAM_NAME, LogString);
         }
-        else
-          Offsetms = 0;
 
         MSecToTimeString(SegmentMarker[i].Timems, curTimeStr);
         TAP_SPrint(LogString, "%2u.)  oldTimeStamp=%s   oldBlock=%u", i+1, curTimeStr, SegmentMarker[i].Block);
@@ -2013,9 +2012,9 @@ bool CutFileLoad(void)
         }
         else
         {
-          while ((SegmentMarker[i].Timems > CurTimeStamp->Timems) && (CurTimeStamp < TimeStamps + NrTimeStamps-1))
+          while ((CurTimeStamp->Timems < SegmentMarker[i].Timems) && (CurTimeStamp < TimeStamps + NrTimeStamps-1))
             CurTimeStamp++;
-          if (SegmentMarker[i].Timems < CurTimeStamp->Timems)
+          if (CurTimeStamp->Timems > SegmentMarker[i].Timems)
             CurTimeStamp--;
         
           if (CurTimeStamp->BlockNr < PlayInfo.totalBlock)
@@ -3535,7 +3534,7 @@ void MovieCutterProcess(bool KeepCut)
   char                  CutFileName[MAX_FILE_NAME_SIZE + 1];
   char                  TempFileName[MAX_FILE_NAME_SIZE + 1];
   tTimeStamp            CutStartPoint, BehindCutPoint;
-  dword                 DeltaTime, DeltaBlock;
+  dword                 DeltaBlock; //, DeltaTime;
   int                   i, j;
   tResultCode           ret;
 
@@ -3692,7 +3691,7 @@ void MovieCutterProcess(bool KeepCut)
       WriteLogMC(PROGRAM_NAME, LogString);
 
       //Bail out if the cut failed
-      if(ret == RC_Error)
+      if((ret == RC_Error) || (PlayInfo.totalBlock == 0))
       {
         State = ST_UnacceptedFile;
         ShowErrorMessage(LangGetString(LS_CutHasFailed));
@@ -3701,42 +3700,53 @@ void MovieCutterProcess(bool KeepCut)
 
       // Anpassung der verbleibenden Segmente
       SegmentMarker[WorkingSegment].Selected = FALSE;
-      DeleteSegmentMarker(WorkingSegment);  // das 0. Segment darf nicht gelöscht werden
+      if (WorkingSegment + 1 < NrSegmentMarker - 1)
+        DeleteSegmentMarker(WorkingSegment + 1);  // das letzte Segment darf nicht gelöscht werden
+      else
+        NrSegmentMarker--;
       NrSelectedSegments--;
 
-      if (CutEnding) {
-        DeltaBlock = CutStartPoint.BlockNr;
-        DeltaTime = CutStartPoint.Timems;
-      } else {
-        DeltaBlock = BehindCutPoint.BlockNr - CutStartPoint.BlockNr;
-        DeltaTime = BehindCutPoint.Timems - CutStartPoint.Timems;
-      }
+      // das aktuelle Segment auf die tatsächliche Schnittposition setzen
+      SegmentMarker[WorkingSegment].Block =  ((!CutEnding) ? CutStartPoint : BehindCutPoint).BlockNr;
+      SegmentMarker[WorkingSegment].Timems = ((!CutEnding) ? CutStartPoint : BehindCutPoint).Timems;
+      SegmentMarker[WorkingSegment].Percent = (float)SegmentMarker[WorkingSegment].Block * 100 / PlayInfo.totalBlock;
 
-      for(j = NrSegmentMarker - 1; j >= 1; j--)
+//      if (CutEnding) {
+//        DeltaBlock = CalcBlockSize(RecFileSize) - BehindCutPoint.BlockNr;
+//        DeltaTime = (!LinearTimeMode) ? (TimeStamps[NrTimeStamps-1].Timems - BehindCutPoint.Timems) : NavGetBlockTimeStamp(DeltaBlock);
+//      } else {
+//        DeltaBlock = BehindCutPoint.BlockNr - CutStartPoint.BlockNr;
+//        DeltaTime = BehindCutPoint.Timems - CutStartPoint.Timems;
+//      }
+
+      // nachfolgende Semente verschieben
+      DeltaBlock = BehindCutPoint.BlockNr - CutStartPoint.BlockNr;
+      for(j = NrSegmentMarker - 1; j >= WorkingSegment + 1; j--)
       {
-        if(SegmentMarker[j].Block > CutStartPoint.BlockNr + 1)
+        if(SegmentMarker[j].Block + 22 >= BehindCutPoint.BlockNr)  // unnötig
         {
           SegmentMarker[j].Block -= min(DeltaBlock, SegmentMarker[j].Block);
-          SegmentMarker[j].Timems -= min(DeltaTime, SegmentMarker[j].Timems);
+          SegmentMarker[j].Timems = NavGetBlockTimeStamp(SegmentMarker[j].Block);  // -= min(DeltaTime, SegmentMarker[j].Timems);
+          SegmentMarker[j].Percent = (float)SegmentMarker[j].Block * 100 / PlayInfo.totalBlock;
         }
-
-        // das letzte Segment auf den gemeldeten TotalBlock-Wert setzen
-        if((j == NrSegmentMarker - 1) && (SegmentMarker[j].Block != PlayInfo.totalBlock))
-        {
-          #ifdef FULLDEBUG
-            TAP_SPrint(LogString, "MovieCutterProcess: Letzter Segment-Marker %u ist ungleich TotalBlock %u!", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
-            WriteLogMC(PROGRAM_NAME, LogString);
-          #endif
-          SegmentMarker[j].Block = PlayInfo.totalBlock;
-          dword newTime = NavGetBlockTimeStamp(SegmentMarker[j].Block);
-          SegmentMarker[j].Timems = (newTime) ? newTime : (dword)(1000 * (60*PlayInfo.duration + PlayInfo.durationSec));
-        }
-        SegmentMarker[j].Percent = (float)SegmentMarker[j].Block * 100 / SegmentMarker[NrSegmentMarker - 1].Block;
 
         //If the first marker has moved to block 0, delete it
         if(SegmentMarker[j].Block <= 1) DeleteSegmentMarker(j);  // Annahme: ermittelte DeltaBlocks weichen nur um höchstens 1 ab
       }
     
+      // das letzte Segment auf den gemeldeten TotalBlock-Wert setzen
+      if((j == NrSegmentMarker - 1) && (SegmentMarker[j].Block != PlayInfo.totalBlock))
+      {
+        #ifdef FULLDEBUG
+          TAP_SPrint(LogString, "MovieCutterProcess: Letzter Segment-Marker %u ist ungleich TotalBlock %u!", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
+          WriteLogMC(PROGRAM_NAME, LogString);
+        #endif
+        SegmentMarker[NrSegmentMarker-1].Block = PlayInfo.totalBlock;
+        dword newTime = NavGetBlockTimeStamp(SegmentMarker[NrSegmentMarker-1].Block);
+        SegmentMarker[NrSegmentMarker-1].Timems = (newTime) ? newTime : (dword)(1000 * (60*PlayInfo.duration + PlayInfo.durationSec));
+        SegmentMarker[NrSegmentMarker-1].Percent = 100;
+      }
+
       // Wenn Spezial-Crop-Modus, nochmal testen, ob auch mit der richtigen rec weitergemacht wird
       if(CutEnding)
       {
