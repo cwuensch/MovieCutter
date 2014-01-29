@@ -1531,7 +1531,7 @@ bool AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
           memcpy(&SegmentMarker[j], &SegmentMarker[j - 1], sizeof(tSegmentMarker));
 
         SegmentMarker[i].Block = newBlock;
-        SegmentMarker[i].Timems  = newTime;
+        SegmentMarker[i].Timems = newTime;
         SegmentMarker[i].Percent = ((float)newBlock / PlayInfo.totalBlock) * 100;
         SegmentMarker[i].Selected = FALSE;
 
@@ -3706,11 +3706,6 @@ void MovieCutterProcess(bool KeepCut)
         NrSegmentMarker--;
       NrSelectedSegments--;
 
-      // das aktuelle Segment auf die tatsächliche Schnittposition setzen
-      SegmentMarker[WorkingSegment].Block =  ((!CutEnding) ? CutStartPoint : BehindCutPoint).BlockNr;
-      SegmentMarker[WorkingSegment].Timems = ((!CutEnding) ? CutStartPoint : BehindCutPoint).Timems;
-      SegmentMarker[WorkingSegment].Percent = (float)SegmentMarker[WorkingSegment].Block * 100 / PlayInfo.totalBlock;
-
 //      if (CutEnding) {
 //        DeltaBlock = CalcBlockSize(RecFileSize) - BehindCutPoint.BlockNr;
 //        DeltaTime = (!LinearTimeMode) ? (TimeStamps[NrTimeStamps-1].Timems - BehindCutPoint.Timems) : NavGetBlockTimeStamp(DeltaBlock);
@@ -3719,19 +3714,26 @@ void MovieCutterProcess(bool KeepCut)
 //        DeltaTime = BehindCutPoint.Timems - CutStartPoint.Timems;
 //      }
 
-      // nachfolgende Semente verschieben
       DeltaBlock = BehindCutPoint.BlockNr - CutStartPoint.BlockNr;
-      for(j = NrSegmentMarker - 1; j >= WorkingSegment + 1; j--)
+      for(j = NrSegmentMarker - 1; j >= WorkingSegment /* j > 0 */; j--)
       {
-        if(SegmentMarker[j].Block + 22 >= BehindCutPoint.BlockNr)  // unnötig
+        if(j == WorkingSegment)
         {
+          // das aktuelle Segment auf die tatsächliche Schnittposition setzen
+          SegmentMarker[WorkingSegment].Block =  ((!CutEnding) ? CutStartPoint : BehindCutPoint).BlockNr;
+          SegmentMarker[WorkingSegment].Timems = ((!CutEnding) ? CutStartPoint : BehindCutPoint).Timems;
+          SegmentMarker[WorkingSegment].Percent = (float)SegmentMarker[WorkingSegment].Block * 100 / PlayInfo.totalBlock;
+        }
+        else if(SegmentMarker[j].Block + 11 >= BehindCutPoint.BlockNr)  // unnötig?
+        {
+          // nachfolgende Semente verschieben
           SegmentMarker[j].Block -= min(DeltaBlock, SegmentMarker[j].Block);
           SegmentMarker[j].Timems = NavGetBlockTimeStamp(SegmentMarker[j].Block);  // -= min(DeltaTime, SegmentMarker[j].Timems);
           SegmentMarker[j].Percent = (float)SegmentMarker[j].Block * 100 / PlayInfo.totalBlock;
         }
 
         //If the first marker has moved to block 0, delete it
-        if(SegmentMarker[j].Block <= 1) DeleteSegmentMarker(j);  // Annahme: ermittelte DeltaBlocks weichen nur um höchstens 1 ab
+//        if(SegmentMarker[j].Block <= 1) DeleteSegmentMarker(j);  // Annahme: ermittelte DeltaBlocks weichen nur um höchstens 1 ab
       }
     
       // das letzte Segment auf den gemeldeten TotalBlock-Wert setzen

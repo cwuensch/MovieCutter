@@ -328,8 +328,8 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
   // Copy the real cutting positions into the cut point parameters to be returned
   if (!SuppressNavGeneration)
   {
-    CutStartPoint->BlockNr = CalcBlockSize(CutStartPos + BLOCKSIZE/2);
-    BehindCutPoint->BlockNr = CutStartPoint->BlockNr + CalcBlockSize(BehindCutPos - CutStartPos + BLOCKSIZE-1);
+    CutStartPoint->BlockNr = CalcBlockSize(CutStartPos /*+ BLOCKSIZE/2*/);
+    BehindCutPoint->BlockNr = CutStartPoint->BlockNr + CalcBlockSize(BehindCutPos - CutStartPos + BLOCKSIZE/2);
   }
 
   // Unpatch the rec-File
