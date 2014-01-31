@@ -3536,7 +3536,7 @@ void MovieCutterProcess(bool KeepCut)
   tTimeStamp            CutStartPoint, BehindCutPoint;
   dword                 DeltaBlock; //, DeltaTime;
   int                   i, j;
-  tResultCode           ret;
+  tResultCode           ret = RC_Error;
 
   TRACEENTER();
 
@@ -3645,7 +3645,7 @@ void MovieCutterProcess(bool KeepCut)
           CutStartPoint.Timems   = SegmentMarker[0].Timems;
           BehindCutPoint.BlockNr = SegmentMarker[NrSegmentMarker-2].Block;
           BehindCutPoint.Timems  = SegmentMarker[NrSegmentMarker-2].Timems;
-          WriteLogMC(PROGRAM_NAME, "(* special mode for cut ending *)");
+          WriteLogMC(PROGRAM_NAME, "(* new special mode for cut ending *)");
         }
       }
 
@@ -3653,31 +3653,44 @@ void MovieCutterProcess(bool KeepCut)
       GetNextFreeCutName(PlaybackName, CutFileName, NrSelectedSegments - 1);
       if (CutEnding)
       {
-        strcpy(TempFileName, PlaybackName);
-//        TempFileName[strlen(PlaybackName) - 4] = '\0';
-        TAP_SPrint(&TempFileName[strlen(PlaybackName) - 4], "_temp%s", &PlaybackName[strlen(PlaybackName) - 4]);
-        HDD_Delete(TempFileName);
+        // Umbenennen der Original-Aufnahme zu CutFileName
+        TAP_SPrint(LogString, "Renaming original playback file '%s' to '%s'", PlaybackName, CutFileName);
+        WriteLogMC(PROGRAM_NAME, LogString);
+        HDD_Rename(PlaybackName, CutFileName);
       }
 
       // Schnittoperation
-      ret = MovieCutter(PlaybackName, ((CutEnding) ? TempFileName : CutFileName), &CutStartPoint, &BehindCutPoint, (KeepCut || CutEnding), HDVideo);
+      if (TAP_Hdd_Exist((CutEnding) ? CutFileName : PlaybackName))
+        ret = MovieCutter(((CutEnding) ? CutFileName : PlaybackName), ((CutEnding) ? PlaybackName : CutFileName), &CutStartPoint, &BehindCutPoint, (KeepCut || CutEnding), HDVideo);
 
-      // Das erzeugte CutFile wird zum neuen SourceFile
-      if (ret && CutEnding)
+      // Source- und CutFile sind vertauscht - falls Schnitt fehlgeschlagen, reparieren
+      if (CutEnding)
       {
-        if (KeepCut)
+        RecFileSize = 0;
+        if(TAP_Hdd_Exist(PlaybackName))
+          HDD_GetFileSizeAndInode(PlaybackDir, PlaybackName, NULL, &RecFileSize);
+        TAP_SPrint(LogString, "Size of the new playback file (after cut): %llu", RecFileSize); 
+        WriteLogMC(PROGRAM_NAME, LogString);
+
+        if (RecFileSize > 0)
         {
-          TAP_SPrint(LogString, "Renaming original file '%s' to '%s'", PlaybackName, CutFileName);
-          WriteLogMC(PROGRAM_NAME, LogString);
-          HDD_Rename(PlaybackName, CutFileName);
+          if (ret && !KeepCut) HDD_Delete(CutFileName);
         }
         else
-          HDD_Delete(PlaybackName);
-        if (!TAP_Hdd_Exist(PlaybackName))
         {
-          TAP_SPrint(LogString, "Renaming cutfile '%s' to '%s'", TempFileName, PlaybackName);
+          TAP_SPrint(LogString, "Cut failed! Renaming source file '%s' back to '%s'", CutFileName, PlaybackName); 
           WriteLogMC(PROGRAM_NAME, LogString);
-          HDD_Rename(TempFileName, PlaybackName);
+          HDD_Delete(PlaybackName);
+          HDD_Rename(CutFileName, PlaybackName);
+        }
+
+        char PlaybackNavBak[MAX_FILE_NAME_SIZE + 1], CutFileNavBak[MAX_FILE_NAME_SIZE + 1];
+        TAP_SPrint(PlaybackNavBak, "%s.nav.bak", PlaybackName);
+        TAP_SPrint(CutFileNavBak, "%s.nav.bak", CutFileName);
+        if (TAP_Hdd_Exist(CutFileNavBak))
+        {
+          if (TAP_Hdd_Exist(PlaybackNavBak)) TAP_Hdd_Delete(PlaybackNavBak);
+          TAP_Hdd_Rename(CutFileNavBak, PlaybackNavBak);
         }
       }
 
@@ -3687,6 +3700,14 @@ void MovieCutterProcess(bool KeepCut)
       {
         isPlaybackRunning();
       } while ((int)PlayInfo.totalBlock == -1);
+      j = 0;
+      while ((PlayInfo.totalBlock == 0) && (j < 1000))
+      {
+        TAP_SPrint(LogString, "!! Reported new totalBlock = 0 - Try %d of 1000.", j);
+        WriteLogMC(PROGRAM_NAME, LogString);
+        TAP_Delay(1);
+        isPlaybackRunning();        
+      }
       TAP_SPrint(LogString, "Reported new totalBlock = %u", PlayInfo.totalBlock);
       WriteLogMC(PROGRAM_NAME, LogString);
 
@@ -3707,7 +3728,7 @@ void MovieCutterProcess(bool KeepCut)
       NrSelectedSegments--;
 
 //      if (CutEnding) {
-//        DeltaBlock = CalcBlockSize(RecFileSize) - BehindCutPoint.BlockNr;
+//        DeltaBlock = CalcBlockSize(CutFileSize);
 //        DeltaTime = (!LinearTimeMode) ? (TimeStamps[NrTimeStamps-1].Timems - BehindCutPoint.Timems) : NavGetBlockTimeStamp(DeltaBlock);
 //      } else {
 //        DeltaBlock = BehindCutPoint.BlockNr - CutStartPoint.BlockNr;
@@ -3737,7 +3758,7 @@ void MovieCutterProcess(bool KeepCut)
       }
     
       // das letzte Segment auf den gemeldeten TotalBlock-Wert setzen
-      if((j == NrSegmentMarker - 1) && (SegmentMarker[j].Block != PlayInfo.totalBlock))
+      if(SegmentMarker[NrSegmentMarker-1].Block != PlayInfo.totalBlock)
       {
         #ifdef FULLDEBUG
           TAP_SPrint(LogString, "MovieCutterProcess: Letzter Segment-Marker %u ist ungleich TotalBlock %u!", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);

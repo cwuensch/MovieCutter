@@ -328,7 +328,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
   // Copy the real cutting positions into the cut point parameters to be returned
   if (!SuppressNavGeneration)
   {
-    CutStartPoint->BlockNr = CalcBlockSize(CutStartPos /*+ BLOCKSIZE/2*/);
+    CutStartPoint->BlockNr = CalcBlockSize(CutStartPos + BLOCKSIZE-1);  // erster vollständiger Block des CutFile
     BehindCutPoint->BlockNr = CutStartPoint->BlockNr + CalcBlockSize(BehindCutPos - CutStartPos + BLOCKSIZE/2);
   }
 
