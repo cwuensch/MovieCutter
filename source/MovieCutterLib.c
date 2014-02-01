@@ -409,6 +409,9 @@ bool FileCut(char *SourceFileName, char *CutFileName, dword StartBlock, dword Nr
     WriteLogMC("MovieCutterLib", "FileCut()");
   #endif
 
+  //Flush the caches *experimental*  *** kritisch ***
+  system("sync");
+
   //Initialize the directory structure
   memset(&FolderStruct, 0, sizeof(tDirEntry));
   FolderStruct.Magic = 0xbacaed31;
@@ -431,9 +434,6 @@ bool FileCut(char *SourceFileName, char *CutFileName, dword StartBlock, dword Nr
     Appl_StopPlaying();
     Appl_WaitEvt(0xE507, &x, 1, 0xFFFFFFFF, 300);
   }
-
-  //Flush the caches *experimental*  *** kritisch ***
-  system("sync");
 
   //Do the cutting
   ret = ApplHdd_FileCutPaste(SourceFileName, StartBlock, NrBlocks, CutFileName);
