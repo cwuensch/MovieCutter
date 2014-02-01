@@ -432,6 +432,9 @@ bool FileCut(char *SourceFileName, char *CutFileName, dword StartBlock, dword Nr
     Appl_WaitEvt(0xE507, &x, 1, 0xFFFFFFFF, 300);
   }
 
+  //Flush the caches *experimental*  *** kritisch ***
+  system("sync");
+
   //Do the cutting
   ret = ApplHdd_FileCutPaste(SourceFileName, StartBlock, NrBlocks, CutFileName);
 
@@ -441,6 +444,9 @@ bool FileCut(char *SourceFileName, char *CutFileName, dword StartBlock, dword Nr
 
 //  TAP_Hdd_ChangeDir(TAPDir);
   HDD_ChangeDir(TAPDir);
+
+  //Flush the caches *experimental*  *** kritisch ***
+  system("sync");
 
   if(ret)
   {

@@ -355,7 +355,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   if(event == EVT_KEY && param1 == RKEY_Sleep)
   {
     if (OSDMenuMessageBoxIsVisible()) OSDMenuMessageBoxDestroy();
-    TAP_EnterNormal();
+//    TAP_EnterNormal();
     State = ST_Exit;
     param1 = 0;
   }
@@ -506,207 +506,203 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     // -----------------------------
     case ST_WaitForPlayback:    // Idle loop while there is no playback active, shows OSD as soon as playback starts
     {
-      if(isPlaybackRunning())
+      if(isPlaybackRunning() && ((int)PlayInfo.totalBlock > 0) && ((int)PlayInfo.currentBlock >= 0))
       {
+        TAP_GetState(&SysState, &SysSubState);
+        if(SysState != STATE_Normal) break;
+        if(!PlayInfo.file || !PlayInfo.file->name[0]) break;
+
+        BookmarkMode = FALSE;
+        NrSegmentMarker = 0;
+        ActiveSegment = 0;
+        MinuteJump = 0;
+//        MinuteJumpBlocks = 0;  // nicht unbedingt nötig
+        NoNavMessage = FALSE;
+        RebootMessage = FALSE;
+        NavLengthMessage = FALSE;
+        NoPlaybackCheck = FALSE;
+        LastTotalBlocks = PlayInfo.totalBlock;
+
+        OldRepeatMode = PlaybackRepeatGet();
+
+        //"Calculate" the file name (.rec or .mpg)
+        strcpy(PlaybackName, PlayInfo.file->name);
+        PlaybackName[strlen(PlaybackName) - 4] = '\0';
+
+        //Extract the absolute path to the rec file and change into that dir
         char *p;
+        HDD_GetAbsolutePathByTypeFile(PlayInfo.file, AbsPlaybackDir);
+        p = strstr(AbsPlaybackDir, PlaybackName);
+        if(p) *(p-1) = '\0';
+        PlaybackDir = &AbsPlaybackDir[strlen(TAPFSROOT)];
+//        TAP_Hdd_ChangeDir(&PlaybackDirectory[strlen(TAPFSROOT)]);
+        HDD_ChangeDir(PlaybackDir);
 
-        if((int)PlayInfo.totalBlock > 0)
+        WriteLogMC(PROGRAM_NAME, "========================================\n");
+        TAP_SPrint(LogString, "Attaching to %s/%s", AbsPlaybackDir, PlaybackName);
+        WriteLogMC(PROGRAM_NAME, LogString);
+        WriteLogMC("MovieCutterLib", "----------------------------------------");
+
+        // Detect size of rec file
+//        RecFileSize = HDD_GetFileSize(PlaybackName);
+//        if(RecFileSize <= 0)
+        if(!HDD_GetFileSizeAndInode(PlaybackDir, PlaybackName, NULL, &RecFileSize))
         {
-          TAP_GetState(&SysState, &SysSubState);
-          if(SysState != STATE_Normal) break;
-          if(!PlayInfo.file || !PlayInfo.file->name[0]) break;
+          State = ST_UnacceptedFile;
+          WriteLogMC(PROGRAM_NAME, ".rec size could not be detected!");
+          ShowErrorMessage(LangGetString(LS_NoRecSize));
+          break;
+        }
 
-          BookmarkMode = FALSE;
-          NrSegmentMarker = 0;
-          ActiveSegment = 0;
-          MinuteJump = 0;
-//          MinuteJumpBlocks = 0;  // nicht unbedingt nötig
-          NoNavMessage = FALSE;
-          RebootMessage = FALSE;
-          NavLengthMessage = FALSE;
-          NoPlaybackCheck = FALSE;
-          LastTotalBlocks = PlayInfo.totalBlock;
+        TAP_SPrint(LogString, "File size = %llu Bytes (%u blocks)", RecFileSize, (dword)(RecFileSize / BLOCKSIZE));
+        WriteLogMC(PROGRAM_NAME, LogString);
+        TAP_SPrint(LogString, "Reported total blocks: %u", PlayInfo.totalBlock);
+        WriteLogMC(PROGRAM_NAME, LogString);
 
-          OldRepeatMode = PlaybackRepeatGet();
-
-          //"Calculate" the file name (.rec or .mpg)
-          strcpy(PlaybackName, PlayInfo.file->name);
-          PlaybackName[strlen(PlaybackName) - 4] = '\0';
-
-          //Extract the absolute path to the rec file and change into that dir
-          HDD_GetAbsolutePathByTypeFile(PlayInfo.file, AbsPlaybackDir);
-          p = strstr(AbsPlaybackDir, PlaybackName);
-          if(p) *(p-1) = '\0';
-          PlaybackDir = &AbsPlaybackDir[strlen(TAPFSROOT)];
-//          TAP_Hdd_ChangeDir(&PlaybackDirectory[strlen(TAPFSROOT)]);
-          HDD_ChangeDir(PlaybackDir);
-
-          WriteLogMC(PROGRAM_NAME, "========================================\n");
-          TAP_SPrint(LogString, "Attaching to %s/%s", AbsPlaybackDir, PlaybackName);
-          WriteLogMC(PROGRAM_NAME, LogString);
-          WriteLogMC("MovieCutterLib", "----------------------------------------");
-
-          // Detect size of rec file
-//          RecFileSize = HDD_GetFileSize(PlaybackName);
-//          if(RecFileSize <= 0)
-          if(!HDD_GetFileSizeAndInode(PlaybackDir, PlaybackName, NULL, &RecFileSize))
+        //Check if a nav is available
+        if(!LinearTimeMode)
+        {
+          if(!isNavAvailable(PlaybackName))
           {
-            State = ST_UnacceptedFile;
-            WriteLogMC(PROGRAM_NAME, ".rec size could not be detected!");
-            ShowErrorMessage(LangGetString(LS_NoRecSize));
+//            State = ST_UnacceptedFile;
+//            PlaybackRepeatSet(TRUE);
+            LastTotalBlocks = 0;
+            LinearTimeMode = TRUE;
+            NoNavMessage = TRUE;
+            WriteLogMC(PROGRAM_NAME, ".nav is missing!");
+            ShowConfirmationDialog(LangGetString(LS_NoNavMessage));
             break;
           }
+        }
+        else
+          WriteLogMC(PROGRAM_NAME, ".nav file not found! Using linear time mode...");
 
-          TAP_SPrint(LogString, "File size = %llu Bytes (%u blocks)", RecFileSize, (dword)(RecFileSize / BLOCKSIZE));
-          WriteLogMC(PROGRAM_NAME, LogString);
-          TAP_SPrint(LogString, "Reported total blocks: %u", PlayInfo.totalBlock);
-          WriteLogMC(PROGRAM_NAME, LogString);
-
-          //Check if a nav is available
-          if(!LinearTimeMode)
-          {
-            if(!isNavAvailable(PlaybackName))
-            {
-//              State = ST_UnacceptedFile;
-//              PlaybackRepeatSet(TRUE);
-              LastTotalBlocks = 0;
-              LinearTimeMode = TRUE;
-              NoNavMessage = TRUE;
-              WriteLogMC(PROGRAM_NAME, ".nav is missing!");
-              ShowConfirmationDialog(LangGetString(LS_NoNavMessage));
-              break;
-            }
-          }
-          else
-            WriteLogMC(PROGRAM_NAME, ".nav file not found! Using linear time mode...");
-
-          //Check if it is crypted
-          if(isCrypted(PlaybackName))
-          {
-            State = ST_UnacceptedFile;
-            WriteLogMC(PROGRAM_NAME, "File is crypted!");
-            ShowErrorMessage(LangGetString(LS_IsCrypted));
-            break;
-          }
+        //Check if it is crypted
+        if(isCrypted(PlaybackName))
+        {
+          State = ST_UnacceptedFile;
+          WriteLogMC(PROGRAM_NAME, "File is crypted!");
+          ShowErrorMessage(LangGetString(LS_IsCrypted));
+          break;
+        }
           
-          // Detect if video stream is in HD
-          HDVideo = FALSE;
-          if (!LinearTimeMode && !isHDVideo(PlaybackName, &HDVideo))
+        // Detect if video stream is in HD
+        HDVideo = FALSE;
+        if (!LinearTimeMode && !isHDVideo(PlaybackName, &HDVideo))
+        {
+          State = ST_UnacceptedFile;
+          WriteLogMC(PROGRAM_NAME, "Could not detect type of video stream!");
+          ShowErrorMessage(LangGetString(LS_HDDetectionFailed));
+          break;
+        }
+        WriteLogMC(PROGRAM_NAME, (HDVideo) ? "Type of recording: HD" : "Type of recording: SD");
+
+        //Free the old timing array, so that it is empty (NULL pointer) if something goes wrong
+        if(TimeStamps)
+        {
+          TAP_MemFree(TimeStamps);
+          TimeStamps = NULL;
+        }
+//        NrTimeStamps = 0;
+//        LastTimeStamp = NULL;
+
+        // Try to load the nav
+        if (!LinearTimeMode)
+        {
+          TimeStamps = NavLoad(PlaybackName, &NrTimeStamps, HDVideo);
+          if (TimeStamps)
           {
-            State = ST_UnacceptedFile;
-            WriteLogMC(PROGRAM_NAME, "Could not detect type of video stream!");
-            ShowErrorMessage(LangGetString(LS_HDDetectionFailed));
-            break;
-          }
-          WriteLogMC(PROGRAM_NAME, (HDVideo) ? "Type of recording: HD" : "Type of recording: SD");
-
-          //Free the old timing array, so that it is empty (NULL pointer) if something goes wrong
-          if(TimeStamps)
-          {
-            TAP_MemFree(TimeStamps);
-            TimeStamps = NULL;
-          }
-//          NrTimeStamps = 0;
-//          LastTimeStamp = NULL;
-
-          // Try to load the nav
-          if (!LinearTimeMode)
-          {
-            TimeStamps = NavLoad(PlaybackName, &NrTimeStamps, HDVideo);
-            if (TimeStamps)
-            {
-              // Write duration to log file
-              char TimeStr[16];
-              TAP_SPrint(LogString, ".nav-file loaded: %u different TimeStamps found.", NrTimeStamps);
-              WriteLogMC(PROGRAM_NAME, LogString);
-              MSecToTimeString(TimeStamps[0].Timems, TimeStr);
-              TAP_SPrint(LogString, "First Timestamp: Block=%u, Time=%s", TimeStamps[0].BlockNr, TimeStr);
-              WriteLogMC(PROGRAM_NAME, LogString);
-              MSecToTimeString(TimeStamps[NrTimeStamps-1].Timems, TimeStr);
-              TAP_SPrint(LogString, "Playback Duration (from nav): %s", TimeStr);
-              WriteLogMC(PROGRAM_NAME, LogString);
-              SecToTimeString(60*PlayInfo.duration + PlayInfo.durationSec, TimeStr);
-              TAP_SPrint(LogString, "Playback Duration (from inf): %s", TimeStr);
-              WriteLogMC(PROGRAM_NAME, LogString);
-            }
-            else
-            {
-              State = ST_UnacceptedFile;
-              WriteLogMC(PROGRAM_NAME, "Error loading the .nav file!");
-              ShowErrorMessage(LangGetString(LS_NavLoadFailed));
-              break;
-            }
-            LastTimeStamp = &TimeStamps[0];
-          }
-
-          // Check if receiver has been rebooted since the recording
-          dword RecDateTime;
-          if (GetRecDateFromInf(PlaybackName, &RecDateTime))
-          {
-            dword TimeSinceRec = TimeDiff(RecDateTime, Now(NULL));
-            dword UpTime = GetUptime() / 6000;
-            if (TimeSinceRec <= UpTime + 1)
-              RebootMessage = TRUE;
-
-            #ifdef FULLDEBUG
-              if (RecDateTime > 0xd0790000)
-                RecDateTime = TF2UnixTime(RecDateTime);
-              TAP_PrintNet("Reboot-Check (%s): TimeSinceRec=%u, UpTime=%u, RecDateTime=%s", (RebootMessage) ? "TRUE" : "FALSE", TimeSinceRec, UpTime, asctime(localtime(&RecDateTime)));
-            #endif
-          }
-
-          // Check if nav has correct length!
-          if(TimeStamps && (labs(TimeStamps[NrTimeStamps-1].Timems - (1000 * (60*PlayInfo.duration + PlayInfo.durationSec))) > 5000))
-          {
-            WriteLogMC(PROGRAM_NAME, ".nav file length not matching duration!");
-
-            // [COMPATIBILITY LAYER - fill holes in old nav file]
-            if (PatchOldNavFile(PlaybackName, HDVideo))
-            {
-              PlaybackRepeatSet(TRUE);
-              LastTotalBlocks = 0;
-              WriteLogMC(PROGRAM_NAME, ".nav file patched by Compatibility Layer.");
-              ShowErrorMessage(LangGetString(LS_NavPatched));
-              break;
-            }
-            else
-            {
-              NavLengthMessage = TRUE;
-            }
-          }
-
-//          CreateOSD();
-//          Playback_Normal();
-          CalcLastSeconds();
-          ReadBookmarks();
-          if(!CutFileLoad())
-          {
-            if(!AddDefaultSegmentMarker())
-            {
-              RebootMessage = FALSE;
-              NavLengthMessage = FALSE;
-              State = ST_UnacceptedFile;
-
-              WriteLogMC(PROGRAM_NAME, "Error adding default segment markers!");
-              ShowErrorMessage(LangGetString(LS_NavLoadFailed));
-              break;
-            }
-          }
-
-          PlaybackRepeatSet(TRUE);
-
-          if (RebootMessage)
-            ShowConfirmationDialog(LangGetString(LS_RebootMessage));
-          else if (NavLengthMessage)
-          {
-            TAP_SPrint(NavLengthWrongStr, LangGetString(LS_NavLengthWrong), (TimeStamps[NrTimeStamps-1].Timems/1000) - (60*PlayInfo.duration + PlayInfo.durationSec));
-            ShowConfirmationDialog(NavLengthWrongStr);
+            // Write duration to log file
+            char TimeStr[16];
+            TAP_SPrint(LogString, ".nav-file loaded: %u different TimeStamps found.", NrTimeStamps);
+            WriteLogMC(PROGRAM_NAME, LogString);
+            MSecToTimeString(TimeStamps[0].Timems, TimeStr);
+            TAP_SPrint(LogString, "First Timestamp: Block=%u, Time=%s", TimeStamps[0].BlockNr, TimeStr);
+            WriteLogMC(PROGRAM_NAME, LogString);
+            MSecToTimeString(TimeStamps[NrTimeStamps-1].Timems, TimeStr);
+            TAP_SPrint(LogString, "Playback Duration (from nav): %s", TimeStr);
+            WriteLogMC(PROGRAM_NAME, LogString);
+            SecToTimeString(60*PlayInfo.duration + PlayInfo.durationSec, TimeStr);
+            TAP_SPrint(LogString, "Playback Duration (from inf): %s", TimeStr);
+            WriteLogMC(PROGRAM_NAME, LogString);
           }
           else
           {
-            State = ST_ActiveOSD;
-            OSDRedrawEverything();
+            State = ST_UnacceptedFile;
+            WriteLogMC(PROGRAM_NAME, "Error loading the .nav file!");
+            ShowErrorMessage(LangGetString(LS_NavLoadFailed));
+            break;
           }
+          LastTimeStamp = &TimeStamps[0];
+        }
+
+        // Check if receiver has been rebooted since the recording
+        dword RecDateTime;
+        if (GetRecDateFromInf(PlaybackName, &RecDateTime))
+        {
+          dword TimeSinceRec = TimeDiff(RecDateTime, Now(NULL));
+          dword UpTime = GetUptime() / 6000;
+          if (TimeSinceRec <= UpTime + 1)
+            RebootMessage = TRUE;
+
+          #ifdef FULLDEBUG
+            if (RecDateTime > 0xd0790000)
+              RecDateTime = TF2UnixTime(RecDateTime);
+            TAP_PrintNet("Reboot-Check (%s): TimeSinceRec=%u, UpTime=%u, RecDateTime=%s", (RebootMessage) ? "TRUE" : "FALSE", TimeSinceRec, UpTime, asctime(localtime(&RecDateTime)));
+          #endif
+        }
+
+        // Check if nav has correct length!
+        if(TimeStamps && (labs(TimeStamps[NrTimeStamps-1].Timems - (1000 * (60*PlayInfo.duration + PlayInfo.durationSec))) > 5000))
+        {
+          WriteLogMC(PROGRAM_NAME, ".nav file length not matching duration!");
+
+          // [COMPATIBILITY LAYER - fill holes in old nav file]
+          if (PatchOldNavFile(PlaybackName, HDVideo))
+          {
+            PlaybackRepeatSet(TRUE);
+            LastTotalBlocks = 0;
+            WriteLogMC(PROGRAM_NAME, ".nav file patched by Compatibility Layer.");
+            ShowErrorMessage(LangGetString(LS_NavPatched));
+            break;
+          }
+          else
+          {
+            NavLengthMessage = TRUE;
+          }
+        }
+
+//        CreateOSD();
+//        Playback_Normal();
+        CalcLastSeconds();
+        ReadBookmarks();
+        if(!CutFileLoad())
+        {
+          if(!AddDefaultSegmentMarker())
+          {
+            RebootMessage = FALSE;
+            NavLengthMessage = FALSE;
+            State = ST_UnacceptedFile;
+
+            WriteLogMC(PROGRAM_NAME, "Error adding default segment markers!");
+            ShowErrorMessage(LangGetString(LS_NavLoadFailed));
+            break;
+          }
+        }
+
+        PlaybackRepeatSet(TRUE);
+
+        if (RebootMessage)
+          ShowConfirmationDialog(LangGetString(LS_RebootMessage));
+        else if (NavLengthMessage)
+        {
+          TAP_SPrint(NavLengthWrongStr, LangGetString(LS_NavLengthWrong), (TimeStamps[NrTimeStamps-1].Timems/1000) - (60*PlayInfo.duration + PlayInfo.durationSec));
+          ShowConfirmationDialog(NavLengthWrongStr);
+        }
+        else
+        {
+          State = ST_ActiveOSD;
+          OSDRedrawEverything();
         }
       }
       break;
@@ -745,6 +741,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         else
         {
           // beim erneuten Einblenden kann man sich das Neu-Berechnen aller Werte sparen (AUCH wenn 2 Aufnahmen gleiche Blockzahl haben!!)
+          if ((int)PlayInfo.currentBlock < 0) break;
           NoPlaybackCheck = FALSE;
 //          BookmarkMode = FALSE;
           MinuteJump = 0;
@@ -776,6 +773,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         State = AutoOSDPolicy ? ST_WaitForPlayback : ST_InactiveMode;
         break;
       }
+      else if ((int)PlayInfo.currentBlock < 0)
+        break;  // *** kritisch ***
 
       TAP_GetState(&SysState, &SysSubState);
       if(SysSubState == SUBSTATE_Normal) TAP_ExitNormal();
@@ -3169,21 +3168,31 @@ void Playback_JumpPrevBookmark(void)
 // ----------------------------------------------------------------------------
 //                              Hilfsfunktionen
 // ----------------------------------------------------------------------------
+
+// altes Verhalten von isPlaybackRunning():
+// - holt IMMER die PlayInfo, liefert TRUE wenn Playing, bei ungültigem currentBlock wird dieser 0 gesetzt und TRUE zurückgegeben, bei NoPlaybackCheck wird TRUE zurückgegeben
+// neues Verhalten von isPlaybackRunning():
+// - bei NoPlaybackCheck wird TRUE zurückgegeben und KEINE PlayInfo gelesen, liefert TRUE wenn Playing, bei ungültigem currentBlock wird TRUE zurückgegeben und NICHT 0 gesetzt
+// Grund: currentBlock kann ungültig werden, wenn man z.B. zum Anfang springt, das ist aber trotzdem laufende Wiedergabe
 bool isPlaybackRunning(void)
 {
   TRACEENTER();
+  if(NoPlaybackCheck) {
+    TRACEEXIT();
+    return TRUE;  // WARUM!?
+  }
 
   TAP_Hdd_GetPlayInfo(&PlayInfo);
-  if((int)PlayInfo.currentBlock < 0) PlayInfo.currentBlock = 0;
+//  if((int)PlayInfo.currentBlock < 0) PlayInfo.currentBlock = 0;   *** kritisch ***
 
-  if ((PlayInfo.playMode == PLAYMODE_Playing) && !NoPlaybackCheck)
+  if (PlayInfo.playMode == PLAYMODE_Playing)
   {
     TrickMode = (TYPE_TrickMode)PlayInfo.trickMode;
     TrickModeSpeed = PlayInfo.speed;
   }
 
   TRACEEXIT();
-  return ((PlayInfo.playMode == PLAYMODE_Playing) || NoPlaybackCheck);
+  return (PlayInfo.playMode == PLAYMODE_Playing);
 }
 
 void CalcLastSeconds(void)
@@ -3516,9 +3525,14 @@ void MovieCutterDeleteFile(void)
 {
   TRACEENTER();
 
-  NoPlaybackCheck = TRUE;
   HDD_ChangeDir(PlaybackDir);
-  TAP_Hdd_StopTs();
+  NoPlaybackCheck = FALSE;
+  if (isPlaybackRunning())
+  {
+    NoPlaybackCheck = TRUE;
+    TAP_Hdd_StopTs();
+  }
+  NoPlaybackCheck = TRUE;
   CutFileDelete();
   HDD_Delete(PlaybackName);
   NoPlaybackCheck = FALSE;
@@ -3532,7 +3546,7 @@ void MovieCutterProcess(bool KeepCut)
   bool                  isMultiSelect, CutEnding;
   word                  WorkingSegment;
   char                  CutFileName[MAX_FILE_NAME_SIZE + 1];
-  char                  TempFileName[MAX_FILE_NAME_SIZE + 1];
+//  char                  TempFileName[MAX_FILE_NAME_SIZE + 1];
   tTimeStamp            CutStartPoint, BehindCutPoint;
   dword                 DeltaBlock; //, DeltaTime;
   int                   i, j;
@@ -3618,7 +3632,10 @@ void MovieCutterProcess(bool KeepCut)
     {
       NoPlaybackCheck = FALSE;
       if (isPlaybackRunning())
+      {
+        NoPlaybackCheck = TRUE;
         TAP_Hdd_StopTs();
+      }
       NoPlaybackCheck = TRUE;
 
       TAP_SPrint(LogString, "Processing segment %u", WorkingSegment);
@@ -3663,15 +3680,16 @@ void MovieCutterProcess(bool KeepCut)
       if (TAP_Hdd_Exist((CutEnding) ? CutFileName : PlaybackName))
         ret = MovieCutter(((CutEnding) ? CutFileName : PlaybackName), ((CutEnding) ? PlaybackName : CutFileName), &CutStartPoint, &BehindCutPoint, (KeepCut || CutEnding), HDVideo);
 
+      // Überprüfung von Existenz und Größe der geschnittenen Aufnahme
+      RecFileSize = 0;
+      if(TAP_Hdd_Exist(PlaybackName))
+        HDD_GetFileSizeAndInode(PlaybackDir, PlaybackName, NULL, &RecFileSize);
+      TAP_SPrint(LogString, "Size of the new playback file (after cut): %llu", RecFileSize); 
+      WriteLogMC(PROGRAM_NAME, LogString);
+
       // Source- und CutFile sind vertauscht - falls Schnitt fehlgeschlagen, reparieren
       if (CutEnding)
       {
-        RecFileSize = 0;
-        if(TAP_Hdd_Exist(PlaybackName))
-          HDD_GetFileSizeAndInode(PlaybackDir, PlaybackName, NULL, &RecFileSize);
-        TAP_SPrint(LogString, "Size of the new playback file (after cut): %llu", RecFileSize); 
-        WriteLogMC(PROGRAM_NAME, LogString);
-
         if (RecFileSize > 0)
         {
           if (ret && !KeepCut) HDD_Delete(CutFileName);
@@ -3682,6 +3700,11 @@ void MovieCutterProcess(bool KeepCut)
           WriteLogMC(PROGRAM_NAME, LogString);
           HDD_Delete(PlaybackName);
           HDD_Rename(CutFileName, PlaybackName);
+
+          if(TAP_Hdd_Exist(PlaybackName))
+            HDD_GetFileSizeAndInode(PlaybackDir, PlaybackName, NULL, &RecFileSize);
+          TAP_SPrint(LogString, "Size of the restored playback file: %llu", RecFileSize); 
+          WriteLogMC(PROGRAM_NAME, LogString);
         }
 
         char PlaybackNavBak[MAX_FILE_NAME_SIZE + 1], CutFileNavBak[MAX_FILE_NAME_SIZE + 1];
@@ -3695,24 +3718,21 @@ void MovieCutterProcess(bool KeepCut)
       }
 
       // Wiedergabe wird neu gestartet
-      TAP_Hdd_PlayTs(PlaybackName);
-      do
+      if (RecFileSize > 0)
       {
-        isPlaybackRunning();
-      } while ((int)PlayInfo.totalBlock == -1);
-      j = 0;
-      while ((PlayInfo.totalBlock == 0) && (j < 1000))
-      {
-        TAP_SPrint(LogString, "!! Reported new totalBlock = 0 - Try %d of 1000.", j);
+        TAP_Hdd_PlayTs(PlaybackName);
+        j = 0;
+        do
+        {
+          isPlaybackRunning();
+          j++;
+        } while ((j < 10000) && ((int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0));
+        TAP_SPrint(LogString, "Reported new totalBlock = %u", PlayInfo.totalBlock);
         WriteLogMC(PROGRAM_NAME, LogString);
-        TAP_Delay(1);
-        isPlaybackRunning();        
       }
-      TAP_SPrint(LogString, "Reported new totalBlock = %u", PlayInfo.totalBlock);
-      WriteLogMC(PROGRAM_NAME, LogString);
 
       //Bail out if the cut failed
-      if((ret == RC_Error) || (PlayInfo.totalBlock == 0))
+      if((ret == RC_Error) || (RecFileSize == 0) || ((int)PlayInfo.totalBlock <= 0))
       {
         State = ST_UnacceptedFile;
         ShowErrorMessage(LangGetString(LS_CutHasFailed));
@@ -3771,16 +3791,16 @@ void MovieCutterProcess(bool KeepCut)
       }
 
       // Wenn Spezial-Crop-Modus, nochmal testen, ob auch mit der richtigen rec weitergemacht wird
-      if(CutEnding)
+/*      if(CutEnding)
       {
-        if(/*(ret==RC_Warning) ||*/ !TAP_Hdd_Exist(PlaybackName) || TAP_Hdd_Exist(TempFileName))
+        if(//(ret==RC_Warning) ||// !TAP_Hdd_Exist(PlaybackName) || TAP_Hdd_Exist(TempFileName))
         {
           State = ST_UnacceptedFile;
           WriteLogMC(PROGRAM_NAME, "Error processing the last segment: Renaming failed!");
           ShowErrorMessage(LangGetString(LS_CutHasFailed));
           break;
         }
-      }
+      }  */
       OSDSegmentListDrawList();
       OSDInfoDrawProgressbar(TRUE);
     }
@@ -3814,7 +3834,12 @@ void MovieCutterProcess(bool KeepCut)
 //  OSDRedrawEverything();
 
   if (State != ST_UnacceptedFile)
+  {
     State = ST_WaitForPlayback;
+    WriteLogMC(PROGRAM_NAME, "MovieCutterProcess() successfully completed!");
+  }
+  else
+    WriteLogMC(PROGRAM_NAME, "MovieCutterProcess() finished!");
   NoPlaybackCheck = FALSE;
 
   TRACEEXIT();
