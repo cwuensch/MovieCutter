@@ -175,7 +175,7 @@ TYPE_TrickMode          TrickMode;
 byte                    TrickModeSpeed;
 dword                   MinuteJump;                           //Seconds or 0 if deactivated
 dword                   MinuteJumpBlocks;                     //Number of blocks, which shall be added
-bool                    NoPlaybackCheck = FALSE;              //Used to circumvent a race condition during the cutting process
+//bool                    NoPlaybackCheck = FALSE;              //Used to circumvent a race condition during the cutting process
 int                     NrSelectedSegments;
 word                    JumpRequestedSegment = 0xFFFF;        //Is set, when the user presses up/down to jump to another segment
 dword                   JumpRequestedTime = 0;
@@ -520,7 +520,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         NoNavMessage = FALSE;
         RebootMessage = FALSE;
         NavLengthMessage = FALSE;
-        NoPlaybackCheck = FALSE;
+//        NoPlaybackCheck = FALSE;
         LastTotalBlocks = PlayInfo.totalBlock;
 
         OldRepeatMode = PlaybackRepeatGet();
@@ -742,7 +742,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         {
           // beim erneuten Einblenden kann man sich das Neu-Berechnen aller Werte sparen (AUCH wenn 2 Aufnahmen gleiche Blockzahl haben!!)
           if ((int)PlayInfo.currentBlock < 0) break;
-          NoPlaybackCheck = FALSE;
+//          NoPlaybackCheck = FALSE;
 //          BookmarkMode = FALSE;
           MinuteJump = 0;
 //          MinuteJumpBlocks = 0;
@@ -1227,7 +1227,7 @@ void ShowErrorMessage(char* MessageStr)
   OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
   OSDMenuMessageBoxShow();
   MCShowMessageBox = TRUE;
-  NoPlaybackCheck = FALSE;
+//  NoPlaybackCheck = FALSE;
 
   TRACEEXIT();
 }
@@ -3177,12 +3177,15 @@ void Playback_JumpPrevBookmark(void)
 bool isPlaybackRunning(void)
 {
   TRACEENTER();
-  if(NoPlaybackCheck) {
-    TRACEEXIT();
-    return TRUE;  // WARUM!?
-  }
 
   TAP_Hdd_GetPlayInfo(&PlayInfo);
+
+//  if(NoPlaybackCheck) {
+//    WriteLogMC(PROGRAM_NAME, "************NoPlaybackCheck");
+//    TRACEEXIT();
+//    return TRUE;  // WARUM!?
+//  }
+
 //  if((int)PlayInfo.currentBlock < 0) PlayInfo.currentBlock = 0;   *** kritisch ***
 
   if (PlayInfo.playMode == PLAYMODE_Playing)
@@ -3526,16 +3529,16 @@ void MovieCutterDeleteFile(void)
   TRACEENTER();
 
   HDD_ChangeDir(PlaybackDir);
-  NoPlaybackCheck = FALSE;
+//  NoPlaybackCheck = FALSE;
   if (isPlaybackRunning())
   {
-    NoPlaybackCheck = TRUE;
+//    NoPlaybackCheck = TRUE;
     TAP_Hdd_StopTs();
   }
-  NoPlaybackCheck = TRUE;
+//  NoPlaybackCheck = TRUE;
   CutFileDelete();
   HDD_Delete(PlaybackName);
-  NoPlaybackCheck = FALSE;
+//  NoPlaybackCheck = FALSE;
 
   TRACEEXIT();
 }
@@ -3554,7 +3557,7 @@ void MovieCutterProcess(bool KeepCut)
 
   TRACEENTER();
 
-  NoPlaybackCheck = TRUE;
+//  NoPlaybackCheck = TRUE;
   HDD_ChangeDir(PlaybackDir);
 
   // *CW* FRAGE: Werden die Bookmarks von der Firmware sowieso vor dem Schneiden in die inf gespeichert?
@@ -3630,13 +3633,13 @@ void MovieCutterProcess(bool KeepCut)
 
     if(!isMultiSelect || SegmentMarker[WorkingSegment].Selected)
     {
-      NoPlaybackCheck = FALSE;
+//      NoPlaybackCheck = FALSE;
       if (isPlaybackRunning())
       {
-        NoPlaybackCheck = TRUE;
+//        NoPlaybackCheck = TRUE;
         TAP_Hdd_StopTs();
       }
-      NoPlaybackCheck = TRUE;
+//      NoPlaybackCheck = TRUE;
 
       TAP_SPrint(LogString, "Processing segment %u", WorkingSegment);
       WriteLogMC(PROGRAM_NAME, LogString);
@@ -3840,7 +3843,7 @@ void MovieCutterProcess(bool KeepCut)
   }
   else
     WriteLogMC(PROGRAM_NAME, "MovieCutterProcess() finished!");
-  NoPlaybackCheck = FALSE;
+//  NoPlaybackCheck = FALSE;
 
   TRACEEXIT();
 }

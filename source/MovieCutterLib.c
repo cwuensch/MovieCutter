@@ -4,6 +4,7 @@
 #include                <stdio.h>
 #include                <stdlib.h>
 #include                <string.h>
+#include                <unistd.h>
 #include                <utime.h>
 #include                "tap.h"
 #include                "libFireBird.h"
@@ -410,7 +411,7 @@ bool FileCut(char *SourceFileName, char *CutFileName, dword StartBlock, dword Nr
   #endif
 
   //Flush the caches *experimental*  *** kritisch ***
-  system("sync");
+  sync();
 
   //Initialize the directory structure
   memset(&FolderStruct, 0, sizeof(tDirEntry));
@@ -446,7 +447,7 @@ bool FileCut(char *SourceFileName, char *CutFileName, dword StartBlock, dword Nr
   HDD_ChangeDir(TAPDir);
 
   //Flush the caches *experimental*  *** kritisch ***
-  system("sync");
+  sync();
 
   if(ret)
   {
