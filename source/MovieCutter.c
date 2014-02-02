@@ -3724,12 +3724,12 @@ void MovieCutterProcess(bool KeepCut)
       if (RecFileSize > 0)
       {
         TAP_Hdd_PlayTs(PlaybackName);
+        PlayInfo.totalBlock = 0;
         j = 0;
         do
         {
-          isPlaybackRunning();
           j++;
-        } while ((j < 10000) && ((int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0));
+        } while ((j < 10000) && (!isPlaybackRunning() || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0));
         TAP_SPrint(LogString, "Reported new totalBlock = %u", PlayInfo.totalBlock);
         WriteLogMC(PROGRAM_NAME, LogString);
       }
