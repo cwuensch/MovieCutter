@@ -2402,7 +2402,7 @@ void OSDInfoDrawProgressbar(bool Force)
   TRACEENTER();
 
   totalBlock = PlayInfo.totalBlock;
-  if(rgnInfo)
+  if(rgnInfo && ((int)PlayInfo.currentBlock > -1))
   {
     if((labs(TAP_GetTick() - LastDraw) > 20) || Force)
     {
