@@ -192,6 +192,8 @@ dword                   BlocksOneSecond;
 dword                   BlockNrLastSecond;
 dword                   BlockNrLast10Seconds;
 
+#define PLAYINFOVALID() (((int)PlayInfo.currentBlock >= 0) && (PlayInfo.totalBlock > 0))
+
 // Video parameters
 tSegmentMarker         *SegmentMarker = NULL;       //[0]=Start of file, [x]=End of file
 dword                  *Bookmarks = NULL;
@@ -506,7 +508,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     // -----------------------------
     case ST_WaitForPlayback:    // Idle loop while there is no playback active, shows OSD as soon as playback starts
     {
-      if(isPlaybackRunning() && ((int)PlayInfo.totalBlock > 0) && ((int)PlayInfo.currentBlock >= 0))
+      if(isPlaybackRunning() && PLAYINFOVALID())
       {
         TAP_GetState(&SysState, &SysSubState);
         if(SysState != STATE_Normal) break;
@@ -1046,14 +1048,17 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           case RKEY_8:
           case RKEY_9:
           {
-            if ((MinuteJump > 0) && (MinuteJump < 10) && (labs(TAP_GetTick() - LastMinuteKey) < 200))
-              // We are already in minute jump mode, but only one digit already entered
-              MinuteJump = 10 * MinuteJump + (param1 & 0x0f);
-            else
-              MinuteJump = (param1 & 0x0f);
-            MinuteJumpBlocks = (PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec)) * MinuteJump*60;
-            LastMinuteKey = TAP_GetTick();
-            OSDInfoDrawMinuteJump();
+            if(PLAYINFOVALID())
+            {
+              if ((MinuteJump > 0) && (MinuteJump < 10) && (labs(TAP_GetTick() - LastMinuteKey) < 200))
+                // We are already in minute jump mode, but only one digit already entered
+                MinuteJump = 10 * MinuteJump + (param1 & 0x0f);
+              else
+                MinuteJump = (param1 & 0x0f);
+              MinuteJumpBlocks = (PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec)) * MinuteJump*60;
+              LastMinuteKey = TAP_GetTick();
+              OSDInfoDrawMinuteJump();
+            }
             break;
           }
           default:
@@ -1486,61 +1491,70 @@ bool AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
 
   TRACEENTER();
 
-  if(NrSegmentMarker >= NRSEGMENTMARKER)
-  {
-    WriteLogMC(PROGRAM_NAME, "AddSegmentMarker: SegmentMarker list is full!");
-    ShowErrorMessage(LangGetString(LS_ListIsFull));
-//    OSDMenuMessageBoxDoNotEnterNormalMode(TRUE);
-
-    TRACEEXIT();
-    return FALSE;
-  }
-
-  newTime = NavGetBlockTimeStamp(newBlock);
-  if((newTime == 0) && (newBlock > 3 * BlocksOneSecond))
+  if(!PLAYINFOVALID())
   {
     TRACEEXIT();
     return FALSE;
   }
 
-  //Find the point where to insert the new marker so that the list stays sorted
-  if(NrSegmentMarker < 2)
+  if(((int)newBlock >= 0))
   {
-    //If less than 2 markers present, then set marker for start and end of file (called from AddDefaultSegmentMarker)
-    SegmentMarker[NrSegmentMarker].Block = newBlock;
-    SegmentMarker[NrSegmentMarker].Timems  = newTime;
-    SegmentMarker[NrSegmentMarker].Percent = ((float)newBlock / PlayInfo.totalBlock) * 100;
-    SegmentMarker[NrSegmentMarker].Selected = FALSE;
-    NrSegmentMarker++;
-  }
-  else
-  {
-    for(i = 1; i < NrSegmentMarker; i++)
+    if(NrSegmentMarker >= NRSEGMENTMARKER)
     {
-      if(SegmentMarker[i].Block > newBlock)
-      {
-        // Erlaube kein Segment mit weniger als 3 Sekunden
-        if (RejectSmallSegments && ((SegmentMarker[i-1].Block + 3*BlocksOneSecond >= newBlock) || (newBlock + 3*BlocksOneSecond >= SegmentMarker[i].Block)))
-        {
-          TRACEEXIT();
-          return FALSE;
-        }
+      WriteLogMC(PROGRAM_NAME, "AddSegmentMarker: SegmentMarker list is full!");
+      ShowErrorMessage(LangGetString(LS_ListIsFull));
+      //    OSDMenuMessageBoxDoNotEnterNormalMode(TRUE);
 
-        for(j = NrSegmentMarker; j > i; j--)
-          memcpy(&SegmentMarker[j], &SegmentMarker[j - 1], sizeof(tSegmentMarker));
-
-        SegmentMarker[i].Block = newBlock;
-        SegmentMarker[i].Timems = newTime;
-        SegmentMarker[i].Percent = ((float)newBlock / PlayInfo.totalBlock) * 100;
-        SegmentMarker[i].Selected = FALSE;
-
-        MSecToTimeString(SegmentMarker[i].Timems, StartTime);
-        TAP_SPrint(LogString, "New marker @ block = %u, time = %s, percent = %1.1f%%", newBlock, StartTime, SegmentMarker[i].Percent);
-        WriteLogMC(PROGRAM_NAME, LogString);
-        break;
-      }
+      TRACEEXIT();
+      return FALSE;
     }
-    NrSegmentMarker++;
+
+    newTime = NavGetBlockTimeStamp(newBlock);
+    if((newTime == 0) && (newBlock > 3 * BlocksOneSecond))
+    {
+      TRACEEXIT();
+      return FALSE;
+    }
+
+    //Find the point where to insert the new marker so that the list stays sorted
+    if(NrSegmentMarker < 2)
+    {
+      //If less than 2 markers present, then set marker for start and end of file (called from AddDefaultSegmentMarker)
+      SegmentMarker[NrSegmentMarker].Block = newBlock;
+      SegmentMarker[NrSegmentMarker].Timems  = newTime;
+      SegmentMarker[NrSegmentMarker].Percent = ((float)newBlock / PlayInfo.totalBlock) * 100;
+      SegmentMarker[NrSegmentMarker].Selected = FALSE;
+      NrSegmentMarker++;
+    }
+    else
+    {
+      for(i = 1; i < NrSegmentMarker; i++)
+      {
+        if(SegmentMarker[i].Block > newBlock)
+        {
+          // Erlaube kein Segment mit weniger als 3 Sekunden
+          if (RejectSmallSegments && ((SegmentMarker[i-1].Block + 3*BlocksOneSecond >= newBlock) || (newBlock + 3*BlocksOneSecond >= SegmentMarker[i].Block)))
+          {
+            TRACEEXIT();
+            return FALSE;
+          }
+
+          for(j = NrSegmentMarker; j > i; j--)
+            memcpy(&SegmentMarker[j], &SegmentMarker[j - 1], sizeof(tSegmentMarker));
+
+          SegmentMarker[i].Block = newBlock;
+          SegmentMarker[i].Timems = newTime;
+          SegmentMarker[i].Percent = ((float)newBlock / PlayInfo.totalBlock) * 100;
+          SegmentMarker[i].Selected = FALSE;
+
+          MSecToTimeString(SegmentMarker[i].Timems, StartTime);
+          TAP_SPrint(LogString, "New marker @ block = %u, time = %s, percent = %1.1f%%", newBlock, StartTime, SegmentMarker[i].Percent);
+          WriteLogMC(PROGRAM_NAME, LogString);
+          break;
+        }
+      }
+      NrSegmentMarker++;
+    }
   }
 
   TRACEEXIT();
@@ -1556,19 +1570,23 @@ int FindNearestSegmentMarker(void)
   TRACEENTER();
 
   NearestMarkerIndex = -1;
-  if(NrSegmentMarker > 2)   // at least one segment marker present
+
+  if(PLAYINFOVALID())
   {
-    MinDelta = 0x7fffffff;
-    for(i = 1; i < NrSegmentMarker - 1; i++)
+    if(NrSegmentMarker > 2)   // at least one segment marker present
     {
-      if(labs(SegmentMarker[i].Block - PlayInfo.currentBlock) < MinDelta)
+      MinDelta = 0x7fffffff;
+      for(i = 1; i < NrSegmentMarker - 1; i++)
       {
-        MinDelta = labs(SegmentMarker[i].Block - PlayInfo.currentBlock);
-        NearestMarkerIndex = i;
+        if(labs(SegmentMarker[i].Block - PlayInfo.currentBlock) < MinDelta)
+        {
+          MinDelta = labs(SegmentMarker[i].Block - PlayInfo.currentBlock);
+          NearestMarkerIndex = i;
+        }
       }
+      //    if (NearestMarkerIndex == 0) NearestMarkerIndex = 1;
+      //    if (NearestMarkerIndex == NrSegmentMarker-1) NearestMarkerIndex = NrSegmentMarker - 2;
     }
-//    if (NearestMarkerIndex == 0) NearestMarkerIndex = 1;
-//    if (NearestMarkerIndex == NrSegmentMarker-1) NearestMarkerIndex = NrSegmentMarker - 2;
   }
 
   TRACEEXIT();
@@ -1578,25 +1596,30 @@ int FindNearestSegmentMarker(void)
 bool MoveSegmentMarker(dword newBlock)
 {
   dword newTime;
-  int NearestMarkerIndex = FindNearestSegmentMarker();
+  int NearestMarkerIndex;
 
   TRACEENTER();
 
-  if(NearestMarkerIndex != -1)
+  if(((int)newBlock >= 0) && PLAYINFOVALID())
   {
-    // Erlaube kein Segment mit weniger als 3 Sekunden
-    if ((SegmentMarker[NearestMarkerIndex-1].Block + 3*BlocksOneSecond < newBlock) && (newBlock + 3*BlocksOneSecond < SegmentMarker[NearestMarkerIndex+1].Block))
-    {
-      // neue Zeit ermitteln
-      newTime = NavGetBlockTimeStamp(newBlock);
-      if((newTime != 0) || (newBlock <= 3 * BlocksOneSecond))
-      {
-        SegmentMarker[NearestMarkerIndex].Block = newBlock;
-        SegmentMarker[NearestMarkerIndex].Timems = newTime;
-        SegmentMarker[NearestMarkerIndex].Percent = (float)PlayInfo.currentBlock * 100 / PlayInfo.totalBlock;
+    NearestMarkerIndex = FindNearestSegmentMarker();
 
-        TRACEEXIT();
-        return TRUE;
+    if(NearestMarkerIndex != -1)
+    {
+      // Erlaube kein Segment mit weniger als 3 Sekunden
+      if ((SegmentMarker[NearestMarkerIndex-1].Block + 3*BlocksOneSecond < newBlock) && (newBlock + 3*BlocksOneSecond < SegmentMarker[NearestMarkerIndex+1].Block))
+      {
+        // neue Zeit ermitteln
+        newTime = NavGetBlockTimeStamp(newBlock);
+        if((newTime != 0) || (newBlock <= 3 * BlocksOneSecond))
+        {
+          SegmentMarker[NearestMarkerIndex].Block = newBlock;
+          SegmentMarker[NearestMarkerIndex].Timems = newTime;
+          SegmentMarker[NearestMarkerIndex].Percent = (float)PlayInfo.currentBlock * 100 / PlayInfo.totalBlock;
+
+          TRACEEXIT();
+          return TRUE;
+        }
       }
     }
   }
@@ -1761,49 +1784,52 @@ bool AddBookmark(dword newBlock)
 
   TRACEENTER();
 
-  if(NrBookmarks >= NRBOOKMARKS)
+  if((int)newBlock >= 0)
   {
-    WriteLogMC(PROGRAM_NAME, "AddBookmark: Bookmark list is full!");
-    TRACEEXIT();
-    return FALSE;
-  }
-
-  //Find the point where to insert the new marker so that the list stays sorted
-  if (NrBookmarks == 0)
-    Bookmarks[0] = newBlock;
-  else if (newBlock > Bookmarks[NrBookmarks - 1])
-  {
-    // Erlaube keinen Abschnitt mit weniger als 3 Sekunden
-    if (Bookmarks[NrBookmarks-1] + 3*BlocksOneSecond >= newBlock)
+    if(NrBookmarks >= NRBOOKMARKS)
     {
+      WriteLogMC(PROGRAM_NAME, "AddBookmark: Bookmark list is full!");
       TRACEEXIT();
       return FALSE;
     }
-    Bookmarks[NrBookmarks] = newBlock;
-  }
-  else
-  {
-    for(i = 0; i < NrBookmarks; i++)
+
+    //Find the point where to insert the new marker so that the list stays sorted
+    if (NrBookmarks == 0)
+      Bookmarks[0] = newBlock;
+    else if (newBlock > Bookmarks[NrBookmarks - 1])
     {
-      if(Bookmarks[i] > newBlock)
+      // Erlaube keinen Abschnitt mit weniger als 3 Sekunden
+      if (Bookmarks[NrBookmarks-1] + 3*BlocksOneSecond >= newBlock)
       {
-        // Erlaube keinen Abschnitt mit weniger als 3 Sekunden
-        if ((i > 0 && (Bookmarks[i-1] + 3*BlocksOneSecond >= newBlock)) || (newBlock + 3*BlocksOneSecond >= Bookmarks[i]))
+        TRACEEXIT();
+        return FALSE;
+      }
+      Bookmarks[NrBookmarks] = newBlock;
+    }
+    else
+    {
+      for(i = 0; i < NrBookmarks; i++)
+      {
+        if(Bookmarks[i] > newBlock)
         {
-          TRACEEXIT();
-          return FALSE;
+          // Erlaube keinen Abschnitt mit weniger als 3 Sekunden
+          if ((i > 0 && (Bookmarks[i-1] + 3*BlocksOneSecond >= newBlock)) || (newBlock + 3*BlocksOneSecond >= Bookmarks[i]))
+          {
+            TRACEEXIT();
+            return FALSE;
+          }
+
+          for(j = NrBookmarks; j > i; j--)
+            Bookmarks[j] = Bookmarks[j - 1];
+
+          Bookmarks[i] = newBlock;
+          break;
         }
-
-        for(j = NrBookmarks; j > i; j--)
-          Bookmarks[j] = Bookmarks[j - 1];
-
-        Bookmarks[i] = newBlock;
-        break;
       }
     }
+    NrBookmarks++;
+    SaveBookmarks();
   }
-  NrBookmarks++;
-  SaveBookmarks();
 
   TRACEEXIT();
   return TRUE;
@@ -1818,7 +1844,7 @@ int FindNearestBookmark(void)
   TRACEENTER();
 
   NearestBookmarkIndex = -1;
-  if(NrBookmarks > 0)
+  if((NrBookmarks > 0) && PLAYINFOVALID())
   {
     MinDelta = 0x7fffffff;
     for(i = 0; i < NrBookmarks; i++)
@@ -1839,16 +1865,19 @@ bool MoveBookmark(dword newBlock)
 {
   TRACEENTER();
 
-  int NearestBookmarkIndex = FindNearestBookmark();
-  if(NearestBookmarkIndex != -1)
+  if((int)newBlock >= 0)
   {
-    // Erlaube keinen Abschnitt mit weniger als 3 Sekunden
-    if (((NearestBookmarkIndex == 0) || (Bookmarks[NearestBookmarkIndex-1] + 3*BlocksOneSecond < newBlock)) && ((NearestBookmarkIndex == NrBookmarks-1) || (newBlock + 3*BlocksOneSecond < Bookmarks[NearestBookmarkIndex+1])))
+    int NearestBookmarkIndex = FindNearestBookmark();
+    if(NearestBookmarkIndex != -1)
     {
-      Bookmarks[NearestBookmarkIndex] = newBlock;
-      SaveBookmarks();
-      TRACEEXIT();
-      return TRUE;
+      // Erlaube keinen Abschnitt mit weniger als 3 Sekunden
+      if (((NearestBookmarkIndex == 0) || (Bookmarks[NearestBookmarkIndex-1] + 3*BlocksOneSecond < newBlock)) && ((NearestBookmarkIndex == NrBookmarks-1) || (newBlock + 3*BlocksOneSecond < Bookmarks[NearestBookmarkIndex+1])))
+      {
+        Bookmarks[NearestBookmarkIndex] = newBlock;
+        SaveBookmarks();
+        TRACEEXIT();
+        return TRUE;
+      }
     }
   }
 
@@ -2356,7 +2385,7 @@ void SetCurrentSegment(void)
 
   TRACEENTER();
 
-  if(NrSegmentMarker <= 2)
+  if((NrSegmentMarker <= 2) || !PLAYINFOVALID())
   {
     ActiveSegment = 0;
     TRACEEXIT();
@@ -2401,13 +2430,13 @@ void OSDInfoDrawProgressbar(bool Force)
 
   TRACEENTER();
 
-  totalBlock = PlayInfo.totalBlock;
-  if(rgnInfo && ((int)PlayInfo.currentBlock > -1))
+  if(rgnInfo && PLAYINFOVALID())
   {
+    totalBlock = PlayInfo.totalBlock;
+
     if((labs(TAP_GetTick() - LastDraw) > 20) || Force)
     {
-      if(totalBlock)
-        pos = (dword)((float)PlayInfo.currentBlock * 653 / totalBlock);
+      pos = (dword)((float)PlayInfo.currentBlock * 653 / totalBlock);
 
       if(Force || (pos != LastPos))
       {
@@ -2518,7 +2547,7 @@ void OSDInfoDrawCurrentPosition(bool Force)
     
 //  if((labs(TAP_GetTick() - LastDraw) > 10) || Force)
 //  {
-    if(rgnInfo && (PlayInfo.totalBlock > 0))
+    if(rgnInfo && PLAYINFOVALID())
     {
       Time = NavGetBlockTimeStamp(PlayInfo.currentBlock) / 1000;
       if(((Time % 60) != LastSec) || Force)
@@ -2609,7 +2638,7 @@ void OSDInfoDrawRecName(void)
 
   TRACEENTER();
 
-  if(rgnInfo)
+  if(rgnInfo && PLAYINFOVALID())
   {
     strcpy(NameStr, PlaybackName);
     NameStr[strlen(NameStr) - 4] = '\0';
@@ -3029,11 +3058,14 @@ void Playback_JumpForward(void)
   dword                 JumpBlock;
 
   TRACEENTER();
-  JumpBlock = min(PlayInfo.currentBlock + MinuteJumpBlocks, BlockNrLastSecond);
+  if(PLAYINFOVALID())
+  {
+    JumpBlock = min(PlayInfo.currentBlock + MinuteJumpBlocks, BlockNrLastSecond);
 
-  if(TrickMode == TRICKMODE_Pause) Playback_Normal();
-  TAP_Hdd_ChangePlaybackPos(JumpBlock);
-  JumpRequestedSegment = 0xFFFF;
+    if(TrickMode == TRICKMODE_Pause) Playback_Normal();
+    TAP_Hdd_ChangePlaybackPos(JumpBlock);
+    JumpRequestedSegment = 0xFFFF;
+  }
 
   TRACEEXIT();
 }
@@ -3043,11 +3075,14 @@ void Playback_JumpBackward(void)
   dword                 JumpBlock;
 
   TRACEENTER();
-  JumpBlock = max(PlayInfo.currentBlock - MinuteJumpBlocks, 0);
+  if(PLAYINFOVALID())
+  {
+    JumpBlock = max(PlayInfo.currentBlock - MinuteJumpBlocks, 0);
 
-  if(TrickMode == TRICKMODE_Pause) Playback_Normal();
-  TAP_Hdd_ChangePlaybackPos(JumpBlock);
-  JumpRequestedSegment = 0xFFFF;
+    if(TrickMode == TRICKMODE_Pause) Playback_Normal();
+    TAP_Hdd_ChangePlaybackPos(JumpBlock);
+    JumpRequestedSegment = 0xFFFF;
+  }
 
   TRACEEXIT();
 }
@@ -3078,24 +3113,27 @@ void Playback_JumpPrevSegment(void)
 {
   TRACEENTER();
 
-  const dword FiveSeconds = PlayInfo.totalBlock * 5 / (60*PlayInfo.duration + PlayInfo.durationSec);
-
-  if(NrSegmentMarker >= 2)
+  if(PLAYINFOVALID())
   {
-    if (PlayInfo.currentBlock < (SegmentMarker[ActiveSegment].Block + FiveSeconds))
-    {
-      if (ActiveSegment > 0)
-        ActiveSegment--;
-      else
-        ActiveSegment = NrSegmentMarker - 2;
-    }
+    const dword FiveSeconds = PlayInfo.totalBlock * 5 / (60*PlayInfo.duration + PlayInfo.durationSec);
 
-    if(TrickMode == TRICKMODE_Pause) Playback_Normal();
-    TAP_Hdd_ChangePlaybackPos(SegmentMarker[ActiveSegment].Block);
-    JumpRequestedSegment = 0xFFFF;
-    JumpRequestedTime = 0;
-    JumpPerformedTime = TAP_GetTick();
-    OSDSegmentListDrawList();
+    if(NrSegmentMarker >= 2)
+    {
+      if (PlayInfo.currentBlock < (SegmentMarker[ActiveSegment].Block + FiveSeconds))
+      {
+        if (ActiveSegment > 0)
+          ActiveSegment--;
+        else
+          ActiveSegment = NrSegmentMarker - 2;
+      }
+
+      if(TrickMode == TRICKMODE_Pause) Playback_Normal();
+      TAP_Hdd_ChangePlaybackPos(SegmentMarker[ActiveSegment].Block);
+      JumpRequestedSegment = 0xFFFF;
+      JumpRequestedTime = 0;
+      JumpPerformedTime = TAP_GetTick();
+      OSDSegmentListDrawList();
+    }
   }
 
   TRACEEXIT();
@@ -3107,24 +3145,27 @@ void Playback_JumpNextBookmark(void)
 
   TRACEENTER();
 
-  if ((NrBookmarks > 0) && (PlayInfo.currentBlock > Bookmarks[NrBookmarks-1]))
+  if(PLAYINFOVALID())
   {
-    if(TrickMode == TRICKMODE_Pause) Playback_Normal();
-    TAP_Hdd_ChangePlaybackPos(Bookmarks[0]);
-    JumpRequestedSegment = 0xFFFF;
-    TRACEEXIT();
-    return;
-  }
-  
-  for(i = 0; i < NrBookmarks; i++)
-  {
-    if(Bookmarks[i] > PlayInfo.currentBlock)
+    if((NrBookmarks > 0) && (PlayInfo.currentBlock > Bookmarks[NrBookmarks-1]))
     {
       if(TrickMode == TRICKMODE_Pause) Playback_Normal();
-      TAP_Hdd_ChangePlaybackPos(Bookmarks[i]);
+      TAP_Hdd_ChangePlaybackPos(Bookmarks[0]);
       JumpRequestedSegment = 0xFFFF;
       TRACEEXIT();
       return;
+    }
+
+    for(i = 0; i < NrBookmarks; i++)
+    {
+      if(Bookmarks[i] > PlayInfo.currentBlock)
+      {
+        if(TrickMode == TRICKMODE_Pause) Playback_Normal();
+        TAP_Hdd_ChangePlaybackPos(Bookmarks[i]);
+        JumpRequestedSegment = 0xFFFF;
+        TRACEEXIT();
+        return;
+      }
     }
   }
 
@@ -3135,31 +3176,34 @@ void Playback_JumpPrevBookmark(void)
 {
   TRACEENTER();
 
-  const dword           FiveSeconds = PlayInfo.totalBlock * 5 / (60*PlayInfo.duration + PlayInfo.durationSec);
-  dword                 JumpToBlock = PlayInfo.currentBlock;
-  int                   i;
-
-  if (NrBookmarks == 0)
-    JumpToBlock = 0;
-  else if (PlayInfo.currentBlock < Bookmarks[0] + FiveSeconds)
+  if(PLAYINFOVALID())
   {
-    if (PlayInfo.currentBlock >= FiveSeconds)
+    const dword           FiveSeconds = PlayInfo.totalBlock * 5 / (60*PlayInfo.duration + PlayInfo.durationSec);
+    dword                 JumpToBlock = PlayInfo.currentBlock;
+    int                   i;
+
+    if (NrBookmarks == 0)
       JumpToBlock = 0;
-    else
-      JumpToBlock = Bookmarks[NrBookmarks - 1];
-  }
-  else
-    for(i = NrBookmarks - 1; i >= 0; i--)
+    else if (PlayInfo.currentBlock < Bookmarks[0] + FiveSeconds)
     {
-      if((Bookmarks[i] + FiveSeconds) <= PlayInfo.currentBlock)
-      {
-        JumpToBlock = Bookmarks[i];
-        break;
-      }
+      if (PlayInfo.currentBlock >= FiveSeconds)
+        JumpToBlock = 0;
+      else
+        JumpToBlock = Bookmarks[NrBookmarks - 1];
     }
-  if(TrickMode == TRICKMODE_Pause) Playback_Normal();
-  TAP_Hdd_ChangePlaybackPos(JumpToBlock);
-  JumpRequestedSegment = 0xFFFF;
+    else
+      for(i = NrBookmarks - 1; i >= 0; i--)
+      {
+        if((Bookmarks[i] + FiveSeconds) <= PlayInfo.currentBlock)
+        {
+          JumpToBlock = Bookmarks[i];
+          break;
+        }
+      }
+    if(TrickMode == TRICKMODE_Pause) Playback_Normal();
+    TAP_Hdd_ChangePlaybackPos(JumpToBlock);
+    JumpRequestedSegment = 0xFFFF;
+  }
 
   TRACEEXIT();
 }
@@ -3202,9 +3246,12 @@ void CalcLastSeconds(void)
 {
   TRACEENTER();
 
-  BlocksOneSecond      = PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec);
-  BlockNrLastSecond    = PlayInfo.totalBlock - BlocksOneSecond;
-  BlockNrLast10Seconds = PlayInfo.totalBlock - (10 * PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec));
+  if(PLAYINFOVALID())
+  {
+    BlocksOneSecond      = PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec);
+    BlockNrLastSecond    = PlayInfo.totalBlock - BlocksOneSecond;
+    BlockNrLast10Seconds = PlayInfo.totalBlock - (10 * PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec));
+  }
 
   TRACEEXIT();
 }
@@ -3215,15 +3262,18 @@ void CheckLastSeconds(void)
 
   TRACEENTER();
 
-  if((PlayInfo.currentBlock > BlockNrLastSecond) && (TrickMode != TRICKMODE_Pause))
+  if(PLAYINFOVALID())
   {
-    if (!LastSecondsPaused) Playback_Pause();
-    LastSecondsPaused = TRUE;
+    if((PlayInfo.currentBlock > BlockNrLastSecond) && (TrickMode != TRICKMODE_Pause))
+    {
+      if (!LastSecondsPaused) Playback_Pause();
+      LastSecondsPaused = TRUE;
+    }
+    else if((PlayInfo.currentBlock > BlockNrLast10Seconds) && (TrickMode == TRICKMODE_Forward))
+      Playback_Normal();
+    else
+      LastSecondsPaused = FALSE;
   }
-  else if((PlayInfo.currentBlock > BlockNrLast10Seconds) && (TrickMode == TRICKMODE_Forward)) 
-    Playback_Normal();
-  else
-    LastSecondsPaused = FALSE;
 
   TRACEEXIT();
 }
@@ -3729,7 +3779,7 @@ void MovieCutterProcess(bool KeepCut)
         do
         {
           j++;
-        } while ((j < 10000) && (!isPlaybackRunning() || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0));
+        } while ((j < 10000) && (!isPlaybackRunning() || !PLAYINFOVALID()));
         TAP_SPrint(LogString, "Reported new totalBlock = %u", PlayInfo.totalBlock);
         WriteLogMC(PROGRAM_NAME, LogString);
       }
@@ -3905,6 +3955,12 @@ bool PlaybackRepeatGet()
 dword NavGetBlockTimeStamp(dword PlaybackBlockNr)
 {
   TRACEENTER();
+
+  if(!PLAYINFOVALID())
+  {
+    TRACEEXIT();
+    return 0;
+  }
 
   if(LinearTimeMode)
   {
