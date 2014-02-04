@@ -2,7 +2,7 @@
 #define __MOVIECUTTERH__
 
 #define PROGRAM_NAME          "MovieCutter"
-#define VERSION               "V2.0h beta2"  // alpha = α,  beta = β, � = ü
+#define VERSION               "V2.0h beta3"  // alpha = α,  beta = β, � = ü
 #define TAPID                 0x8E0A4247
 //#define AUTHOR                "FireBird / Christian W�nsch"
 #define AUTHOR                "FireBird / C. Wünsch"
@@ -24,7 +24,6 @@ void  ActionMenuDraw(void);
 void  ActionMenuRemove(void);
 void  ActionMenuUp(void);
 bool  AddBookmark(dword newBlock);
-void  AddBookmarksToSegmentList(void);
 bool  AddDefaultSegmentMarker(void);
 bool  AddSegmentMarker(dword newBlock, bool RejectSmallSegments);
 void  CalcLastSeconds(void);
@@ -46,6 +45,7 @@ void  ExportSegmentsToBookmarks(void);
 int   FindNearestBookmark(void);
 int   FindNearestSegmentMarker(void);
 dword NavGetBlockTimeStamp(dword PlaybackBlockNr);
+void  ImportBookmarksToSegments(void);
 bool  isPlaybackRunning(void);
 void  LoadINI(void);
 bool  MoveBookmark(dword newBlock);

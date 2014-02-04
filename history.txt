@@ -1,3 +1,12 @@
+2014-02-04 V2.0h ** Behandlung des letzten Segments neu gestaltet
+          (beta)     -> behebt Dateisystemfehler beim Schneiden des letzten Segments(?)
+                  * Cache-Synchronisierung vor und nach dem Schnitt
+                     -> gegen Dateisystemfehler und Korrumption des Endes(?)
+                  * Neuberechnung der Segment-Marker nach dem Schnitt korrigiert
+                  * nach dem Schnitt wird auf das vollständige Neu-Laden der Aufnahme gewartet
+                  * beim Bookmark-Import werden keine Mini-Segmente am Anfang oder Ende mehr zugelassen
+                  * kleiner Bugfix: bei Erzeugung mehrerer Bookmarks an derselben Stelle wurde eines auf 0 gesetzt
+                  * kleiner Bugfix: beim Ausblenden von Messageboxen (Reboot-Hinweis) bleiben keine Reste mehr(?)
 2014-01-24 V2.0g ** new: Full support of cutting algorithms on Australian devices!
      (empfohlen)  * new: Support of cutting recordings without .nav-files (e.g. radio)!
                   * SaveEnding doch wieder durch Umkehrung realisiert (u.a. wegen CutPoint-Ermittlung auf australischen Geräten, und weil es an der Korrumption des Endes nichts zu ändern scheint)
