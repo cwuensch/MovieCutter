@@ -410,7 +410,7 @@ bool FileCut(char *SourceFileName, char *CutFileName, dword StartBlock, dword Nr
     WriteLogMC("MovieCutterLib", "FileCut()");
   #endif
 
-  //Flush the caches *experimental*  *** kritisch ***
+  //Flush the caches *experimental*
   sync();
   TAP_Delay(30);
 
@@ -447,7 +447,7 @@ bool FileCut(char *SourceFileName, char *CutFileName, dword StartBlock, dword Nr
 //  TAP_Hdd_ChangeDir(TAPDir);
   HDD_ChangeDir(TAPDir);
 
-  //Flush the caches *experimental*  *** kritisch ***
+  //Flush the caches *experimental*
   sync();
 
   if(ret)

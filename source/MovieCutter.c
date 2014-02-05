@@ -63,6 +63,8 @@ TAP_ETCINFO             (__DATE__);
 //                              Definitionen
 // ============================================================================
 
+#define PLAYINFOVALID() (((int)PlayInfo.totalBlock > 0) && ((int)PlayInfo.currentBlock >= 0))
+
 typedef struct
 {
   dword                 Block;  //Block nr
@@ -648,7 +650,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           if (TimeSinceRec <= UpTime + 1)
           {
             RebootMessage = TRUE;
-            //Flush the caches *experimental*  *** kritisch ***
+            //Flush the caches *experimental*
             sync();
           }
           #ifdef FULLDEBUG
@@ -1054,15 +1056,18 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           case RKEY_8:
           case RKEY_9:
           {
-            if ((MinuteJump > 0) && (MinuteJump < 10) && (labs(TAP_GetTick() - LastMinuteKey) < 200))
-              // We are already in minute jump mode, but only one digit already entered
-              MinuteJump = 10 * MinuteJump + (param1 & 0x0f);
-            else
-              MinuteJump = (param1 & 0x0f);
-            MinuteJumpBlocks = (PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec)) * MinuteJump*60;
-            LastMinuteKey = TAP_GetTick();
-            OSDInfoDrawMinuteJump();
-            break;
+//            if(PLAYINFOVALID())   // PlayInfo ist sicher, da bereits in Z. 786 überprüft
+//            {
+              if ((MinuteJump > 0) && (MinuteJump < 10) && (labs(TAP_GetTick() - LastMinuteKey) < 200))
+                // We are already in minute jump mode, but only one digit already entered
+                MinuteJump = 10 * MinuteJump + (param1 & 0x0f);
+              else
+                MinuteJump = (param1 & 0x0f);
+              MinuteJumpBlocks = (PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec)) * MinuteJump*60;
+              LastMinuteKey = TAP_GetTick();
+              OSDInfoDrawMinuteJump();
+              break;
+//            }
           }
           default:
             ReturnKey = TRUE;
@@ -1507,6 +1512,13 @@ bool AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
 
   TRACEENTER();
 
+  if(!PLAYINFOVALID() || ((int)newBlock < 0))
+  {
+    WriteLogMC(PROGRAM_NAME, "AddSegmentMarker: newBlock < 0 - darf nicht auftreten!");
+    TRACEEXIT();
+    return FALSE;
+  }
+
   if(NrSegmentMarker >= NRSEGMENTMARKER)
   {
     WriteLogMC(PROGRAM_NAME, "AddSegmentMarker: SegmentMarker list is full!");
@@ -1599,10 +1611,18 @@ int FindNearestSegmentMarker(void)
 bool MoveSegmentMarker(dword newBlock)
 {
   dword newTime;
-  int NearestMarkerIndex = FindNearestSegmentMarker();
+  int NearestMarkerIndex;
 
   TRACEENTER();
 
+  if(!PLAYINFOVALID() || ((int)newBlock < 0))
+  {
+    WriteLogMC(PROGRAM_NAME, "MoveSegmentMarker: newBlock < 0 - darf nicht auftreten!");
+    TRACEEXIT();
+    return FALSE;
+  }
+
+  NearestMarkerIndex = FindNearestSegmentMarker();
   if(NearestMarkerIndex != -1)
   {
     // Erlaube kein Segment mit weniger als 3 Sekunden
@@ -1783,6 +1803,13 @@ bool AddBookmark(dword newBlock)
 
   TRACEENTER();
 
+  if(!PLAYINFOVALID() || ((int)newBlock < 0))
+  {
+    WriteLogMC(PROGRAM_NAME, "AddBookmark: newBlock < 0 - darf nicht auftreten!");
+    TRACEEXIT();
+    return FALSE;
+  }
+
   if(NrBookmarks >= NRBOOKMARKS)
   {
     WriteLogMC(PROGRAM_NAME, "AddBookmark: Bookmark list is full!");
@@ -1859,9 +1886,18 @@ int FindNearestBookmark(void)
 
 bool MoveBookmark(dword newBlock)
 {
+  int NearestBookmarkIndex;
+
   TRACEENTER();
 
-  int NearestBookmarkIndex = FindNearestBookmark();
+  if(!PLAYINFOVALID() || ((int)newBlock < 0))
+  {
+    WriteLogMC(PROGRAM_NAME, "MoveBookmark: newBlock < 0 - darf nicht auftreten!");
+    TRACEEXIT();
+    return FALSE;
+  }
+
+  NearestBookmarkIndex = FindNearestBookmark();
   if(NearestBookmarkIndex != -1)
   {
     // Erlaube keinen Abschnitt mit weniger als 3 Sekunden
@@ -2378,6 +2414,12 @@ void SetCurrentSegment(void)
 
   TRACEENTER();
 
+  if (!PLAYINFOVALID())
+  {
+    TRACEEXIT();
+    return;
+  }
+
   if(NrSegmentMarker <= 2)
   {
     ActiveSegment = 0;
@@ -2416,109 +2458,108 @@ void OSDInfoDrawProgressbar(bool Force)
   int                   y, i;
   dword                 pos = 0;
   dword                 x1, x2;
-  dword                 totalBlock;
   int                   NearestMarker = -1;
   static dword          LastDraw = 0;
   static dword          LastPos = 999;
 
   TRACEENTER();
 
-  totalBlock = PlayInfo.totalBlock;
-  if(rgnInfo && ((int)PlayInfo.currentBlock > -1))
+  if(rgnInfo)
   {
     if((labs(TAP_GetTick() - LastDraw) > 20) || Force)
     {
-      if(totalBlock)
-        pos = (dword)((float)PlayInfo.currentBlock * 653 / totalBlock);
-
-      if(Force || (pos != LastPos))
+      if(((int)PlayInfo.totalBlock > 0) && ((int)PlayInfo.currentBlock >= 0))
       {
-        LastPos = pos;
+        pos = (dword)((float)PlayInfo.currentBlock * 653 / PlayInfo.totalBlock);
 
-        //The background
-        TAP_Osd_PutGd(rgnInfo, 28, 90, &_Info_Progressbar_Gd, FALSE);
-
-        //Fill the active segment
-        if (NrSegmentMarker >= 3)
+        if(Force || (pos != LastPos))
         {
-          x1 = 34 + (int)((float)653 * SegmentMarker[ActiveSegment].Percent / 100);
-          x2 = 34 + (int)((float)653 * SegmentMarker[ActiveSegment + 1].Percent / 100);
+          LastPos = pos;
 
-//          if((SegmentMarker[ActiveSegment + 1].Timems - SegmentMarker[ActiveSegment].Timems) < 60001)
-//            TAP_Osd_FillBox(rgnInfo, x1, 102, x2 - x1, 10, RGB(238, 63, 63));
-//          else
-            TAP_Osd_FillBox(rgnInfo, x1, 102, x2 - x1, 10, RGB(73, 206, 239));
-        }
+          //The background
+          TAP_Osd_PutGd(rgnInfo, 28, 90, &_Info_Progressbar_Gd, FALSE);
 
-        //SegmentMarker: 0% = 31/93,  100% = 683/93
-        if (!BookmarkMode)
-          NearestMarker = FindNearestSegmentMarker();
-        for(i = 0; i < NrSegmentMarker - 1; i++)
-        {
-          //Draw the selection
-          if(SegmentMarker[i].Selected)
+          //Fill the active segment
+          if (NrSegmentMarker >= 3)
           {
-            x1 = 34 + (int)((float)653 * SegmentMarker[i].Percent / 100);
-            x2 = 34 + (int)((float)653 * SegmentMarker[i + 1].Percent / 100);
-            TAP_Osd_DrawRectangle(rgnInfo, x1, 102, x2 - x1, 10, 2, COLOR_Blue);
+            x1 = 34 + (int)((float)653 * SegmentMarker[ActiveSegment].Percent / 100);
+            x2 = 34 + (int)((float)653 * SegmentMarker[ActiveSegment + 1].Percent / 100);
+
+//            if((SegmentMarker[ActiveSegment + 1].Timems - SegmentMarker[ActiveSegment].Timems) < 60001)
+//              TAP_Osd_FillBox(rgnInfo, x1, 102, x2 - x1, 10, RGB(238, 63, 63));
+//            else
+              TAP_Osd_FillBox(rgnInfo, x1, 102, x2 - x1, 10, RGB(73, 206, 239));
           }
 
-          //Draw the segment marker
-          if((i >= 1) && (totalBlock && SegmentMarker[i].Block <= totalBlock))
+          //SegmentMarker: 0% = 31/93,  100% = 683/93
+          if (!BookmarkMode)
+            NearestMarker = FindNearestSegmentMarker();
+          for(i = 0; i < NrSegmentMarker - 1; i++)
           {
-            pos = (dword)((float)SegmentMarker[i].Block * 653 / totalBlock);
-            if (!BookmarkMode)
+            //Draw the selection
+            if(SegmentMarker[i].Selected)
             {
-              if (i == NearestMarker)
-                TAP_Osd_PutGd(rgnInfo, 31 + pos, 93, &_SegmentMarker_current_Gd, TRUE);
-              else
-                TAP_Osd_PutGd(rgnInfo, 31 + pos, 93, &_SegmentMarker_Gd, TRUE);
+              x1 = 34 + (int)((float)653 * SegmentMarker[i].Percent / 100);
+              x2 = 34 + (int)((float)653 * SegmentMarker[i + 1].Percent / 100);
+              TAP_Osd_DrawRectangle(rgnInfo, x1, 102, x2 - x1, 10, 2, COLOR_Blue);
             }
-            else
-              TAP_Osd_PutGd(rgnInfo, 31 + pos, 93, &_SegmentMarker_gray_Gd, TRUE);
-          }
-        }
 
-        // Draw requested jump
-        if (JumpRequestedSegment != 0xFFFF)
-        {
-          x1 = 34 + (int)((float)653 * SegmentMarker[JumpRequestedSegment].Percent / 100);
-          x2 = 34 + (int)((float)653 * SegmentMarker[JumpRequestedSegment + 1].Percent / 100);
-          TAP_Osd_DrawRectangle(rgnInfo, x1, 102, x2 - x1, 10, 2, RGB(73, 206, 239));
-        }
-
-        //Bookmarks: 0% = 31/112, 100% = 683/112
-        if (BookmarkMode)
-          NearestMarker = FindNearestBookmark();
-        for(i = 0; i < NrBookmarks; i++)
-        {
-          if(totalBlock && (Bookmarks[i] <= totalBlock))
-          {
-            pos = (dword)((float)Bookmarks[i] * 653 / totalBlock);
-            if (BookmarkMode)
+            //Draw the segment marker
+            if((i >= 1) && (SegmentMarker[i].Block <= PlayInfo.totalBlock))
             {
-              if (i == NearestMarker)
-                TAP_Osd_PutGd(rgnInfo, 31 + pos, 112, &_BookmarkMarker_current_Gd, TRUE);
+              pos = (dword)((float)SegmentMarker[i].Block * 653 / PlayInfo.totalBlock);
+              if (!BookmarkMode)
+              {
+                if (i == NearestMarker)
+                  TAP_Osd_PutGd(rgnInfo, 31 + pos, 93, &_SegmentMarker_current_Gd, TRUE);
+                else
+                  TAP_Osd_PutGd(rgnInfo, 31 + pos, 93, &_SegmentMarker_Gd, TRUE);
+              }
               else
-                TAP_Osd_PutGd(rgnInfo, 31 + pos, 112, &_BookmarkMarker_Gd, TRUE);
+                TAP_Osd_PutGd(rgnInfo, 31 + pos, 93, &_SegmentMarker_gray_Gd, TRUE);
             }
-            else
-              TAP_Osd_PutGd(rgnInfo, 31 + pos, 112, &_BookmarkMarker_gray_Gd, TRUE);
           }
+
+          // Draw requested jump
+          if (JumpRequestedSegment != 0xFFFF)
+          {
+            x1 = 34 + (int)((float)653 * SegmentMarker[JumpRequestedSegment].Percent / 100);
+            x2 = 34 + (int)((float)653 * SegmentMarker[JumpRequestedSegment + 1].Percent / 100);
+            TAP_Osd_DrawRectangle(rgnInfo, x1, 102, x2 - x1, 10, 2, RGB(73, 206, 239));
+          }
+
+          //Bookmarks: 0% = 31/112, 100% = 683/112
+          if (BookmarkMode)
+            NearestMarker = FindNearestBookmark();
+          for(i = 0; i < NrBookmarks; i++)
+          {
+            if(Bookmarks[i] <= PlayInfo.totalBlock)
+            {
+              pos = (dword)((float)Bookmarks[i] * 653 / PlayInfo.totalBlock);
+              if (BookmarkMode)
+              {
+                if (i == NearestMarker)
+                  TAP_Osd_PutGd(rgnInfo, 31 + pos, 112, &_BookmarkMarker_current_Gd, TRUE);
+                else
+                  TAP_Osd_PutGd(rgnInfo, 31 + pos, 112, &_BookmarkMarker_Gd, TRUE);
+              }
+              else
+                TAP_Osd_PutGd(rgnInfo, 31 + pos, 112, &_BookmarkMarker_gray_Gd, TRUE);
+            }
+          }
+
+          //Draw the current position
+          //0% = X34, 100% = X686
+          for(y = 102; y < 112; y++)
+            TAP_Osd_PutPixel(rgnInfo, 34 + LastPos, y, COLOR_DarkRed);
+
+          TAP_Osd_Sync();
         }
 
-        //Draw the current position
-        //0% = X34, 100% = X686
-        for(y = 102; y < 112; y++)
-          TAP_Osd_PutPixel(rgnInfo, 34 + LastPos, y, COLOR_DarkRed);
-
-        TAP_Osd_Sync();
+        LastDraw = TAP_GetTick();
       }
-
-      LastDraw = TAP_GetTick();
     }
   }
-
   TRACEEXIT();
 }
 
@@ -2540,7 +2581,7 @@ void OSDInfoDrawCurrentPosition(bool Force)
     
 //  if((labs(TAP_GetTick() - LastDraw) > 10) || Force)
 //  {
-    if(rgnInfo && (PlayInfo.totalBlock > 0))
+    if(rgnInfo && ((int)PlayInfo.totalBlock > 0) && ((int)PlayInfo.currentBlock >= 0))
     {
       Time = NavGetBlockTimeStamp(PlayInfo.currentBlock) / 1000;
       if(((Time % 60) != LastSec) || Force)
@@ -2660,13 +2701,16 @@ void OSDInfoDrawRecName(void)
     else
       FMUC_PutString(rgnInfo, 65, 11, 500-TimeWidth, NameStr, COLOR_White, COLOR_None, &Calibri_14_FontDataUC, FALSE, ALIGN_LEFT);
 
-    SecToTimeString(PlayInfo.duration * 60 + PlayInfo.durationSec, TimeStr);
-    pTimeStr = TimeStr;
-    if (PlayInfo.duration >= 60)
-      TimeStr[strlen(TimeStr) - 3] = '\0';
-    else
-      pTimeStr = &TimeStr[2];
-    FMUC_PutString(rgnInfo, 500-TimeWidth, 14, 500, pTimeStr, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_RIGHT);
+    if(PLAYINFOVALID())
+    {
+      SecToTimeString(PlayInfo.duration * 60 + PlayInfo.durationSec, TimeStr);
+      pTimeStr = TimeStr;
+      if (PlayInfo.duration >= 60)
+        TimeStr[strlen(TimeStr) - 3] = '\0';
+      else
+        pTimeStr = &TimeStr[2];
+      FMUC_PutString(rgnInfo, 500-TimeWidth, 14, 500, pTimeStr, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_RIGHT);
+    }
   }
 
   TRACEEXIT();
@@ -3051,12 +3095,14 @@ void Playback_JumpForward(void)
   dword                 JumpBlock;
 
   TRACEENTER();
-  JumpBlock = min(PlayInfo.currentBlock + MinuteJumpBlocks, BlockNrLastSecond);
+  if(PLAYINFOVALID())
+  {
+    JumpBlock = min(PlayInfo.currentBlock + MinuteJumpBlocks, BlockNrLastSecond);
 
-  if(TrickMode == TRICKMODE_Pause) Playback_Normal();
-  TAP_Hdd_ChangePlaybackPos(JumpBlock);
-  JumpRequestedSegment = 0xFFFF;
-
+    if(TrickMode == TRICKMODE_Pause) Playback_Normal();
+    TAP_Hdd_ChangePlaybackPos(JumpBlock);
+    JumpRequestedSegment = 0xFFFF;
+  }
   TRACEEXIT();
 }
 
@@ -3065,12 +3111,14 @@ void Playback_JumpBackward(void)
   dword                 JumpBlock;
 
   TRACEENTER();
-  JumpBlock = max(PlayInfo.currentBlock - MinuteJumpBlocks, 0);
+  if(PLAYINFOVALID())
+  {
+    JumpBlock = max(PlayInfo.currentBlock - MinuteJumpBlocks, 0);
 
-  if(TrickMode == TRICKMODE_Pause) Playback_Normal();
-  TAP_Hdd_ChangePlaybackPos(JumpBlock);
-  JumpRequestedSegment = 0xFFFF;
-
+    if(TrickMode == TRICKMODE_Pause) Playback_Normal();
+    TAP_Hdd_ChangePlaybackPos(JumpBlock);
+    JumpRequestedSegment = 0xFFFF;
+  }
   TRACEEXIT();
 }
 
@@ -3223,11 +3271,12 @@ bool isPlaybackRunning(void)
 void CalcLastSeconds(void)
 {
   TRACEENTER();
-
-  BlocksOneSecond      = PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec);
-  BlockNrLastSecond    = PlayInfo.totalBlock - BlocksOneSecond;
-  BlockNrLast10Seconds = PlayInfo.totalBlock - (10 * PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec));
-
+  if(PLAYINFOVALID())
+  {
+    BlocksOneSecond      = PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec);
+    BlockNrLastSecond    = PlayInfo.totalBlock - BlocksOneSecond;
+    BlockNrLast10Seconds = PlayInfo.totalBlock - (10 * PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec));
+  }
   TRACEEXIT();
 }
 
@@ -3750,8 +3799,8 @@ void MovieCutterProcess(bool KeepCut)
         j = 0;
         do
         {
-          TAP_Sleep(1);
           j++;
+          TAP_Sleep(1);
         } while ((j < 10000) && (!isPlaybackRunning() || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0));
 if (j > 0)
 {
