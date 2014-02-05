@@ -412,6 +412,7 @@ bool FileCut(char *SourceFileName, char *CutFileName, dword StartBlock, dword Nr
 
   //Flush the caches *experimental*  *** kritisch ***
   sync();
+  TAP_Delay(30);
 
   //Initialize the directory structure
   memset(&FolderStruct, 0, sizeof(tDirEntry));

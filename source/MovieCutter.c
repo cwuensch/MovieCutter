@@ -518,6 +518,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         ActiveSegment = 0;
         MinuteJump = 0;
 //        MinuteJumpBlocks = 0;  // nicht unbedingt nötig
+        JumpRequestedSegment = 0xFFFF;  // eigentlich unnötig
+        JumpRequestedTime = 0;          // "
         NoNavMessage = FALSE;
         RebootMessage = FALSE;
         NavLengthMessage = FALSE;
@@ -750,6 +752,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 //          BookmarkMode = FALSE;
           MinuteJump = 0;
 //          MinuteJumpBlocks = 0;
+          JumpRequestedSegment = 0xFFFF;  // eigentlich unnötig
+//          JumpRequestedTime = 0;
 //          CreateOSD();
 //          Playback_Normal();
           ReadBookmarks();
@@ -3746,8 +3750,14 @@ void MovieCutterProcess(bool KeepCut)
         j = 0;
         do
         {
+          TAP_Sleep(1);
           j++;
         } while ((j < 10000) && (!isPlaybackRunning() || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0));
+if (j > 0)
+{
+  TAP_SPrint(LogString, "%d iterations needed to get valid playback info!", j);
+  WriteLogMC(PROGRAM_NAME, LogString);
+}
         TAP_SPrint(LogString, "Reported new totalBlock = %u", PlayInfo.totalBlock);
         WriteLogMC(PROGRAM_NAME, LogString);
       }
@@ -3825,6 +3835,7 @@ void MovieCutterProcess(bool KeepCut)
           break;
         }
       }  */
+      JumpRequestedSegment = 0xFFFF;
       OSDSegmentListDrawList();
       OSDInfoDrawProgressbar(TRUE);
     }
