@@ -1226,7 +1226,6 @@ void ShowConfirmationDialog(char* MessageStr)
   OSDMenuMessageBoxButtonAdd(LangGetString(LS_Yes));
   OSDMenuMessageBoxButtonAdd(LangGetString(LS_No));
   OSDMenuMessageBoxButtonSelect(1);
-  if (!rgnSegmentList) TAP_ExitNormal();  // Test, ob das das Nicht-Ausblenden der Reboot-Message behebt
   OSDMenuMessageBoxShow();
   MCShowMessageBox = TRUE;
 
@@ -1239,7 +1238,6 @@ void ShowErrorMessage(char* MessageStr)
 
   OSDMenuMessageBoxInitialize(PROGRAM_NAME, MessageStr);
   OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
-  if (!rgnSegmentList) TAP_ExitNormal();
   OSDMenuMessageBoxShow();
   MCShowMessageBox = TRUE;
 //  NoPlaybackCheck = FALSE;
@@ -3797,16 +3795,16 @@ void MovieCutterProcess(bool KeepCut)
         TAP_Hdd_PlayTs(PlaybackName);
         PlayInfo.totalBlock = 0;
         j = 0;
-        do
+        while ((j < 10000) && (!isPlaybackRunning() || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0))
         {
+          TAP_SystemProc();
           j++;
-          TAP_Sleep(1);
-        } while ((j < 10000) && (!isPlaybackRunning() || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0));
-if (j > 0)
-{
-  TAP_SPrint(LogString, "%d iterations needed to get valid playback info!", j);
-  WriteLogMC(PROGRAM_NAME, LogString);
-}
+        }
+
+#ifdef FULLDEBUG
+        TAP_SPrint(LogString, "%d iterations needed to get valid PlaybackInfo!", j);
+        WriteLogMC(PROGRAM_NAME, LogString);
+#endif
         TAP_SPrint(LogString, "Reported new totalBlock = %u", PlayInfo.totalBlock);
         WriteLogMC(PROGRAM_NAME, LogString);
       }
@@ -3884,6 +3882,15 @@ if (j > 0)
           break;
         }
       }  */
+
+      //Bail out if the currentBlock could not be detected
+      if((int)PlayInfo.currentBlock < 0)
+      {
+        State = ST_UnacceptedFile;
+        ShowErrorMessage(LangGetString(LS_CutHasFailed));
+        break;
+      }
+
       JumpRequestedSegment = 0xFFFF;
       OSDSegmentListDrawList();
       OSDInfoDrawProgressbar(TRUE);
