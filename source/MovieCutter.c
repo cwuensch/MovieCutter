@@ -1472,7 +1472,7 @@ void ImportBookmarksToSegments(void)
     for(i = 0; i < min(NrBookmarks, NRSEGMENTMARKER-2); i++)
     { 
       TAP_SPrint(LogString, "Bookmark %d @ %u", i + 1, Bookmarks[i]);
-      // Erlaube keinen neuen SegmentMarker zu knapp am Anfang oder Ende
+      // Erlaube keinen neuen SegmentMarker zu knapp am Anfang oder Ende oder über totalBlock
       if ((Bookmarks[i] > SegmentMarker[0].Block + 3*BlocksOneSecond) && (Bookmarks[i] + 3*BlocksOneSecond < SegmentMarker[NrSegmentMarker-1].Block))
       {
         WriteLogMC(PROGRAM_NAME, LogString);
@@ -1544,7 +1544,7 @@ bool AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
     //If less than 2 markers present, then set marker for start and end of file (called from AddDefaultSegmentMarker)
     SegmentMarker[NrSegmentMarker].Block = newBlock;
     SegmentMarker[NrSegmentMarker].Timems  = newTime;
-    SegmentMarker[NrSegmentMarker].Percent = ((float)newBlock / PlayInfo.totalBlock) * 100;
+    SegmentMarker[NrSegmentMarker].Percent = ((float)newBlock / PlayInfo.totalBlock) * 100.0;
     SegmentMarker[NrSegmentMarker].Selected = FALSE;
     NrSegmentMarker++;
   }
@@ -1566,7 +1566,7 @@ bool AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
 
         SegmentMarker[i].Block = newBlock;
         SegmentMarker[i].Timems = newTime;
-        SegmentMarker[i].Percent = ((float)newBlock / PlayInfo.totalBlock) * 100;
+        SegmentMarker[i].Percent = ((float)newBlock / PlayInfo.totalBlock) * 100.0;
         SegmentMarker[i].Selected = FALSE;
 
         MSecToTimeString(SegmentMarker[i].Timems, StartTime);
@@ -1636,7 +1636,7 @@ bool MoveSegmentMarker(dword newBlock)
       {
         SegmentMarker[NearestMarkerIndex].Block = newBlock;
         SegmentMarker[NearestMarkerIndex].Timems = newTime;
-        SegmentMarker[NearestMarkerIndex].Percent = (float)PlayInfo.currentBlock * 100 / PlayInfo.totalBlock;
+        SegmentMarker[NearestMarkerIndex].Percent = ((float)PlayInfo.currentBlock / PlayInfo.totalBlock) * 100.0;
 
         TRACEEXIT();
         return TRUE;
@@ -2101,16 +2101,16 @@ bool CutFileLoad(void)
   }
 
   // Prozent-Angaben neu berechnen (müssen künftig nicht mehr in der .cut gespeichert werden)
-  for (i = 0; i < NrSegmentMarker; i++)
+  for (i = NrSegmentMarker-1; i >= 0; i--)
   {
     if ((i < NrSegmentMarker-1) && (SegmentMarker[i].Block >= PlayInfo.totalBlock))
     {
-      if (DeleteSegmentMarker(i)) i--;
-      TAP_SPrint(LogString, "SegmentMarker %d (%u): TotalBlocks exceeded. Deleted!", i+1, SegmentMarker[i].Block);
+      TAP_SPrint(LogString, "SegmentMarker %d (%u): TotalBlocks exceeded. -> Deleting!", i, SegmentMarker[i].Block);
       WriteLogMC(PROGRAM_NAME, LogString);
+      DeleteSegmentMarker(i);
     }
     else
-      SegmentMarker[i].Percent = ((float)SegmentMarker[i].Block / PlayInfo.totalBlock) * 100;
+      SegmentMarker[i].Percent = ((float)SegmentMarker[i].Block / PlayInfo.totalBlock) * 100.0;
   }
 
   // Wenn zu wenig Segmente -> auf Standard zurücksetzen
@@ -2592,14 +2592,15 @@ void OSDInfoDrawCurrentPosition(bool Force)
     
 //  if((labs(TAP_GetTick() - LastDraw) > 10) || Force)
 //  {
-    if(rgnInfo && ((int)PlayInfo.totalBlock > 0) && ((int)PlayInfo.currentBlock >= 0))
+    if(rgnInfo && ((int)PlayInfo.totalBlock > 0) /*&& ((int)PlayInfo.currentBlock >= 0)*/)   // wenn currentBlock nicht gesetzt, schlimmstenfalls zu hohe Prozentzahl
     {
       Time = NavGetBlockTimeStamp(PlayInfo.currentBlock) / 1000;
       if(((Time % 60) != LastSec) || Force)
       {
         SecToTimeString(Time, TimePctString);
-        Percent = (float)PlayInfo.currentBlock / PlayInfo.totalBlock;
-        TAP_SPrint(PercentString, " (%1.1f%%)", Percent * 100);
+        Percent = ((float)PlayInfo.currentBlock / PlayInfo.totalBlock) * 100.0;
+        if (abs(Percent) >= 999) Percent = 999.0;
+        TAP_SPrint(PercentString, " (%1.1f%%)", Percent);
         strcat(TimePctString, PercentString);
         TAP_Osd_FillBox(rgnInfo, 60, 48, 283, 31, RGB(30, 30, 30));
         fw = FMUC_GetStringWidth(TimePctString, &Calibri_14_FontDataUC);
@@ -3859,14 +3860,14 @@ void MovieCutterProcess(bool KeepCut)
           // das aktuelle Segment auf die tatsächliche Schnittposition setzen
           SegmentMarker[WorkingSegment].Block =  ((!CutEnding) ? CutStartPoint : BehindCutPoint).BlockNr;
           SegmentMarker[WorkingSegment].Timems = ((!CutEnding) ? CutStartPoint : BehindCutPoint).Timems;
-          SegmentMarker[WorkingSegment].Percent = (float)SegmentMarker[WorkingSegment].Block * 100 / PlayInfo.totalBlock;
+          SegmentMarker[WorkingSegment].Percent = ((float)SegmentMarker[WorkingSegment].Block / PlayInfo.totalBlock) * 100.0;
         }
         else if(SegmentMarker[j].Block + 11 >= BehindCutPoint.BlockNr)  // unnötig?
         {
           // nachfolgende Semente verschieben
           SegmentMarker[j].Block -= min(DeltaBlock, SegmentMarker[j].Block);
           SegmentMarker[j].Timems = NavGetBlockTimeStamp(SegmentMarker[j].Block);  // -= min(DeltaTime, SegmentMarker[j].Timems);
-          SegmentMarker[j].Percent = (float)SegmentMarker[j].Block * 100 / PlayInfo.totalBlock;
+          SegmentMarker[j].Percent = ((float)SegmentMarker[j].Block / PlayInfo.totalBlock) * 100.0;
         }
 
         //If the first marker has moved to block 0, delete it
