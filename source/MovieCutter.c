@@ -380,7 +380,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 //          OSDMenuFreeStdFonts();
           TAP_Osd_Sync();
           OSDRedrawEverything();
-          if ((param1 == RKEY_Ok) && (OSDMenuMessageBoxLastButton() == 0))
+          if ((param1 == RKEY_Ok) && (OSDMenuMessageBoxLastButton() == 0) && isPlaybackRunning() && PLAYINFOVALID())  // PlayInfo wird gar nicht aktualisiert, nachdem Menü aufgerufen
           {
             ActionMenuRemove();
             State = ST_ActiveOSD;
@@ -530,6 +530,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
         OldRepeatMode = PlaybackRepeatGet();
 
+        //Flush the caches *experimental*
+        sync();
+
         //"Calculate" the file name (.rec or .mpg)
         strcpy(PlaybackName, PlayInfo.file->name);
         PlaybackName[strlen(PlaybackName) - 4] = '\0';
@@ -648,11 +651,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           dword TimeSinceRec = TimeDiff(RecDateTime, Now(NULL));
           dword UpTime = GetUptime() / 6000;
           if (TimeSinceRec <= UpTime + 1)
-          {
             RebootMessage = TRUE;
-            //Flush the caches *experimental*
-            sync();
-          }
           #ifdef FULLDEBUG
             if (RecDateTime > 0xd0790000)
               RecDateTime = TF2UnixTime(RecDateTime);
@@ -744,7 +743,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       if((event == EVT_KEY) && ((param1 == RKEY_Ab) || (param1 == RKEY_Option)))
       {
         if (!isPlaybackRunning()) break;
-        if (LastTotalBlocks != PlayInfo.totalBlock)
+        if ((LastTotalBlocks == 0) || (PlayInfo.totalBlock != LastTotalBlocks))
           State = ST_WaitForPlayback;
         else
         {
@@ -783,7 +782,25 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         State = AutoOSDPolicy ? ST_WaitForPlayback : ST_InactiveMode;
         break;
       }
-      else if ((int)PlayInfo.currentBlock < 0)
+
+      if((event == EVT_KEY) && (param1 == RKEY_Exit))
+      {
+#ifdef FULLDEBUG
+  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler(): State=ST_ActiveOSD, Key=RKEY_Exit --> Aufruf von CutFileSave()");
+#endif
+        JumpRequestedSegment = 0xFFFF;
+        CutFileSave();
+        PlaybackRepeatSet(OldRepeatMode);
+        State = ST_InactiveModePlaying;
+        ClearOSD(TRUE);
+
+        //Exit immediately so that other cases can not interfere with the cleanup
+        DoNotReenter = FALSE;
+        TRACEEXIT();
+        return 0;
+      }
+
+      if ((int)PlayInfo.currentBlock < 0)
         break;  // *** kritisch ***
 
       TAP_GetState(&SysState, &SysSubState);
@@ -800,23 +817,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             break;
           }
         
-          case RKEY_Exit:
-          {
-#ifdef FULLDEBUG
-  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler(): State=ST_ActiveOSD, Key=RKEY_Exit --> Aufruf von CutFileSave()");
-#endif
-            JumpRequestedSegment = 0xFFFF;
-            CutFileSave();
-            PlaybackRepeatSet(OldRepeatMode);
-            State = ST_InactiveModePlaying;
-            ClearOSD(TRUE);
-
-            //Exit immediately so that other cases can not interfere with the cleanup
-            DoNotReenter = FALSE;
-            TRACEEXIT();
-            return 0;
-          }
-
           case RKEY_Ab:
           case RKEY_Option:
           {
@@ -1056,7 +1056,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           case RKEY_8:
           case RKEY_9:
           {
-//            if(PLAYINFOVALID())   // PlayInfo ist sicher, da bereits in Z. 786 überprüft
+//            if(PLAYINFOVALID())   // PlayInfo ist sicher, da bereits in Z. 804 überprüft
 //            {
               if ((MinuteJump > 0) && (MinuteJump < 10) && (labs(TAP_GetTick() - LastMinuteKey) < 200))
                 // We are already in minute jump mode, but only one digit already entered
@@ -1116,6 +1116,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             {
               // Deaktivierte Aktionen
               if ((ActionMenuItem==MI_SaveSegments || ActionMenuItem==MI_DeleteSegments || ActionMenuItem==MI_SelectOddSegments || ActionMenuItem==MI_SelectEvenSegments) && NrSegmentMarker<=2)
+                break;
+
+              // PlayInfo prüfen
+              if (!(isPlaybackRunning() && PLAYINFOVALID()) && ActionMenuItem!=MI_ExitMC && ActionMenuItem!=MI_DeleteFile)  // PlayInfo wird nicht aktualisiert
                 break;
 
               // Aktionen mit Confirmation-Dialog
@@ -1510,9 +1514,9 @@ bool AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
 
   TRACEENTER();
 
-  if(!PLAYINFOVALID() || ((int)newBlock < 0))
+  if(newBlock > PlayInfo.totalBlock  /*!PLAYINFOVALID() || ((int)newBlock < 0)*/)   // PlayInfo ist sicher, da in Z.804 und im ActionMenu überprüft, Prüfung für newBlock nun restriktiver
   {
-    WriteLogMC(PROGRAM_NAME, "AddSegmentMarker: newBlock < 0 - darf nicht auftreten!");
+    WriteLogMC(PROGRAM_NAME, "AddSegmentMarker: newBlock > totalBlock - darf nicht auftreten!");
     TRACEEXIT();
     return FALSE;
   }
@@ -1613,9 +1617,9 @@ bool MoveSegmentMarker(dword newBlock)
 
   TRACEENTER();
 
-  if(!PLAYINFOVALID() || ((int)newBlock < 0))
+  if(newBlock > PlayInfo.totalBlock  /*!PLAYINFOVALID() || ((int)newBlock < 0)*/)   // PlayInfo ist sicher, da in Z.804 überprüft, Prüfung für newBlock nun restriktiver
   {
-    WriteLogMC(PROGRAM_NAME, "MoveSegmentMarker: newBlock < 0 - darf nicht auftreten!");
+    WriteLogMC(PROGRAM_NAME, "MoveSegmentMarker: newBlock > totalBlock - darf nicht auftreten!");
     TRACEEXIT();
     return FALSE;
   }
@@ -1801,9 +1805,9 @@ bool AddBookmark(dword newBlock)
 
   TRACEENTER();
 
-  if(!PLAYINFOVALID() || ((int)newBlock < 0))
+  if(newBlock > PlayInfo.totalBlock  /*!PLAYINFOVALID() || ((int)newBlock < 0)*/)   // PlayInfo ist sicher, da in Z.804 überprüft, Prüfung für newBlock nun restriktiver
   {
-    WriteLogMC(PROGRAM_NAME, "AddBookmark: newBlock < 0 - darf nicht auftreten!");
+    WriteLogMC(PROGRAM_NAME, "AddBookmark: newBlock > totalBlock - darf nicht auftreten!");
     TRACEEXIT();
     return FALSE;
   }
@@ -1888,9 +1892,9 @@ bool MoveBookmark(dword newBlock)
 
   TRACEENTER();
 
-  if(!PLAYINFOVALID() || ((int)newBlock < 0))
+  if(newBlock > PlayInfo.totalBlock  /*!PLAYINFOVALID() || ((int)newBlock < 0)*/)   // PlayInfo ist sicher, da in Z.804 überprüft, Prüfung für newBlock nun restriktiver
   {
-    WriteLogMC(PROGRAM_NAME, "MoveBookmark: newBlock < 0 - darf nicht auftreten!");
+    WriteLogMC(PROGRAM_NAME, "MoveBookmark: newBlock > totalBlock - darf nicht auftreten!");
     TRACEEXIT();
     return FALSE;
   }
@@ -2083,7 +2087,7 @@ bool CutFileLoad(void)
           else
           {
             if (DeleteSegmentMarker(i)) i--;
-            TAP_SPrint(&LogString[strlen(LogString)], "  -->  TotalBlocks exceeded. Deleted!", SegmentMarker[i].Block, curTimeStr);        
+            TAP_SPrint(&LogString[strlen(LogString)], "  -->  TotalBlocks exceeded. Deleted!", SegmentMarker[i].Block, curTimeStr);
           }
         }
         WriteLogMC(PROGRAM_NAME, LogString);
@@ -2096,6 +2100,19 @@ bool CutFileLoad(void)
     }
   }
 
+  // Prozent-Angaben neu berechnen (müssen künftig nicht mehr in der .cut gespeichert werden)
+  for (i = 0; i < NrSegmentMarker; i++)
+  {
+    if ((i < NrSegmentMarker-1) && (SegmentMarker[i].Block >= PlayInfo.totalBlock))
+    {
+      if (DeleteSegmentMarker(i)) i--;
+      TAP_SPrint(LogString, "SegmentMarker %d (%u): TotalBlocks exceeded. Deleted!", i+1, SegmentMarker[i].Block);
+      WriteLogMC(PROGRAM_NAME, LogString);
+    }
+    else
+      SegmentMarker[i].Percent = ((float)SegmentMarker[i].Block / PlayInfo.totalBlock) * 100;
+  }
+
   // Wenn zu wenig Segmente -> auf Standard zurücksetzen
   if (NrSegmentMarker <= 2)
   {
@@ -2104,12 +2121,6 @@ bool CutFileLoad(void)
     WriteLogMC(PROGRAM_NAME, "CutFileLoad: Two or less timestamps imported, resetting!"); 
     TRACEEXIT();
     return FALSE;
-  }
-
-  // Prozent-Angaben neu berechnen (müssen künftig nicht mehr in der .cut gespeichert werden)
-  for (i = 0; i < NrSegmentMarker; i++)
-  {
-    SegmentMarker[i].Percent = ((float)SegmentMarker[i].Block / PlayInfo.totalBlock) * 100;
   }
 
   // Wenn letzter Segment-Marker ungleich TotalBlock ist -> anpassen
@@ -2466,7 +2477,7 @@ void OSDInfoDrawProgressbar(bool Force)
   {
     if((labs(TAP_GetTick() - LastDraw) > 20) || Force)
     {
-      if(((int)PlayInfo.totalBlock > 0) && ((int)PlayInfo.currentBlock >= 0))
+      if((int)PlayInfo.totalBlock > 0)  // für die Anzeige der Progressbar reicht es, wenn totalBlock gesetzt ist, currentBlock wird später geprüft!
       {
         pos = (dword)((float)PlayInfo.currentBlock * 653 / PlayInfo.totalBlock);
 
@@ -2548,9 +2559,11 @@ void OSDInfoDrawProgressbar(bool Force)
 
           //Draw the current position
           //0% = X34, 100% = X686
-          for(y = 102; y < 112; y++)
-            TAP_Osd_PutPixel(rgnInfo, 34 + LastPos, y, COLOR_DarkRed);
-
+          if((int)PlayInfo.currentBlock >= 0)
+          {
+            for(y = 102; y < 112; y++)
+              TAP_Osd_PutPixel(rgnInfo, 34 + LastPos, y, COLOR_DarkRed);
+          }
           TAP_Osd_Sync();
         }
 
@@ -2699,8 +2712,8 @@ void OSDInfoDrawRecName(void)
     else
       FMUC_PutString(rgnInfo, 65, 11, 500-TimeWidth, NameStr, COLOR_White, COLOR_None, &Calibri_14_FontDataUC, FALSE, ALIGN_LEFT);
 
-    if(PLAYINFOVALID())
-    {
+//    if(PLAYINFOVALID())  // bei ungültiger PlayInfo lautet schlimmstenfalls die Zeitanzeige 9999:28
+//    {
       SecToTimeString(PlayInfo.duration * 60 + PlayInfo.durationSec, TimeStr);
       pTimeStr = TimeStr;
       if (PlayInfo.duration >= 60)
@@ -2708,7 +2721,7 @@ void OSDInfoDrawRecName(void)
       else
         pTimeStr = &TimeStr[2];
       FMUC_PutString(rgnInfo, 500-TimeWidth, 14, 500, pTimeStr, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_RIGHT);
-    }
+//    }
   }
 
   TRACEEXIT();
@@ -3093,7 +3106,8 @@ void Playback_JumpForward(void)
   dword                 JumpBlock;
 
   TRACEENTER();
-  if(PLAYINFOVALID())
+//  if(PLAYINFOVALID())  // Prüfung von currentBlock nun restriktiver
+  if (PlayInfo.currentBlock < BlockNrLastSecond)
   {
     JumpBlock = min(PlayInfo.currentBlock + MinuteJumpBlocks, BlockNrLastSecond);
 
@@ -3109,9 +3123,10 @@ void Playback_JumpBackward(void)
   dword                 JumpBlock;
 
   TRACEENTER();
-  if(PLAYINFOVALID())
+//  if(PLAYINFOVALID())  // Prüfung von currentBlock nun restriktiver
+  if (((int)PlayInfo.currentBlock >= 0) && (PlayInfo.currentBlock >= MinuteJumpBlocks))
   {
-    JumpBlock = max(PlayInfo.currentBlock - MinuteJumpBlocks, 0);
+    JumpBlock = PlayInfo.currentBlock - MinuteJumpBlocks;
 
     if(TrickMode == TRICKMODE_Pause) Playback_Normal();
     TAP_Hdd_ChangePlaybackPos(JumpBlock);
@@ -3269,7 +3284,7 @@ bool isPlaybackRunning(void)
 void CalcLastSeconds(void)
 {
   TRACEENTER();
-  if(PLAYINFOVALID())
+  if((int)PlayInfo.totalBlock > 0  /*PLAYINFOVALID()*/)  // wenn nur totalBlock gesetzt ist, kann (und muss!) die Berechnung stattfinden
   {
     BlocksOneSecond      = PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec);
     BlockNrLastSecond    = PlayInfo.totalBlock - BlocksOneSecond;

@@ -449,6 +449,7 @@ bool FileCut(char *SourceFileName, char *CutFileName, dword StartBlock, dword Nr
 
   //Flush the caches *experimental*
   sync();
+  TAP_Delay(30);
 
   if(ret)
   {
