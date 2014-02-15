@@ -27,6 +27,7 @@ bool  AddBookmark(dword newBlock);
 bool  AddDefaultSegmentMarker(void);
 bool  AddSegmentMarker(dword newBlock, bool RejectSmallSegments);
 void  CalcLastSeconds(void);
+bool  CheckFileSystem(char *OutWarnings);
 void  CheckLastSeconds(void);
 void  Cleanup(bool DoClearOSD);
 void  CleanupCut(void);
@@ -88,8 +89,8 @@ bool  SaveBookmarks(void);
 void  SaveINI(void);
 void  SelectSegmentMarker(void);
 void  SetCurrentSegment(void);
-void  ShowConfirmationDialog(char* MessageStr);
-void  ShowErrorMessage(char* MessageStr);
+void  ShowConfirmationDialog(char *MessageStr);
+void  ShowErrorMessage(char *MessageStr);
 dword TMSCommander_handler(dword param1);
 bool PatchOldNavFile(char *SourceFileName, bool isHD);
 

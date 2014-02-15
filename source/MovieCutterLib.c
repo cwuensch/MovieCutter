@@ -404,6 +404,7 @@ bool FileCut(char *SourceFileName, char *CutFileName, dword StartBlock, dword Nr
   dword                 ret;
   TYPE_PlayInfo         PlayInfo;
   char                  CurrentDir[512], TAPDir[512];
+  int                   i;
 
   TRACEENTER();
   #ifdef FULLDEBUG
@@ -412,7 +413,11 @@ bool FileCut(char *SourceFileName, char *CutFileName, dword StartBlock, dword Nr
 
   //Flush the caches *experimental*
   sync();
-  TAP_Delay(30);
+  for (i=0; i < 100; i++)
+  {
+    TAP_SystemProc();
+    TAP_Sleep(1);
+  }
 
   //Initialize the directory structure
   memset(&FolderStruct, 0, sizeof(tDirEntry));
@@ -449,7 +454,12 @@ bool FileCut(char *SourceFileName, char *CutFileName, dword StartBlock, dword Nr
 
   //Flush the caches *experimental*
   sync();
-  TAP_Delay(30);
+  for (i=0; i < 100; i++)
+  {
+    TAP_SystemProc();
+    TAP_Sleep(1);
+  }
+  system("hdparm -f /dev/sda");
 
   if(ret)
   {

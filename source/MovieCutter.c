@@ -971,6 +971,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
           case RKEY_Menu:
           {
+            if (JumpRequestedSegment != 0xFFFF)
+              break;
+
             if(TrickMode != TRICKMODE_Pause)
             {
               Playback_Pause();
@@ -1220,7 +1223,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 // ----------------------------------------------------------------------------
 //                           MessageBox-Funktionen
 // ----------------------------------------------------------------------------
-void ShowConfirmationDialog(char* MessageStr)
+void ShowConfirmationDialog(char *MessageStr)
 {
   TRACEENTER();
 
@@ -1236,7 +1239,7 @@ void ShowConfirmationDialog(char* MessageStr)
   TRACEEXIT();
 }
 
-void ShowErrorMessage(char* MessageStr)
+void ShowErrorMessage(char *MessageStr)
 {
   TRACEENTER();
 
@@ -3692,9 +3695,10 @@ void MovieCutterProcess(bool KeepCut)
 
 //  ClearOSD(FALSE);
 
+  int maxProgress = NrSelectedSegments + 1;
   for(i = NrSegmentMarker - 2; i >= 0 /*-1*/; i--)
   {
-    //OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), NrSegmentMarker - i - 1, NrSegmentMarker, NULL);
+    OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), maxProgress - NrSelectedSegments - 1, maxProgress, NULL);
 
     if(isMultiSelect)
     {
@@ -3762,6 +3766,12 @@ void MovieCutterProcess(bool KeepCut)
         TAP_SPrint(LogString, "Renaming original playback file '%s' to '%s'", PlaybackName, CutFileName);
         WriteLogMC(PROGRAM_NAME, LogString);
         HDD_Rename(PlaybackName, CutFileName);
+        sync();
+        for (j=0; j < 100; j++)
+        {
+          TAP_SystemProc();
+          TAP_Sleep(1);
+        }
       }
 
       // Schnittoperation
@@ -3816,6 +3826,7 @@ void MovieCutterProcess(bool KeepCut)
           TAP_SystemProc();
           j++;
         }
+        PlaybackRepeatSet(TRUE);
 
 #ifdef FULLDEBUG
         TAP_SPrint(LogString, "%d iterations needed to get valid PlaybackInfo!", j);
@@ -3828,7 +3839,9 @@ void MovieCutterProcess(bool KeepCut)
       //Bail out if the cut failed
       if((ret == RC_Error) || (RecFileSize == 0) || ((int)PlayInfo.totalBlock <= 0))
       {
+        WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: Cutting process failed or totalBlock is 0!");
         State = ST_UnacceptedFile;
+        OSDMenuProgressBarDestroy();
         ShowErrorMessage(LangGetString(LS_CutHasFailed));
         break;
       }
@@ -3894,6 +3907,7 @@ void MovieCutterProcess(bool KeepCut)
         {
           State = ST_UnacceptedFile;
           WriteLogMC(PROGRAM_NAME, "Error processing the last segment: Renaming failed!");
+          OSDMenuProgressBarDestroy();
           ShowErrorMessage(LangGetString(LS_CutHasFailed));
           break;
         }
@@ -3902,7 +3916,9 @@ void MovieCutterProcess(bool KeepCut)
       //Bail out if the currentBlock could not be detected
       if((int)PlayInfo.currentBlock < 0)
       {
+        WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: Restarting playback failed! CurrentBlock not detected...");
         State = ST_UnacceptedFile;
+        OSDMenuProgressBarDestroy();
         ShowErrorMessage(LangGetString(LS_CutHasFailed));
         break;
       }
@@ -3910,6 +3926,7 @@ void MovieCutterProcess(bool KeepCut)
       JumpRequestedSegment = 0xFFFF;
       OSDSegmentListDrawList();
       OSDInfoDrawProgressbar(TRUE);
+      OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), maxProgress - NrSelectedSegments, maxProgress, NULL);
     }
     if ((NrSelectedSegments <= 0) /* && !SegmentMarker[NrSegmentMarker-2].Selected*/ )
       break;
@@ -3926,13 +3943,11 @@ void MovieCutterProcess(bool KeepCut)
   ReadBookmarks();
   CalcLastSeconds();
   LastTotalBlocks = PlayInfo.totalBlock;
-
-  //OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), 1, 1, NULL);
-  //OSDMenuProgressBarDestroy();
   Playback_Normal(); */
 
-  LastTotalBlocks = PlayInfo.totalBlock;
-  TAP_Hdd_ChangePlaybackPos(SegmentMarker[min(ActiveSegment, NrSegmentMarker-2)].Block);
+//  LastTotalBlocks = PlayInfo.totalBlock;
+  if (SegmentMarker[max(min(ActiveSegment, NrSegmentMarker-2), 0)].Block > 0)
+    TAP_Hdd_ChangePlaybackPos(SegmentMarker[max(min(ActiveSegment, NrSegmentMarker-2), 0)].Block);
 
 //  TAP_Osd_Sync();
 //  ClearOSD(FALSE);
@@ -3940,13 +3955,29 @@ void MovieCutterProcess(bool KeepCut)
 //  NrBookmarks = 0;
 //  OSDRedrawEverything();
 
+  //Check file system consistency and show a warning
+  OSDMenuProgressBarShow(PROGRAM_NAME, "Checking file system...", maxProgress-1, maxProgress, NULL);
+  TAP_SystemProc();
+  if(!CheckFileSystem(LogString))
+  {
+    WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: WARNING! File system is inconsistent...");
+    WriteLogMC(PROGRAM_NAME, LogString);
+    ShowErrorMessage("WARNUNG! Aufnahmenfresser wird zuschlagen!");
+  }
+
+  OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), maxProgress, maxProgress, NULL);
+  OSDMenuProgressBarDestroy();
+
   if (State != ST_UnacceptedFile)
   {
     State = ST_WaitForPlayback;
     WriteLogMC(PROGRAM_NAME, "MovieCutterProcess() successfully completed!");
   }
   else
+  {
+    LastTotalBlocks = PlayInfo.totalBlock;
     WriteLogMC(PROGRAM_NAME, "MovieCutterProcess() finished!");
+  }
 //  NoPlaybackCheck = FALSE;
 
   TRACEEXIT();
@@ -4000,6 +4031,68 @@ bool PlaybackRepeatSet(bool EnableRepeatAll)
 bool PlaybackRepeatGet()
 {
   return (PlaybackRepeatMode(FALSE, 0, 0, 0) == 2);
+}
+
+bool CheckFileSystem(char *OutWarnings)
+{
+  char                  CurrentDir[512];
+  char                 *AbsLogFileName = NULL;
+  char                 *LogBuffer = NULL;
+  FILE                 *fLogFile = NULL;
+
+  TRACEENTER();
+  TAP_SPrint(OutWarnings, "Konnte nicht überprüft werden.");
+
+  //Run fsck and create a log file
+  HDD_TAP_PushDir();
+  TAP_Hdd_ChangeDir("/ProgramFiles/Settings/MovieCutter");
+
+  TAP_Hdd_Delete("fsck.log");
+  system("/mnt/hd/ProgramFiles/jfs_fsck -n -v /dev/sda2 > /mnt/hd/ProgramFiles/Settings/MovieCutter/fsck.log");
+
+  LogBuffer = (char*) TAP_MemAlloc(10000);
+  if (LogBuffer)
+  {
+    //Open the created log file
+    HDD_TAP_GetCurrentDir(CurrentDir);
+    TAP_SPrint(AbsLogFileName, "%s%s/fsck.log", TAPFSROOT, CurrentDir);
+    fLogFile = fopen(AbsLogFileName, "r");
+    if(fLogFile)
+    {
+      fread(LogBuffer, 1, 9999, fLogFile);
+      LogBuffer[9999] = '\0';
+
+      //Search for **Step 4
+      char *p = strstr(LogBuffer, "**Step 4");
+/*      if(p != 0)
+      {
+        OutWarnings[0] = '\0';
+        //Read until **Step 5
+        p = strstr((p+1), "\n");
+        if (p != 0)
+        {
+          char *p2 = strstr((p+1), "**Step 6");
+          if (p2 != 0)
+          {
+            strncpy(OutWarnings, (p+1), min(p2-p-2, 511));
+            OutWarnings[511] = '\0';
+          }
+        }
+      }
+      else
+*/        WriteLogMC(PROGRAM_NAME, "CheckFileSystem() Exx03.");
+      fclose(fLogFile);
+    }
+    else
+      WriteLogMC(PROGRAM_NAME, "CheckFileSystem() Exx02.");
+    TAP_MemFree(LogBuffer);
+  }
+  else
+    WriteLogMC(PROGRAM_NAME, "CheckFileSystem() Exx01.");
+
+  HDD_TAP_PopDir();
+  TRACEEXIT();
+  return (!OutWarnings[0]);
 }
 
 
