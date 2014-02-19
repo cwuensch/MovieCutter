@@ -2,7 +2,7 @@
 #define __MOVIECUTTERH__
 
 #define PROGRAM_NAME          "MovieCutter"
-#define VERSION               "V2.0h final"  // alpha = α,  beta = β, � = ü
+#define VERSION               "V2.0i beta1"  // alpha = α,  beta = β, � = ü
 #define TAPID                 0x8E0A4247
 //#define AUTHOR                "FireBird / Christian W�nsch"
 #define AUTHOR                "FireBird / C. Wünsch"

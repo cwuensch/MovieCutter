@@ -413,10 +413,10 @@ bool FileCut(char *SourceFileName, char *CutFileName, dword StartBlock, dword Nr
 
   //Flush the caches *experimental*
   sync();
-  for (i=0; i < 100; i++)
+  for (i=0; i < 20; i++)
   {
     TAP_SystemProc();
-    TAP_Sleep(1);
+    TAP_Sleep(10);
   }
 
   //Initialize the directory structure
@@ -454,10 +454,10 @@ bool FileCut(char *SourceFileName, char *CutFileName, dword StartBlock, dword Nr
 
   //Flush the caches *experimental*
   sync();
-  for (i=0; i < 100; i++)
+  for (i=0; i < 20; i++)
   {
     TAP_SystemProc();
-    TAP_Sleep(1);
+    TAP_Sleep(10);
   }
   system("hdparm -f /dev/sda");
 
