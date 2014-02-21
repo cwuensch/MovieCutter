@@ -48,27 +48,9 @@
 #include                "Graphics/SegmentMarker.gd"
 #include                "Graphics/SegmentMarker_current.gd"
 #include                "Graphics/SegmentMarker_gray.gd"
-#include                "Graphics/ActionMenu9.gd"
+#include                "Graphics/ActionMenu10.gd"
 #include                "Graphics/ActionMenu_Bar.gd"
 #include                "TMSCommander.h"
-
-
-extern word ProgressBarOSDRgn;
-extern word ProgressBarFullRgn;
-extern word ProgressBarLastValue;
-void OSDMenuProgressBarDestroyNoOSDUpdate(void)
-{
-  if(ProgressBarOSDRgn)
-  {
-    TAP_Osd_Delete(ProgressBarOSDRgn);
-    TAP_Osd_Delete(ProgressBarFullRgn);
-    ProgressBarOSDRgn = 0;
-    ProgressBarFullRgn = 0;
-  }
-  OSDMenuInfoBoxDestroyNoOSDUpdate();
-  ProgressBarLastValue =  0xfff;
-}
-
 
 
 TAP_ID                  (TAPID);
@@ -114,6 +96,7 @@ typedef enum
   MI_SelectEvenSegments,
   MI_ClearAll,
   MI_ImportBookmarks,
+  MI_ExportSegments,
   MI_DeleteFile,
   MI_ExitMC,
   MI_NrMenuItems
@@ -416,8 +399,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 OSDInfoDrawProgressbar(TRUE);
                 break;
               }
+              case MI_ImportBookmarks:     ImportBookmarksToSegments(); break;
+              case MI_ExportSegments:      ExportSegmentsToBookmarks(); break;
               case MI_DeleteFile:          MovieCutterDeleteFile(); break;
-              case MI_ImportBookmarks:     (BookmarkMode) ? ExportSegmentsToBookmarks() : ImportBookmarksToSegments(); break;
             }
           }
           else
@@ -1147,7 +1131,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 break;
 
               // Aktionen mit Confirmation-Dialog
-              if (ActionMenuItem==MI_SaveSegments || ActionMenuItem==MI_DeleteSegments || (ActionMenuItem==MI_ClearAll && NrSelectedSegments==0) || ActionMenuItem==MI_DeleteFile || (ActionMenuItem==MI_ImportBookmarks && ((!BookmarkMode && NrSegmentMarker>2) || (BookmarkMode && NrBookmarks>0))))
+              if (ActionMenuItem==MI_SaveSegments || ActionMenuItem==MI_DeleteSegments || (ActionMenuItem==MI_ClearAll && (BookmarkMode || NrSelectedSegments==0)) || ActionMenuItem==MI_DeleteFile || (ActionMenuItem==MI_ImportBookmarks && NrSegmentMarker>2) || (ActionMenuItem==MI_ExportSegments && NrBookmarks>0))
               {
                 ShowConfirmationDialog(LangGetString(LS_AskConfirmation));
                 // Beim Speichern/Löschen einer Szene aus der Mitte, wird häufig das Ende der Original-Aufnahme korrumpiert!!
@@ -1168,7 +1152,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 case MI_SelectEvenSegments:  MovieCutterSelectEvenSegments(); /*if(!DirectSegmentsCut) {ActionMenuDraw(); State = ST_ActionMenu;}*/ break;
                 case MI_ClearAll:            MovieCutterUnselectAll(); break;
 //                case MI_DeleteFile:          MovieCutterDeleteFile(); break;
-                case MI_ImportBookmarks:     (BookmarkMode) ? ExportSegmentsToBookmarks() : ImportBookmarksToSegments(); break;
+                case MI_ImportBookmarks:     ImportBookmarksToSegments(); break;
+                case MI_ExportSegments:      ExportSegmentsToBookmarks(); break;
                 case MI_ExitMC:              State = ST_Exit; break;
                 case MI_NrMenuItems:         break;
               }
@@ -3362,11 +3347,11 @@ void ActionMenuDraw(void)
 
   if(!rgnActionMenu)
   {
-    rgnActionMenu = TAP_Osd_Create(((720 - _ActionMenu9_Gd.width) >> 1) +25, 70, _ActionMenu9_Gd.width, _ActionMenu9_Gd.height, 0, 0);
+    rgnActionMenu = TAP_Osd_Create(((720 - _ActionMenu10_Gd.width) >> 1) +25, 70, _ActionMenu10_Gd.width, _ActionMenu10_Gd.height, 0, 0);
 //    ActionMenuItem = 0;
   }
 
-  TAP_Osd_PutGd(rgnActionMenu, 0, 0, &_ActionMenu9_Gd, FALSE);
+  TAP_Osd_PutGd(rgnActionMenu, 0, 0, &_ActionMenu10_Gd, FALSE);
   TAP_Osd_PutGd(rgnActionMenu, 7, 4 + 28 * ActionMenuItem, &_ActionMenu_Bar_Gd, FALSE);
 
   x = 20;
@@ -3446,15 +3431,15 @@ void ActionMenuDraw(void)
       }
       case MI_ClearAll:
       {
-        if (NrSelectedSegments > 0)
-          DisplayStr = LangGetString(LS_UnselectAll);
+        if (BookmarkMode)
+        {
+          DisplayStr = LangGetString(LS_DeleteAllBookmarks);
+          if (NrBookmarks <= 0) DisplayColor = C4;
+        }
         else
         {
-          if (BookmarkMode)
-          {
-            DisplayStr = LangGetString(LS_DeleteAllBookmarks);
-            if (NrBookmarks <= 0) DisplayColor = C4;
-          }
+          if (NrSelectedSegments > 0)
+            DisplayStr = LangGetString(LS_UnselectAll);
           else
           {
             DisplayStr = LangGetString(LS_ClearSegmentList);
@@ -3464,21 +3449,21 @@ void ActionMenuDraw(void)
         break;
       }
       case MI_DeleteFile:
+      {
         DisplayStr = LangGetString(LS_DeleteFile);
         DisplayColor = C3;
         break;
+      }
       case MI_ImportBookmarks:
       {
-        if (BookmarkMode)
-        {
-          DisplayStr = LangGetString(LS_ExportToBM);
-          if (NrSegmentMarker <= 2) DisplayColor = C4;
-        }
-        else
-        {
-          DisplayStr = LangGetString(LS_ImportBM);
-          if (NrBookmarks <= 0) DisplayColor = C4;
-        }
+        DisplayStr = LangGetString(LS_ImportBM);
+        if (NrBookmarks <= 0) DisplayColor = C4;
+        break;
+      }
+      case MI_ExportSegments:
+      {
+        DisplayStr = LangGetString(LS_ExportToBM);
+        if (NrSegmentMarker <= 2) DisplayColor = C4;
         break;
       }
       case MI_ExitMC:
@@ -3505,7 +3490,7 @@ void ActionMenuDown(void)
       ActionMenuItem = 1;
     else
       ActionMenuItem++;
-  } while ((ActionMenuItem<=4 && NrSegmentMarker<=2) || (ActionMenuItem==MI_ClearAll && !(NrSelectedSegments>0 || (BookmarkMode && NrBookmarks>0) || (!BookmarkMode && NrSegmentMarker>2))) || (ActionMenuItem==MI_ImportBookmarks && !((BookmarkMode && NrSegmentMarker>2) || (!BookmarkMode && NrBookmarks>0))));
+  } while ((ActionMenuItem<=4 && NrSegmentMarker<=2) || (ActionMenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && NrSegmentMarker>2))) || (ActionMenuItem==MI_ImportBookmarks && NrBookmarks<=0) || (ActionMenuItem==MI_ExportSegments && NrSegmentMarker<=2));
 
   ActionMenuDraw();
 
@@ -3522,7 +3507,7 @@ void ActionMenuUp(void)
       ActionMenuItem--;
     else
       ActionMenuItem = MI_NrMenuItems - 1;
-  } while ((ActionMenuItem<=4 && NrSegmentMarker<=2) || (ActionMenuItem==MI_ClearAll && !(NrSelectedSegments>0 || (BookmarkMode && NrBookmarks>0) || (!BookmarkMode && NrSegmentMarker>2))) || (ActionMenuItem==MI_ImportBookmarks && !((BookmarkMode && NrSegmentMarker>2) || (!BookmarkMode && NrBookmarks>0))));
+  } while ((ActionMenuItem<=4 && NrSegmentMarker<=2) || (ActionMenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && NrSegmentMarker>2))) || (ActionMenuItem==MI_ImportBookmarks && NrBookmarks<=0) || (ActionMenuItem==MI_ExportSegments && NrSegmentMarker<=2));
 
   ActionMenuDraw();
 
@@ -4094,9 +4079,11 @@ bool PlaybackRepeatGet()
 
 bool CheckFileSystem(char *OutWarnings)
 {
-  char                  CurrentDir[512], CommandLine[512], AbsLogFileName[512];
-  char                 *LogBuffer = NULL;
+  char                  CommandLine[512];
   FILE                 *fLogFile = NULL;
+  TYPE_File            *fLogOut = NULL;  
+  char                 *LogBuffer = NULL;
+  int                   FileSize;
 
   TRACEENTER();
   TAP_SPrint(OutWarnings, "Konnte nicht überprüft werden.");
@@ -4104,23 +4091,21 @@ bool CheckFileSystem(char *OutWarnings)
   //Run fsck and create a log file
   HDD_TAP_PushDir();
   TAP_Hdd_ChangeDir("/ProgramFiles/Settings/MovieCutter");
-  HDD_TAP_GetCurrentDir(CurrentDir);
 
   TAP_Hdd_Delete("fsck.log");
-  TAP_SPrint(CommandLine, "%s/ProgramFiles/jfs_fsck -n -v /dev/sda2 > %s%s/fsck.log", TAPFSROOT, TAPFSROOT, CurrentDir);
+  TAP_Hdd_Delete("/root/fsck.log");
+  TAP_SPrint(CommandLine, "%s/ProgramFiles/jfs_fsck -n -v /dev/sda2 > /root/fsck.log", TAPFSROOT);
   system(CommandLine);
 
   LogBuffer = (char*) TAP_MemAlloc(10000);
   if (LogBuffer)
   {
     //Open the created log file
-    HDD_TAP_GetCurrentDir(CurrentDir);
-    TAP_SPrint(AbsLogFileName, "%s%s/fsck.log", TAPFSROOT, CurrentDir);
-    fLogFile = fopen(AbsLogFileName, "rb");
+    fLogFile = fopen("/root/fsck.log", "rb");
     if(fLogFile)
     {
-      fread(LogBuffer, 1, 9999, fLogFile);
-      LogBuffer[9999] = '\0';
+      FileSize = fread(LogBuffer, 1, 9999, fLogFile);
+      LogBuffer[FileSize] = '\0';
 
       //Search for **Step 4
       char *p = strstr(LogBuffer, "**Phase 4");
@@ -4132,19 +4117,24 @@ bool CheckFileSystem(char *OutWarnings)
         if (p != 0)
         {
           char *p2 = strstr((p+1), "**Phase 5");
-          if (p2 != 0)
-          {
-            strncpy(OutWarnings, (p+1), min(p2-p-1, 511));
-            OutWarnings[min(p2-p-1, 511)] = '\0';
-          }
-          else
-            strncpy(OutWarnings, (p+1), 511);
-          OutWarnings[511] = '\0';
+          if (p2 == 0)
+            p2 = &LogBuffer[FileSize];
+          strncpy(OutWarnings, (p+1), min(p2-p-1, 511));
+          OutWarnings[min(p2-p-1, 511)] = '\0';
         }
       }
       else
         WriteLogMC(PROGRAM_NAME, "CheckFileSystem() E1c03.");
       fclose(fLogFile);
+
+      // Copy the log to MovieCutter folder
+      TAP_Hdd_Create("fsck.log", ATTR_NORMAL);
+      fLogOut = TAP_Hdd_Fopen("fsck.log");
+      if(fLogOut)
+      {
+        TAP_Hdd_Fwrite(LogBuffer, 1, FileSize, fLogOut);
+        TAP_Hdd_Fclose(fLogOut);
+      }
     }
     else
       WriteLogMC(PROGRAM_NAME, "CheckFileSystem() E1c02.");
