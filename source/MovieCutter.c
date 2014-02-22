@@ -187,6 +187,8 @@ int                     NrSelectedSegments;
 word                    JumpRequestedSegment = 0xFFFF;        //Is set, when the user presses up/down to jump to another segment
 dword                   JumpRequestedTime = 0;
 dword                   JumpPerformedTime = 0;
+int                     fsck_Pid = 0;
+bool                    fsck_Cancelled = FALSE;
 
 // Playback information
 TYPE_PlayInfo           PlayInfo;
@@ -323,6 +325,16 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
   (void) param2;
 
+  // Abbruch von fsck ermöglichen (selbst bei DoNotReenter)
+  if(fsck_Pid != 0 && event == EVT_KEY && (param1 == RKEY_Exit || param1 == RKEY_Sleep))
+  {
+    char CommandLine[16];
+    TAP_SPrint(CommandLine, "kill %u", fsck_Pid);
+    system(CommandLine);
+    fsck_Cancelled = TRUE;
+    return 0;
+  }
+
   if(DoNotReenter) return param1;
   DoNotReenter = TRUE;
 
@@ -363,7 +375,15 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   {
     if (OSDMenuMessageBoxIsVisible()) OSDMenuMessageBoxDestroy();
 //    TAP_EnterNormal();
-    State = ST_Exit;
+
+
+if(CheckFileSystem(LogString, 0, 1))
+  WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: File system seems valid.");
+else
+{
+  WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: WARNING! File system is inconsistent...");
+  WriteLogMC(PROGRAM_NAME, LogString);
+}//    State = ST_Exit;
     param1 = 0;
   }
 #endif
@@ -2702,7 +2722,7 @@ void OSDInfoDrawRecName(void)
     strcpy(NameStr, PlaybackName);
     NameStr[strlen(NameStr) - 4] = '\0';
 
-    if (FMUC_GetStringWidth(NameStr, &Calibri_14_FontDataUC) > 500 - TimeWidth - 65)
+    if (FMUC_GetStringWidth(NameStr, &Calibri_14_FontDataUC) + TimeWidth + 65 > 500)
     {
       LastSpace = strrchr(NameStr, ' ');
       if (LastSpace)
@@ -3959,17 +3979,12 @@ void MovieCutterProcess(bool KeepCut)
   LastTotalBlocks = PlayInfo.totalBlock;
   Playback_Normal(); */
 
-//  LastTotalBlocks = PlayInfo.totalBlock;
-  if (SegmentMarker[max(min(ActiveSegment, NrSegmentMarker-2), 0)].Block > 0)
-    TAP_Hdd_ChangePlaybackPos(SegmentMarker[max(min(ActiveSegment, NrSegmentMarker-2), 0)].Block);
-
 //  TAP_Osd_Sync();
 //  ClearOSD(FALSE);
 
 //  NrBookmarks = 0;
 //  OSDRedrawEverything();
 
-  //Check file system consistency and show a warning
   sync();
   for (j=0; j < 20; j++)
   {
@@ -3978,13 +3993,15 @@ void MovieCutterProcess(bool KeepCut)
   }
   system("hdparm -f /dev/sda");
 
+  //Check file system consistency and show a warning
   if (CheckFSAfterCut)
   {
+    Playback_Pause();
 //    if (OSDMenuMessageBoxIsVisible()) OSDMenuMessageBoxDestroyNoOSDUpdate();
     OSDMenuProgressBarDestroyNoOSDUpdate();
     OSDMenuProgressBarShow(PROGRAM_NAME, "Checking file system...", maxProgress-1, maxProgress, NULL);
     TAP_SystemProc();
-    if(CheckFileSystem(LogString))
+    if(CheckFileSystem(LogString, maxProgress-1, maxProgress))
     {
       WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: File system seems valid.");
 //      if (State == ST_UnacceptedFile)
@@ -3995,20 +4012,33 @@ void MovieCutterProcess(bool KeepCut)
     }
     else
     {
-      WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: WARNING! File system is inconsistent...");
-      WriteLogMC(PROGRAM_NAME, LogString);
-      OSDMenuProgressBarDestroyNoOSDUpdate();
-      if (State == ST_UnacceptedFile)
-        ShowErrorMessage("Schnitt ist fehlgeschlagen.\nWARNUNG! Aufnahmenfresser droht.");
+      if (OSDMenuProgressBarIsVisible()) OSDMenuProgressBarDestroyNoOSDUpdate();
+      if (fsck_Cancelled)
+      {
+        WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: File system check cancelled by user!");
+        ShowErrorMessage("Prüfung des Filesystems abgebrochen.");
+      }
       else
-        ShowErrorMessage("WARNUNG! Aufnahmenfresser droht.\nDatei vor dem Ausschalten sichern!");
+      {
+        WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: WARNING! File system is inconsistent...");
+        WriteLogMC(PROGRAM_NAME, LogString);
+        if (State == ST_UnacceptedFile)
+          ShowErrorMessage("Schnitt ist fehlgeschlagen.\nWARNUNG! Aufnahmenfresser droht.");
+        else
+          ShowErrorMessage("WARNUNG! Aufnahmenfresser droht.\nDatei vor dem Ausschalten sichern!");
+      }
     }
   }
+
   if (OSDMenuProgressBarIsVisible())
   {
     OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), maxProgress, maxProgress, NULL);
     OSDMenuProgressBarDestroyNoOSDUpdate();
   }
+
+  if(TrickMode == TRICKMODE_Pause) Playback_Normal();
+  if (SegmentMarker[max(min(ActiveSegment, NrSegmentMarker-2), 0)].Block > 0)
+    TAP_Hdd_ChangePlaybackPos(SegmentMarker[max(min(ActiveSegment, NrSegmentMarker-2), 0)].Block);
 
   if (State == ST_UnacceptedFile)
   {
@@ -4077,29 +4107,61 @@ bool PlaybackRepeatGet()
   return (PlaybackRepeatMode(FALSE, 0, 0, 0) == 2);
 }
 
-bool CheckFileSystem(char *OutWarnings)
+bool CheckFileSystem(char *OutWarnings, dword ProgressStart, dword ProgressEnd)
 {
-  char                  CommandLine[512];
-  FILE                 *fLogFile = NULL;
+  FILE                 *fLogFile = NULL, *fPidFile = NULL;
   TYPE_File            *fLogOut = NULL;  
   char                 *LogBuffer = NULL;
-  int                   FileSize;
+  char                  CommandLine[512];
+  char                  PidStr[13];
+  int                   FileSize, i;
 
   TRACEENTER();
   TAP_SPrint(OutWarnings, "Konnte nicht überprüft werden.");
 
-  //Run fsck and create a log file
   HDD_TAP_PushDir();
   TAP_Hdd_ChangeDir("/ProgramFiles/Settings/MovieCutter");
 
   TAP_Hdd_Delete("fsck.log");
   TAP_Hdd_Delete("/root/fsck.log");
-  TAP_SPrint(CommandLine, "%s/ProgramFiles/jfs_fsck -n -v /dev/sda2 > /root/fsck.log", TAPFSROOT);
-  system(CommandLine);
 
+  fsck_Cancelled = FALSE;
+  OSDMenuProgressBarShow(PROGRAM_NAME, "Checking file system...", ProgressStart, ProgressEnd, NULL);
+
+  //Run fsck and create a log file
   LogBuffer = (char*) TAP_MemAlloc(10000);
   if (LogBuffer)
   {
+    TAP_SPrint(CommandLine, "%s/ProgramFiles/jfs_fsck -n -v /dev/sda2 > /root/fsck.log & echo $! > /root/fsck.pid", TAPFSROOT);
+    system(CommandLine);
+
+    //Get the PID of the fsck-Process
+    fPidFile = fopen("/root/fsck.pid", "r");
+    if(fPidFile)
+    {
+      fgets(PidStr, 13, fPidFile);
+      fsck_Pid = atoi(PidStr);
+      fclose(fPidFile);
+    }
+
+//  FileSize = 0;
+    i = 0;
+    //Wait for termination of fsck
+    TAP_SPrint(CommandLine, "/proc/%u", fsck_Pid);
+    while (access(CommandLine, F_OK) != -1)
+    {
+      TAP_PrintNet("Läuft noch\n");
+//      FileSize += fread(&LogBuffer[FileSize], 1, 9999-FileSize, fLogFile);
+//      LogBuffer[FileSize] = '\0';
+//      TAP_PrintNet(LogBuffer);
+      TAP_Delay(100);
+      i++;
+      if (i <= 180)
+        OSDMenuProgressBarShow(PROGRAM_NAME, "Checking file system...", 10*ProgressStart + (i/18)*(ProgressEnd-ProgressStart), 10*ProgressEnd, NULL);
+      TAP_SystemProc();
+    }
+    fsck_Pid = 0;
+
     //Open the created log file
     fLogFile = fopen("/root/fsck.log", "rb");
     if(fLogFile)
@@ -4143,6 +4205,9 @@ bool CheckFileSystem(char *OutWarnings)
   else
     WriteLogMC(PROGRAM_NAME, "CheckFileSystem() E1c01.");
 
+  if (!fsck_Cancelled)
+    OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), ProgressEnd, ProgressEnd, NULL);
+  OSDMenuProgressBarDestroyNoOSDUpdate();
   HDD_TAP_PopDir();
   TRACEEXIT();
   return (!OutWarnings[0]);
