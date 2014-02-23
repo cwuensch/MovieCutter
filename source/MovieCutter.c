@@ -3998,7 +3998,7 @@ void MovieCutterProcess(bool KeepCut)
   {
     Playback_Pause();
 //    if (OSDMenuMessageBoxIsVisible()) OSDMenuMessageBoxDestroyNoOSDUpdate();
-    OSDMenuProgressBarDestroyNoOSDUpdate();
+//    OSDMenuProgressBarDestroyNoOSDUpdate();
     OSDMenuProgressBarShow(PROGRAM_NAME, "Checking file system...", maxProgress-1, maxProgress, NULL);
     TAP_SystemProc();
     if(CheckFileSystem(LogString, maxProgress-1, maxProgress))
@@ -4156,8 +4156,8 @@ bool CheckFileSystem(char *OutWarnings, dword ProgressStart, dword ProgressEnd)
 //      TAP_PrintNet(LogBuffer);
       TAP_Delay(100);
       i++;
-      if (i <= 180)
-        OSDMenuProgressBarShow(PROGRAM_NAME, "Checking file system...", 10*ProgressStart + (i/18)*(ProgressEnd-ProgressStart), 10*ProgressEnd, NULL);
+      if (i <= 120 && i % 5)
+        OSDMenuProgressBarShow(PROGRAM_NAME, "Checking file system...", 24*ProgressStart + (i/5)*(ProgressEnd-ProgressStart), 24*ProgressEnd, NULL);
       TAP_SystemProc();
     }
     fsck_Pid = 0;
@@ -4174,6 +4174,7 @@ bool CheckFileSystem(char *OutWarnings, dword ProgressStart, dword ProgressEnd)
       if(p != 0)
       {
         OutWarnings[0] = '\0';
+        fsck_Cancelled = FALSE;
         //Read until **Step 5
         p = strstr((p+1), "\n");
         if (p != 0)
