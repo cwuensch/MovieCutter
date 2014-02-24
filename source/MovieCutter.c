@@ -175,6 +175,7 @@ bool                    CheckFSAfterCut = FALSE;
 
 // MovieCutter state variables
 tState                  State = ST_Init;
+bool                    OldRepeatMode = FALSE;
 bool                    MCShowMessageBox = FALSE;
 bool                    LinearTimeMode = FALSE;
 bool                    BookmarkMode;
@@ -187,8 +188,8 @@ int                     NrSelectedSegments;
 word                    JumpRequestedSegment = 0xFFFF;        //Is set, when the user presses up/down to jump to another segment
 dword                   JumpRequestedTime = 0;
 dword                   JumpPerformedTime = 0;
-int                     fsck_Pid = 0;
-bool                    fsck_Cancelled = FALSE;
+dword                   LastMessageBoxKey;
+bool                    fsck_Cancelled;
 
 // Playback information
 TYPE_PlayInfo           PlayInfo;
@@ -315,33 +316,44 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 {
   dword                 SysState, SysSubState;
   static bool           DoNotReenter = FALSE;
-  static bool           OldRepeatMode = FALSE;
-  static bool           NoNavMessage = FALSE;
-  static bool           RebootMessage = FALSE;
-  static bool           NavLengthMessage = FALSE;
-  static char           NavLengthWrongStr[128];
   static dword          LastMinuteKey = 0;
   static dword          LastDraw = 0;
 
   (void) param2;
 
-  // Abbruch von fsck ermöglichen (selbst bei DoNotReenter)
-  if(fsck_Pid != 0 && event == EVT_KEY && (param1 == RKEY_Exit || param1 == RKEY_Sleep))
-  {
-    char CommandLine[16];
-    TAP_SPrint(CommandLine, "kill %u", fsck_Pid);
-    system(CommandLine);
-    fsck_Cancelled = TRUE;
-    return 0;
-  }
-
-  if(DoNotReenter) return param1;
-  DoNotReenter = TRUE;
-
   TRACEENTER();
   #if STACKTRACE == TRUE
     TAP_PrintNet("Status = %u\n", State);
   #endif
+
+  // Behandlung offener MessageBoxen (rekursiver Aufruf, auch bei DoNotReenter)
+  if(MCShowMessageBox)
+  {
+    if(OSDMenuMessageBoxIsVisible())
+    {
+      if(event == EVT_KEY) LastMessageBoxKey = param1;
+      OSDMenuEvent(&event, &param1, &param2);
+    }
+    if(!OSDMenuMessageBoxIsVisible())
+      MCShowMessageBox = FALSE;
+    param1 = 0;
+  }
+
+  // Abbruch von fsck ermöglichen (selbst bei DoNotReenter)
+  if(DoNotReenter && OSDMenuProgressBarIsVisible())
+  {
+    if(event == EVT_KEY && (param1 == RKEY_Exit || param1 == RKEY_Sleep))
+      fsck_Cancelled = TRUE;
+    param1 = 0;
+  }
+
+  if(DoNotReenter)
+  {
+    TRACEEXIT();
+    return param1;
+  }
+  DoNotReenter = TRUE;
+
 
   if(event == EVT_TMSCommander)
   {
@@ -388,9 +400,10 @@ else
   }
 #endif
 
+
   // Behandlung von offenen MessageBoxen
   // -----------------------------------
-  if(OSDMenuMessageBoxIsVisible())
+/*  if(OSDMenuMessageBoxIsVisible())
   {
     if(MCShowMessageBox)
     {
@@ -507,7 +520,7 @@ else
     DoNotReenter = FALSE;
     TRACEEXIT();
     return param1;
-  }
+  } */
 
   switch(State)
   {
@@ -547,13 +560,11 @@ else
 //        MinuteJumpBlocks = 0;  // nicht unbedingt nötig
         JumpRequestedSegment = 0xFFFF;  // eigentlich unnötig
         JumpRequestedTime = 0;          // "
-        NoNavMessage = FALSE;
-        RebootMessage = FALSE;
-        NavLengthMessage = FALSE;
 //        NoPlaybackCheck = FALSE;
         LastTotalBlocks = PlayInfo.totalBlock;
 
         OldRepeatMode = PlaybackRepeatGet();
+        PlaybackRepeatSet(TRUE);
 
         //Flush the caches *experimental*
         sync();
@@ -568,7 +579,6 @@ else
         p = strstr(AbsPlaybackDir, PlaybackName);
         if(p) *(p-1) = '\0';
         PlaybackDir = &AbsPlaybackDir[strlen(TAPFSROOT)];
-//        TAP_Hdd_ChangeDir(&PlaybackDirectory[strlen(TAPFSROOT)]);
         HDD_ChangeDir(PlaybackDir);
 
         WriteLogMC(PROGRAM_NAME, "========================================\n");
@@ -577,8 +587,6 @@ else
         WriteLogMC("MovieCutterLib", "----------------------------------------");
 
         // Detect size of rec file
-//        RecFileSize = HDD_GetFileSize(PlaybackName);
-//        if(RecFileSize <= 0)
         if(!HDD_GetFileSizeAndInode(PlaybackDir, PlaybackName, NULL, &RecFileSize))
         {
           State = ST_UnacceptedFile;
@@ -593,27 +601,33 @@ else
         WriteLogMC(PROGRAM_NAME, LogString);
 
         //Check if a nav is available
-        if(!LinearTimeMode)
+        if(!isNavAvailable(PlaybackName))
         {
-          if(!isNavAvailable(PlaybackName))
+          if (ShowConfirmationDialog(LangGetString(LS_NoNavMessage)))
           {
-//            State = ST_UnacceptedFile;
-//            PlaybackRepeatSet(TRUE);
-            LastTotalBlocks = 0;
+            WriteLogMC(PROGRAM_NAME, ".nav file not found! Using linear time mode...");
             LinearTimeMode = TRUE;
-            NoNavMessage = TRUE;
+          }
+          else
+          {
             WriteLogMC(PROGRAM_NAME, ".nav is missing!");
-            ShowConfirmationDialog(LangGetString(LS_NoNavMessage));
+            PlaybackRepeatSet(OldRepeatMode);
+            if (AutoOSDPolicy)
+              State = ST_UnacceptedFile;
+            else
+            {
+              Cleanup(FALSE);
+              State = ST_InactiveMode;
+            }
             break;
           }
         }
-        else
-          WriteLogMC(PROGRAM_NAME, ".nav file not found! Using linear time mode...");
 
         //Check if it is crypted
         if(isCrypted(PlaybackName))
         {
           State = ST_UnacceptedFile;
+          PlaybackRepeatSet(OldRepeatMode);
           WriteLogMC(PROGRAM_NAME, "File is crypted!");
           ShowErrorMessage(LangGetString(LS_IsCrypted));
           break;
@@ -624,6 +638,7 @@ else
         if (!LinearTimeMode && !isHDVideo(PlaybackName, &HDVideo))
         {
           State = ST_UnacceptedFile;
+          PlaybackRepeatSet(OldRepeatMode);
           WriteLogMC(PROGRAM_NAME, "Could not detect type of video stream!");
           ShowErrorMessage(LangGetString(LS_HDDetectionFailed));
           break;
@@ -662,6 +677,7 @@ else
           else
           {
             State = ST_UnacceptedFile;
+            PlaybackRepeatSet(OldRepeatMode);
             WriteLogMC(PROGRAM_NAME, "Error loading the .nav file!");
             ShowErrorMessage(LangGetString(LS_NavLoadFailed));
             break;
@@ -675,67 +691,78 @@ else
         {
           dword TimeSinceRec = TimeDiff(RecDateTime, Now(NULL));
           dword UpTime = GetUptime() / 6000;
-          if (TimeSinceRec <= UpTime + 1)
-            RebootMessage = TRUE;
           #ifdef FULLDEBUG
             if (RecDateTime > 0xd0790000)
               RecDateTime = TF2UnixTime(RecDateTime);
-            TAP_PrintNet("Reboot-Check (%s): TimeSinceRec=%u, UpTime=%u, RecDateTime=%s", (RebootMessage) ? "TRUE" : "FALSE", TimeSinceRec, UpTime, asctime(localtime(&RecDateTime)));
+            TAP_PrintNet("Reboot-Check (%s): TimeSinceRec=%u, UpTime=%u, RecDateTime=%s", (TimeSinceRec <= UpTime + 1) ? "TRUE" : "FALSE", TimeSinceRec, UpTime, asctime(localtime(&RecDateTime)));
           #endif
+
+          if (TimeSinceRec <= UpTime + 1)
+          {
+            if (!ShowConfirmationDialog(LangGetString(LS_RebootMessage)))
+            {
+              PlaybackRepeatSet(OldRepeatMode);
+              if (AutoOSDPolicy)
+                State = ST_UnacceptedFile;
+              else
+              {
+                Cleanup(FALSE);
+                State = ST_InactiveMode;
+              }
+              break;
+            }
+          }
         }
 
         // Check if nav has correct length!
         if(TimeStamps && (labs(TimeStamps[NrTimeStamps-1].Timems - (1000 * (60*PlayInfo.duration + PlayInfo.durationSec))) > 5000))
         {
+          char  NavLengthWrongStr[512];
           WriteLogMC(PROGRAM_NAME, ".nav file length not matching duration!");
 
           // [COMPATIBILITY LAYER - fill holes in old nav file]
           if (PatchOldNavFile(PlaybackName, HDVideo))
           {
-            PlaybackRepeatSet(TRUE);
             LastTotalBlocks = 0;
             WriteLogMC(PROGRAM_NAME, ".nav file patched by Compatibility Layer.");
             ShowErrorMessage(LangGetString(LS_NavPatched));
+            PlaybackRepeatSet(OldRepeatMode);
             break;
           }
           else
           {
-            NavLengthMessage = TRUE;
+            TAP_SPrint(NavLengthWrongStr, LangGetString(LS_NavLengthWrong), (TimeStamps[NrTimeStamps-1].Timems/1000) - (60*PlayInfo.duration + PlayInfo.durationSec));
+            if (!ShowConfirmationDialog(NavLengthWrongStr))
+            {
+              PlaybackRepeatSet(OldRepeatMode);
+              if (AutoOSDPolicy)
+                State = ST_UnacceptedFile;
+              else
+              {
+                Cleanup(FALSE);
+                State = ST_InactiveMode;
+              }
+              break;
+            }
           }
         }
 
-//        CreateOSD();
-//        Playback_Normal();
         CalcLastSeconds();
         ReadBookmarks();
         if(!CutFileLoad())
         {
           if(!AddDefaultSegmentMarker())
           {
-            RebootMessage = FALSE;
-            NavLengthMessage = FALSE;
+            PlaybackRepeatSet(OldRepeatMode);
             State = ST_UnacceptedFile;
-
             WriteLogMC(PROGRAM_NAME, "Error adding default segment markers!");
             ShowErrorMessage(LangGetString(LS_NavLoadFailed));
             break;
           }
         }
 
-        PlaybackRepeatSet(TRUE);
-
-        if (RebootMessage)
-          ShowConfirmationDialog(LangGetString(LS_RebootMessage));
-        else if (NavLengthMessage)
-        {
-          TAP_SPrint(NavLengthWrongStr, LangGetString(LS_NavLengthWrong), (TimeStamps[NrTimeStamps-1].Timems/1000) - (60*PlayInfo.duration + PlayInfo.durationSec));
-          ShowConfirmationDialog(NavLengthWrongStr);
-        }
-        else
-        {
-          State = ST_ActiveOSD;
-          OSDRedrawEverything();
-        }
+        State = ST_ActiveOSD;
+        OSDRedrawEverything();
       }
       break;
     }
@@ -1146,34 +1173,48 @@ else
               if ((ActionMenuItem==MI_SaveSegments || ActionMenuItem==MI_DeleteSegments || ActionMenuItem==MI_SelectOddSegments || ActionMenuItem==MI_SelectEvenSegments) && NrSegmentMarker<=2)
                 break;
 
-              // PlayInfo prüfen
-              if (!(isPlaybackRunning() && PLAYINFOVALID()) && ActionMenuItem!=MI_ExitMC && ActionMenuItem!=MI_DeleteFile)  // PlayInfo wird nicht aktualisiert
-                break;
-
               // Aktionen mit Confirmation-Dialog
               if (ActionMenuItem==MI_SaveSegments || ActionMenuItem==MI_DeleteSegments || (ActionMenuItem==MI_ClearAll && (BookmarkMode || NrSelectedSegments==0)) || ActionMenuItem==MI_DeleteFile || (ActionMenuItem==MI_ImportBookmarks && NrSegmentMarker>2) || (ActionMenuItem==MI_ExportSegments && NrBookmarks>0))
               {
-                ShowConfirmationDialog(LangGetString(LS_AskConfirmation));
-                // Beim Speichern/Löschen einer Szene aus der Mitte, wird häufig das Ende der Original-Aufnahme korrumpiert!!
-                // Wenn Szenen zum Speichern ausgewählt sind, ist davon auszugehen, dass der Rest nicht mehr benötigt wird. Da die letzte Szene zuerst gespeichert wird, passiert also nichts.
-                // Wenn Szenen zum Löschen ausgewählt sind, und das Ende soll nicht gelöscht werden -> Beschädigung möglich
-//                if (ActionMenuItem==MI_SaveSegment || !SegmentMarker[NrSegmentMarker-2].Selected)
-//                  OSDMenuMessageBoxModifyText("Vorsicht!! Beschädigung des Endes möglich...");
-                break;
+                if(!ShowConfirmationDialog(LangGetString(LS_AskConfirmation)))
+                {
+                  OSDRedrawEverything();
+                  ActionMenuDraw();
+                  break;
+                }
               }
+
+              // PlayInfo prüfen
+              if (!(isPlaybackRunning() && PLAYINFOVALID()) && ActionMenuItem!=MI_ExitMC && ActionMenuItem!=MI_DeleteFile)   // PlayInfo wird nicht aktualisiert
+                break;
 
               ActionMenuRemove();
               State = ST_ActiveOSD;
+
               switch(ActionMenuItem)
               {
-//                case MI_SaveSegment:         MovieCutterSaveSegments(); break;
-//                case MI_DeleteSegment:       MovieCutterDeleteSegments(); break;
+                case MI_SaveSegments:        MovieCutterSaveSegments(); break;
+                case MI_DeleteSegments:      MovieCutterDeleteSegments(); break;
                 case MI_SelectOddSegments:   MovieCutterSelectOddSegments();  /*if(!DirectSegmentsCut) {ActionMenuDraw(); State = ST_ActionMenu;}*/ break;
                 case MI_SelectEvenSegments:  MovieCutterSelectEvenSegments(); /*if(!DirectSegmentsCut) {ActionMenuDraw(); State = ST_ActionMenu;}*/ break;
-                case MI_ClearAll:            MovieCutterUnselectAll(); break;
-//                case MI_DeleteFile:          MovieCutterDeleteFile(); break;
+                case MI_ClearAll:            
+                {  
+                  if(BookmarkMode)
+                    DeleteAllBookmarks();
+                  else
+                  {
+                    if(NrSelectedSegments > 0)
+                      MovieCutterUnselectAll();
+                    else
+                      DeleteAllSegmentMarkers();
+                  }
+                  OSDSegmentListDrawList();
+                  OSDInfoDrawProgressbar(TRUE);
+                  break;
+                }
                 case MI_ImportBookmarks:     ImportBookmarksToSegments(); break;
                 case MI_ExportSegments:      ExportSegmentsToBookmarks(); break;
+                case MI_DeleteFile:          MovieCutterDeleteFile(); break;
                 case MI_ExitMC:              State = ST_Exit; break;
                 case MI_NrMenuItems:         break;
               }
@@ -1249,9 +1290,16 @@ else
 // ----------------------------------------------------------------------------
 //                           MessageBox-Funktionen
 // ----------------------------------------------------------------------------
-void ShowConfirmationDialog(char *MessageStr)
+// Die Funktionen zeigt eine Bestätigungsfrage (Ja/Nein) an, und wartet auf die Bestätigung des Benutzers.
+// Nach Beendigung der Message kehrt das TAP in den Normal-Mode zurück, FALLS dieser zuvor aktiv war.
+// Beim Beenden wird das entsprechende OSDRange gelöscht. Überdeckte Bereiche anderer OSDs werden NICHT wiederhergestellt.
+bool ShowConfirmationDialog(char *MessageStr)
 {
+  dword OldSysState, OldSysSubState;
+  bool ret;
+
   TRACEENTER();
+  TAP_GetState(&OldSysState, &OldSysSubState);
 
   OSDMenuMessageBoxInitialize(PROGRAM_NAME, MessageStr);
   OSDMenuMessageBoxDoNotEnterNormalMode(TRUE);
@@ -1261,19 +1309,43 @@ void ShowConfirmationDialog(char *MessageStr)
   OSDMenuMessageBoxButtonSelect(1);
   OSDMenuMessageBoxShow();
   MCShowMessageBox = TRUE;
+  while (MCShowMessageBox)
+  {
+    TAP_SystemProc();
+    TAP_Sleep(1);
+  }
+  ret = (LastMessageBoxKey == RKEY_Ok) && (OSDMenuMessageBoxLastButton() == 0);
+
+  TAP_Osd_Sync();
+  if(OldSysSubState == SUBSTATE_Normal) TAP_EnterNormalNoInfo();
+  OSDMenuFreeStdFonts();
 
   TRACEEXIT();
+  return ret;
 }
 
+// Die Funktionen zeigt einen Informationsdialog (OK) an, und wartet auf die Bestätigung des Benutzers.
 void ShowErrorMessage(char *MessageStr)
 {
+  dword OldSysState, OldSysSubState;
+
   TRACEENTER();
+  TAP_GetState(&OldSysState, &OldSysSubState);
 
   OSDMenuMessageBoxInitialize(PROGRAM_NAME, MessageStr);
+  OSDMenuMessageBoxDoNotEnterNormalMode(TRUE);
   OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
   OSDMenuMessageBoxShow();
   MCShowMessageBox = TRUE;
-//  NoPlaybackCheck = FALSE;
+  while (MCShowMessageBox)
+  {
+    TAP_SystemProc();
+    TAP_Sleep(1);
+  }
+
+  TAP_Osd_Sync();
+  if(OldSysSubState == SUBSTATE_Normal) TAP_EnterNormalNoInfo();
+  OSDMenuFreeStdFonts();
 
   TRACEEXIT();
 }
@@ -1363,7 +1435,7 @@ void Cleanup(bool DoClearOSD)
     TAP_MemFree(TimeStamps);
     TimeStamps = NULL;
   }
-//  lastTimeStamp = NULL;
+//  LastTimeStamp = NULL;
 //  NrTimeStamps = 0;
   if (DoClearOSD) ClearOSD(TRUE);
 
@@ -1558,7 +1630,7 @@ bool AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
   {
     WriteLogMC(PROGRAM_NAME, "AddSegmentMarker: SegmentMarker list is full!");
     ShowErrorMessage(LangGetString(LS_ListIsFull));
-//    OSDMenuMessageBoxDoNotEnterNormalMode(TRUE);
+    OSDRedrawEverything();
 
     TRACEEXIT();
     return FALSE;
@@ -3670,6 +3742,7 @@ void MovieCutterProcess(bool KeepCut)
 //  char                  TempFileName[MAX_FILE_NAME_SIZE + 1];
   tTimeStamp            CutStartPoint, BehindCutPoint;
   dword                 DeltaBlock; //, DeltaTime;
+  char                 *ErrMessage = NULL;
   int                   i, j;
   tResultCode           ret = RC_Error;
 
@@ -4016,16 +4089,16 @@ void MovieCutterProcess(bool KeepCut)
       if (fsck_Cancelled)
       {
         WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: File system check cancelled by user!");
-        ShowErrorMessage("Prüfung des Filesystems abgebrochen.");
+        ErrMessage = "Prüfung des Filesystems abgebrochen.";
       }
       else
       {
         WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: WARNING! File system is inconsistent...");
         WriteLogMC(PROGRAM_NAME, LogString);
         if (State == ST_UnacceptedFile)
-          ShowErrorMessage("Schnitt ist fehlgeschlagen.\nWARNUNG! Aufnahmenfresser droht.");
+          ErrMessage = "Schnitt ist fehlgeschlagen.\nWARNUNG! Aufnahmenfresser droht.";
         else
-          ShowErrorMessage("WARNUNG! Aufnahmenfresser droht.\nDatei vor dem Ausschalten sichern!");
+          ErrMessage = "WARNUNG! Aufnahmenfresser droht.\nDatei vor dem Ausschalten sichern!";
       }
     }
   }
@@ -4040,11 +4113,17 @@ void MovieCutterProcess(bool KeepCut)
   if (SegmentMarker[max(min(ActiveSegment, NrSegmentMarker-2), 0)].Block > 0)
     TAP_Hdd_ChangePlaybackPos(SegmentMarker[max(min(ActiveSegment, NrSegmentMarker-2), 0)].Block);
 
+  if (State == ST_UnacceptedFile || ErrMessage)
+  {
+    if(!ErrMessage) ErrMessage = LangGetString(LS_CutHasFailed);
+    ShowErrorMessage(ErrMessage);
+  }
+
   if (State == ST_UnacceptedFile)
   {
     LastTotalBlocks = PlayInfo.totalBlock;
-    if (!OSDMenuMessageBoxIsVisible())
-      ShowErrorMessage(LangGetString(LS_CutHasFailed));
+    PlaybackRepeatSet(OldRepeatMode);
+    ClearOSD(TRUE);
     WriteLogMC(PROGRAM_NAME, "MovieCutterProcess() finished!");
   }
   else
@@ -4114,6 +4193,7 @@ bool CheckFileSystem(char *OutWarnings, dword ProgressStart, dword ProgressEnd)
   char                 *LogBuffer = NULL;
   char                  CommandLine[512];
   char                  PidStr[13];
+  int                   fsck_Pid = 0;
   int                   FileSize, i;
 
   TRACEENTER();
@@ -4159,6 +4239,12 @@ bool CheckFileSystem(char *OutWarnings, dword ProgressStart, dword ProgressEnd)
       if (i <= 120 && i % 5)
         OSDMenuProgressBarShow(PROGRAM_NAME, "Checking file system...", 24*ProgressStart + (i/5)*(ProgressEnd-ProgressStart), 24*ProgressEnd, NULL);
       TAP_SystemProc();
+      if(fsck_Cancelled)
+      {
+        char KillCommand[16];
+        TAP_SPrint(KillCommand, "kill %u", fsck_Pid);
+        system(KillCommand);
+      }
     }
     fsck_Pid = 0;
 

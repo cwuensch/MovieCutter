@@ -89,9 +89,10 @@ bool  SaveBookmarks(void);
 void  SaveINI(void);
 void  SelectSegmentMarker(void);
 void  SetCurrentSegment(void);
-void  ShowConfirmationDialog(char *MessageStr);
+bool  ShowConfirmationDialog(char *MessageStr);
 void  ShowErrorMessage(char *MessageStr);
 dword TMSCommander_handler(dword param1);
 bool PatchOldNavFile(char *SourceFileName, bool isHD);
+extern void OSDMenuFreeStdFonts(void);
 
 #endif
