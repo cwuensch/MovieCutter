@@ -2,7 +2,7 @@
 #define __MOVIECUTTERH__
 
 #define PROGRAM_NAME          "MovieCutter"
-#define VERSION               "V2.0i beta3"  // alpha = α,  beta = β, � = ü
+#define VERSION               "V2.0i"  // alpha = α,  beta = β, � = ü
 #define TAPID                 0x8E0A4247
 //#define AUTHOR                "FireBird / Christian W�nsch"
 #define AUTHOR                "FireBird / C. Wünsch"
@@ -27,7 +27,7 @@ bool  AddBookmark(dword newBlock);
 bool  AddDefaultSegmentMarker(void);
 bool  AddSegmentMarker(dword newBlock, bool RejectSmallSegments);
 void  CalcLastSeconds(void);
-bool  CheckFileSystem(char *OutWarnings, dword ProgressStart, dword ProgressEnd);
+bool  CheckFileSystem(char *OutWarnings, int OutLength, dword ProgressStart, dword ProgressEnd);
 void  CheckLastSeconds(void);
 void  Cleanup(bool DoClearOSD);
 void  CleanupCut(void);

@@ -1,3 +1,10 @@
+2014-02-28 V2.0i ** Behandlung aller Messageboxen überarbeitet
+                  * Fortschrittsanzeige während der Schnittoperation
+                 ** integrierte Dateisystem-Prüfung nach dem Schnitt
+                  * neue Menü-Aktion Dateisystem-Prüfung (nur im Bookmark-Modus)
+                  * versehentliches Starten mehrerer Instanzen verhindert (noch in Arbeit)
+                  * neue ini-Parameter SaveCutBak, ShowRebootMessage und CheckFSAfterCut (siehe Readme)
+                  * niederländische Übersetzung (thanks to Henk Puister)
 2014-02-08 V2.0h ** Behandlung des letzten Segments neu gestaltet
         (stable)     -> behebt Dateisystemfehler beim Schneiden des letzten Segments(?)
                  ** Cache-Synchronisierung beim Start und vor und nach dem Schnitt

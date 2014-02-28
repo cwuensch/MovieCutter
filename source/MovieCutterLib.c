@@ -8,6 +8,7 @@
 #include                <utime.h>
 #include                "tap.h"
 #include                "libFireBird.h"
+//#include                "../../../../FireBirdLib/ALTElibFireBird.h"
 #include                "MovieCutterLib.h"
 
 

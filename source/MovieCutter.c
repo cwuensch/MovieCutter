@@ -163,6 +163,10 @@ typedef enum
   LS_NavLengthWrong,
   LS_RebootMessage,
   LS_NavPatched,
+  LS_FileSystemCheck,
+  LS_CheckingFileSystem,
+  LS_CheckFSFailed,
+  LS_CheckFSAborted,
   LS_NrStrings
 } tLngStrings;
 
@@ -171,6 +175,7 @@ typedef enum
 bool                    AutoOSDPolicy = TRUE;
 bool                    DirectSegmentsCut = FALSE;
 bool                    SaveCutBak = TRUE;
+bool                    ShowRebootMessage = TRUE;
 bool                    CheckFSAfterCut = FALSE;
 
 // MovieCutter state variables
@@ -214,9 +219,11 @@ tTimeStamp             *LastTimeStamp = NULL;
 bool                    HDVideo;
 
 // OSD object variables
+#ifndef Calibri_10_FontDataUC
 tFontDataUC             Calibri_10_FontDataUC;
 tFontDataUC             Calibri_12_FontDataUC;
 tFontDataUC             Calibri_14_FontDataUC;
+#endif
 word                    rgnSegmentList = 0;
 word                    rgnInfo = 0;
 word                    rgnActionMenu = 0;
@@ -242,9 +249,7 @@ int TAP_Main(void)
   WriteLogMC(PROGRAM_NAME, "====================================");
   TAP_SPrint(LogString, "Receiver Model: %s (%u)", GetToppyString(GetSysID()), GetSysID());
   WriteLogMC(PROGRAM_NAME, LogString);
-  word FwYear; byte FwMonth, FwDay, FwDayOfWeek;
-  TAP_ExtractMjd(FirmwareDatMJD(), &FwYear, &FwMonth, &FwDay, &FwDayOfWeek);
-  TAP_SPrint(LogString, "Firmware: %s (%u-%2.2u-%2.2u)", GetApplVer(), FwYear, FwMonth, FwDay);
+  TAP_SPrint(LogString, "Firmware: %s", GetApplVer());
   WriteLogMC(PROGRAM_NAME, LogString);
 
   CreateSettingsDir();
@@ -387,140 +392,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   {
     if (OSDMenuMessageBoxIsVisible()) OSDMenuMessageBoxDestroy();
 //    TAP_EnterNormal();
-
-
-if(CheckFileSystem(LogString, 0, 1))
-  WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: File system seems valid.");
-else
-{
-  WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: WARNING! File system is inconsistent...");
-  WriteLogMC(PROGRAM_NAME, LogString);
-}//    State = ST_Exit;
+    State = ST_Exit;
     param1 = 0;
   }
 #endif
 
-
-  // Behandlung von offenen MessageBoxen
-  // -----------------------------------
-/*  if(OSDMenuMessageBoxIsVisible())
-  {
-    if(MCShowMessageBox)
-    {
-      if(event == EVT_KEY && (param1 == RKEY_Ok || param1 == RKEY_Exit))
-      {
-        // ST_ActionMenu: Confirmation-Dialog
-        if (State == ST_ActionMenu)
-        {
-          OSDMenuMessageBoxDestroyNoOSDUpdate();
-          MCShowMessageBox = FALSE;
-//          OSDMenuFreeStdFonts();
-          TAP_Osd_Sync();
-          OSDRedrawEverything();
-          if ((param1 == RKEY_Ok) && (OSDMenuMessageBoxLastButton() == 0) && isPlaybackRunning() && PLAYINFOVALID())  // PlayInfo wird gar nicht aktualisiert, nachdem Menü aufgerufen
-          {
-            ActionMenuRemove();
-            State = ST_ActiveOSD;
-            switch(ActionMenuItem)
-            {
-              case MI_SaveSegments:        MovieCutterSaveSegments(); break;
-              case MI_DeleteSegments:      MovieCutterDeleteSegments(); break;
-              case MI_ClearAll:
-              {
-                (BookmarkMode) ? DeleteAllBookmarks() : DeleteAllSegmentMarkers(); 
-                OSDSegmentListDrawList();
-                OSDInfoDrawProgressbar(TRUE);
-                break;
-              }
-              case MI_ImportBookmarks:     ImportBookmarksToSegments(); break;
-              case MI_ExportSegments:      ExportSegmentsToBookmarks(); break;
-              case MI_DeleteFile:          MovieCutterDeleteFile(); break;
-            }
-          }
-          else
-            ActionMenuDraw();
-        }
-        // ST_WaitForPlayback: NoNav- und NavPatched-Meldung UND Reboot- und NavLengthMismatch-Dialog
-        else if (State == ST_WaitForPlayback)
-        {
-          OSDMenuMessageBoxDestroyNoOSDUpdate();
-          MCShowMessageBox = FALSE;
-//          OSDMenuFreeStdFonts();
-          TAP_Osd_Sync();
-
-          if (NoNavMessage || RebootMessage || NavLengthMessage)
-          {
-            if ((param1 == RKEY_Ok) && (OSDMenuMessageBoxLastButton() == 0))
-            {
-              if (NoNavMessage)
-              {
-                NoNavMessage = FALSE;
-//                PlaybackRepeatSet(OldRepeatMode);
-                TAP_EnterNormalNoInfo();
-              }
-              else if (RebootMessage && NavLengthMessage)
-              {
-                RebootMessage = FALSE;
-                TAP_SPrint(NavLengthWrongStr, LangGetString(LS_NavLengthWrong), (int)((TimeStamps[NrTimeStamps-1].Timems/1000) - (60*PlayInfo.duration + PlayInfo.durationSec)));
-                ShowConfirmationDialog(NavLengthWrongStr);
-              }
-              else
-              {
-                RebootMessage = FALSE;
-                NavLengthMessage = FALSE;
-                State = ST_ActiveOSD;
-                OSDRedrawEverything();
-              }
-            }
-            else
-            {
-              NoNavMessage = FALSE;
-              RebootMessage = FALSE;
-              NavLengthMessage = FALSE;
-              if (AutoOSDPolicy)
-                State = ST_UnacceptedFile;
-              else
-              {
-                Cleanup(FALSE);
-                State = ST_InactiveMode;
-              }
-              PlaybackRepeatSet(OldRepeatMode);
-              ClearOSD(TRUE);
-            }
-          }
-          else
-          {
-            PlaybackRepeatSet(OldRepeatMode);
-//            ClearOSD(TRUE);
-            TAP_EnterNormalNoInfo();
-          }
-        }
-        // ST_ActiveOSD: SegmentListIsFull-Message
-        else if (State == ST_ActiveOSD)
-        {
-          OSDMenuMessageBoxDestroyNoOSDUpdate();
-//          OSDMenuFreeStdFonts();
-          MCShowMessageBox = FALSE;
-          TAP_Osd_Sync();
-          OSDRedrawEverything();
-        }
-        // ST_UnacceptedFile: alle möglichen Fehlermeldungen
-        else
-        {
-          OSDMenuMessageBoxDestroy();
-          MCShowMessageBox = FALSE;
-          PlaybackRepeatSet(OldRepeatMode);
-          ClearOSD(TRUE);
-        }
-        param1 = 0;
-      }
-      else
-        OSDMenuEvent(&event, &param1, &param2);  // Event-Handling der MessageBox (Button wählen, etc.)
-    }
-    DoNotReenter = FALSE;
-    TRACEEXIT();
-    return param1;
-  } */
 
   switch(State)
   {
@@ -592,6 +468,8 @@ else
           State = ST_UnacceptedFile;
           WriteLogMC(PROGRAM_NAME, ".rec size could not be detected!");
           ShowErrorMessage(LangGetString(LS_NoRecSize));
+          PlaybackRepeatSet(OldRepeatMode);
+          ClearOSD(TRUE);
           break;
         }
 
@@ -612,6 +490,7 @@ else
           {
             WriteLogMC(PROGRAM_NAME, ".nav is missing!");
             PlaybackRepeatSet(OldRepeatMode);
+            ClearOSD(TRUE);
             if (AutoOSDPolicy)
               State = ST_UnacceptedFile;
             else
@@ -627,9 +506,10 @@ else
         if(isCrypted(PlaybackName))
         {
           State = ST_UnacceptedFile;
-          PlaybackRepeatSet(OldRepeatMode);
           WriteLogMC(PROGRAM_NAME, "File is crypted!");
           ShowErrorMessage(LangGetString(LS_IsCrypted));
+          PlaybackRepeatSet(OldRepeatMode);
+          ClearOSD(TRUE);
           break;
         }
           
@@ -638,9 +518,10 @@ else
         if (!LinearTimeMode && !isHDVideo(PlaybackName, &HDVideo))
         {
           State = ST_UnacceptedFile;
-          PlaybackRepeatSet(OldRepeatMode);
           WriteLogMC(PROGRAM_NAME, "Could not detect type of video stream!");
           ShowErrorMessage(LangGetString(LS_HDDetectionFailed));
+          PlaybackRepeatSet(OldRepeatMode);
+          ClearOSD(TRUE);
           break;
         }
         WriteLogMC(PROGRAM_NAME, (HDVideo) ? "Type of recording: HD" : "Type of recording: SD");
@@ -677,9 +558,10 @@ else
           else
           {
             State = ST_UnacceptedFile;
-            PlaybackRepeatSet(OldRepeatMode);
             WriteLogMC(PROGRAM_NAME, "Error loading the .nav file!");
             ShowErrorMessage(LangGetString(LS_NavLoadFailed));
+            PlaybackRepeatSet(OldRepeatMode);
+            ClearOSD(TRUE);
             break;
           }
           LastTimeStamp = &TimeStamps[0];
@@ -699,9 +581,10 @@ else
 
           if (TimeSinceRec <= UpTime + 1)
           {
-            if (!ShowConfirmationDialog(LangGetString(LS_RebootMessage)))
+            if (ShowRebootMessage && !ShowConfirmationDialog(LangGetString(LS_RebootMessage)))
             {
               PlaybackRepeatSet(OldRepeatMode);
+              ClearOSD(TRUE);
               if (AutoOSDPolicy)
                 State = ST_UnacceptedFile;
               else
@@ -735,6 +618,7 @@ else
             if (!ShowConfirmationDialog(NavLengthWrongStr))
             {
               PlaybackRepeatSet(OldRepeatMode);
+              ClearOSD(TRUE);
               if (AutoOSDPolicy)
                 State = ST_UnacceptedFile;
               else
@@ -753,10 +637,11 @@ else
         {
           if(!AddDefaultSegmentMarker())
           {
-            PlaybackRepeatSet(OldRepeatMode);
             State = ST_UnacceptedFile;
             WriteLogMC(PROGRAM_NAME, "Error adding default segment markers!");
             ShowErrorMessage(LangGetString(LS_NavLoadFailed));
+            PlaybackRepeatSet(OldRepeatMode);
+            ClearOSD(TRUE);
             break;
           }
         }
@@ -812,8 +697,8 @@ else
           ReadBookmarks();
           OldRepeatMode = PlaybackRepeatGet();
           PlaybackRepeatSet(TRUE);
-          OSDRedrawEverything();
           State = ST_ActiveOSD;
+          OSDRedrawEverything();
         }
         param1 = 0;
       }
@@ -1170,7 +1055,8 @@ else
             if(ActionMenuItem != MI_SelectFunction)
             {
               // Deaktivierte Aktionen
-              if ((ActionMenuItem==MI_SaveSegments || ActionMenuItem==MI_DeleteSegments || ActionMenuItem==MI_SelectOddSegments || ActionMenuItem==MI_SelectEvenSegments) && NrSegmentMarker<=2)
+//              if ((ActionMenuItem==MI_SaveSegments || ActionMenuItem==MI_DeleteSegments || ActionMenuItem==MI_SelectOddSegments || ActionMenuItem==MI_SelectEvenSegments) && NrSegmentMarker<=2)
+              if ((ActionMenuItem<=4 && NrSegmentMarker<=2) || (ActionMenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && NrSegmentMarker>2))) || (ActionMenuItem==MI_ImportBookmarks && NrBookmarks<=0) || (ActionMenuItem==MI_ExportSegments && NrSegmentMarker<=2))
                 break;
 
               // Aktionen mit Confirmation-Dialog
@@ -1178,7 +1064,7 @@ else
               {
                 if(!ShowConfirmationDialog(LangGetString(LS_AskConfirmation)))
                 {
-                  OSDRedrawEverything();
+//                  OSDRedrawEverything();
                   ActionMenuDraw();
                   break;
                 }
@@ -1214,7 +1100,18 @@ else
                 }
                 case MI_ImportBookmarks:     ImportBookmarksToSegments(); break;
                 case MI_ExportSegments:      ExportSegmentsToBookmarks(); break;
-                case MI_DeleteFile:          MovieCutterDeleteFile(); break;
+                case MI_DeleteFile:
+                {
+                  if (BookmarkMode)
+                  {
+                    OSDMenuSaveMyRegion(rgnSegmentList);
+                    if(!CheckFileSystem(LogString, 512, 0, 1))
+                      ShowErrorMessage((fsck_Cancelled) ? LangGetString(LS_CheckFSAborted) : LangGetString(LS_CheckFSFailed));
+                  }
+                  else
+                    MovieCutterDeleteFile();
+                  break;
+                }
                 case MI_ExitMC:              State = ST_Exit; break;
                 case MI_NrMenuItems:         break;
               }
@@ -1276,7 +1173,7 @@ else
       FMUC_FreeFontFile(&Calibri_10_FontDataUC);
       FMUC_FreeFontFile(&Calibri_12_FontDataUC);
       FMUC_FreeFontFile(&Calibri_14_FontDataUC);
-//      OSDMenuFreeStdFonts();
+      OSDMenuFreeStdFonts();
       TAP_Exit();
       break;
     }
@@ -1302,6 +1199,7 @@ bool ShowConfirmationDialog(char *MessageStr)
   TAP_GetState(&OldSysState, &OldSysSubState);
 
   OSDMenuMessageBoxInitialize(PROGRAM_NAME, MessageStr);
+  OSDMenuSaveMyRegion(rgnSegmentList);
   OSDMenuMessageBoxDoNotEnterNormalMode(TRUE);
   OSDMenuMessageBoxAllowScrollOver();
   OSDMenuMessageBoxButtonAdd(LangGetString(LS_Yes));
@@ -1318,7 +1216,7 @@ bool ShowConfirmationDialog(char *MessageStr)
 
   TAP_Osd_Sync();
   if(OldSysSubState == SUBSTATE_Normal) TAP_EnterNormalNoInfo();
-  OSDMenuFreeStdFonts();
+//  OSDMenuFreeStdFonts();
 
   TRACEEXIT();
   return ret;
@@ -1333,6 +1231,7 @@ void ShowErrorMessage(char *MessageStr)
   TAP_GetState(&OldSysState, &OldSysSubState);
 
   OSDMenuMessageBoxInitialize(PROGRAM_NAME, MessageStr);
+  OSDMenuSaveMyRegion(rgnSegmentList);
   OSDMenuMessageBoxDoNotEnterNormalMode(TRUE);
   OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
   OSDMenuMessageBoxShow();
@@ -1345,7 +1244,7 @@ void ShowErrorMessage(char *MessageStr)
 
   TAP_Osd_Sync();
   if(OldSysSubState == SUBSTATE_Normal) TAP_EnterNormalNoInfo();
-  OSDMenuFreeStdFonts();
+//  OSDMenuFreeStdFonts();
 
   TRACEEXIT();
 }
@@ -1527,6 +1426,7 @@ void LoadINI(void)
     AutoOSDPolicy     = INIGetInt("AutoOSDPolicy", 1, 0, 1) != 0;
     DirectSegmentsCut = INIGetInt("DirectSegmentsCut", 0, 0, 1) == 1;
     SaveCutBak        = INIGetInt("SaveCutBak", 1, 0, 1) != 0;
+    ShowRebootMessage = INIGetInt("ShowRebootMessage", 1, 0, 1) != 0;
     CheckFSAfterCut   = INIGetInt("CheckFSAfterCut", 0, 0, 1) == 1;
   }
   INICloseFile();
@@ -1547,6 +1447,7 @@ void SaveINI(void)
   INISetInt("AutoOSDPolicy", AutoOSDPolicy ? 1 : 0);
   INISetInt("DirectSegmentsCut", DirectSegmentsCut ? 1 : 0);
   INISetInt("SaveCutBak", SaveCutBak ? 1 : 0);
+  INISetInt("ShowRebootMessage", ShowRebootMessage ? 1 : 0);
   INISetInt("CheckFSAfterCut", CheckFSAfterCut ? 1 : 0);
   INISaveFile(INIFILENAME, INILOCATION_AtCurrentDir, NULL);
   INICloseFile();
@@ -1630,7 +1531,7 @@ bool AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
   {
     WriteLogMC(PROGRAM_NAME, "AddSegmentMarker: SegmentMarker list is full!");
     ShowErrorMessage(LangGetString(LS_ListIsFull));
-    OSDRedrawEverything();
+//    OSDRedrawEverything();
 
     TRACEEXIT();
     return FALSE;
@@ -1801,8 +1702,12 @@ void SelectSegmentMarker(void)
   TRACEENTER();
 
   if (NrSegmentMarker > 2)
-    SegmentMarker[ActiveSegment].Selected = !SegmentMarker[ActiveSegment].Selected;
-
+  {
+    if (JumpRequestedSegment != 0xFFFF)
+      SegmentMarker[JumpRequestedSegment].Selected = !SegmentMarker[JumpRequestedSegment].Selected;
+    else
+      SegmentMarker[ActiveSegment].Selected = !SegmentMarker[ActiveSegment].Selected;
+  }
   TRACEEXIT();
 }
 
@@ -3542,8 +3447,13 @@ void ActionMenuDraw(void)
       }
       case MI_DeleteFile:
       {
-        DisplayStr = LangGetString(LS_DeleteFile);
-        DisplayColor = C3;
+        if (BookmarkMode)
+          DisplayStr = LangGetString(LS_FileSystemCheck);
+        else
+        {
+          DisplayStr = LangGetString(LS_DeleteFile);
+          DisplayColor = C3;
+        }
         break;
       }
       case MI_ImportBookmarks:
@@ -3667,11 +3577,18 @@ void MovieCutterSelectOddSegments(void)
 
   if (DirectSegmentsCut)
   {
-    State = ST_ActionMenu;
-    ActionMenuDraw();
-    ActionMenuItem = MI_DeleteSegments;
     WriteLogMC(PROGRAM_NAME, "[Action 'Delete odd segments' selected...]");
-    ShowConfirmationDialog(LangGetString(LS_AskConfirmation));
+    ActionMenuDraw();
+    if (ShowConfirmationDialog(LangGetString(LS_AskConfirmation)))
+    {
+      ActionMenuRemove();
+      MovieCutterDeleteSegments();
+    }
+    else
+    {
+      State = ST_ActionMenu;
+      ActionMenuDraw();
+    }
   }
   TRACEEXIT();
 }
@@ -3690,11 +3607,18 @@ void MovieCutterSelectEvenSegments(void)
 
   if (DirectSegmentsCut)
   {
-    State = ST_ActionMenu;
-    ActionMenuDraw();
-    ActionMenuItem = MI_DeleteSegments;
     WriteLogMC(PROGRAM_NAME, "[Action 'Delete even segments' selected...]");
-    ShowConfirmationDialog(LangGetString(LS_AskConfirmation));
+    ActionMenuDraw();
+    if (ShowConfirmationDialog(LangGetString(LS_AskConfirmation)))
+    {
+      ActionMenuRemove();
+      MovieCutterDeleteSegments();
+    }
+    else
+    {
+      State = ST_ActionMenu;
+      ActionMenuDraw();
+    }
   }
   TRACEEXIT();
 }
@@ -3742,7 +3666,6 @@ void MovieCutterProcess(bool KeepCut)
 //  char                  TempFileName[MAX_FILE_NAME_SIZE + 1];
   tTimeStamp            CutStartPoint, BehindCutPoint;
   dword                 DeltaBlock; //, DeltaTime;
-  char                 *ErrMessage = NULL;
   int                   i, j;
   tResultCode           ret = RC_Error;
 
@@ -3802,6 +3725,7 @@ void MovieCutterProcess(bool KeepCut)
 //  ClearOSD(FALSE);
 
   int maxProgress = NrSelectedSegments + ((CheckFSAfterCut) ? 1 : 0);
+  OSDMenuSaveMyRegion(rgnSegmentList);
   OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), 0, maxProgress, NULL);
   for(i = NrSegmentMarker - 2; i >= 0 /*-1*/; i--)
   {
@@ -3947,8 +3871,8 @@ void MovieCutterProcess(bool KeepCut)
       {
         WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: Cutting process failed or totalBlock is 0!");
         State = ST_UnacceptedFile;
-//        OSDMenuProgressBarDestroyNoOSDUpdate();
-//        ShowErrorMessage(LangGetString(LS_CutHasFailed));
+        OSDMenuProgressBarDestroyNoOSDUpdate();
+        ShowErrorMessage(LangGetString(LS_CutHasFailed));
         break;
       }
 
@@ -4025,15 +3949,18 @@ void MovieCutterProcess(bool KeepCut)
       {
         WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: Restarting playback failed! CurrentBlock not detected...");
         State = ST_UnacceptedFile;
-//        OSDMenuProgressBarDestroyNoOSDUpdate();
-//        ShowErrorMessage(LangGetString(LS_CutHasFailed));
+        OSDMenuProgressBarDestroyNoOSDUpdate();
+        ShowErrorMessage(LangGetString(LS_CutHasFailed));
         break;
       }
 
       JumpRequestedSegment = 0xFFFF;
       OSDSegmentListDrawList();
       OSDInfoDrawProgressbar(TRUE);
-      OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), maxProgress - NrSelectedSegments - ((CheckFSAfterCut) ? 1 : 0), maxProgress, NULL);
+
+TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegments - ((CheckFSAfterCut) ? 1 : 0), maxProgress)
+      if (OSDMenuProgressBarIsVisible())
+        OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), maxProgress - NrSelectedSegments - ((CheckFSAfterCut) ? 1 : 0), maxProgress, NULL);
     }
     if ((NrSelectedSegments <= 0) /* && !SegmentMarker[NrSegmentMarker-2].Selected*/ )
       break;
@@ -4070,35 +3997,29 @@ void MovieCutterProcess(bool KeepCut)
   if (CheckFSAfterCut)
   {
     Playback_Pause();
-//    if (OSDMenuMessageBoxIsVisible()) OSDMenuMessageBoxDestroyNoOSDUpdate();
-//    OSDMenuProgressBarDestroyNoOSDUpdate();
-    OSDMenuProgressBarShow(PROGRAM_NAME, "Checking file system...", maxProgress-1, maxProgress, NULL);
-    TAP_SystemProc();
-    if(CheckFileSystem(LogString, maxProgress-1, maxProgress))
-    {
+//    OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), maxProgress-1, maxProgress, NULL);
+//    TAP_SystemProc();
+
+    char ErrorString[512], *p=NULL, *p2=NULL;
+    if(CheckFileSystem(LogString, 512, maxProgress-1, maxProgress))
       WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: File system seems valid.");
-//      if (State == ST_UnacceptedFile)
-//      {
-//        OSDMenuProgressBarDestroyNoOSDUpdate();
-//        ShowErrorMessage(LangGetString(LS_CutHasFailed));
-//      }
-    }
     else
     {
-      if (OSDMenuProgressBarIsVisible()) OSDMenuProgressBarDestroyNoOSDUpdate();
+//      if (OSDMenuProgressBarIsVisible()) OSDMenuProgressBarDestroyNoOSDUpdate();
       if (fsck_Cancelled)
       {
-        WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: File system check cancelled by user!");
-        ErrMessage = "Prüfung des Filesystems abgebrochen.";
+        WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: File system check aborted by user!");
+        ShowErrorMessage(LangGetString(LS_CheckFSAborted));
       }
       else
       {
         WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: WARNING! File system is inconsistent...");
         WriteLogMC(PROGRAM_NAME, LogString);
-        if (State == ST_UnacceptedFile)
-          ErrMessage = "Schnitt ist fehlgeschlagen.\nWARNUNG! Aufnahmenfresser droht.";
-        else
-          ErrMessage = "WARNUNG! Aufnahmenfresser droht.\nDatei vor dem Ausschalten sichern!";
+        p = strstr(LogString, "Files/");
+        if(p) p2 = strstr(p+6, "\n");
+        if(p2) *p2 = '\0';
+        TAP_SPrint(ErrorString, "%s\n%s", LangGetString(LS_CheckFSFailed), (p) ? p+6 : "");
+        ShowErrorMessage(ErrorString);
       }
     }
   }
@@ -4107,28 +4028,24 @@ void MovieCutterProcess(bool KeepCut)
   {
     OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), maxProgress, maxProgress, NULL);
     OSDMenuProgressBarDestroyNoOSDUpdate();
+//    TAP_Osd_Sync();
   }
 
   if(TrickMode == TRICKMODE_Pause) Playback_Normal();
   if (SegmentMarker[max(min(ActiveSegment, NrSegmentMarker-2), 0)].Block > 0)
     TAP_Hdd_ChangePlaybackPos(SegmentMarker[max(min(ActiveSegment, NrSegmentMarker-2), 0)].Block);
 
-  if (State == ST_UnacceptedFile || ErrMessage)
-  {
-    if(!ErrMessage) ErrMessage = LangGetString(LS_CutHasFailed);
-    ShowErrorMessage(ErrMessage);
-  }
-
+  PlaybackRepeatSet(OldRepeatMode);
   if (State == ST_UnacceptedFile)
   {
     LastTotalBlocks = PlayInfo.totalBlock;
-    PlaybackRepeatSet(OldRepeatMode);
     ClearOSD(TRUE);
     WriteLogMC(PROGRAM_NAME, "MovieCutterProcess() finished!");
   }
   else
   {
     State = ST_WaitForPlayback;
+//    ClearOSD(TRUE);
     WriteLogMC(PROGRAM_NAME, "MovieCutterProcess() successfully completed!");
   }
 //  NoPlaybackCheck = FALSE;
@@ -4186,7 +4103,7 @@ bool PlaybackRepeatGet()
   return (PlaybackRepeatMode(FALSE, 0, 0, 0) == 2);
 }
 
-bool CheckFileSystem(char *OutWarnings, dword ProgressStart, dword ProgressEnd)
+bool CheckFileSystem(char *OutWarnings, int OutLength, dword ProgressStart, dword ProgressEnd)
 {
   FILE                 *fLogFile = NULL, *fPidFile = NULL;
   TYPE_File            *fLogOut = NULL;  
@@ -4195,8 +4112,10 @@ bool CheckFileSystem(char *OutWarnings, dword ProgressStart, dword ProgressEnd)
   char                  PidStr[13];
   int                   fsck_Pid = 0;
   int                   FileSize, i;
+  dword                 OldSysState, OldSysSubState;
 
   TRACEENTER();
+  TAP_GetState(&OldSysState, &OldSysSubState);
   TAP_SPrint(OutWarnings, "Konnte nicht überprüft werden.");
 
   HDD_TAP_PushDir();
@@ -4204,9 +4123,11 @@ bool CheckFileSystem(char *OutWarnings, dword ProgressStart, dword ProgressEnd)
 
   TAP_Hdd_Delete("fsck.log");
   TAP_Hdd_Delete("/root/fsck.log");
+  TAP_Hdd_Delete("/root/fsck.pid");
 
   fsck_Cancelled = FALSE;
-  OSDMenuProgressBarShow(PROGRAM_NAME, "Checking file system...", ProgressStart, ProgressEnd, NULL);
+  OSDMenuSaveMyRegion(rgnSegmentList);
+  OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), ProgressStart, ProgressEnd, NULL);
 
   //Run fsck and create a log file
   LogBuffer = (char*) TAP_MemAlloc(10000);
@@ -4237,7 +4158,7 @@ bool CheckFileSystem(char *OutWarnings, dword ProgressStart, dword ProgressEnd)
       TAP_Delay(100);
       i++;
       if (i <= 120 && i % 5)
-        OSDMenuProgressBarShow(PROGRAM_NAME, "Checking file system...", 24*ProgressStart + (i/5)*(ProgressEnd-ProgressStart), 24*ProgressEnd, NULL);
+        OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), 24*ProgressStart + (i/5)*(ProgressEnd-ProgressStart), 24*ProgressEnd, NULL);
       TAP_SystemProc();
       if(fsck_Cancelled)
       {
@@ -4268,8 +4189,8 @@ bool CheckFileSystem(char *OutWarnings, dword ProgressStart, dword ProgressEnd)
           char *p2 = strstr((p+1), "**Phase 5");
           if (p2 == 0)
             p2 = &LogBuffer[FileSize];
-          strncpy(OutWarnings, (p+1), min(p2-p-1, 511));
-          OutWarnings[min(p2-p-1, 511)] = '\0';
+          strncpy(OutWarnings, (p+1), min(p2-p-1, OutLength-1));
+          OutWarnings[min(p2-p-1, OutLength-1)] = '\0';
         }
       }
       else
@@ -4293,8 +4214,11 @@ bool CheckFileSystem(char *OutWarnings, dword ProgressStart, dword ProgressEnd)
     WriteLogMC(PROGRAM_NAME, "CheckFileSystem() E1c01.");
 
   if (!fsck_Cancelled)
-    OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), ProgressEnd, ProgressEnd, NULL);
+    OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), ProgressEnd, ProgressEnd, NULL);
   OSDMenuProgressBarDestroyNoOSDUpdate();
+//  TAP_Osd_Sync();
+  if(OldSysSubState == SUBSTATE_Normal) TAP_EnterNormalNoInfo();
+
   HDD_TAP_PopDir();
   TRACEEXIT();
   return (!OutWarnings[0]);
