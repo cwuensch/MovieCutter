@@ -7,7 +7,8 @@
 #include                <unistd.h>
 #include                <utime.h>
 #include                "tap.h"
-#include                "libFireBird.h"
+#include                <libFireBird.h>
+//#include                "libFireBird.h"
 //#include                "../../../../FireBirdLib/ALTElibFireBird.h"
 #include                "MovieCutterLib.h"
 
@@ -346,7 +347,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
   {
     if (TAP_Hdd_Exist(BakFileName))
       TAP_Hdd_Delete(BakFileName);
-    TAP_Hdd_Rename(FileName, BakFileName);
+    rename(FileName, BakFileName);
   }
 
   // Patch the nav files (and get the TimeStamps for the actual cutting positions)
@@ -387,7 +388,15 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
     HDD_SetFileDateTime(CurrentDir, FileName, RecDate);
   }
 //  if(!KeepSource) HDD_Delete(SourceFileName);
-  if(!KeepCut) HDD_Delete(CutFileName);
+  if(!KeepCut)
+  {
+//    HDD_Delete(CutFileName);
+    TAP_Hdd_Delete(CutFileName);
+    TAP_SPrint(FileName, "%s.inf", CutFileName);
+    TAP_Hdd_Delete(FileName);
+    TAP_SPrint(FileName, "%s.nav", CutFileName);
+    TAP_Hdd_Delete(FileName);
+  }
 
   WriteLogMC("MovieCutterLib", "MovieCutter() finished.");
 
@@ -461,6 +470,7 @@ bool FileCut(char *SourceFileName, char *CutFileName, dword StartBlock, dword Nr
     TAP_Sleep(10);
   }
   system("hdparm -f /dev/sda");
+  system("hdparm -f /dev/sdb");
 
   if(ret)
   {

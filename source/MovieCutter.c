@@ -3688,7 +3688,7 @@ void MovieCutterProcess(bool KeepCut)
     TAP_SPrint(&CutName[strlen(CutName) - 4], ".cut");
     TAP_SPrint(BackupCutName, "%s.bak", CutName);
     if (TAP_Hdd_Exist(BackupCutName)) TAP_Hdd_Delete(BackupCutName);
-    TAP_Hdd_Rename(CutName, BackupCutName);
+    rename(CutName, BackupCutName);
   }
   CutFileSave();
 //  TAP_SPrint(LogString, "cp \"%s/%s.cut\" \"%s/%s.cut.bak\"", AbsPlaybackDir, BackupCutName, AbsPlaybackDir, BackupCutName);
@@ -3794,7 +3794,12 @@ void MovieCutterProcess(bool KeepCut)
         // Umbenennen der Original-Aufnahme zu CutFileName
         TAP_SPrint(LogString, "Renaming original playback file '%s' to '%s'", PlaybackName, CutFileName);
         WriteLogMC(PROGRAM_NAME, LogString);
-        HDD_Rename(PlaybackName, CutFileName);
+
+        char OldName[MAX_FILE_NAME_SIZE], NewName[MAX_FILE_NAME_SIZE];
+//        HDD_Rename(PlaybackName, CutFileName);
+        rename(PlaybackName, CutFileName);
+        TAP_SPrint(OldName, "%s%s", PlaybackName, ".inf"); TAP_SPrint(NewName, "%s%s", CutFileName, ".inf"); rename(OldName, NewName);
+        TAP_SPrint(OldName, "%s%s", PlaybackName, ".nav"); TAP_SPrint(NewName, "%s%s", CutFileName, ".nav"); rename(OldName, NewName);
       }
       sync();
       for (j=0; j < 20; j++)
@@ -3803,6 +3808,7 @@ void MovieCutterProcess(bool KeepCut)
         TAP_Sleep(10);
       }
       system("hdparm -f /dev/sda");
+      system("hdparm -f /dev/sdb");
 
       // Schnittoperation
       if (TAP_Hdd_Exist((CutEnding) ? CutFileName : PlaybackName))
@@ -3820,14 +3826,28 @@ void MovieCutterProcess(bool KeepCut)
       {
         if (RecFileSize > 0)
         {
-          if (ret && !KeepCut) HDD_Delete(CutFileName);
+          if (ret && !KeepCut)
+          {
+//            HDD_Delete(CutFileName);
+            char TempName[MAX_FILE_NAME_SIZE];
+            TAP_Hdd_Delete(CutFileName); 
+            TAP_SPrint(TempName, "%s.inf", CutFileName); TAP_Hdd_Delete(TempName);
+            TAP_SPrint(TempName, "%s.nav", CutFileName); TAP_Hdd_Delete(TempName);
+          }
         }
         else
         {
           TAP_SPrint(LogString, "Cut failed! Renaming source file '%s' back to '%s'", CutFileName, PlaybackName); 
           WriteLogMC(PROGRAM_NAME, LogString);
-          HDD_Delete(PlaybackName);
-          HDD_Rename(CutFileName, PlaybackName);
+//          HDD_Delete(PlaybackName);
+//          HDD_Rename(CutFileName, PlaybackName);
+
+          char OldName[MAX_FILE_NAME_SIZE], NewName[MAX_FILE_NAME_SIZE];
+          TAP_Hdd_Delete(PlaybackName);  rename(CutFileName, PlaybackName);
+          TAP_SPrint(OldName, "%s.inf", CutFileName); TAP_SPrint(NewName, "%s.inf", PlaybackName);
+          TAP_Hdd_Delete(NewName);       rename(OldName, NewName);
+          TAP_SPrint(OldName, "%s.nav", CutFileName); TAP_SPrint(NewName, "%s.nav", PlaybackName);
+          TAP_Hdd_Delete(NewName);       rename(OldName, NewName);
 
           if(TAP_Hdd_Exist(PlaybackName))
             HDD_GetFileSizeAndInode(PlaybackDir, PlaybackName, NULL, &RecFileSize);
@@ -3841,7 +3861,7 @@ void MovieCutterProcess(bool KeepCut)
         if (TAP_Hdd_Exist(CutFileNavBak))
         {
           if (TAP_Hdd_Exist(PlaybackNavBak)) TAP_Hdd_Delete(PlaybackNavBak);
-          TAP_Hdd_Rename(CutFileNavBak, PlaybackNavBak);
+          rename(CutFileNavBak, PlaybackNavBak);
         }
       }
 
@@ -3992,6 +4012,7 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
     TAP_Sleep(10);
   }
   system("hdparm -f /dev/sda");
+  system("hdparm -f /dev/sdb");
 
   //Check file system consistency and show a warning
   if (CheckFSAfterCut)
@@ -4001,24 +4022,27 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
 //    TAP_SystemProc();
 
     char ErrorString[512], *p=NULL, *p2=NULL;
-    if(CheckFileSystem(LogString, 512, maxProgress-1, maxProgress))
-      WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: File system seems valid.");
-    else
+    if(!CheckFileSystem(LogString, 512, maxProgress-1, maxProgress))
     {
 //      if (OSDMenuProgressBarIsVisible()) OSDMenuProgressBarDestroyNoOSDUpdate();
       if (fsck_Cancelled)
       {
-        WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: File system check aborted by user!");
+//        WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: File system check aborted by user!");
         ShowErrorMessage(LangGetString(LS_CheckFSAborted));
       }
       else
       {
-        WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: WARNING! File system is inconsistent...");
-        WriteLogMC(PROGRAM_NAME, LogString);
-        p = strstr(LogString, "Files/");
-        if(p) p2 = strstr(p+6, "\n");
-        if(p2) *p2 = '\0';
-        TAP_SPrint(ErrorString, "%s\n%s", LangGetString(LS_CheckFSFailed), (p) ? p+6 : "");
+//        WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: WARNING! File system is inconsistent...");
+//        WriteLogMC(PROGRAM_NAME, LogString);
+        if (strlen(LogString) <= 50 && !strstr(LogString, "\n"))
+          p = LogString;
+        else
+        {
+          p = strstr(LogString, "Files/");
+          if(p) {p += 6; p2 = strstr(p, "\n");}
+          if(p2) *p2 = '\0';
+        }
+        TAP_SPrint(ErrorString, "%s\n%s", LangGetString(LS_CheckFSFailed), (p) ? p : "");
         ShowErrorMessage(ErrorString);
       }
     }
@@ -4107,8 +4131,9 @@ bool CheckFileSystem(char *OutWarnings, int OutLength, dword ProgressStart, dwor
 {
   FILE                 *fLogFile = NULL, *fPidFile = NULL;
   TYPE_File            *fLogOut = NULL;  
-  char                 *LogBuffer = NULL;
+  char                 *LogBuffer = NULL, *p = NULL, *p2 = NULL;
   char                  CommandLine[512];
+  char                  MountPoint[512], DeviceNode[20];
   char                  PidStr[13];
   int                   fsck_Pid = 0;
   int                   FileSize, i;
@@ -4116,7 +4141,7 @@ bool CheckFileSystem(char *OutWarnings, int OutLength, dword ProgressStart, dwor
 
   TRACEENTER();
   TAP_GetState(&OldSysState, &OldSysSubState);
-  TAP_SPrint(OutWarnings, "Konnte nicht überprüft werden.");
+  TAP_SPrint(OutWarnings, "Could not be validated.");
 
   HDD_TAP_PushDir();
   TAP_Hdd_ChangeDir("/ProgramFiles/Settings/MovieCutter");
@@ -4129,11 +4154,43 @@ bool CheckFileSystem(char *OutWarnings, int OutLength, dword ProgressStart, dwor
   OSDMenuSaveMyRegion(rgnSegmentList);
   OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), ProgressStart, ProgressEnd, NULL);
 
+  // Detect the device node of the partition to be checked
+  TAP_SPrint(DeviceNode, "/dev/sda2");
+
+  p = strchr(&PlaybackDir[1], '/');
+  if (p)
+  {
+    p = strchr((p+1), '/');
+    strcpy(MountPoint, AbsPlaybackDir);
+    if (p)
+      MountPoint[strlen(TAPFSROOT) + p - PlaybackDir] = '\0';
+    else
+      MountPoint[strlen(TAPFSROOT) + strlen(PlaybackDir)] = '\0';
+    TAP_PrintNet("MountPoint: '%s'", MountPoint);
+    
+    TAP_SPrint(CommandLine, "mount | egrep \"%s\" > /root/fsck.dev", MountPoint);
+    system(CommandLine);
+
+    fPidFile = fopen("/root/fsck.dev", "r");
+    if(fPidFile)
+    {
+      fgets(DeviceNode, 20, fPidFile);
+      fclose(fPidFile);
+
+      p = strchr(DeviceNode, ' ');
+      if (p) *p = '\0';
+    }
+    TAP_PrintNet(" -> DeviceNode: '%s'\n", DeviceNode);
+  }
+
+  TAP_SPrint(LogString, "CheckFileSystem: Checking file system of device '%s'...", DeviceNode);
+  WriteLogMC(PROGRAM_NAME, LogString);
+  
   //Run fsck and create a log file
   LogBuffer = (char*) TAP_MemAlloc(10000);
   if (LogBuffer)
   {
-    TAP_SPrint(CommandLine, "%s/ProgramFiles/jfs_fsck -n -v /dev/sda2 > /root/fsck.log & echo $! > /root/fsck.pid", TAPFSROOT);
+    TAP_SPrint(CommandLine, "%s/ProgramFiles/jfs_fsck -n -v %s > /root/fsck.log & echo $! > /root/fsck.pid", TAPFSROOT, DeviceNode);
     system(CommandLine);
 
     //Get the PID of the fsck-Process
@@ -4177,7 +4234,7 @@ bool CheckFileSystem(char *OutWarnings, int OutLength, dword ProgressStart, dwor
       LogBuffer[FileSize] = '\0';
 
       //Search for **Step 4
-      char *p = strstr(LogBuffer, "**Phase 4");
+      p = strstr(LogBuffer, "**Phase 4");
       if(p != 0)
       {
         OutWarnings[0] = '\0';
@@ -4186,11 +4243,12 @@ bool CheckFileSystem(char *OutWarnings, int OutLength, dword ProgressStart, dwor
         p = strstr((p+1), "\n");
         if (p != 0)
         {
-          char *p2 = strstr((p+1), "**Phase 5");
+          p2 = strstr((p+1), "**Phase 5");
           if (p2 == 0)
             p2 = &LogBuffer[FileSize];
-          strncpy(OutWarnings, (p+1), min(p2-p-1, OutLength-1));
-          OutWarnings[min(p2-p-1, OutLength-1)] = '\0';
+          (p2 == p+1) ? (*p2 = '\0') : (*(p2-1) = '\0');
+          strncpy(OutWarnings, (p+1), OutLength-1);
+          OutWarnings[OutLength-1] = '\0';
         }
       }
       else
@@ -4214,7 +4272,19 @@ bool CheckFileSystem(char *OutWarnings, int OutLength, dword ProgressStart, dwor
     WriteLogMC(PROGRAM_NAME, "CheckFileSystem() E1c01.");
 
   if (!fsck_Cancelled)
+  {
     OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), ProgressEnd, ProgressEnd, NULL);
+    if (!OutWarnings[0])
+      WriteLogMC(PROGRAM_NAME, "CheckFileSystem: File system seems valid.");
+    else
+    {
+      WriteLogMC(PROGRAM_NAME, "CheckFileSystem: WARNING! File system is inconsistent...");
+      WriteLogMC(PROGRAM_NAME, (p) ? p : OutWarnings);
+    }
+  }
+  else
+    WriteLogMC(PROGRAM_NAME, "CheckFileSystem: File system check aborted by user!");
+
   OSDMenuProgressBarDestroyNoOSDUpdate();
 //  TAP_Osd_Sync();
   if(OldSysSubState == SUBSTATE_Normal) TAP_EnterNormalNoInfo();
