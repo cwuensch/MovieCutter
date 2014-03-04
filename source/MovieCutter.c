@@ -232,6 +232,31 @@ dword                   BookmarkMode_x;
 
 char                    LogString[512];
 
+
+// ============================================================================
+//                               FireBirdLib
+// ============================================================================
+
+void HDD_Rename2(const char *FileName, const char *NewFileName, const char *Directory, bool RenameInfNav)
+{
+  char AbsFileName[512], AbsNewFileName[512];   //NewName[MAX_FILE_NAME_SIZE + 1];
+  TAP_SPrint  (AbsFileName, "%s/%s",     Directory, FileName);  TAP_SPrint(AbsNewFileName, "%s/%s",     Directory, NewFileName);  rename(AbsFileName, AbsNewFileName);
+  if(RenameInfNav)
+  {
+    TAP_SPrint(AbsFileName, "%s/%s.inf", Directory, FileName);  TAP_SPrint(AbsNewFileName, "%s/%s.inf", Directory, NewFileName);  rename(AbsFileName, AbsNewFileName);
+    TAP_SPrint(AbsFileName, "%s/%s.nav", Directory, FileName);  TAP_SPrint(AbsNewFileName, "%s/%s.nav", Directory, NewFileName);  rename(AbsFileName, AbsNewFileName);
+  }
+}
+
+void HDD_Delete2(const char *FileName)
+{
+  char TempFileName[512];
+  TAP_Hdd_Delete(FileName);
+  TAP_SPrint(TempFileName, "%s.inf", FileName);  TAP_Hdd_Delete(TempFileName);
+  TAP_SPrint(TempFileName, "%s.nav", FileName);  TAP_Hdd_Delete(TempFileName);
+}
+
+
 // ============================================================================
 //                              IMPLEMENTIERUNG
 // ============================================================================
@@ -3688,7 +3713,7 @@ void MovieCutterProcess(bool KeepCut)
     TAP_SPrint(&CutName[strlen(CutName) - 4], ".cut");
     TAP_SPrint(BackupCutName, "%s.bak", CutName);
     if (TAP_Hdd_Exist(BackupCutName)) TAP_Hdd_Delete(BackupCutName);
-    rename(CutName, BackupCutName);
+    HDD_Rename2(CutName, BackupCutName, AbsPlaybackDir, FALSE);
   }
   CutFileSave();
 //  TAP_SPrint(LogString, "cp \"%s/%s.cut\" \"%s/%s.cut.bak\"", AbsPlaybackDir, BackupCutName, AbsPlaybackDir, BackupCutName);
@@ -3794,12 +3819,7 @@ void MovieCutterProcess(bool KeepCut)
         // Umbenennen der Original-Aufnahme zu CutFileName
         TAP_SPrint(LogString, "Renaming original playback file '%s' to '%s'", PlaybackName, CutFileName);
         WriteLogMC(PROGRAM_NAME, LogString);
-
-        char OldName[MAX_FILE_NAME_SIZE], NewName[MAX_FILE_NAME_SIZE];
-//        HDD_Rename(PlaybackName, CutFileName);
-        rename(PlaybackName, CutFileName);
-        TAP_SPrint(OldName, "%s%s", PlaybackName, ".inf"); TAP_SPrint(NewName, "%s%s", CutFileName, ".inf"); rename(OldName, NewName);
-        TAP_SPrint(OldName, "%s%s", PlaybackName, ".nav"); TAP_SPrint(NewName, "%s%s", CutFileName, ".nav"); rename(OldName, NewName);
+        HDD_Rename2(PlaybackName, CutFileName, AbsPlaybackDir, TRUE);
       }
       sync();
       for (j=0; j < 20; j++)
@@ -3826,28 +3846,14 @@ void MovieCutterProcess(bool KeepCut)
       {
         if (RecFileSize > 0)
         {
-          if (ret && !KeepCut)
-          {
-//            HDD_Delete(CutFileName);
-            char TempName[MAX_FILE_NAME_SIZE];
-            TAP_Hdd_Delete(CutFileName); 
-            TAP_SPrint(TempName, "%s.inf", CutFileName); TAP_Hdd_Delete(TempName);
-            TAP_SPrint(TempName, "%s.nav", CutFileName); TAP_Hdd_Delete(TempName);
-          }
+          if (ret && !KeepCut) HDD_Delete2(CutFileName);
         }
         else
         {
           TAP_SPrint(LogString, "Cut failed! Renaming source file '%s' back to '%s'", CutFileName, PlaybackName); 
           WriteLogMC(PROGRAM_NAME, LogString);
-//          HDD_Delete(PlaybackName);
-//          HDD_Rename(CutFileName, PlaybackName);
-
-          char OldName[MAX_FILE_NAME_SIZE], NewName[MAX_FILE_NAME_SIZE];
-          TAP_Hdd_Delete(PlaybackName);  rename(CutFileName, PlaybackName);
-          TAP_SPrint(OldName, "%s.inf", CutFileName); TAP_SPrint(NewName, "%s.inf", PlaybackName);
-          TAP_Hdd_Delete(NewName);       rename(OldName, NewName);
-          TAP_SPrint(OldName, "%s.nav", CutFileName); TAP_SPrint(NewName, "%s.nav", PlaybackName);
-          TAP_Hdd_Delete(NewName);       rename(OldName, NewName);
+          HDD_Delete2(PlaybackName);
+          HDD_Rename2(CutFileName, PlaybackName, AbsPlaybackDir, TRUE);
 
           if(TAP_Hdd_Exist(PlaybackName))
             HDD_GetFileSizeAndInode(PlaybackDir, PlaybackName, NULL, &RecFileSize);
@@ -3861,7 +3867,7 @@ void MovieCutterProcess(bool KeepCut)
         if (TAP_Hdd_Exist(CutFileNavBak))
         {
           if (TAP_Hdd_Exist(PlaybackNavBak)) TAP_Hdd_Delete(PlaybackNavBak);
-          rename(CutFileNavBak, PlaybackNavBak);
+          HDD_Rename2(CutFileNavBak, PlaybackNavBak, AbsPlaybackDir, FALSE);
         }
       }
 
@@ -4227,6 +4233,7 @@ bool CheckFileSystem(char *OutWarnings, int OutLength, dword ProgressStart, dwor
     fsck_Pid = 0;
 
     //Open the created log file
+    p = OutWarnings;
     fLogFile = fopen("/root/fsck.log", "rb");
     if(fLogFile)
     {
@@ -4279,7 +4286,7 @@ bool CheckFileSystem(char *OutWarnings, int OutLength, dword ProgressStart, dwor
     else
     {
       WriteLogMC(PROGRAM_NAME, "CheckFileSystem: WARNING! File system is inconsistent...");
-      WriteLogMC(PROGRAM_NAME, (p) ? p : OutWarnings);
+      WriteLogMC(PROGRAM_NAME, p);
     }
   }
   else
@@ -4379,10 +4386,10 @@ bool PatchOldNavFile(char *SourceFileName, bool isHD)
   }
 
   //Rename the original nav file to bak
-  TAP_Hdd_Rename(FileName, BakFileName);
+  HDD_Rename2(FileName, BakFileName, AbsPlaybackDir, FALSE);
 
   //Open the original nav
-  TAP_SPrint(AbsFileName, "%s%s/%s.nav.bak", TAPFSROOT, PlaybackDir, SourceFileName);
+  TAP_SPrint(AbsFileName, "%s/%s", AbsPlaybackDir, BakFileName);
   fSourceNav = fopen(AbsFileName, "rb");
   if(!fSourceNav)
   {

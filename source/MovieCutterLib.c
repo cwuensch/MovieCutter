@@ -347,7 +347,10 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
   {
     if (TAP_Hdd_Exist(BakFileName))
       TAP_Hdd_Delete(BakFileName);
-    rename(FileName, BakFileName);
+
+    char AbsFileName[512], AbsBakFileName[512];
+    TAP_SPrint(AbsFileName, "%s%s/%s", TAPFSROOT, CurrentDir, FileName);  TAP_SPrint(AbsBakFileName, "%s%s/%s", TAPFSROOT, CurrentDir, BakFileName);
+    rename(AbsFileName, AbsBakFileName);
   }
 
   // Patch the nav files (and get the TimeStamps for the actual cutting positions)
@@ -392,10 +395,8 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *Cut
   {
 //    HDD_Delete(CutFileName);
     TAP_Hdd_Delete(CutFileName);
-    TAP_SPrint(FileName, "%s.inf", CutFileName);
-    TAP_Hdd_Delete(FileName);
-    TAP_SPrint(FileName, "%s.nav", CutFileName);
-    TAP_Hdd_Delete(FileName);
+    TAP_SPrint(FileName, "%s.inf", CutFileName);  TAP_Hdd_Delete(FileName);
+    TAP_SPrint(FileName, "%s.nav", CutFileName);  TAP_Hdd_Delete(FileName);
   }
 
   WriteLogMC("MovieCutterLib", "MovieCutter() finished.");
