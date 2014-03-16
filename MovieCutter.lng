@@ -70,7 +70,7 @@ de_043=Sind Sie sicher?
 de_044=Ja
 de_045=Nein
 de_046=Liste der Segment-Marker ist voll.
-de_047=Dateigröße der Aufnahme ist inkorrekt.
+de_047=Aufnahme-Datei nicht gefunden.
 de_048=HD-Video Erkennung fehlgeschlagen.
 de_049=Die .nav-Datei konnte nicht geladen werden.
 de_050=Länge der .nav weicht um %d sek. ab.\nTrotzdem fortfahren?
@@ -80,6 +80,7 @@ de_053=Dateisystem überprüfen
 de_054=Dateisystem wird geprüft...
 de_055=WARNUNG! Dateisystem inkonsistent.\nAufnahme vor dem Ausschalten sichern!
 de_056=Prüfung des Dateisystems abgebrochen.
+de_057=Dateisystem scheint einwandfrei.
 
 
 #English
@@ -140,6 +141,7 @@ en_053=File system check
 en_054=Checking file system...
 en_055=WARNING! File system is inconsistent.\nBackup recording before power-off!
 en_056=File system check aborted.
+en_057=File system seems valid.
 
 
 #French
@@ -200,6 +202,7 @@ fr_053=File system check
 fr_054=Checking file system...
 fr_055=WARNING! File system is inconsistent.\nBackup recording before power-off!
 fr_056=File system check aborted.
+fr_057=File system seems valid.
 
 
 #Dutch
@@ -260,3 +263,4 @@ nl_053=File system check
 nl_054=Checking file system...
 nl_055=WARNING! File system is inconsistent.\nBackup recording before power-off!
 nl_056=File system check aborted.
+nl_057=File system seems valid.

@@ -27,7 +27,7 @@ bool  AddBookmark(dword newBlock);
 bool  AddDefaultSegmentMarker(void);
 bool  AddSegmentMarker(dword newBlock, bool RejectSmallSegments);
 void  CalcLastSeconds(void);
-bool  CheckFileSystem(char *OutWarnings, int OutLength, dword ProgressStart, dword ProgressEnd);
+bool  CheckFileSystem(dword ProgressStart, dword ProgressEnd);
 void  CheckLastSeconds(void);
 void  Cleanup(bool DoClearOSD);
 void  CleanupCut(void);

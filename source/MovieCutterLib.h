@@ -8,10 +8,10 @@
 //#define TEMPCUTNAME        "__tempcut__.ts"
 
 #ifndef FULLDEBUG
-  #define FULLDEBUG               TRUE
+  #define FULLDEBUG             TRUE  // ***
 #endif
 
-//#define STACKTRACE              TRUE
+//#define STACKTRACE            TRUE
 #if STACKTRACE == TRUE
   #define TRACEENTER()    CallTraceEnter((char*)__FUNCTION__)
   #define TRACEEXIT()     CallTraceExit(NULL)
@@ -19,6 +19,28 @@
   #define TRACEENTER()
   #define TRACEEXIT()
 #endif
+
+
+// ============================================================================
+//                               TAP-API-Lib
+// ============================================================================
+#undef malloc
+#undef free
+#undef memcpy
+#undef memcmp
+#undef memset
+#undef sprintf
+#define TAP_MemAlloc  malloc
+#define TAP_MemFree   free
+#define TAP_MemCpy    memcpy
+#define TAP_MemCmp    memcmp
+#define TAP_MemSet    memset
+#define TAP_SPrint    sprintf
+
+void HDD_Rename2(const char *FileName, const char *NewFileName, const char *Directory, bool RenameInfNav);
+void HDD_Delete2(const char *FileName, const char *Directory, bool DeleteInfNav);
+bool HDD_Exist2(char *FileName, const char *Directory);
+bool HDD_StartPlayback2(char *FileName, const char *Directory);
 
 
 typedef enum
@@ -73,20 +95,20 @@ typedef struct
 } tnavHD;
 
 void        WriteLogMC(char *ProgramName, char *s);
-tResultCode MovieCutter(char *SourceFileName, char *CutFileName, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepCut, bool isHD);
-void        GetNextFreeCutName(char const *SourceFileName, char *CutFileName, word LeaveNamesOut);
+tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *Directory, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepCut, bool isHD);
+void        GetNextFreeCutName(char const *SourceFileName, char *CutFileName, char const *Directory, word LeaveNamesOut);
 void        SecToTimeString(dword Time, char *const TimeString);     // needs max. 4 + 1 + 2 + 1 + 2 + 1 = 11 chars
 void        MSecToTimeString(dword Timems, char *const TimeString);  // needs max. 4 + 1 + 2 + 1 + 2 + 1 + 3 + 1 = 15 chars
 void        Print64BitLong(long64 Number, char *const OutString);    // needs max. 2 + 2*9 + 1 = 19 chars
 int         DetectPacketSize(char const *SourceFileName);
-bool        isCrypted(char const *SourceFileName);
-bool        isHDVideo(char const *SourceFileName, bool *const isHD);
-bool        isNavAvailable(char const *SourceFileName);
-bool        GetRecDateFromInf(char const *FileName, dword *const DateTime);
-bool        SaveBookmarksToInf(char const *SourceFileName, const dword Bookmarks[], int NrBookmarks);
+bool        isCrypted(char const *SourceFileName, char const *Directory);
+bool        isHDVideo(char const *SourceFileName, char const *Directory, bool *const isHD);
+bool        isNavAvailable(char const *SourceFileName, char *Directory);
+bool        GetRecDateFromInf(char const *FileName, char const *Directory, dword *const DateTime);
+bool        SaveBookmarksToInf(char const *SourceFileName, char const *Directory, const dword Bookmarks[], int NrBookmarks);
 long64      HDD_GetFileSize(char const *FileName);
-bool        HDD_SetFileDateTime(char const *Directory, char const *FileName, dword NewDateTime);
-tTimeStamp* NavLoad(char const *SourceFileName, dword *const NrTimeStamps, bool isHDVideo);
+bool        HDD_SetFileDateTime(char const *FileName, char const *Directory, dword NewDateTime);
+tTimeStamp* NavLoad(char const *SourceFileName, char const *Directory, dword *const NrTimeStamps, bool isHD);
 
 
 //These will prevent the compiler from complaining
