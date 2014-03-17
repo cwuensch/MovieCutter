@@ -507,19 +507,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           ClearOSD(TRUE);
           break;
         }
-          
-        // Detect if video stream is in HD
-        HDVideo = FALSE;
-        if (!LinearTimeMode && !isHDVideo(PlaybackName, PlaybackDir, &HDVideo))
-        {
-          State = ST_UnacceptedFile;
-          WriteLogMC(PROGRAM_NAME, "Could not detect type of video stream!");
-          ShowErrorMessage(LangGetString(LS_HDDetectionFailed));
-          PlaybackRepeatSet(OldRepeatMode);
-          ClearOSD(TRUE);
-          break;
-        }
-        WriteLogMC(PROGRAM_NAME, (HDVideo) ? "Type of recording: HD" : "Type of recording: SD");
 
         //Check if a nav is available
         if(!isNavAvailable(PlaybackName, PlaybackDir))
@@ -544,6 +531,19 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             break;
           }
         }
+
+        // Detect if video stream is in HD
+        HDVideo = FALSE;
+        if (!LinearTimeMode && !isHDVideo(PlaybackName, PlaybackDir, &HDVideo))
+        {
+          State = ST_UnacceptedFile;
+          WriteLogMC(PROGRAM_NAME, "Could not detect type of video stream!");
+          ShowErrorMessage(LangGetString(LS_HDDetectionFailed));
+          PlaybackRepeatSet(OldRepeatMode);
+          ClearOSD(TRUE);
+          break;
+        }
+        WriteLogMC(PROGRAM_NAME, (HDVideo) ? "Type of recording: HD" : "Type of recording: SD");
 
         //Free the old timing array, so that it is empty (NULL pointer) if something goes wrong
         if(TimeStamps)
