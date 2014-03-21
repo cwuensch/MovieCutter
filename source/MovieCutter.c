@@ -2061,7 +2061,7 @@ bool CutFileLoad(void)
 
       SegmentMarker[0].Block = 0;
       SegmentMarker[0].Timems = NavGetBlockTimeStamp(0);
-      SegmentMarker[0].Selected = FALSE;
+//      SegmentMarker[0].Selected = FALSE;
       SegmentMarker[NrSegmentMarker - 1].Block = 0xFFFFFFFF;
 
       Offsetms = 0;
@@ -2105,7 +2105,7 @@ bool CutFileLoad(void)
           {
             SegmentMarker[i].Block = CurTimeStamp->BlockNr;
             SegmentMarker[i].Timems = NavGetBlockTimeStamp(SegmentMarker[i].Block);
-            SegmentMarker[i].Selected = FALSE;
+//            SegmentMarker[i].Selected = FALSE;
             MSecToTimeString(SegmentMarker[i].Timems, curTimeStr);
             TAP_SPrint(&LogString[strlen(LogString)], "  -->  newBlock=%lu   newTimeStamp=%s", SegmentMarker[i].Block, curTimeStr);
           }
@@ -2559,7 +2559,10 @@ void OSDInfoDrawProgressbar(bool Force)
           {
             x1 = 34 + (int)((float)653 * SegmentMarker[JumpRequestedSegment].Percent / 100);
             x2 = 34 + (int)((float)653 * SegmentMarker[JumpRequestedSegment + 1].Percent / 100);
-            TAP_Osd_DrawRectangle(rgnInfo, x1, 102, x2 - x1, 10, 2, RGB(73, 206, 239));
+            if (SegmentMarker[JumpRequestedSegment].Selected)
+              TAP_Osd_DrawRectangle(rgnInfo, x1, 102, x2 - x1, 10, 1, RGB(73, 206, 239));
+            else
+              TAP_Osd_DrawRectangle(rgnInfo, x1, 102, x2 - x1, 10, 2, RGB(73, 206, 239));
           }
 
           //Bookmarks: 0% = 31/112, 100% = 683/112
