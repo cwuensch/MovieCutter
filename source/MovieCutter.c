@@ -1395,10 +1395,10 @@ void CleanupCut(void)
   {
     if(FolderEntry.attr == ATTR_NORMAL)
     {
-      strncpy(RecFileName, FolderEntry.name, MAX_FILE_NAME_SIZE - 4);
+      strncpy(RecFileName, FolderEntry.name, MAX_FILE_NAME_SIZE);
       RecFileName[strlen(RecFileName) - 4] = '\0';
       strcat(RecFileName, ".rec");
-      strncpy(MpgFileName, FolderEntry.name, MAX_FILE_NAME_SIZE - 4);
+      strncpy(MpgFileName, FolderEntry.name, MAX_FILE_NAME_SIZE);
       MpgFileName[strlen(MpgFileName) - 4] = '\0';
       strcat(MpgFileName, ".mpg");
       if(!TAP_Hdd_Exist(RecFileName) && !TAP_Hdd_Exist(MpgFileName))
@@ -1413,8 +1413,8 @@ void CleanupCut(void)
   {
     if(FolderEntry.attr == ATTR_NORMAL)
     {
-      strncpy(RecFileName, FolderEntry.name, MAX_FILE_NAME_SIZE - 8);
-      strncpy(MpgFileName, FolderEntry.name, MAX_FILE_NAME_SIZE - 8);
+      strncpy(RecFileName, FolderEntry.name, MAX_FILE_NAME_SIZE);
+      strncpy(MpgFileName, FolderEntry.name, MAX_FILE_NAME_SIZE);
       if (StringEndsWith(RecFileName, ".cut.bak"))
       {
         RecFileName[strlen(RecFileName) - 8] = '\0';
@@ -2018,7 +2018,7 @@ bool CutFileLoad(void)
 
   // Create name of cut-file
   TAP_SPrint(AbsCutName, sizeof(AbsCutName) - 4, "%s/%s", AbsPlaybackDir, PlaybackName);
-  strcat(AbsCutName, ".cut");
+  TAP_SPrint(&AbsCutName[strlen(AbsCutName) - 4], 5, ".cut");
 
   // Try to open cut-File
   HDD_ChangeDir(PlaybackDir);
@@ -2283,7 +2283,7 @@ void CutFileDelete(void)
   TRACEENTER();
 
   HDD_ChangeDir(PlaybackDir);
-  strncpy(CutName, PlaybackName, MAX_FILE_NAME_SIZE - 4);
+  strncpy(CutName, PlaybackName, MAX_FILE_NAME_SIZE);
   CutName[strlen(CutName) - 4] = '\0';
   strcat(CutName, ".cut");
   HDD_Delete2(CutName, PlaybackDir, FALSE);
