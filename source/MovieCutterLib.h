@@ -24,18 +24,14 @@
 // ============================================================================
 //                               TAP-API-Lib
 // ============================================================================
-#undef malloc
-#undef free
-#undef memcpy
-#undef memcmp
-#undef memset
+//#undef memcpy
+//#undef memcmp
+//#undef memset
 #undef sprintf
-#define TAP_MemAlloc  malloc
-#define TAP_MemFree   free
-#define TAP_MemCpy    memcpy
-#define TAP_MemCmp    memcmp
-#define TAP_MemSet    memset
-#define TAP_SPrint    sprintf
+//#define TAP_MemCpy    memcpy
+//#define TAP_MemCmp    memcmp
+//#define TAP_MemSet    memset
+#define TAP_SPrint    snprintf
 
 void HDD_Rename2(const char *FileName, const char *NewFileName, const char *Directory, bool RenameInfNav);
 void HDD_Delete2(const char *FileName, const char *Directory, bool DeleteInfNav);

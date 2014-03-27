@@ -81,6 +81,7 @@ de_054=Dateisystem wird geprüft...
 de_055=WARNUNG! Dateisystem inkonsistent.\nAufnahme vor dem Ausschalten sichern!
 de_056=Prüfung des Dateisystems abgebrochen.
 de_057=Dateisystem scheint einwandfrei.
+de_058=Dateiname oder -pfad ist zu lang!
 
 
 #English
@@ -142,6 +143,7 @@ en_054=Checking file system...
 en_055=WARNING! File system is inconsistent.\nBackup recording before power-off!
 en_056=File system check aborted.
 en_057=File system seems valid.
+en_058=File name or path is too long!
 
 
 #French
@@ -203,6 +205,7 @@ fr_054=Checking file system...
 fr_055=WARNING! File system is inconsistent.\nBackup recording before power-off!
 fr_056=File system check aborted.
 fr_057=File system seems valid.
+fr_058=File name or path is too long!
 
 
 #Dutch
@@ -264,3 +267,4 @@ nl_054=Checking file system...
 nl_055=WARNING! File system is inconsistent.\nBackup recording before power-off!
 nl_056=File system check aborted.
 nl_057=File system seems valid.
+nl_058=File name or path is too long!

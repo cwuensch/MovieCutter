@@ -171,6 +171,7 @@ typedef enum
   LS_CheckFSFailed,
   LS_CheckFSAborted,
   LS_CheckFSSuccess,
+  LS_FileNameTooLong,
   LS_NrStrings
 } tLngStrings;
 
@@ -203,7 +204,7 @@ bool                    fsck_Cancelled;
 // Playback information
 TYPE_PlayInfo           PlayInfo;
 char                    PlaybackName[MAX_FILE_NAME_SIZE + 1];
-char                    AbsPlaybackDir[512];
+char                    AbsPlaybackDir[FBLIB_DIR_SIZE];
 char                   *PlaybackDir = NULL;
 __off64_t               RecFileSize;
 dword                   LastTotalBlocks = 0;
@@ -259,12 +260,12 @@ int TAP_Main(void)
   CreateSettingsDir();
   KeyTranslate(TRUE, &TAP_EventHandler);
 
-  TAP_SPrint(LogString, "***  MovieCutter %s started!  ***", VERSION);
+  TAP_SPrint(LogString, sizeof(LogString), "***  MovieCutter %s started!  ***", VERSION);
   WriteLogMC(PROGRAM_NAME, LogString);
   WriteLogMC(PROGRAM_NAME, "====================================");
-  TAP_SPrint(LogString, "Receiver Model: %s (%u)", GetToppyString(GetSysID()), GetSysID());
+  TAP_SPrint(LogString, sizeof(LogString), "Receiver Model: %s (%u)", GetToppyString(GetSysID()), GetSysID());
   WriteLogMC(PROGRAM_NAME, LogString);
-  TAP_SPrint(LogString, "Firmware: %s", GetApplVer());
+  TAP_SPrint(LogString, sizeof(LogString), "Firmware: %s", GetApplVer());
   WriteLogMC(PROGRAM_NAME, LogString);
 
   // Load Fonts
@@ -284,7 +285,7 @@ int TAP_Main(void)
   // Load Language Strings
   if(!LangLoadStrings(LNGFILENAME, LS_NrStrings, LAN_English, PROGRAM_NAME))
   {
-    TAP_SPrint(LogString, "Language file '%s' not found!", LNGFILENAME);
+    TAP_SPrint(LogString, sizeof(LogString), "Language file '%s' not found!", LNGFILENAME);
     WriteLogMC(PROGRAM_NAME, LogString);
     OSDMenuInfoBoxShow(PROGRAM_NAME " " VERSION, LogString, 500);
     do
@@ -427,6 +428,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       JumpRequestedTime = 0;
       JumpPerformedTime = 0;
 */
+      if (HDD_Exist2("jfs_fsck", "/ProgramFiles")) system("chmod a+x /mnt/hd/ProgramFiles/jfs_fsck &");
       State = AutoOSDPolicy ? ST_WaitForPlayback : ST_InactiveMode;
       break;
     }
@@ -458,26 +460,37 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         sync();
 
         //"Calculate" the file name (.rec or .mpg)
-        strcpy(PlaybackName, PlayInfo.file->name);
+        strncpy(PlaybackName, PlayInfo.file->name, MAX_FILE_NAME_SIZE);
         PlaybackName[strlen(PlaybackName) - 4] = '\0';
 
         //Extract the absolute path to the rec file and change into that dir
-        char *p;
         HDD_GetAbsolutePathByTypeFile(PlayInfo.file, AbsPlaybackDir);
+        AbsPlaybackDir[FBLIB_DIR_SIZE-1] = '\0';
+        if((strlen(PlaybackName) + 18 > MAX_FILE_NAME_SIZE) || (strlen(AbsPlaybackDir) + 20 >= FBLIB_DIR_SIZE))
+        {
+          State = ST_UnacceptedFile;
+          WriteLogMC(PROGRAM_NAME, "File name or path is too long!");
+          ShowErrorMessage(LangGetString(LS_FileNameTooLong));
+          PlaybackRepeatSet(OldRepeatMode);
+          ClearOSD(TRUE);
+          break;
+        }
+
+        char *p;
         p = strstr(AbsPlaybackDir, PlaybackName);
         if(p) *(p-1) = '\0';
 
         if (strncmp(AbsPlaybackDir, TAPFSROOT, strlen(TAPFSROOT)) != 0)
         {
-          char TempStr[512];
-          strcpy(TempStr, AbsPlaybackDir);
-          TAP_SPrint(AbsPlaybackDir, "%s/..%s", TAPFSROOT, &TempStr[4]);
+          char TempStr[FBLIB_DIR_SIZE];
+          strncpy(TempStr, AbsPlaybackDir, sizeof(TempStr) - 1);
+          TAP_SPrint(AbsPlaybackDir, sizeof(AbsPlaybackDir), "%s/..%s", TAPFSROOT, &TempStr[4]);
         }
         PlaybackDir = &AbsPlaybackDir[strlen(TAPFSROOT)];
         HDD_ChangeDir(PlaybackDir);
 
         WriteLogMC(PROGRAM_NAME, "========================================\n");
-        TAP_SPrint(LogString, "Attaching to %s/%s", AbsPlaybackDir, PlaybackName);
+        TAP_SPrint(LogString, sizeof(LogString), "Attaching to %s/%s", AbsPlaybackDir, PlaybackName);
         WriteLogMC(PROGRAM_NAME, LogString);
         WriteLogMC("MovieCutterLib", "----------------------------------------");
 
@@ -492,9 +505,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           break;
         }
 
-        TAP_SPrint(LogString, "File size = %llu Bytes (%lu blocks)", RecFileSize, (dword)(RecFileSize / BLOCKSIZE));
+        TAP_SPrint(LogString, sizeof(LogString), "File size = %llu Bytes (%lu blocks)", RecFileSize, (dword)(RecFileSize / BLOCKSIZE));
         WriteLogMC(PROGRAM_NAME, LogString);
-        TAP_SPrint(LogString, "Reported total blocks: %lu", PlayInfo.totalBlock);
+        TAP_SPrint(LogString, sizeof(LogString), "Reported total blocks: %lu", PlayInfo.totalBlock);
         WriteLogMC(PROGRAM_NAME, LogString);
 
         //Check if it is crypted
@@ -562,16 +575,16 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           {
             // Write duration to log file
             char TimeStr[16];
-            TAP_SPrint(LogString, ".nav-file loaded: %lu different TimeStamps found.", NrTimeStamps);
+            TAP_SPrint(LogString, sizeof(LogString), ".nav-file loaded: %lu different TimeStamps found.", NrTimeStamps);
             WriteLogMC(PROGRAM_NAME, LogString);
             MSecToTimeString(TimeStamps[0].Timems, TimeStr);
-            TAP_SPrint(LogString, "First Timestamp: Block=%lu, Time=%s", TimeStamps[0].BlockNr, TimeStr);
+            TAP_SPrint(LogString, sizeof(LogString), "First Timestamp: Block=%lu, Time=%s", TimeStamps[0].BlockNr, TimeStr);
             WriteLogMC(PROGRAM_NAME, LogString);
             MSecToTimeString(TimeStamps[NrTimeStamps-1].Timems, TimeStr);
-            TAP_SPrint(LogString, "Playback Duration (from nav): %s", TimeStr);
+            TAP_SPrint(LogString, sizeof(LogString), "Playback Duration (from nav): %s", TimeStr);
             WriteLogMC(PROGRAM_NAME, LogString);
             SecToTimeString(60*PlayInfo.duration + PlayInfo.durationSec, TimeStr);
-            TAP_SPrint(LogString, "Playback Duration (from inf): %s", TimeStr);
+            TAP_SPrint(LogString, sizeof(LogString), "Playback Duration (from inf): %s", TimeStr);
             WriteLogMC(PROGRAM_NAME, LogString);
           }
           else
@@ -619,7 +632,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         // Check if nav has correct length!
         if(TimeStamps && (labs(TimeStamps[NrTimeStamps-1].Timems - (1000 * (60*PlayInfo.duration + PlayInfo.durationSec))) > 5000))
         {
-          char  NavLengthWrongStr[512];
+          char  NavLengthWrongStr[128];
           WriteLogMC(PROGRAM_NAME, ".nav file length not matching duration!");
 
           // [COMPATIBILITY LAYER - fill holes in old nav file]
@@ -633,7 +646,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           }
           else
           {
-            TAP_SPrint(NavLengthWrongStr, LangGetString(LS_NavLengthWrong), (TimeStamps[NrTimeStamps-1].Timems/1000) - (60*PlayInfo.duration + PlayInfo.durationSec));
+            TAP_SPrint(NavLengthWrongStr, sizeof(NavLengthWrongStr), LangGetString(LS_NavLengthWrong), (TimeStamps[NrTimeStamps-1].Timems/1000) - (60*PlayInfo.duration + PlayInfo.durationSec));
             if (!ShowConfirmationDialog(NavLengthWrongStr))
             {
               PlaybackRepeatSet(OldRepeatMode);
@@ -1080,7 +1093,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 break;
 
               // Aktionen mit Confirmation-Dialog
-              if (ActionMenuItem==MI_SaveSegments || ActionMenuItem==MI_DeleteSegments || (ActionMenuItem==MI_ClearAll && (BookmarkMode || NrSelectedSegments==0)) || ActionMenuItem==MI_DeleteFile || (ActionMenuItem==MI_ImportBookmarks && NrSegmentMarker>2) || (ActionMenuItem==MI_ExportSegments && NrBookmarks>0))
+              if (ActionMenuItem==MI_SaveSegments || ActionMenuItem==MI_DeleteSegments || (ActionMenuItem==MI_ClearAll && (BookmarkMode || NrSelectedSegments==0)) || (ActionMenuItem==MI_DeleteFile && BookmarkMode) || (ActionMenuItem==MI_ImportBookmarks && NrSegmentMarker>2) || (ActionMenuItem==MI_ExportSegments && NrBookmarks>0))
               {
                 if(!ShowConfirmationDialog(LangGetString(LS_AskConfirmation)))
                 {
@@ -1122,7 +1135,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 case MI_ExportSegments:      ExportSegmentsToBookmarks(); break;
                 case MI_DeleteFile:
                 {
-                  if (BookmarkMode)
+                  if (!BookmarkMode)
                   {
                     OSDMenuSaveMyRegion(rgnSegmentList);
                     /*if(*/!CheckFileSystem(0, 1)/*)
@@ -1382,10 +1395,10 @@ void CleanupCut(void)
   {
     if(FolderEntry.attr == ATTR_NORMAL)
     {
-      strcpy(RecFileName, FolderEntry.name);
+      strncpy(RecFileName, FolderEntry.name, MAX_FILE_NAME_SIZE - 4);
       RecFileName[strlen(RecFileName) - 4] = '\0';
       strcat(RecFileName, ".rec");
-      strcpy(MpgFileName, FolderEntry.name);
+      strncpy(MpgFileName, FolderEntry.name, MAX_FILE_NAME_SIZE - 4);
       MpgFileName[strlen(MpgFileName) - 4] = '\0';
       strcat(MpgFileName, ".mpg");
       if(!TAP_Hdd_Exist(RecFileName) && !TAP_Hdd_Exist(MpgFileName))
@@ -1400,8 +1413,8 @@ void CleanupCut(void)
   {
     if(FolderEntry.attr == ATTR_NORMAL)
     {
-      strcpy(RecFileName, FolderEntry.name);
-      strcpy(MpgFileName, FolderEntry.name);
+      strncpy(RecFileName, FolderEntry.name, MAX_FILE_NAME_SIZE - 8);
+      strncpy(MpgFileName, FolderEntry.name, MAX_FILE_NAME_SIZE - 8);
       if (StringEndsWith(RecFileName, ".cut.bak"))
       {
         RecFileName[strlen(RecFileName) - 8] = '\0';
@@ -1496,12 +1509,12 @@ void ImportBookmarksToSegments(void)
     DeleteAllSegmentMarkers();
 
     // second, add a segment marker for each bookmark
-    TAP_SPrint(LogString, "Importing %d of %d bookmarks", min(NrBookmarks, NRSEGMENTMARKER-2), NrBookmarks);
+    TAP_SPrint(LogString, sizeof(LogString), "Importing %d of %d bookmarks", min(NrBookmarks, NRSEGMENTMARKER-2), NrBookmarks);
     WriteLogMC(PROGRAM_NAME, LogString);
 
     for(i = 0; i < min(NrBookmarks, NRSEGMENTMARKER-2); i++)
     { 
-      TAP_SPrint(LogString, "Bookmark %d @ %lu", i + 1, Bookmarks[i]);
+      TAP_SPrint(LogString, sizeof(LogString), "Bookmark %d @ %lu", i + 1, Bookmarks[i]);
       // Erlaube keinen neuen SegmentMarker zu knapp am Anfang oder Ende oder über totalBlock
       if ((Bookmarks[i] > SegmentMarker[0].Block + 3*BlocksOneSecond) && (Bookmarks[i] + 3*BlocksOneSecond < SegmentMarker[NrSegmentMarker-1].Block))
       {
@@ -1510,7 +1523,7 @@ void ImportBookmarksToSegments(void)
       }
       else
       {
-        TAP_SPrint(&LogString[strlen(LogString)], " -> ignored! (Too close to begin/end.)");
+        TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), " -> ignored! (Too close to begin/end.)");
         WriteLogMC(PROGRAM_NAME, LogString);
       }
     }
@@ -1600,7 +1613,7 @@ bool AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
         SegmentMarker[i].Selected = FALSE;
 
         MSecToTimeString(SegmentMarker[i].Timems, StartTime);
-        TAP_SPrint(LogString, "New marker @ block = %lu, time = %s, percent = %1.1f%%", newBlock, StartTime, SegmentMarker[i].Percent);
+        TAP_SPrint(LogString, sizeof(LogString), "New marker @ block = %lu, time = %s, percent = %1.1f%%", newBlock, StartTime, SegmentMarker[i].Percent);
         WriteLogMC(PROGRAM_NAME, LogString);
         break;
       }
@@ -1764,10 +1777,10 @@ bool ReadBookmarks(void)
     NrBookmarks = 0;
     WriteLogMC(PROGRAM_NAME, "ReadBookmarks: Fatal error - inf cache entry point not found!");
 
-    char s[512];
-    TAP_SPrint(s, "TempRecSlot=%p", TempRecSlot);
+    char s[128];
+    TAP_SPrint(s, sizeof(s), "TempRecSlot=%p", TempRecSlot);
     if(TempRecSlot)
-      TAP_SPrint(&s[strlen(s)], ", *TempRecSlot=%d, HDD_NumberOfRECSlots()=%lu", *TempRecSlot, HDD_NumberOfRECSlots());
+      TAP_SPrint(&s[strlen(s)], sizeof(s)-strlen(s), ", *TempRecSlot=%d, HDD_NumberOfRECSlots()=%lu", *TempRecSlot, HDD_NumberOfRECSlots());
     WriteLogMC(PROGRAM_NAME, s);
   }
 
@@ -1817,7 +1830,7 @@ void ExportSegmentsToBookmarks(void)
     NrBookmarks = 0;
 
     // second, add a bookmark for each SegmentMarker
-    TAP_SPrint(LogString, "Exporting %d of %d segment markers", min(NrSegmentMarker-2, NRBOOKMARKS), NrSegmentMarker-2);
+    TAP_SPrint(LogString, sizeof(LogString), "Exporting %d of %d segment markers", min(NrSegmentMarker-2, NRBOOKMARKS), NrSegmentMarker-2);
     WriteLogMC(PROGRAM_NAME, LogString);
 
     for(i = 1; i <= min(NrSegmentMarker-2, NRBOOKMARKS); i++)
@@ -1992,7 +2005,7 @@ void DeleteAllBookmarks(void)
 // ----------------------------------------------------------------------------
 bool CutFileLoad(void)
 {
-  char                  AbsCutName[512];
+  char                  AbsCutName[FBLIB_DIR_SIZE];
   word                  Version = 0;
   word                  Padding;
   FILE                 *fCut = NULL;
@@ -2004,8 +2017,8 @@ bool CutFileLoad(void)
   TRACEENTER();
 
   // Create name of cut-file
-  TAP_SPrint(AbsCutName, "%s/%s", AbsPlaybackDir, PlaybackName);
-  TAP_SPrint(&AbsCutName[strlen(AbsCutName) - 4], ".cut");
+  TAP_SPrint(AbsCutName, sizeof(AbsCutName) - 4, "%s/%s", AbsPlaybackDir, PlaybackName);
+  strcat(AbsCutName, ".cut");
 
   // Try to open cut-File
   HDD_ChangeDir(PlaybackDir);
@@ -2076,23 +2089,23 @@ bool CutFileLoad(void)
         {
           Offsetms = NavGetBlockTimeStamp(Bookmarks[0]) - SegmentMarker[1].Timems;
           MSecToTimeString(SegmentMarker[i].Timems + Offsetms, curTimeStr);
-          TAP_SPrint(LogString, "Bookmark found! - First segment marker will be moved to time %s. (Offset=%d ms)", curTimeStr, (int)Offsetms);
+          TAP_SPrint(LogString, sizeof(LogString), "Bookmark found! - First segment marker will be moved to time %s. (Offset=%d ms)", curTimeStr, (int)Offsetms);
           WriteLogMC(PROGRAM_NAME, LogString);
         }
 
         MSecToTimeString(SegmentMarker[i].Timems, curTimeStr);
-        TAP_SPrint(LogString, "%2u.)  oldTimeStamp=%s   oldBlock=%lu", i, curTimeStr, SegmentMarker[i].Block);
+        TAP_SPrint(LogString, sizeof(LogString), "%2u.)  oldTimeStamp=%s   oldBlock=%lu", i, curTimeStr, SegmentMarker[i].Block);
         if (Offsetms > 0)
         {
           SegmentMarker[i].Timems += Offsetms;
           MSecToTimeString(SegmentMarker[i].Timems, curTimeStr);
-          TAP_SPrint(&LogString[strlen(LogString)], "  -  movedTimeStamp=%s", curTimeStr);
+          TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "  -  movedTimeStamp=%s", curTimeStr);
         }
 
         if ((SegmentMarker[i].Timems <= CurTimeStamp->Timems) || (CurTimeStamp >= TimeStamps + NrTimeStamps-1))
         {
           if (DeleteSegmentMarker(i)) i--;
-          TAP_SPrint(&LogString[strlen(LogString)], "  -->  Smaller than previous TimeStamp or end of nav reached. Deleted!");
+          TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "  -->  Smaller than previous TimeStamp or end of nav reached. Deleted!");
         }
         else
         {
@@ -2107,12 +2120,12 @@ bool CutFileLoad(void)
             SegmentMarker[i].Timems = NavGetBlockTimeStamp(SegmentMarker[i].Block);
 //            SegmentMarker[i].Selected = FALSE;
             MSecToTimeString(SegmentMarker[i].Timems, curTimeStr);
-            TAP_SPrint(&LogString[strlen(LogString)], "  -->  newBlock=%lu   newTimeStamp=%s", SegmentMarker[i].Block, curTimeStr);
+            TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "  -->  newBlock=%lu   newTimeStamp=%s", SegmentMarker[i].Block, curTimeStr);
           }
           else
           {
             if (DeleteSegmentMarker(i)) i--;
-            TAP_SPrint(&LogString[strlen(LogString)], "  -->  TotalBlocks exceeded. Deleted!");
+            TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "  -->  TotalBlocks exceeded. Deleted!");
           }
         }
         WriteLogMC(PROGRAM_NAME, LogString);
@@ -2130,7 +2143,7 @@ bool CutFileLoad(void)
   {
     if ((i < NrSegmentMarker-1) && (SegmentMarker[i].Block >= PlayInfo.totalBlock))
     {
-      TAP_SPrint(LogString, "SegmentMarker %d (%lu): TotalBlocks exceeded. -> Deleting!", i, SegmentMarker[i].Block);
+      TAP_SPrint(LogString, sizeof(LogString), "SegmentMarker %d (%lu): TotalBlocks exceeded. -> Deleting!", i, SegmentMarker[i].Block);
       WriteLogMC(PROGRAM_NAME, LogString);
       DeleteSegmentMarker(i);
     }
@@ -2152,7 +2165,7 @@ bool CutFileLoad(void)
   if (SegmentMarker[NrSegmentMarker - 1].Block != PlayInfo.totalBlock)
   {
 #ifdef FULLDEBUG
-  TAP_SPrint(LogString, "CutFileLoad: Letzter Segment-Marker %lu ist ungleich TotalBlock %lu!", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
+  TAP_SPrint(LogString, sizeof(LogString), "CutFileLoad: Letzter Segment-Marker %lu ist ungleich TotalBlock %lu!", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
   WriteLogMC(PROGRAM_NAME, LogString);
 #endif
     SegmentMarker[NrSegmentMarker - 1].Block = PlayInfo.totalBlock;
@@ -2181,7 +2194,7 @@ bool CutFileLoad(void)
       SegmentMarker[i].Timems = (newTime) ? newTime : oldTime;
       SecToTimeString(oldTime, oldTimeStr);
       MSecToTimeString(newTime, newTimeStr);
-      TAP_SPrint(LogString, " %s%2d.)  BlockNr=%8lu   oldTimeStamp=%s   newTimeStamp=%s", (labs(oldTime*1000-newTime) > 1000) ? "!!" : "  ", i+1, SegmentMarker[i].Block, oldTimeStr, newTimeStr);
+      TAP_SPrint(LogString, sizeof(LogString), " %s%2d.)  BlockNr=%8lu   oldTimeStamp=%s   newTimeStamp=%s", (labs(oldTime*1000-newTime) > 1000) ? "!!" : "  ", i+1, SegmentMarker[i].Block, oldTimeStr, newTimeStr);
       WriteLogMC(PROGRAM_NAME, LogString);
     }
   }
@@ -2192,7 +2205,7 @@ bool CutFileLoad(void)
 
 void CutFileSave(void)
 {
-  char                  CutName[MAX_FILE_NAME_SIZE+1], AbsCutName[512];
+  char                  CutName[MAX_FILE_NAME_SIZE+1], AbsCutName[FBLIB_DIR_SIZE];
   word                  Version;
   FILE                 *fCut = NULL;
 
@@ -2213,14 +2226,14 @@ void CutFileSave(void)
 //  if(RecFileSize <= 0)
 
   Version = CUTFILEVERSION;
-  strcpy(CutName, PlaybackName);
-  TAP_SPrint(&CutName[strlen(CutName) - 4], ".cut");
-  TAP_SPrint(AbsCutName, "%s/%s", AbsPlaybackDir, CutName);
+  strncpy(CutName, PlaybackName, MAX_FILE_NAME_SIZE);
+  TAP_SPrint(&CutName[strlen(CutName) - 4], 5, ".cut");
+  TAP_SPrint(AbsCutName, sizeof(AbsCutName), "%s/%s", AbsPlaybackDir, CutName);
 
 #ifdef FULLDEBUG
-  char CurDir[512];
+  char CurDir[FBLIB_DIR_SIZE];
   HDD_TAP_GetCurrentDir(CurDir);
-  TAP_SPrint(LogString, "CutFileSave()! CurrentDir: %s, PlaybackName: %s, CutFileName: %s", CurDir, PlaybackName, CutName);
+  TAP_SPrint(LogString, sizeof(LogString), "CutFileSave()! CurrentDir: %s, PlaybackName: %s, CutFileName: %s", CurDir, PlaybackName, CutName);
   WriteLogMC(PROGRAM_NAME, LogString);
 #endif
 
@@ -2270,7 +2283,7 @@ void CutFileDelete(void)
   TRACEENTER();
 
   HDD_ChangeDir(PlaybackDir);
-  strcpy(CutName, PlaybackName);
+  strncpy(CutName, PlaybackName, MAX_FILE_NAME_SIZE - 4);
   CutName[strlen(CutName) - 4] = '\0';
   strcat(CutName, ".cut");
   HDD_Delete2(CutName, PlaybackDir, FALSE);
@@ -2289,7 +2302,7 @@ void CutDumpList(void)
   for(i = 0; i < NrSegmentMarker; i++)
   {
     MSecToTimeString(SegmentMarker[i].Timems, TimeString);
-    TAP_SPrint(LogString, "%02d: %010d %s %03d %3s %3s", i, (int)SegmentMarker[i].Block, TimeString, (int)SegmentMarker[i].Percent, SegmentMarker[i].Selected ? "yes" : "no", (i == ActiveSegment ? "*" : ""));
+    TAP_SPrint(LogString, sizeof(LogString), "%02d: %010d %s %03d %3s %3s", i, (int)SegmentMarker[i].Block, TimeString, (int)SegmentMarker[i].Percent, SegmentMarker[i].Selected ? "yes" : "no", (i == ActiveSegment ? "*" : ""));
     WriteLogMC(PROGRAM_NAME, LogString);
   }
 
@@ -2380,7 +2393,7 @@ void OSDSegmentListDrawList(void)
     NrPages = ((NrSegmentMarker - 2) / 10) + 1;
     p       = (CurrentSegment / 10) + 1;
     PageStr = LangGetString(LS_PageStr);
-    TAP_SPrint(PageNrStr, "%d/%d", p, NrPages);
+    TAP_SPrint(PageNrStr, sizeof(PageNrStr), "%d/%d", p, NrPages);
 
     PosX = StartTextField_X + 11;
     PosY = BelowTextArea_Y + 3;
@@ -2413,8 +2426,8 @@ void OSDSegmentListDrawList(void)
         PosY = StartTextField_Y + i*(TextFieldHeight+TextFieldDist) + 3;
         UseColor = (SegmentMarker[Start + i].Selected) ? C1 : C2;
 
-        TAP_SPrint(OutStr, "%d.", Start + i + 1);
-        if (Start + i + 1 >= 100) TAP_SPrint(OutStr, "00.");
+        TAP_SPrint(OutStr, sizeof(OutStr), "%d.", Start + i + 1);
+        if (Start + i + 1 >= 100) TAP_SPrint(OutStr, sizeof(OutStr), "00.");
         FMUC_PutString(rgnSegmentList, PosX, PosY, PosX + NrWidth,    OutStr,                                                               UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_RIGHT);
         PosX += NrWidth;
         FMUC_PutString(rgnSegmentList, PosX, PosY, PosX + TimeWidth,  (Start+i == 0) ? LangGetString(LS_BeginStr) : StartTime,              UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_RIGHT);
@@ -2628,7 +2641,7 @@ void OSDInfoDrawCurrentPosition(bool Force)
         SecToTimeString(Time, TimePctString);
         Percent = ((float)PlayInfo.currentBlock / PlayInfo.totalBlock) * 100.0;
         if (abs(Percent) >= 999) Percent = 999.0;
-        TAP_SPrint(PercentString, " (%1.1f%%)", Percent);
+        TAP_SPrint(PercentString, sizeof(PercentString), " (%1.1f%%)", Percent);
         strcat(TimePctString, PercentString);
         TAP_Osd_FillBox(rgnInfo, 60, 48, 283, 31, RGB(30, 30, 30));
         fw = FMUC_GetStringWidth(TimePctString, &Calibri_14_FontDataUC);
@@ -2714,7 +2727,7 @@ void OSDInfoDrawRecName(void)
 
   if(rgnInfo)
   {
-    strcpy(NameStr, PlaybackName);
+    strncpy(NameStr, PlaybackName, MAX_FILE_NAME_SIZE);
     NameStr[strlen(NameStr) - 4] = '\0';
 
     if (FMUC_GetStringWidth(NameStr, &Calibri_14_FontDataUC) + TimeWidth + 65 > 500)
@@ -2848,7 +2861,7 @@ void OSDInfoDrawClock(bool Force)
     TAP_GetTime(&mjd, &hour, &min, &sec);
     if((min != LastMin) || Force)
     {
-      TAP_SPrint(Time, "%2.2d:%2.2d", hour, min);
+      TAP_SPrint(Time, sizeof(Time), "%2.2d:%2.2d", hour, min);
       TAP_Osd_FillBox(rgnInfo, 638, 65, 60, 25, RGB(16, 16, 16));
       FMUC_PutString(rgnInfo, 638, 65, 710, Time, COLOR_White, COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT);
       LastMin = min;
@@ -2888,9 +2901,9 @@ void OSDInfoDrawMinuteJump(void)
       TAP_Osd_PutGd(rgnInfo, 507 + 1 + _Button_SkipLeft_Gd.width, 8, &_Button_SkipRight_Gd, TRUE);
 
       if (MinuteJump)
-        TAP_SPrint(InfoStr, "%lu'", MinuteJump);
+        TAP_SPrint(InfoStr, sizeof(InfoStr), "%lu'", MinuteJump);
       else
-        TAP_SPrint(InfoStr, "BM");
+        TAP_SPrint(InfoStr, sizeof(InfoStr), "BM");
       FMUC_PutString(rgnInfo, 508, 26, 555, InfoStr, COLOR_White, COLOR_None, &Calibri_10_FontDataUC, TRUE, ALIGN_CENTER);
     }
     TAP_Osd_Sync();
@@ -3407,7 +3420,7 @@ void ActionMenuDraw(void)
           DisplayStr = LangGetString(LS_Save1Segment);
         else
         {
-          TAP_SPrint(TempStr, LangGetString(LS_SaveNrSegments), NrSelectedSegments);
+          TAP_SPrint(TempStr, sizeof(TempStr), LangGetString(LS_SaveNrSegments), NrSelectedSegments);
           DisplayStr = TempStr;
         }
         break;
@@ -3423,7 +3436,7 @@ void ActionMenuDraw(void)
           DisplayStr = LangGetString(LS_Delete1Segment);
         else
         {
-          TAP_SPrint(TempStr, LangGetString(LS_DeleteNrSegments), NrSelectedSegments);
+          TAP_SPrint(TempStr, sizeof(TempStr), LangGetString(LS_DeleteNrSegments), NrSelectedSegments);
           DisplayStr = TempStr;
         }
         break;
@@ -3465,8 +3478,11 @@ void ActionMenuDraw(void)
       }
       case MI_DeleteFile:
       {
-        if (BookmarkMode)
+        if (!BookmarkMode)
+        {
           DisplayStr = LangGetString(LS_FileSystemCheck);
+          DisplayColor = RGB(80, 240, 80);
+        }
         else
         {
           DisplayStr = LangGetString(LS_DeleteFile);
@@ -3702,14 +3718,14 @@ void MovieCutterProcess(bool KeepCut)
   {
     CutFileSave();
     char CutName[MAX_FILE_NAME_SIZE + 1], BackupCutName[MAX_FILE_NAME_SIZE + 1];
-    strcpy(CutName, PlaybackName);
-    TAP_SPrint(&CutName[strlen(CutName) - 4], ".cut");
-    TAP_SPrint(BackupCutName, "%s.bak", CutName);
+    strncpy(CutName, PlaybackName, MAX_FILE_NAME_SIZE);
+    TAP_SPrint(&CutName[strlen(CutName) - 4], 5, ".cut");
+    TAP_SPrint(BackupCutName, sizeof(BackupCutName), "%s.bak", CutName);
     if (HDD_Exist2(BackupCutName, PlaybackDir)) HDD_Delete2(BackupCutName, PlaybackDir, FALSE);
     HDD_Rename2(CutName, BackupCutName, PlaybackDir, FALSE);
   }
   CutFileSave();
-//  TAP_SPrint(LogString, "cp \"%s/%s.cut\" \"%s/%s.cut.bak\"", AbsPlaybackDir, BackupCutName, AbsPlaybackDir, BackupCutName);
+//  TAP_SPrint(LogString, sizeof(LogString), "cp \"%s/%s.cut\" \"%s/%s.cut.bak\"", AbsPlaybackDir, BackupCutName, AbsPlaybackDir, BackupCutName);
 //  system(LogString);
 
   // Zähle die ausgewählten Segmente
@@ -3778,7 +3794,7 @@ void MovieCutterProcess(bool KeepCut)
 //      NoPlaybackCheck = TRUE;
       HDD_ChangeDir(PlaybackDir);
 
-      TAP_SPrint(LogString, "Processing segment %u", WorkingSegment);
+      TAP_SPrint(LogString, sizeof(LogString), "Processing segment %u", WorkingSegment);
       WriteLogMC(PROGRAM_NAME, LogString);
 
       // Ermittlung der Schnittpositionen
@@ -3811,7 +3827,7 @@ void MovieCutterProcess(bool KeepCut)
       if (CutEnding)
       {
         // Umbenennen der Original-Aufnahme zu CutFileName
-        TAP_SPrint(LogString, "Renaming original playback file '%s' to '%s'", PlaybackName, CutFileName);
+        TAP_SPrint(LogString, sizeof(LogString), "Renaming original playback file '%s' to '%s'", PlaybackName, CutFileName);
         WriteLogMC(PROGRAM_NAME, LogString);
         HDD_Rename2(PlaybackName, CutFileName, PlaybackDir, TRUE);
       }
@@ -3823,6 +3839,7 @@ void MovieCutterProcess(bool KeepCut)
       }
       system("hdparm -f /dev/sda");
       system("hdparm -f /dev/sdb");
+      system("hdparm -f /dev/sdc");
       HDD_ChangeDir(PlaybackDir);
 
       // Schnittoperation
@@ -3833,7 +3850,7 @@ void MovieCutterProcess(bool KeepCut)
       RecFileSize = 0;
       if(HDD_Exist2(PlaybackName, PlaybackDir))
         HDD_GetFileSizeAndInode(PlaybackDir, PlaybackName, NULL, &RecFileSize);
-      TAP_SPrint(LogString, "Size of the new playback file (after cut): %llu", RecFileSize); 
+      TAP_SPrint(LogString, sizeof(LogString), "Size of the new playback file (after cut): %llu", RecFileSize); 
       WriteLogMC(PROGRAM_NAME, LogString);
 
       // Source- und CutFile sind vertauscht - falls Schnitt fehlgeschlagen, reparieren
@@ -3845,20 +3862,20 @@ void MovieCutterProcess(bool KeepCut)
         }
         else
         {
-          TAP_SPrint(LogString, "Cut failed! Renaming source file '%s' back to '%s'", CutFileName, PlaybackName); 
+          TAP_SPrint(LogString, sizeof(LogString), "Cut failed! Renaming source file '%s' back to '%s'", CutFileName, PlaybackName); 
           WriteLogMC(PROGRAM_NAME, LogString);
           HDD_Delete2(PlaybackName, PlaybackDir, TRUE);
           HDD_Rename2(CutFileName, PlaybackName, PlaybackDir, TRUE);
 
           if(HDD_Exist2(PlaybackName, PlaybackDir))
             HDD_GetFileSizeAndInode(PlaybackDir, PlaybackName, NULL, &RecFileSize);
-          TAP_SPrint(LogString, "Size of the restored playback file: %llu", RecFileSize); 
+          TAP_SPrint(LogString, sizeof(LogString), "Size of the restored playback file: %llu", RecFileSize); 
           WriteLogMC(PROGRAM_NAME, LogString);
         }
 
         char PlaybackNavBak[MAX_FILE_NAME_SIZE + 1], CutFileNavBak[MAX_FILE_NAME_SIZE + 1];
-        TAP_SPrint(PlaybackNavBak, "%s.nav.bak", PlaybackName);
-        TAP_SPrint(CutFileNavBak, "%s.nav.bak", CutFileName);
+        TAP_SPrint(PlaybackNavBak, sizeof(PlaybackNavBak), "%s.nav.bak", PlaybackName);
+        TAP_SPrint(CutFileNavBak,  sizeof(CutFileNavBak),  "%s.nav.bak", CutFileName);
         if (HDD_Exist2(CutFileNavBak, PlaybackDir))
         {
           if (HDD_Exist2(PlaybackNavBak, PlaybackDir)) HDD_Delete2(PlaybackNavBak, PlaybackDir, FALSE);
@@ -3882,10 +3899,10 @@ void MovieCutterProcess(bool KeepCut)
         HDD_ChangeDir(PlaybackDir);
 
 #ifdef FULLDEBUG
-        TAP_SPrint(LogString, "%d iterations needed to get valid PlaybackInfo!", j);
+        TAP_SPrint(LogString, sizeof(LogString), "%d iterations needed to get valid PlaybackInfo!", j);
         WriteLogMC(PROGRAM_NAME, LogString);
 #endif
-        TAP_SPrint(LogString, "Reported new totalBlock = %lu", PlayInfo.totalBlock);
+        TAP_SPrint(LogString, sizeof(LogString), "Reported new totalBlock = %lu", PlayInfo.totalBlock);
         WriteLogMC(PROGRAM_NAME, LogString);
       }
 
@@ -3945,7 +3962,7 @@ void MovieCutterProcess(bool KeepCut)
       if(SegmentMarker[NrSegmentMarker-1].Block != PlayInfo.totalBlock)
       {
         #ifdef FULLDEBUG
-          TAP_SPrint(LogString, "MovieCutterProcess: Letzter Segment-Marker %lu ist ungleich TotalBlock %lu!", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
+          TAP_SPrint(LogString, sizeof(LogString), "MovieCutterProcess: Letzter Segment-Marker %lu ist ungleich TotalBlock %lu!", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
           WriteLogMC(PROGRAM_NAME, LogString);
         #endif
         SegmentMarker[NrSegmentMarker-1].Block = PlayInfo.totalBlock;
@@ -4023,6 +4040,7 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
   }
   system("hdparm -f /dev/sda");
   system("hdparm -f /dev/sdb");
+  system("hdparm -f /dev/sdc");
   HDD_ChangeDir(PlaybackDir);
 
   //Check file system consistency and show a warning
@@ -4060,7 +4078,7 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
           if(p) {p += 6; p2 = strstr(p, "\n");}
           if(p2) *p2 = '\0';
         }
-        TAP_SPrint(ErrorString, "%s\n%s", LangGetString(LS_CheckFSFailed), (p) ? p : "");
+        TAP_SPrint(ErrorString, sizeof(ErrorString), "%s\n%s", LangGetString(LS_CheckFSFailed), (p) ? p : "");
         ShowErrorMessage(ErrorString);
       }
     } */
@@ -4151,7 +4169,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd)
   FILE                 *fLogFile = NULL, *fPidFile = NULL;
   char                 *LogBuffer = NULL, *ErrorString = NULL, *p = NULL, *p2 = NULL;
   char                  CommandLine[512];
-  char                  MountPoint[512], DeviceNode[20];
+  char                  MountPoint[FBLIB_DIR_SIZE], DeviceNode[20];
   char                  PidStr[13];
   dword                 fsck_Pid = 0;
   dword                 StartTime;
@@ -4169,25 +4187,25 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd)
 //  OSDMenuSaveMyRegion(rgnSegmentList);
   OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), ProgressStart, ProgressEnd, NULL);
 
-//  remove("/tmp/fsck.log");
+  remove("/tmp/fsck.log");
 //  remove("/tmp/fsck.pid");
 
   LogBuffer = (char*) TAP_MemAlloc(BufSize);
   if (LogBuffer)
   {
     // --- 1.) Detect the device node of the partition to be checked ---
-    TAP_SPrint(DeviceNode, "/dev/sda2");
+    TAP_SPrint(DeviceNode, sizeof(DeviceNode), "/dev/sda2");
 
     // Falls Pfad mit '/..' beginnt, Rückschritt entfernen und durch '/mnt' ersetzen
     if (strncmp(PlaybackDir, "/../", 4) == 0)
     {
-      TAP_SPrint(MountPoint, "/mnt%s/", &PlaybackDir[3]);
+      TAP_SPrint(MountPoint, sizeof(MountPoint), "/mnt%s/", &PlaybackDir[3]);
       // wähle die ersten 2 Pfadebenen (/mnt/sdb2)
       i = 2;
     }
     else
     {
-      TAP_SPrint(MountPoint, "%s/", AbsPlaybackDir);
+      TAP_SPrint(MountPoint, sizeof(MountPoint), "%s/", AbsPlaybackDir);
       // wähle die ersten 4 Pfadebenen (/mnt/hd/DataFiles/WD)
       i = 4;
     }
@@ -4203,7 +4221,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd)
     TAP_PrintNet("MountPoint: '%s'", MountPoint);
     
     // Mount-Point in der Mount-Tabelle suchen
-    TAP_SPrint(CommandLine, "mount | egrep \"%s\" > /tmp/fsck.dev", MountPoint);  // > /tmp/fsck.dev
+    TAP_SPrint(CommandLine, sizeof(CommandLine), "mount | egrep \"%s\" > /tmp/fsck.dev", MountPoint);  // > /tmp/fsck.dev
     system(CommandLine);
 
     // Device-Node aus der Mount-Tabelle auslesen
@@ -4219,12 +4237,12 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd)
     }
     TAP_PrintNet(" -> DeviceNode: '%s'\n", DeviceNode);
 
-    TAP_SPrint(LogString, "CheckFileSystem: Checking file system of device '%s'...", DeviceNode);
+    TAP_SPrint(LogString, sizeof(LogString), "CheckFileSystem: Checking file system of device '%s'...", DeviceNode);
     WriteLogMC(PROGRAM_NAME, LogString);
 
     // --- 2.) Run fsck and create a log file ---
     StartTime = TF2UnixTime(Now(NULL));
-    TAP_SPrint(CommandLine, "%s/ProgramFiles/jfs_fsck -n -v %s > /tmp/fsck.log & echo $! > /tmp/fsck.pid", TAPFSROOT, DeviceNode);  // > /tmp/fsck.pid
+    TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/jfs_fsck -n -v %s > /tmp/fsck.log & echo $! > /tmp/fsck.pid", TAPFSROOT, DeviceNode);  // > /tmp/fsck.pid
     system(CommandLine);
 
     //Get the PID of the fsck-Process
@@ -4239,7 +4257,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd)
 
     //Wait for termination of fsck
     i = 0;
-    TAP_SPrint(CommandLine, "/proc/%lu", fsck_Pid);
+    TAP_SPrint(CommandLine, sizeof(CommandLine), "/proc/%lu", fsck_Pid);
     while (access(CommandLine, F_OK) != -1)
     {
 //      BytesRead += fread(&LogBuffer[BytesRead], 1, BufSize-BytesRead-1, fLogFile);
@@ -4253,7 +4271,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd)
       if(fsck_Cancelled)
       {
         char KillCommand[16];
-        TAP_SPrint(KillCommand, "kill %lu", fsck_Pid);
+        TAP_SPrint(KillCommand, sizeof(KillCommand), "kill %lu", fsck_Pid);
         system(KillCommand);
       }
     }
@@ -4296,7 +4314,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd)
       WriteLogMC(PROGRAM_NAME, "CheckFileSystem() E1c02.");
 
     // Copy the log to MovieCutter folder
-    TAP_SPrint(CommandLine, "%s/ProgramFiles/Settings/MovieCutter/fsck.log", TAPFSROOT);
+    TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/Settings/MovieCutter/fsck.log", TAPFSROOT);
     fLogFile = fopen(CommandLine, "r+b");
     if(fLogFile)
     {
@@ -4337,10 +4355,15 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd)
         else
         {
           p = strstr(ErrorString, "Files/");
-          if(p)  {p += 6; p2 = strstr(p, "\n");}
-          if(p2) *p2 = '\0';
+          if(p)
+          {
+            p += 6; p2 = strstr(p, "\n");
+            if(p2) *p2 = '\0';
+          }
+          else
+            p = "(-> falscher Alarm?)";
         }
-        TAP_SPrint(LogString, "%s\n%s", LangGetString(LS_CheckFSFailed), (p && strlen(p)<=80) ? p : "");
+        TAP_SPrint(LogString, sizeof(LogString), "%s\n%s", LangGetString(LS_CheckFSFailed), (p && strlen(p)<=80) ? p : "");
         ShowErrorMessage(LogString);
       }
     }
@@ -4424,13 +4447,13 @@ bool PatchOldNavFile(char *SourceFileName, bool isHD)
   char                  BakFileName[MAX_FILE_NAME_SIZE + 1];
   tnavSD               *navRecs = NULL;
   size_t                navsRead, i;
-  char                  AbsFileName[512];
+  char                  AbsFileName[FBLIB_DIR_SIZE];
 
   TRACEENTER();
 
   HDD_ChangeDir(PlaybackDir);
-  TAP_SPrint(FileName, "%s.nav", SourceFileName);
-  TAP_SPrint(BakFileName, "%s.nav.bak", SourceFileName);
+  TAP_SPrint(FileName, sizeof(FileName), "%s.nav", SourceFileName);
+  TAP_SPrint(BakFileName, sizeof(BakFileName), "%s.nav.bak", SourceFileName);
 
   //If nav already patched -> exit function
   if (HDD_Exist2(BakFileName, PlaybackDir))
@@ -4454,7 +4477,7 @@ bool PatchOldNavFile(char *SourceFileName, bool isHD)
   HDD_Rename2(FileName, BakFileName, PlaybackDir, FALSE);
 
   //Open the original nav
-  TAP_SPrint(AbsFileName, "%s/%s", AbsPlaybackDir, BakFileName);
+  TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s", AbsPlaybackDir, BakFileName);
   fSourceNav = fopen(AbsFileName, "rb");
   if(!fSourceNav)
   {
@@ -4465,7 +4488,7 @@ bool PatchOldNavFile(char *SourceFileName, bool isHD)
   }
 
   //Create and open the new source nav
-  TAP_SPrint(AbsFileName, "%s/%s", AbsPlaybackDir, FileName);
+  TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s", AbsPlaybackDir, FileName);
   fNewNav = fopen(AbsFileName, "wb");
   if(!fNewNav)
   {
@@ -4507,7 +4530,7 @@ bool PatchOldNavFile(char *SourceFileName, bool isHD)
       {
         Difference += (navRecs[i].Timems - LastTime) - 1000;
 
-        TAP_SPrint(LogString, "  - Gap found at nav record nr. %lu:  Offset=%llu, TimeStamp(before)=%lu, TimeStamp(after)=%lu, GapSize=%lu", (dword)navsCount /*(ftell(fSourceNav)/sizeof(tnavSD) - navsRead + i) / ((isHD) ? 2 : 1)*/, ((off_t)(navRecs[i].PHOffsetHigh) << 32) | navRecs[i].PHOffset, navRecs[i].Timems, navRecs[i].Timems-Difference, navRecs[i].Timems-LastTime);
+        TAP_SPrint(LogString, sizeof(LogString), "  - Gap found at nav record nr. %lu:  Offset=%llu, TimeStamp(before)=%lu, TimeStamp(after)=%lu, GapSize=%lu", (dword)navsCount /*(ftell(fSourceNav)/sizeof(tnavSD) - navsRead + i) / ((isHD) ? 2 : 1)*/, ((off_t)(navRecs[i].PHOffsetHigh) << 32) | navRecs[i].PHOffset, navRecs[i].Timems, navRecs[i].Timems-Difference, navRecs[i].Timems-LastTime);
         WriteLogMC(PROGRAM_NAME, LogString);
       }
       LastTime = navRecs[i].Timems;
@@ -4533,13 +4556,13 @@ bool PatchOldNavFileHD(char *SourceFileName)
   char                  BakFileName[MAX_FILE_NAME_SIZE + 1];
   tnavHD               *navRecs = NULL;
   size_t                navsRead, i;
-  char                  AbsFileName[512];
+  char                  AbsFileName[FBLIB_DIR_SIZE];
 
   TRACEENTER();
 
   HDD_ChangeDir(PlaybackDir);
-  TAP_SPrint(FileName, "%s.nav", SourceFileName);
-  TAP_SPrint(BakFileName, "%s.nav.bak", SourceFileName);
+  TAP_SPrint(FileName, sizeof(FileName), "%s.nav", SourceFileName);
+  TAP_SPrint(BakFileName, sizeof(BakFileName), "%s.nav.bak", SourceFileName);
 
   //If nav already patched -> exit function
   if (HDD_Exist2(BakFileName, PlaybackDir))
@@ -4563,7 +4586,7 @@ bool PatchOldNavFileHD(char *SourceFileName)
   TAP_Hdd_Rename(FileName, BakFileName);
 
   //Open the original nav
-  TAP_SPrint(AbsFileName, "%s%s/%s.nav.bak", TAPFSROOT, PlaybackDir, SourceFileName);
+  TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s%s/%s.nav.bak", TAPFSROOT, PlaybackDir, SourceFileName);
   fSourceNav = fopen(AbsFileName, "rb");
   if(!fSourceNav)
   {
@@ -4574,7 +4597,7 @@ bool PatchOldNavFileHD(char *SourceFileName)
   }
 
   //Create and open the new source nav
-  TAP_SPrint(FileName, "%s.nav", SourceFileName);
+  TAP_SPrint(FileName, sizeof(FileName), "%s.nav", SourceFileName);
   HDD_Delete2(FileName, PlaybackDir, FALSE);
   TAP_Hdd_Create(FileName, ATTR_NORMAL);
   fNewNav = TAP_Hdd_Fopen(FileName);
@@ -4615,7 +4638,7 @@ bool PatchOldNavFileHD(char *SourceFileName)
       {
         Difference += (navRecs[i].Timems - LastTime) - 1000;
 
-        TAP_SPrint(LogString, "  - Gap found at nav record nr. %lu:  Offset=%llu, TimeStamp(before)=%lu, TimeStamp(after)=%lu, GapSize=%lu", (dword)navsCount /*ftell(fSourceNav)/sizeof(tnavHD) - navsRead + i*/, ((off_t)(navRecs[i].SEIOffsetHigh) << 32) | navRecs[i].SEIOffsetLow, navRecs[i].Timems, navRecs[i].Timems-Difference, navRecs[i].Timems-LastTime);
+        TAP_SPrint(LogString, sizeof(LogString), "  - Gap found at nav record nr. %lu:  Offset=%llu, TimeStamp(before)=%lu, TimeStamp(after)=%lu, GapSize=%lu", (dword)navsCount /*ftell(fSourceNav)/sizeof(tnavHD) - navsRead + i*/, ((off_t)(navRecs[i].SEIOffsetHigh) << 32) | navRecs[i].SEIOffsetLow, navRecs[i].Timems, navRecs[i].Timems-Difference, navRecs[i].Timems-LastTime);
         WriteLogMC(PROGRAM_NAME, LogString);
       }
       LastTime = navRecs[i].Timems;
