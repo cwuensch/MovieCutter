@@ -258,6 +258,8 @@ int TAP_Main(void)
     return 0;
   }
 
+  char HDDModel[41], HDDSerial[21], HDDFirmware[9];
+
   CreateSettingsDir();
   KeyTranslate(TRUE, &TAP_EventHandler);
 
@@ -268,6 +270,11 @@ int TAP_Main(void)
   WriteLogMC(PROGRAM_NAME, LogString);
   TAP_SPrint(LogString, sizeof(LogString), "Firmware: %s", GetApplVer());
   WriteLogMC(PROGRAM_NAME, LogString);
+  if (HDD_GetHddID(HDDModel, HDDSerial, HDDFirmware))
+  {
+    TAP_SPrint(LogString, sizeof(LogString), "Hard disk: %s, FW %s, Serial: %s", HDDModel, HDDSerial, HDDFirmware);
+    WriteLogMC(PROGRAM_NAME, LogString);
+  }
 
   // Load Fonts
   if (!(FMUC_LoadFontFile("Calibri_10.ufnt", &Calibri_10_FontDataUC)
@@ -463,12 +470,13 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         WriteLogMC(PROGRAM_NAME, "========================================\n");
 
         //"Calculate" the file name (.rec or .mpg)
-        strncpy(PlaybackName, PlayInfo.file->name, MAX_FILE_NAME_SIZE);
+        strncpy(PlaybackName, PlayInfo.file->name, sizeof(PlaybackName));
+        PlaybackName[MAX_FILE_NAME_SIZE] = '\0';
         PlaybackName[strlen(PlaybackName) - 4] = '\0';
 
         //Extract the absolute path to the rec file and change into that dir
         HDD_GetAbsolutePathByTypeFile(PlayInfo.file, AbsPlaybackDir);
-        AbsPlaybackDir[FBLIB_DIR_SIZE-1] = '\0';
+        AbsPlaybackDir[FBLIB_DIR_SIZE - 1] = '\0';
         if((strlen(PlaybackName) + 18 > MAX_FILE_NAME_SIZE) || (strlen(AbsPlaybackDir) + 20 >= FBLIB_DIR_SIZE))  // 18 = ' (Cut-123)' + '.nav.bak' | 20 = ' (Cut-123)' + '.bak' + '/hd/..'
         {
           State = ST_UnacceptedFile;
@@ -486,7 +494,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         if (strncmp(AbsPlaybackDir, TAPFSROOT, strlen(TAPFSROOT)) != 0)
         {
           char TempStr[FBLIB_DIR_SIZE];
-          strncpy(TempStr, AbsPlaybackDir, sizeof(TempStr) - 1);
+          strncpy(TempStr, AbsPlaybackDir, sizeof(TempStr));
           TAP_SPrint(AbsPlaybackDir, sizeof(AbsPlaybackDir), "%s/..%s", TAPFSROOT, &TempStr[4]);
         }
         PlaybackDir = &AbsPlaybackDir[strlen(TAPFSROOT)];
@@ -1397,10 +1405,12 @@ void CleanupCut(void)
   {
     if(FolderEntry.attr == ATTR_NORMAL)
     {
-      strncpy(RecFileName, FolderEntry.name, MAX_FILE_NAME_SIZE);
+      strncpy(RecFileName, FolderEntry.name, sizeof(RecFileName));
+      RecFileName[MAX_FILE_NAME_SIZE] = '\0';
       RecFileName[strlen(RecFileName) - 4] = '\0';
       strcat(RecFileName, ".rec");
-      strncpy(MpgFileName, FolderEntry.name, MAX_FILE_NAME_SIZE);
+      strncpy(MpgFileName, FolderEntry.name, sizeof(MpgFileName));
+      MpgFileName[MAX_FILE_NAME_SIZE] = '\0';
       MpgFileName[strlen(MpgFileName) - 4] = '\0';
       strcat(MpgFileName, ".mpg");
       if(!TAP_Hdd_Exist(RecFileName) && !TAP_Hdd_Exist(MpgFileName))
@@ -1415,8 +1425,10 @@ void CleanupCut(void)
   {
     if(FolderEntry.attr == ATTR_NORMAL)
     {
-      strncpy(RecFileName, FolderEntry.name, MAX_FILE_NAME_SIZE);
-      strncpy(MpgFileName, FolderEntry.name, MAX_FILE_NAME_SIZE);
+      strncpy(RecFileName, FolderEntry.name, sizeof(RecFileName));
+      RecFileName[MAX_FILE_NAME_SIZE] = '\0';
+      strncpy(MpgFileName, FolderEntry.name, sizeof(MpgFileName));
+      MpgFileName[MAX_FILE_NAME_SIZE] = '\0';
       if (StringEndsWith(RecFileName, ".cut.bak"))
       {
         RecFileName[strlen(RecFileName) - 8] = '\0';
@@ -2230,7 +2242,8 @@ void CutFileSave(void)
 //  if(RecFileSize <= 0)
 
   Version = CUTFILEVERSION;
-  strncpy(CutName, PlaybackName, MAX_FILE_NAME_SIZE);
+  strncpy(CutName, PlaybackName, sizeof(CutName));
+  CutName[MAX_FILE_NAME_SIZE] = '\0';
   TAP_SPrint(&CutName[strlen(CutName) - 4], 5, ".cut");
   TAP_SPrint(AbsCutName, sizeof(AbsCutName), "%s/%s", AbsPlaybackDir, CutName);
 
@@ -2287,7 +2300,8 @@ void CutFileDelete(void)
   TRACEENTER();
 
   HDD_ChangeDir(PlaybackDir);
-  strncpy(CutName, PlaybackName, MAX_FILE_NAME_SIZE);
+  strncpy(CutName, PlaybackName, sizeof(CutName));
+  CutName[MAX_FILE_NAME_SIZE] = '\0';
   CutName[strlen(CutName) - 4] = '\0';
   strcat(CutName, ".cut");
   HDD_Delete2(CutName, PlaybackDir, FALSE);
@@ -2731,7 +2745,8 @@ void OSDInfoDrawRecName(void)
 
   if(rgnInfo)
   {
-    strncpy(NameStr, PlaybackName, MAX_FILE_NAME_SIZE);
+    strncpy(NameStr, PlaybackName, sizeof(NameStr));
+    NameStr[MAX_FILE_NAME_SIZE] = '\0';
     NameStr[strlen(NameStr) - 4] = '\0';
 
     if (FMUC_GetStringWidth(NameStr, &Calibri_14_FontDataUC) + TimeWidth + 65 > 500)
@@ -3722,7 +3737,8 @@ void MovieCutterProcess(bool KeepCut)
   {
     CutFileSave();
     char CutName[MAX_FILE_NAME_SIZE + 1], BackupCutName[MAX_FILE_NAME_SIZE + 1];
-    strncpy(CutName, PlaybackName, MAX_FILE_NAME_SIZE);
+    strncpy(CutName, PlaybackName, sizeof(CutName));
+    CutName[MAX_FILE_NAME_SIZE] = '\0';
     TAP_SPrint(&CutName[strlen(CutName) - 4], 5, ".cut");
     TAP_SPrint(BackupCutName, sizeof(BackupCutName), "%s.bak", CutName);
     if (HDD_Exist2(BackupCutName, PlaybackDir)) HDD_Delete2(BackupCutName, PlaybackDir, FALSE);
@@ -4317,6 +4333,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd)
 
     // Copy the log to MovieCutter folder
     TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/Settings/MovieCutter/fsck.log", TAPFSROOT);
+    // **** create file ******
     fLogFile = fopen(CommandLine, "r+b");
     if(fLogFile)
     {

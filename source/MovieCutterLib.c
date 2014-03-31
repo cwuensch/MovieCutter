@@ -642,12 +642,9 @@ bool HDD_SetFileDateTime(char const *FileName, char const *Directory, dword NewD
 // ----------------------------------------------------------------------------
 int DetectPacketSize(char const *SourceFileName)
 {
-  char                 RecExtension[5];
-
   TRACEENTER();
 
-  strncpy(RecExtension, &SourceFileName[strlen(SourceFileName) - 4], 4);
-  if (strncmp(RecExtension, ".mpg", 4) == 0)
+  if (strncmp(&SourceFileName[strlen(SourceFileName) - 4], ".mpg", 4) == 0)
   {
     PACKETSIZE = 188;
     CUTPOINTSEARCHRADIUS = 99264;
