@@ -81,6 +81,29 @@ bool HDD_Exist2(char *FileName, const char *Directory)
   return ret;
 }
 
+/* #define HDD_GetFileSizeAndInode2(FileName, Directory, OutCInode, OutFileSize) ({ \
+  char AbsFileName[FBLIB_DIR_SIZE]; \
+  TAP_SPrint  (AbsFileName, sizeof(AbsFileName), "%s%s/%s",     TAPFSROOT, (Directory), (FileName)); \
+  (strncmp(__FBLIB_RELEASEDATE__, "2014-03-20", 10) >= 0) ? HDD_GetFileSizeAndInode((AbsFileName), (OutCInode), (OutFileSize)) : HDD_GetFileSizeAndInode((Directory), (FileName), (OutCInode), (OutFileSize)); \
+}) */
+
+bool HDD_GetFileSizeAndInode2(char *FileName, char *Directory, __ino64_t *OutCInode, __off64_t *OutFileSize)
+{
+  char AbsFileName[FBLIB_DIR_SIZE];
+  bool ret;
+
+  TRACEENTER();
+  if (strncmp(__FBLIB_RELEASEDATE__, "2014-03-20", 10) >= 0)
+  {
+    TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s%s/%s",     TAPFSROOT, Directory, FileName);
+//    ret = HDD_GetFileSizeAndInode(AbsFileName, OutCInode, OutFileSize);
+  }
+  else
+    ret = HDD_GetFileSizeAndInode(Directory, FileName, OutCInode, OutFileSize);
+  TRACEEXIT();
+  return ret;
+}
+
 bool HDD_StartPlayback2(char *FileName, const char *Directory)
 {
   tDirEntry             FolderStruct;
@@ -230,7 +253,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *Directory
   TAP_SPrint(LogString, sizeof(LogString), "Cut name      = '%s'", CutFileName);
   WriteLogMC("MovieCutterLib", LogString);
 
-  if(!HDD_GetFileSizeAndInode(Directory, SourceFileName, NULL, &SourceFileSize))
+  if(!HDD_GetFileSizeAndInode2(SourceFileName, Directory, NULL, &SourceFileSize))
   {
     WriteLogMC("MovieCutterLib", "MovieCutter() E0001: cut file not created.");
     TRACEEXIT();
@@ -311,7 +334,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *Directory
   }
 
   // Detect the size of the cut file
-  if(!HDD_GetFileSizeAndInode(Directory, CutFileName, NULL, &CutFileSize))
+  if(!HDD_GetFileSizeAndInode2(CutFileName, Directory, NULL, &CutFileSize))
   {
     WriteLogMC("MovieCutterLib", "MovieCutter() W0004: error detecting size of cut file.");
     SuppressNavGeneration = TRUE;
@@ -495,9 +518,9 @@ bool FileCut(char *SourceFileName, char *CutFileName, char const *Directory, dwo
 
   //Flush the caches *experimental*
   sync();
-  for (i=0; i < 20; i++)
+  for (i=0; i < 30; i++)
   {
-    TAP_SystemProc();
+//    TAP_SystemProc();
     TAP_Sleep(10);
   }
 
@@ -533,9 +556,9 @@ bool FileCut(char *SourceFileName, char *CutFileName, char const *Directory, dwo
 
   //Flush the caches *experimental*
   sync();
-  for (i=0; i < 20; i++)
+  for (i=0; i < 30; i++)
   {
-    TAP_SystemProc();
+//    TAP_SystemProc();
     TAP_Sleep(10);
   }
   system("hdparm -f /dev/sda");
@@ -653,7 +676,7 @@ bool isNavAvailable(char const *SourceFileName, char *Directory)
   TAP_SPrint(NavFileName, sizeof(NavFileName), "%s.nav", SourceFileName);
   if (HDD_Exist2(NavFileName, Directory))
   {
-    if (HDD_GetFileSizeAndInode(Directory, NavFileName, NULL, &NavFileSize))
+    if (HDD_GetFileSizeAndInode2(NavFileName, Directory, NULL, &NavFileSize))
       if (NavFileSize != 0)
         ret = TRUE;
   }

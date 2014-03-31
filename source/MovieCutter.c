@@ -180,6 +180,7 @@ typedef enum
 bool                    AutoOSDPolicy = TRUE;
 bool                    DirectSegmentsCut = FALSE;
 bool                    SaveCutBak = TRUE;
+bool                    DisableSpecialEnd = FALSE;
 bool                    ShowRebootMessage = TRUE;
 bool                    CheckFSAfterCut = FALSE;
 
@@ -459,6 +460,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         //Flush the caches *experimental*
         sync();
 
+        WriteLogMC(PROGRAM_NAME, "========================================\n");
+
         //"Calculate" the file name (.rec or .mpg)
         strncpy(PlaybackName, PlayInfo.file->name, MAX_FILE_NAME_SIZE);
         PlaybackName[strlen(PlaybackName) - 4] = '\0';
@@ -466,7 +469,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         //Extract the absolute path to the rec file and change into that dir
         HDD_GetAbsolutePathByTypeFile(PlayInfo.file, AbsPlaybackDir);
         AbsPlaybackDir[FBLIB_DIR_SIZE-1] = '\0';
-        if((strlen(PlaybackName) + 18 > MAX_FILE_NAME_SIZE) || (strlen(AbsPlaybackDir) + 20 >= FBLIB_DIR_SIZE))
+        if((strlen(PlaybackName) + 18 > MAX_FILE_NAME_SIZE) || (strlen(AbsPlaybackDir) + 20 >= FBLIB_DIR_SIZE))  // 18 = ' (Cut-123)' + '.nav.bak' | 20 = ' (Cut-123)' + '.bak' + '/hd/..'
         {
           State = ST_UnacceptedFile;
           WriteLogMC(PROGRAM_NAME, "File name or path is too long!");
@@ -489,13 +492,12 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         PlaybackDir = &AbsPlaybackDir[strlen(TAPFSROOT)];
         HDD_ChangeDir(PlaybackDir);
 
-        WriteLogMC(PROGRAM_NAME, "========================================\n");
         TAP_SPrint(LogString, sizeof(LogString), "Attaching to %s/%s", AbsPlaybackDir, PlaybackName);
         WriteLogMC(PROGRAM_NAME, LogString);
         WriteLogMC("MovieCutterLib", "----------------------------------------");
 
         // Detect size of rec file
-        if(!HDD_GetFileSizeAndInode(PlaybackDir, PlaybackName, NULL, &RecFileSize) || !RecFileSize)
+        if(!HDD_GetFileSizeAndInode2(PlaybackName, PlaybackDir, NULL, &RecFileSize) || !RecFileSize)
         {
           State = ST_UnacceptedFile;
           WriteLogMC(PROGRAM_NAME, ".rec size could not be detected!");
@@ -1463,6 +1465,7 @@ void LoadINI(void)
     AutoOSDPolicy     = INIGetInt("AutoOSDPolicy", 1, 0, 1) != 0;
     DirectSegmentsCut = INIGetInt("DirectSegmentsCut", 0, 0, 1) == 1;
     SaveCutBak        = INIGetInt("SaveCutBak", 1, 0, 1) != 0;
+    DisableSpecialEnd = INIGetInt("DisableSpecialEnd", 0, 0, 1) == 1;
     ShowRebootMessage = INIGetInt("ShowRebootMessage", 1, 0, 1) != 0;
     CheckFSAfterCut   = INIGetInt("CheckFSAfterCut", 0, 0, 1) == 1;
   }
@@ -1484,6 +1487,7 @@ void SaveINI(void)
   INISetInt("AutoOSDPolicy", AutoOSDPolicy ? 1 : 0);
   INISetInt("DirectSegmentsCut", DirectSegmentsCut ? 1 : 0);
   INISetInt("SaveCutBak", SaveCutBak ? 1 : 0);
+  INISetInt("DisableSpecialEnd", DisableSpecialEnd ? 1 : 0);
   INISetInt("ShowRebootMessage", ShowRebootMessage ? 1 : 0);
   INISetInt("CheckFSAfterCut", CheckFSAfterCut ? 1 : 0);
   INISaveFile(INIFILENAME, INILOCATION_AtCurrentDir, NULL);
@@ -2239,7 +2243,7 @@ void CutFileSave(void)
 
   HDD_ChangeDir(PlaybackDir);
 
-  if(!HDD_GetFileSizeAndInode(PlaybackDir, PlaybackName, NULL, &RecFileSize))
+  if(!HDD_GetFileSizeAndInode2(PlaybackName, PlaybackDir, NULL, &RecFileSize))
   {
     WriteLogMC(PROGRAM_NAME, "CutFileSave: Could not detect size of recording!"); 
     TRACEEXIT();
@@ -3697,7 +3701,7 @@ void MovieCutterProcess(bool KeepCut)
   bool                  isMultiSelect, CutEnding;
   word                  WorkingSegment;
   char                  CutFileName[MAX_FILE_NAME_SIZE + 1];
-//  char                  TempFileName[MAX_FILE_NAME_SIZE + 1];
+  char                  TempFileName[MAX_FILE_NAME_SIZE + 1];
   tTimeStamp            CutStartPoint, BehindCutPoint;
   dword                 DeltaBlock; //, DeltaTime;
   int                   i, j;
@@ -3807,34 +3811,37 @@ void MovieCutterProcess(bool KeepCut)
       CutEnding = FALSE;
       if (WorkingSegment == NrSegmentMarker - 2)
       {
+        if (!DisableSpecialEnd)
+        {
 //        if (KeepCut)
           //letztes Segment soll gespeichert werden -> versuche bis zum tatsächlichen Ende zu gehen
 //          BehindCutPoint.BlockNr = 0xFFFFFFFF;
 //        else
-        {
           //letztes Segment soll geschnitten werden -> speichere stattdessen den vorderen Teil der Aufnahme und tausche mit dem Original
           CutEnding = TRUE;
           CutStartPoint.BlockNr  = SegmentMarker[0].Block;
           CutStartPoint.Timems   = SegmentMarker[0].Timems;
           BehindCutPoint.BlockNr = SegmentMarker[NrSegmentMarker-2].Block;
           BehindCutPoint.Timems  = SegmentMarker[NrSegmentMarker-2].Timems;
-          WriteLogMC(PROGRAM_NAME, "(* new special mode for cut ending *)");
+          WriteLogMC(PROGRAM_NAME, "(* first special mode for cut ending *)");
         }
+        else if (KeepCut)
+          BehindCutPoint.BlockNr = 0xFFFFFFFF;  //letztes Segment soll gespeichert werden -> versuche bis zum tatsächlichen Ende zu gehen
       }
 
       // Ermittlung des Dateinamens für das CutFile
       GetNextFreeCutName(PlaybackName, CutFileName, PlaybackDir, NrSelectedSegments - 1);
       if (CutEnding)
       {
-        // Umbenennen der Original-Aufnahme zu CutFileName
-        TAP_SPrint(LogString, sizeof(LogString), "Renaming original playback file '%s' to '%s'", PlaybackName, CutFileName);
-        WriteLogMC(PROGRAM_NAME, LogString);
-        HDD_Rename2(PlaybackName, CutFileName, PlaybackDir, TRUE);
+        strncpy(TempFileName, PlaybackName, sizeof(TempFileName));
+//        TempFileName[strlen(PlaybackName) - 4] = '\0';
+        TAP_SPrint(&TempFileName[strlen(PlaybackName) - 4], 10, "_temp%s", &PlaybackName[strlen(PlaybackName) - 4]);
+        HDD_Delete2(TempFileName, PlaybackDir, TRUE);
       }
       sync();
-      for (j=0; j < 20; j++)
+      for (j=0; j < 30; j++)
       {
-        TAP_SystemProc();
+//        TAP_SystemProc();
         TAP_Sleep(10);
       }
       system("hdparm -f /dev/sda");
@@ -3843,45 +3850,40 @@ void MovieCutterProcess(bool KeepCut)
       HDD_ChangeDir(PlaybackDir);
 
       // Schnittoperation
-      if (HDD_Exist2((CutEnding) ? CutFileName : PlaybackName, PlaybackDir))
-        ret = MovieCutter(((CutEnding) ? CutFileName : PlaybackName), ((CutEnding) ? PlaybackName : CutFileName), PlaybackDir, &CutStartPoint, &BehindCutPoint, (KeepCut || CutEnding), HDVideo);
+      ret = MovieCutter(PlaybackName, ((CutEnding) ? TempFileName : CutFileName), PlaybackDir, &CutStartPoint, &BehindCutPoint, (KeepCut || CutEnding), HDVideo);
+
+      // Das erzeugte CutFile wird zum neuen SourceFile
+      if (CutEnding)
+      {
+        RecFileSize = 0;
+        if(HDD_Exist2(TempFileName, PlaybackDir))
+          HDD_GetFileSizeAndInode2(TempFileName, PlaybackDir, NULL, &RecFileSize);
+
+        if (ret && RecFileSize > 0)
+        {
+          if (KeepCut)
+          {
+            TAP_SPrint(LogString, sizeof(LogString), "Renaming the end-segment file '%s' to '%s'", PlaybackName, CutFileName);
+            WriteLogMC(PROGRAM_NAME, LogString);
+            HDD_Rename2(PlaybackName, CutFileName, PlaybackDir, TRUE);
+          }
+          else
+            HDD_Delete2(PlaybackName, PlaybackDir, TRUE);
+          if (!HDD_Exist2(PlaybackName, PlaybackDir))
+          {
+            TAP_SPrint(LogString, sizeof(LogString), "Renaming original recording '%s' back to '%s'", TempFileName, PlaybackName);
+            WriteLogMC(PROGRAM_NAME, LogString);
+            HDD_Rename2(TempFileName, PlaybackName, PlaybackDir, TRUE);
+          }
+        }
+      }
 
       // Überprüfung von Existenz und Größe der geschnittenen Aufnahme
       RecFileSize = 0;
       if(HDD_Exist2(PlaybackName, PlaybackDir))
-        HDD_GetFileSizeAndInode(PlaybackDir, PlaybackName, NULL, &RecFileSize);
-      TAP_SPrint(LogString, sizeof(LogString), "Size of the new playback file (after cut): %llu", RecFileSize); 
+        HDD_GetFileSizeAndInode2(PlaybackName, PlaybackDir, NULL, &RecFileSize);
+      TAP_SPrint(LogString, sizeof(LogString), "Size of the new playback file (after cut): %llu", RecFileSize);
       WriteLogMC(PROGRAM_NAME, LogString);
-
-      // Source- und CutFile sind vertauscht - falls Schnitt fehlgeschlagen, reparieren
-      if (CutEnding)
-      {
-        if (RecFileSize > 0)
-        {
-          if (ret && !KeepCut) HDD_Delete2(CutFileName, PlaybackDir, TRUE);
-        }
-        else
-        {
-          TAP_SPrint(LogString, sizeof(LogString), "Cut failed! Renaming source file '%s' back to '%s'", CutFileName, PlaybackName); 
-          WriteLogMC(PROGRAM_NAME, LogString);
-          HDD_Delete2(PlaybackName, PlaybackDir, TRUE);
-          HDD_Rename2(CutFileName, PlaybackName, PlaybackDir, TRUE);
-
-          if(HDD_Exist2(PlaybackName, PlaybackDir))
-            HDD_GetFileSizeAndInode(PlaybackDir, PlaybackName, NULL, &RecFileSize);
-          TAP_SPrint(LogString, sizeof(LogString), "Size of the restored playback file: %llu", RecFileSize); 
-          WriteLogMC(PROGRAM_NAME, LogString);
-        }
-
-        char PlaybackNavBak[MAX_FILE_NAME_SIZE + 1], CutFileNavBak[MAX_FILE_NAME_SIZE + 1];
-        TAP_SPrint(PlaybackNavBak, sizeof(PlaybackNavBak), "%s.nav.bak", PlaybackName);
-        TAP_SPrint(CutFileNavBak,  sizeof(CutFileNavBak),  "%s.nav.bak", CutFileName);
-        if (HDD_Exist2(CutFileNavBak, PlaybackDir))
-        {
-          if (HDD_Exist2(PlaybackNavBak, PlaybackDir)) HDD_Delete2(PlaybackNavBak, PlaybackDir, FALSE);
-          HDD_Rename2(CutFileNavBak, PlaybackNavBak, PlaybackDir, FALSE);
-        }
-      }
 
       // Wiedergabe wird neu gestartet
       if (RecFileSize > 0)
@@ -4033,9 +4035,9 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
   }
 
   sync();
-  for (j=0; j < 20; j++)
+  for (j=0; j < 30; j++)
   {
-    TAP_SystemProc();
+//    TAP_SystemProc();
     TAP_Sleep(10);
   }
   system("hdparm -f /dev/sda");
