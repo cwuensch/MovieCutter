@@ -4333,11 +4333,13 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd)
 
     // Copy the log to MovieCutter folder
     TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/Settings/MovieCutter/fsck.log", TAPFSROOT);
-    // **** create file ******
     fLogFile = fopen(CommandLine, "r+b");
     if(fLogFile)
-    {
       fseek(fLogFile, 0, SEEK_END);
+    else
+      fLogFile = fopen(CommandLine, "wb");
+    if(fLogFile)
+    {
       fprintf(fLogFile, "\n=========================================================\n");
       fprintf(fLogFile, "*** File system check started %s", asctime(localtime(&StartTime)));
       fwrite(LogBuffer, 1, BytesRead, fLogFile);

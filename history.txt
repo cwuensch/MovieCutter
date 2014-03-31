@@ -1,15 +1,35 @@
-2014-02-28 V2.0i ** integrierte Dateisystem-Prüfung nach dem Schnitt
-                  * neue Menü-Aktion Dateisystem-Prüfung (nur im Bookmark-Modus)
-                  * zusätzliche Synchronisation nach dem Umbenennen
-                 ** Behandlung aller Messageboxen überarbeitet
-                  * Fortschrittsanzeige während der Schnittoperation
-                  * versehentliches Starten mehrerer Instanzen verhindert (noch in Arbeit)
-                  * im BookmarkModus ist die Option 'Alle Bookmarks löschen' immer verfügbar
-                  * zusätzlicher Menü-Eintrag 'Exportiere Segmente zu Bookmarks'
-                  * neue ini-Parameter SaveCutBak, ShowRebootMessage und CheckFSAfterCut (siehe Readme)
-                  * niederländische Übersetzung (thanks to Henk Puister)
-                  * kleiner Bugfix: Neuberechnung aller Segmente nach dem Schnitt
-                  * kleiner Bugfix: Repeat-Modus nach dem Schnitt wieder aktivieren
+2014-03-31 v2.0j    - kleiner Bugfix: fsck.log wurde nicht neu angelegt
+                    - interne Änderung: Schneiden des letzten Segments
+                    - zusätzlicher ini-Parameter DisableSpecialEnd
+                    - Log-Ausgabe des Festplatten-Modells
+
+2014-03-28 V2.0i NEU:
+        (stable)  *** Unterstützung von externen Festplatten, sowohl mit TMSMount als auch ohne
+                    * Fortschrittsanzeige während des Schnittprozesses
+                   ** Funktion zur Überprüfung des Dateisystems auf Konsistenz
+                   ** nach dem Schnittvorgang wird das Dateisystem automatisch überprüft und ggf. eine Warnmeldung ausgegeben
+                      (optional: Diese Funktion kann durch CheckFSAfterCut=0 in der ini deaktiviert werden)
+                 BEDIENUNG:
+                    - während einer angeforderten Sprungoperation ist die Menü-Taste gesperrt
+                    - das angeforderte Sprung-Segment wird mit dünnem Rand über die blaue Segmentmarkierung gezeichnet (so dass beides sichtbar ist)
+                    - während angeforderter Sprungoperation reagiert die blaue Taste auf das markierte Sprung-Segment
+                    - beim Import von CutFiles unpassender Größe wird Markierung nicht mehr zurückgesetzt
+                    - im Bookmark-Modus wird der Menüeintrag 'Alle Bookmarks löschen' nun stets angezeigt
+                    - zusätzlicher Eintrag 'Exportiere Segmente zu Bookmarks' (wenn Segmente vorhanden)
+                    - niederländische Übersetzung (thanks to Henk Puister)
+                 INI-FILE:
+                    - SaveCutBak: Speicherung der Sicherungskopie des CutFiles kann deaktiviert werden (Default=1)
+                    - CheckFSAfterCut: überprüft das Dateisystem nach dem Schnitt (Default=0, aktuell mit 1 vorbelegt)
+                    - ShowRebootMessage: zeigt eine Meldung, wenn der Receiver nach der Aufnahme nicht neu gestartet wurde (Default=1)
+                 INTERNALS:
+                    * mehrfaches Starten desselben TAPs (durch Firmware-Bug) wird verhindert
+                   ** Behandlung sämtlicher Messageboxen neu gestaltet (leichter wartbar)
+                   ** Umstellung sämtlicher String-Operationen auf Overflow-sichere Varianten
+                    * Länge des Dateinamens und des Pfades wird auf Überschreitung der Maximalgröße geprüft
+                    * zusätzliche Synchronisation nach dem Umbenennen
+                 BUGFIXES:
+                    - Neuberechnung der Prozentangaben nach dem Schnitt korrigiert
+
 2014-02-08 V2.0h ** Behandlung des letzten Segments neu gestaltet
         (stable)     -> behebt Dateisystemfehler beim Schneiden des letzten Segments(?)
                  ** Cache-Synchronisierung beim Start und vor und nach dem Schnitt
