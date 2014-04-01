@@ -534,20 +534,35 @@ bool FileCut(char *SourceFileName, char *CutFileName, char const *Directory, dwo
   //Save the current directory resources and change into our directory (current directory of the TAP)
   ApplHdd_SaveWorkFolder();
   TAP_SPrint(AbsDirectory, sizeof(AbsDirectory), "%s%s", &TAPFSROOT[1], Directory);  //do not include the leading slash
-  ApplHdd_SelectFolder(&FolderStruct, AbsDirectory);
-  DevHdd_DeviceOpen(&pFolderStruct, &FolderStruct);
+  ret = ApplHdd_SelectFolder(&FolderStruct, AbsDirectory);
+TAP_SPrint(LogString, sizeof(LogString), "FileCut(): SelectFolder returned: %lu", ret);
+
+  if (!ret) ret = DevHdd_DeviceOpen(&pFolderStruct, &FolderStruct);
+#ifdef FULLDEBUG
+  TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), ", Device open returned: %lu", ret);
+  WriteLogMC("MovieCutterLib", LogString);
+  TAP_SPrint(LogString, sizeof(LogString), "FileCut(): addr(FolderStruct)=%lu, pFolderStruct=%lu, addr(pFolderStruct)=%lu", (dword)&FolderStruct, (dword)pFolderStruct, (dword)&pFolderStruct);
+  WriteLogMC("MovieCutterLib", LogString);
+  TAP_SPrint(LogString, sizeof(LogString), "FileCut(): FolderStruct.Path=%s, FolderStruct.p1=%lu, FolderStruct.p2=%lu", FolderStruct.Path, FolderStruct.unknown1, FolderStruct.unknown2);
+  WriteLogMC("MovieCutterLib", LogString);
+  TAP_SPrint(LogString, sizeof(LogString), "FileCut(): pFolderStruct->Path=%s, pFolderStruct->p1=%lu, pFolderStruct->p2=%lu", pFolderStruct->Path, pFolderStruct->unknown1, pFolderStruct->unknown2);
+  WriteLogMC("MovieCutterLib", LogString);
+#endif
+  
   ApplHdd_SetWorkFolder(&FolderStruct);
-
-  //If a playback is running, stop it
-  TAP_Hdd_GetPlayInfo(&PlayInfo);
-  if(PlayInfo.playMode == PLAYMODE_Playing)
+  if (ret == 0)
   {
-    Appl_StopPlaying();
-    Appl_WaitEvt(0xE507, &x, 1, 0xFFFFFFFF, 300);
-  }
+    //If a playback is running, stop it
+    TAP_Hdd_GetPlayInfo(&PlayInfo);
+    if(PlayInfo.playMode == PLAYMODE_Playing)
+    {
+      Appl_StopPlaying();
+      Appl_WaitEvt(0xE507, &x, 1, 0xFFFFFFFF, 300);
+    }
 
-  //Do the cutting
-  ret = ApplHdd_FileCutPaste(SourceFileName, StartBlock, NrBlocks, CutFileName);
+    //Do the cutting
+    ret = ApplHdd_FileCutPaste(SourceFileName, StartBlock, NrBlocks, CutFileName);
+  }
 
   //Restore all resources
   DevHdd_DeviceClose(&pFolderStruct);
