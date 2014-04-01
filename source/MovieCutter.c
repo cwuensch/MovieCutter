@@ -272,7 +272,7 @@ int TAP_Main(void)
   WriteLogMC(PROGRAM_NAME, LogString);
   if (HDD_GetHddID(HDDModel, HDDSerial, HDDFirmware))
   {
-    TAP_SPrint(LogString, sizeof(LogString), "Hard disk: %s, FW %s, Serial: %s", HDDModel, HDDSerial, HDDFirmware);
+    TAP_SPrint(LogString, sizeof(LogString), "Hard disk: %s, FW %s, Serial: %s", HDDModel, HDDFirmware, HDDSerial);
     WriteLogMC(PROGRAM_NAME, LogString);
   }
 
