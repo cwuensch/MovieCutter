@@ -1,7 +1,9 @@
 2014-03-31 v2.0j    - kleiner Bugfix: fsck.log wurde nicht neu angelegt
-                    - interne Änderung: Schneiden des letzten Segments
+                    - interne Änderung: Schneiden des letzten Segments auf alte Art
+                    - interne Änderung: keine Unterbrechung des Schnitts durch andere TAPs
+                    - Experiment: Schneiden nur mit exklusivem HDD-Zugriff
                     - zusätzlicher ini-Parameter DisableSpecialEnd
-                    - Log-Ausgabe des Festplatten-Modells
+                    - zusätzliche Log-Ausgaben
 
 2014-03-28 V2.0i NEU:
         (stable)  *** Unterstützung von externen Festplatten, sowohl mit TMSMount als auch ohne

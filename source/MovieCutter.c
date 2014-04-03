@@ -3790,7 +3790,7 @@ void MovieCutterProcess(bool KeepCut)
 
       // Process the ending at last (*experimental!*)
 /*      if (i == NrSegmentMarker - 2) {
-        NrSelectedSegments--;
+        if (SegmentMarker[i].Selected) NrSelectedSegments--;
         continue;
       }
       if (i == -1)
@@ -4020,7 +4020,7 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
       if (OSDMenuProgressBarIsVisible())
         OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), maxProgress - NrSelectedSegments - ((CheckFSAfterCut) ? 1 : 0), maxProgress, NULL);
     }
-    if ((NrSelectedSegments <= 0) /* && !SegmentMarker[NrSegmentMarker-2].Selected*/ )
+    if ((NrSelectedSegments <= 0 /* && !SegmentMarker[NrSegmentMarker-2].Selected*/) || (NrSegmentMarker <= 2))
       break;
   }
   CutFileSave();
