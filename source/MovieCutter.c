@@ -992,6 +992,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             {
               Playback_Pause();
             }
+            if (OSDMode != MD_FullOSD)
+            {
+              OSDMode = MD_FullOSD;
+              OSDRedrawEverything();
+            }
             State = ST_ActionMenu;
             ActionMenuItem = 0;
             ActionMenuDraw();
@@ -1545,6 +1550,9 @@ void LoadINI(void)
     SegmentList_Y     = INIGetInt("SegmentList_Y", 82, 0, 576 - _SegmentList_Background_Gd.height);
   }
   INICloseFile();
+  if (!AutoOSDPolicy && DefaultOSDMode == MD_NoOSD)
+    DefaultOSDMode = MD_FullOSD;
+
   if(IniFileState == INILOCATION_NewFile)
     SaveINI();
   HDD_TAP_PopDir();
@@ -2413,44 +2421,49 @@ void CreateOSD(void)
     TAP_ExitNormal();
   }
 
-  if (OSDMode == MD_MiniOSD)
-  {
-    if(rgnInfoBar)
-    {
-      TAP_Osd_Delete(rgnInfoBar);
-      rgnInfoBar = 0;
-    }
-    if(!rgnInfoBarMini)
-      rgnInfoBarMini = TAP_Osd_Create(0, 576 - Overscan_Y - 150, 720, 50, 0, 0);
-  }
-  else
-    if(rgnPlayState)
-    {
-      TAP_Osd_Delete(rgnPlayState);
-      rgnPlayState = 0;
-    }
-
-  if ((OSDMode == MD_FullOSD) || (OSDMode == MD_NoSegmentList))
+  if (OSDMode != MD_MiniOSD)
   {
     if(rgnInfoBarMini)
     {
       TAP_Osd_Delete(rgnInfoBarMini);
       rgnInfoBarMini = 0;
     }
-    if(!rgnInfoBar)
-      rgnInfoBar = TAP_Osd_Create(0, 576 - _Info_Background_Gd.height, _Info_Background_Gd.width, _Info_Background_Gd.height, 0, 0);
+    if(rgnPlayState)
+    {
+      TAP_Osd_Delete(rgnPlayState);
+      rgnPlayState = 0;
+    }
+  }
+
+  if ((OSDMode != MD_FullOSD) && (OSDMode != MD_NoSegmentList))
+  {
+    if(rgnInfoBar)
+    {
+      TAP_Osd_Delete(rgnInfoBar);
+      rgnInfoBar = 0;
+    }
+  }
+
+  if (OSDMode != MD_FullOSD)
+  {
+    if(rgnSegmentList)
+    {
+      TAP_Osd_Delete(rgnSegmentList);
+      rgnSegmentList = 0;
+    }
   }
 
   if (OSDMode == MD_FullOSD)
-  {
     if(!rgnSegmentList)
       rgnSegmentList = TAP_Osd_Create(SegmentList_X, SegmentList_Y, _SegmentList_Background_Gd.width, _SegmentList_Background_Gd.height, 0, 0);
-  }
-  else
-  {
-    TAP_Osd_Delete(rgnSegmentList);
-    rgnSegmentList = 0;
-  }
+
+  if ((OSDMode == MD_FullOSD) || (OSDMode == MD_NoSegmentList))
+    if(!rgnInfoBar)
+      rgnInfoBar = TAP_Osd_Create(0, 576 - _Info_Background_Gd.height, _Info_Background_Gd.width, _Info_Background_Gd.height, 0, 0);
+
+  if (OSDMode == MD_MiniOSD)
+    if(!rgnInfoBarMini)
+      rgnInfoBarMini = TAP_Osd_Create(0, 576 - Overscan_Y - 150, 720, 50, 0, 0);
 
   TRACEEXIT();
 }

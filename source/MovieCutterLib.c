@@ -44,11 +44,11 @@ void HDD_Rename2(const char *FileName, const char *NewFileName, const char *Dire
   char AbsFileName[FBLIB_DIR_SIZE], AbsNewFileName[FBLIB_DIR_SIZE];
   TRACEENTER();
 
-  TAP_SPrint  (AbsFileName, sizeof(AbsFileName), "%s%s/%s",     TAPFSROOT, Directory, FileName);  TAP_SPrint(AbsNewFileName, sizeof(AbsFileName), "%s%s/%s",     TAPFSROOT, Directory, NewFileName);  rename(AbsFileName, AbsNewFileName);
+  TAP_SPrint  (AbsFileName, sizeof(AbsFileName), "%s%s/%s",     TAPFSROOT, Directory, FileName);  TAP_SPrint(AbsNewFileName, sizeof(AbsNewFileName), "%s%s/%s",     TAPFSROOT, Directory, NewFileName);  rename(AbsFileName, AbsNewFileName);
   if(RenameInfNav)
   {
-    TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s%s/%s.inf", TAPFSROOT, Directory, FileName);  TAP_SPrint(AbsNewFileName, sizeof(AbsFileName), "%s%s/%s.inf", TAPFSROOT, Directory, NewFileName);  rename(AbsFileName, AbsNewFileName);
-    TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s%s/%s.nav", TAPFSROOT, Directory, FileName);  TAP_SPrint(AbsNewFileName, sizeof(AbsFileName), "%s%s/%s.nav", TAPFSROOT, Directory, NewFileName);  rename(AbsFileName, AbsNewFileName);
+    TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s%s/%s.inf", TAPFSROOT, Directory, FileName);  TAP_SPrint(AbsNewFileName, sizeof(AbsNewFileName), "%s%s/%s.inf", TAPFSROOT, Directory, NewFileName);  rename(AbsFileName, AbsNewFileName);
+    TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s%s/%s.nav", TAPFSROOT, Directory, FileName);  TAP_SPrint(AbsNewFileName, sizeof(AbsNewFileName), "%s%s/%s.nav", TAPFSROOT, Directory, NewFileName);  rename(AbsFileName, AbsNewFileName);
   }
 
   TRACEEXIT();
@@ -502,6 +502,35 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *Directory
 // ----------------------------------------------------------------------------
 //              Firmware-Funktion zum Durchführen des Schnitts
 // ----------------------------------------------------------------------------
+void DirTableTest(void)
+{
+  int                   i;
+  tDirEntry            *DirEntry;
+
+  DirEntry = (tDirEntry*)0x12F952C;   //hardcodierte Adresse der Tabelle
+
+  // Herbert:
+  if ((GetSysID() == 42031) && (strncmp(GetApplVer(), "TF-BCPCE 1.03.02 (Feb  7 2014)", 16) == 0))
+    DirEntry = (tDirEntry*) 0x11EF34C;
+
+  // Bernhard:
+  else if ((GetSysID() == 22130) && (strncmp(GetApplVer(), "TF-BCPCE 1.10.00 (Sep 23 2013)", 16) == 0))
+    DirEntry = (tDirEntry*) 0x12FD54C;
+
+//  else return;
+
+  WriteLogMC("MovieCutterLib", "Ausgabe der Verzeichnis-Tabelle:");
+  for(i = 0; i < 512; i++)
+  {
+    if(DirEntry->Magic == 0xBACAED31)
+    {
+      TAP_SPrint(LogString, sizeof(LogString), "%3d: %8.8lx %8.8lx '%s'", i, DirEntry->unknown1, DirEntry->unknown2, DirEntry->Path);
+      WriteLogMC("MovieCutterLib", LogString);
+    }
+    DirEntry++;
+  }
+}
+
 bool FileCut(char *SourceFileName, char *CutFileName, char const *Directory, dword StartBlock, dword NrBlocks)
 {
   tDirEntry             FolderStruct, *pFolderStruct;
@@ -515,6 +544,20 @@ bool FileCut(char *SourceFileName, char *CutFileName, char const *Directory, dwo
   #ifdef FULLDEBUG
     WriteLogMC("MovieCutterLib", "FileCut()");
   #endif
+
+// Liste der geöffneten Ordner ausgeben
+#ifdef FULLDEBUG
+  DirTableTest();
+#endif
+
+// Verschiebe die rec-Datei nach /mnt/hd/MCTemp
+char AbsSourceFileName[FBLIB_DIR_SIZE], AbsDestFileName[FBLIB_DIR_SIZE];
+if (TAP_Hdd_Exist("MCTemp")) WriteLogMC("MovieCutterLib", "FileCut(): Directory '/MCTemp' already exists. Cutting process aborted.");
+system("mkdir /mnt/hd/MCTemp");
+TAP_SPrint(AbsSourceFileName, sizeof(AbsSourceFileName), "%s%s/%s", TAPFSROOT, Directory, SourceFileName);
+TAP_SPrint(AbsDestFileName, sizeof(AbsDestFileName), "%s/MCTemp/%s", TAPFSROOT, "Temp.rec");
+rename(AbsSourceFileName, AbsDestFileName);
+
 
   //Flush the caches *experimental*
   sync();
@@ -534,7 +577,7 @@ bool FileCut(char *SourceFileName, char *CutFileName, char const *Directory, dwo
   //Save the current directory resources and change into our directory (current directory of the TAP)
   ApplHdd_SaveWorkFolder();
   TAP_SPrint(AbsDirectory, sizeof(AbsDirectory), "%s%s", &TAPFSROOT[1], Directory);  //do not include the leading slash
-  ret = ApplHdd_SelectFolder(&FolderStruct, AbsDirectory);
+  ret = ApplHdd_SelectFolder(&FolderStruct, "/mnt/hd/MCTemp"); //AbsDirectory);
 TAP_SPrint(LogString, sizeof(LogString), "FileCut(): SelectFolder returned: %lu", ret);
 
   if (!ret) ret = DevHdd_DeviceOpen(&pFolderStruct, &FolderStruct);
@@ -561,7 +604,8 @@ TAP_SPrint(LogString, sizeof(LogString), "FileCut(): SelectFolder returned: %lu"
     }
 
     //Do the cutting
-    ret = ApplHdd_FileCutPaste(SourceFileName, StartBlock, NrBlocks, CutFileName);
+//    ret = ApplHdd_FileCutPaste(SourceFileName, StartBlock, NrBlocks, CutFileName);
+    ret = ApplHdd_FileCutPaste("Temp.rec", StartBlock, NrBlocks, "Temp_cut.rec");
   }
 
   //Restore all resources
@@ -579,6 +623,15 @@ TAP_SPrint(LogString, sizeof(LogString), "FileCut(): SelectFolder returned: %lu"
   system("hdparm -f /dev/sda");
   system("hdparm -f /dev/sdb");
   system("hdparm -f /dev/sdc");
+
+
+// Verschiebe geschnittene Datei wieder zurück
+rename(AbsDestFileName, AbsSourceFileName);
+TAP_SPrint(AbsSourceFileName, sizeof(AbsSourceFileName), "%s%s/%s", TAPFSROOT, Directory, CutFileName);
+TAP_SPrint(AbsDestFileName, sizeof(AbsDestFileName), "%s/MCTemp/%s", TAPFSROOT, "Temp_cut.rec");
+rename(AbsDestFileName, AbsSourceFileName);
+system("rmdir /mnt/hd/MCTemp");
+
 
   if(ret)
   {
