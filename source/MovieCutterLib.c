@@ -35,6 +35,8 @@ static int              CUTPOINTSEARCHRADIUS = 9024;
 static int              CUTPOINTSECTORRADIUS = 2;
 char                    LogString[512];
 
+/* Create a new directory named PATH, with permission bits MODE.  */
+extern int mkdir (__const char *__path, __mode_t __mode) __THROW;
 
 // ============================================================================
 //                               TAP-API-Lib
@@ -502,29 +504,38 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *Directory
 // ----------------------------------------------------------------------------
 //              Firmware-Funktion zum Durchführen des Schnitts
 // ----------------------------------------------------------------------------
-void DirTableTest(void)
+void DirTableTest(tDirEntry *KnownEntry)
 {
-  int                   i;
+  int                   i, l=512;
   tDirEntry            *DirEntry;
 
-  DirEntry = (tDirEntry*)0x12F952C;   //hardcodierte Adresse der Tabelle
+  // Firebird:
+//  DirEntry = (tDirEntry*)0x12F952C;   //hardcodierte Adresse der Tabelle
+
+  // mein CRP:
+  if ((GetSysID() == 42031) && (strncmp(GetApplVer(), "TF-BCPCE 1.01.00 (Feb  5 2013)", 16) == 0))
+    DirEntry = (tDirEntry*) 0x11E428C;
 
   // Herbert:
-  if ((GetSysID() == 42031) && (strncmp(GetApplVer(), "TF-BCPCE 1.03.02 (Feb  7 2014)", 16) == 0))
+  else if ((GetSysID() == 42031) && (strncmp(GetApplVer(), "TF-BCPCE 1.03.02 (Feb  7 2014)", 16) == 0))
     DirEntry = (tDirEntry*) 0x11EF34C;
 
   // Bernhard:
   else if ((GetSysID() == 22130) && (strncmp(GetApplVer(), "TF-BCPCE 1.10.00 (Sep 23 2013)", 16) == 0))
     DirEntry = (tDirEntry*) 0x12FD54C;
 
-//  else return;
+  else
+  {
+    DirEntry = KnownEntry;
+    l = 256;
+  }
 
   WriteLogMC("MovieCutterLib", "Ausgabe der Verzeichnis-Tabelle:");
-  for(i = 0; i < 512; i++)
+  for(i = 0; i < l; i++)
   {
-    if(DirEntry->Magic == 0xBACAED31)
+//    if(DirEntry->Magic == 0xBACAED31)
     {
-      TAP_SPrint(LogString, sizeof(LogString), "%3d: %8.8lx %8.8lx '%s'", i, DirEntry->unknown1, DirEntry->unknown2, DirEntry->Path);
+      TAP_SPrint(LogString, sizeof(LogString), "%3d: %8.8lx %8.8lx %8.8lx '%s'", i, DirEntry->Magic, DirEntry->unknown1, DirEntry->unknown2, DirEntry->Path);
       WriteLogMC("MovieCutterLib", LogString);
     }
     DirEntry++;
@@ -545,17 +556,23 @@ bool FileCut(char *SourceFileName, char *CutFileName, char const *Directory, dwo
     WriteLogMC("MovieCutterLib", "FileCut()");
   #endif
 
-// Liste der geöffneten Ordner ausgeben
-#ifdef FULLDEBUG
-  DirTableTest();
-#endif
-
 // Verschiebe die rec-Datei nach /mnt/hd/MCTemp
+static dword TempDirNr = 0;
+TempDirNr++;
+char TempDir[512], RmTempDir[512];
+TAP_SPrint(TempDir, sizeof(TempDir), "%s/MCTemp%lu", TAPFSROOT, TempDirNr);
+TAP_SPrint(RmTempDir, sizeof(RmTempDir), "rmdir %s", TempDir);
+if (mkdir(TempDir, 0) != 0)
+{
+  WriteLogMC("MovieCutterLib", "FileCut(): Directory '/MCTemp' already exists. Cutting process aborted.");
+  system(RmTempDir);
+  TRACEEXIT();
+  return FALSE;
+}
+
 char AbsSourceFileName[FBLIB_DIR_SIZE], AbsDestFileName[FBLIB_DIR_SIZE];
-if (TAP_Hdd_Exist("MCTemp")) WriteLogMC("MovieCutterLib", "FileCut(): Directory '/MCTemp' already exists. Cutting process aborted.");
-system("mkdir /mnt/hd/MCTemp");
 TAP_SPrint(AbsSourceFileName, sizeof(AbsSourceFileName), "%s%s/%s", TAPFSROOT, Directory, SourceFileName);
-TAP_SPrint(AbsDestFileName, sizeof(AbsDestFileName), "%s/MCTemp/%s", TAPFSROOT, "Temp.rec");
+TAP_SPrint(AbsDestFileName, sizeof(AbsDestFileName), "%s/%s", TempDir, "Temp.rec");
 rename(AbsSourceFileName, AbsDestFileName);
 
 
@@ -577,14 +594,15 @@ rename(AbsSourceFileName, AbsDestFileName);
   //Save the current directory resources and change into our directory (current directory of the TAP)
   ApplHdd_SaveWorkFolder();
   TAP_SPrint(AbsDirectory, sizeof(AbsDirectory), "%s%s", &TAPFSROOT[1], Directory);  //do not include the leading slash
-  ret = ApplHdd_SelectFolder(&FolderStruct, "/mnt/hd/MCTemp"); //AbsDirectory);
+  ret = ApplHdd_SelectFolder(&FolderStruct, &TempDir[1]); //AbsDirectory);
 TAP_SPrint(LogString, sizeof(LogString), "FileCut(): SelectFolder returned: %lu", ret);
 
   if (!ret) ret = DevHdd_DeviceOpen(&pFolderStruct, &FolderStruct);
+  ApplHdd_SetWorkFolder(&FolderStruct);
 #ifdef FULLDEBUG
   TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), ", Device open returned: %lu", ret);
   WriteLogMC("MovieCutterLib", LogString);
-  TAP_SPrint(LogString, sizeof(LogString), "FileCut(): addr(FolderStruct)=%lu, pFolderStruct=%lu, addr(pFolderStruct)=%lu", (dword)&FolderStruct, (dword)pFolderStruct, (dword)&pFolderStruct);
+  TAP_SPrint(LogString, sizeof(LogString), "FileCut(): addr(FolderStruct)=%lu, pFolderStruct=%lu", (dword)&FolderStruct, (dword)pFolderStruct);
   WriteLogMC("MovieCutterLib", LogString);
   TAP_SPrint(LogString, sizeof(LogString), "FileCut(): FolderStruct.Path=%s, FolderStruct.p1=%lu, FolderStruct.p2=%lu", FolderStruct.Path, FolderStruct.unknown1, FolderStruct.unknown2);
   WriteLogMC("MovieCutterLib", LogString);
@@ -592,7 +610,6 @@ TAP_SPrint(LogString, sizeof(LogString), "FileCut(): SelectFolder returned: %lu"
   WriteLogMC("MovieCutterLib", LogString);
 #endif
   
-  ApplHdd_SetWorkFolder(&FolderStruct);
   if (ret == 0)
   {
     //If a playback is running, stop it
@@ -609,9 +626,24 @@ TAP_SPrint(LogString, sizeof(LogString), "FileCut(): SelectFolder returned: %lu"
   }
 
   //Restore all resources
-  DevHdd_DeviceClose(&pFolderStruct);
   ApplHdd_RestoreWorkFolder();
+  TAP_SPrint(LogString, sizeof(LogString), "FileCut(): pFolderStruct=%lu, pFolderStruct->Magic=%8.8lx", (dword)pFolderStruct, pFolderStruct->Magic);
+  WriteLogMC("MovieCutterLib", LogString);
+  dword ret2 = DevHdd_DeviceClose(pFolderStruct);
+
+#ifdef FULLDEBUG
+  TAP_SPrint(LogString, sizeof(LogString), "FileCut(): Device close returned: %lu", ret2);
+  WriteLogMC("MovieCutterLib", LogString);
+  TAP_SPrint(LogString, sizeof(LogString), "FileCut(): pFolderStruct=%lu, pFolderStruct->Magic=%8.8lx", (dword)pFolderStruct, pFolderStruct->Magic);
+  WriteLogMC("MovieCutterLib", LogString);
+  if (ret2 && pFolderStruct) pFolderStruct->Magic = 0x00000000;
+#endif
   HDD_TAP_PopDir();
+
+// Liste der geöffneten Ordner ausgeben
+#ifdef FULLDEBUG
+  DirTableTest(pFolderStruct);
+#endif
 
   //Flush the caches *experimental*
   sync();
@@ -628,9 +660,9 @@ TAP_SPrint(LogString, sizeof(LogString), "FileCut(): SelectFolder returned: %lu"
 // Verschiebe geschnittene Datei wieder zurück
 rename(AbsDestFileName, AbsSourceFileName);
 TAP_SPrint(AbsSourceFileName, sizeof(AbsSourceFileName), "%s%s/%s", TAPFSROOT, Directory, CutFileName);
-TAP_SPrint(AbsDestFileName, sizeof(AbsDestFileName), "%s/MCTemp/%s", TAPFSROOT, "Temp_cut.rec");
+TAP_SPrint(AbsDestFileName, sizeof(AbsDestFileName), "%s/%s", TempDir, "Temp_cut.rec");
 rename(AbsDestFileName, AbsSourceFileName);
-system("rmdir /mnt/hd/MCTemp");
+system(RmTempDir);
 
 
   if(ret)

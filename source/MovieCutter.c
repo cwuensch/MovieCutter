@@ -180,6 +180,20 @@ typedef enum
   LS_CheckFSAborted,
   LS_CheckFSSuccess,
   LS_FileNameTooLong,
+  LS_Dummy,
+ // User notifications (10)
+  LS_MovieCutterActive,
+  LS_SegMarkerCreated,
+  LS_SegMarkerMoved,
+  LS_SegMarkerDeleted,
+  LS_BookmarkCreated,
+  LS_BookmarkMoved,
+  LS_BookmarkDeleted,
+  LS_SegmentSelected,
+  LS_SegmentUnselected,
+  LS_UndoLastAction,
+  LS_MinuteJumpActive,
+  LS_MinuteJumpDisabled,
   LS_NrStrings
 } tLngStrings;
 
@@ -348,6 +362,9 @@ int TAP_Main(void)
     return 0;
   }
 
+  // Reset Undo-Stack
+  UndoResetStack();
+
   // Load INI
   LoadINI();
 
@@ -362,6 +379,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 {
   dword                 SysState, SysSubState;
   static bool           DoNotReenter = FALSE;
+  static tOSDMode       LastOSDMode = MD_FullOSD;
   static dword          LastMinuteKey = 0;
   static dword          LastDraw = 0;
 
@@ -471,7 +489,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         if(SysState != STATE_Normal) break;
         if(!PlayInfo.file || !PlayInfo.file->name[0]) break;
 
-        OSDMode = DefaultOSDMode;
+//        OSDMode = DefaultOSDMode;  // unnötig
         BookmarkMode = FALSE;
         NrSegmentMarker = 0;
         ActiveSegment = 0;
@@ -481,6 +499,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         JumpRequestedTime = 0;          // "
 //        NoPlaybackCheck = FALSE;
         LastTotalBlocks = PlayInfo.totalBlock;
+//        UndoResetStack();  // unnötig
 
         OldRepeatMode = PlaybackRepeatGet();
         PlaybackRepeatSet(TRUE);
@@ -711,6 +730,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
         State = ST_ActiveOSD;
         OSDRedrawEverything();
+        OSDStateChangedWindow(LS_MovieCutterActive);
       }
       break;
     }
@@ -741,8 +761,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         // beim erneuten Einblenden kann man sich das Neu-Berechnen aller Werte sparen (AUCH wenn 2 Aufnahmen gleiche Blockzahl haben!!)
         if ((int)PlayInfo.currentBlock >= 0)
         {
+          OSDMode = LastOSDMode;
 //          NoPlaybackCheck = FALSE;
-//          OSDMode = DefaultOSDMode;
 //          BookmarkMode = FALSE;
 //          MinuteJump = DefaultMinuteJump;
 //          MinuteJumpBlocks = 0;
@@ -755,6 +775,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           PlaybackRepeatSet(TRUE);
           State = ST_ActiveOSD;
           OSDRedrawEverything();
+          OSDStateChangedWindow(LS_MovieCutterActive);
         }
         param1 = 0;
       }
@@ -779,26 +800,29 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     {
       if(!isPlaybackRunning())
       {
+        if (LastTotalBlocks > 0)
+        {
 #ifdef FULLDEBUG
   WriteLogMC(PROGRAM_NAME, "TAP_EventHandler(): State=ST_ActiveOSD, !isPlaybackRunning --> Aufruf von CutFileSave()");
 #endif
-        CutFileSave();
+          CutFileSave();
+        }
         Cleanup(TRUE);
         State = AutoOSDPolicy ? ST_WaitForPlayback : ST_InactiveMode;
         break;
       }
 
-      if((event == EVT_KEY) && (param1 == RKEY_Exit || param1 == RKEY_Info || param1 == RKEY_Teletext || param1 == RKEY_PlayList || ((param1==RKEY_Option || param1==RKEY_Ab) && (OSDMode==MD_MiniOSD))))
+      if((event == EVT_KEY) && ((param1==RKEY_Exit && OSDMode==MD_NoOSD) || param1==RKEY_Info || param1==RKEY_Teletext || param1==RKEY_PlayList))
       {
 #ifdef FULLDEBUG
   WriteLogMC(PROGRAM_NAME, "TAP_EventHandler(): State=ST_ActiveOSD, Key=RKEY_Exit --> Aufruf von CutFileSave()");
 #endif
+        LastOSDMode = OSDMode;
         JumpRequestedSegment = 0xFFFF;
         CutFileSave();
         PlaybackRepeatSet(OldRepeatMode);
         State = ST_InactiveModePlaying;
         ClearOSD(TRUE);
-        if (param1==RKEY_Option || param1==RKEY_Ab) OSDMode = MD_FullOSD;
 
         //Exit immediately so that other cases can not interfere with the cleanup
         DoNotReenter = FALSE;
@@ -823,12 +847,25 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             break;
           }
         
+          case RKEY_Exit:
+          {
+            LastOSDMode = OSDMode;
+            OSDMode = MD_NoOSD;
+            OSDRedrawEverything();
+            OSDStateChangedWindow(LS_MovieCutterActive);
+            break;
+          }
+
           case RKEY_Ab:
           case RKEY_Option:
           {
-            OSDMode = (tOSDMode) ((OSDMode + 1) % 4);
+            if (OSDMode == MD_NoOSD)
+              OSDMode = LastOSDMode;
+            else
+              OSDMode = (tOSDMode) ((OSDMode + 1) % 4);
             if(OSDMode == MD_NoOSD) OSDMode = MD_FullOSD;
             OSDRedrawEverything();
+//            OSDStateChangedWindow(LS_MovieCutterActive);
             break;
           }
 
@@ -912,23 +949,31 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           {
             if (BookmarkMode)
             {  
-              int NearestBookmarkIndex = FindNearestBookmark();
-              if(NearestBookmarkIndex != -1)
+              int NearestIndex = FindNearestBookmark();
+              if (NearestIndex >= 0)
               {
-                if (DeleteBookmark(NearestBookmarkIndex))
+                dword NearestBlock = Bookmarks[NearestIndex];
+                if (DeleteBookmark(NearestIndex))
+                {
+                  UndoAddEvent(TRUE, NearestBlock, 0);
                   OSDInfoDrawProgressbar(TRUE);
+                  OSDStateChangedWindow(LS_BookmarkDeleted);
 //                  OSDRedrawEverything();
+                }
               }
             }
             else
             {
-              int NearestMarkerIndex = FindNearestSegmentMarker();
-              if(NearestMarkerIndex != -1)
+              int NearestIndex = FindNearestSegmentMarker();
+              if (NearestIndex > 0)
               {
-                if (DeleteSegmentMarker(NearestMarkerIndex))
+                dword NearestBlock = SegmentMarker[NearestIndex].Block;
+                if (DeleteSegmentMarker(NearestIndex))
                 {
+                  UndoAddEvent(FALSE, NearestBlock, 0);
                   OSDSegmentListDrawList();
                   OSDInfoDrawProgressbar(TRUE);
+                  OSDStateChangedWindow(LS_SegMarkerDeleted);
 //                  OSDRedrawEverything();
                 }
               }
@@ -940,15 +985,22 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           {
             if (BookmarkMode)
             {
-              if(AddBookmark(PlayInfo.currentBlock))
-                OSDInfoDrawProgressbar(TRUE);  // OSDRedrawEverything();
+              if(AddBookmark(PlayInfo.currentBlock, TRUE))
+              {
+                UndoAddEvent(TRUE, 0, PlayInfo.currentBlock);
+                OSDInfoDrawProgressbar(TRUE);
+                OSDStateChangedWindow(LS_BookmarkCreated);
+//                OSDRedrawEverything();
+              }
             }
             else
             {
               if(AddSegmentMarker(PlayInfo.currentBlock, TRUE))
               {
+                UndoAddEvent(FALSE, 0, PlayInfo.currentBlock);
                 OSDSegmentListDrawList();
                 OSDInfoDrawProgressbar(TRUE);
+                OSDStateChangedWindow(LS_SegMarkerCreated);
 //                OSDRedrawEverything();
               }
             }
@@ -959,15 +1011,31 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           {
             if (BookmarkMode)
             {
-              if(MoveBookmark(PlayInfo.currentBlock))
-                OSDInfoDrawProgressbar(TRUE);
+              int NearestIndex = FindNearestBookmark();
+              if (NearestIndex >= 0)
+              {
+                dword NearestBlock = Bookmarks[NearestIndex];
+                if(MoveBookmark(NearestIndex, PlayInfo.currentBlock, TRUE))
+                {
+                  UndoAddEvent(TRUE, NearestBlock, PlayInfo.currentBlock);
+                  OSDInfoDrawProgressbar(TRUE);
+                  OSDStateChangedWindow(LS_BookmarkMoved);
+                }
+              }
             }
             else
             {
-              if(MoveSegmentMarker(PlayInfo.currentBlock))
+              int NearestIndex = FindNearestSegmentMarker();
+              if (NearestIndex > 0)
               {
-                OSDSegmentListDrawList();
-                OSDInfoDrawProgressbar(TRUE);
+                dword NearestBlock = SegmentMarker[NearestIndex].Block;
+                if(MoveSegmentMarker(NearestIndex, PlayInfo.currentBlock, TRUE))
+                {
+                  UndoAddEvent(FALSE, NearestBlock, PlayInfo.currentBlock);
+                  OSDSegmentListDrawList();
+                  OSDInfoDrawProgressbar(TRUE);
+                  OSDStateChangedWindow(LS_SegMarkerMoved);
+                }
               }
             }
 //            OSDRedrawEverything();
@@ -976,9 +1044,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
           case RKEY_Blue:
           {
-            SelectSegmentMarker();
+            bool Selected = SelectSegmentMarker();
             OSDSegmentListDrawList();
             OSDInfoDrawProgressbar(TRUE);
+            OSDStateChangedWindow((Selected) ? LS_SegmentSelected : LS_SegmentUnselected);
 //            OSDRedrawEverything();
             break;
           }
@@ -994,6 +1063,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             }
             if (OSDMode != MD_FullOSD)
             {
+              LastOSDMode = MD_FullOSD;
               OSDMode = MD_FullOSD;
               OSDRedrawEverything();
             }
@@ -1089,6 +1159,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               MinuteJumpBlocks = (PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec)) * MinuteJump*60;
               LastMinuteKey = TAP_GetTick();
               OSDInfoDrawMinuteJump();
+              if (MinuteJump)
+                OSDStateChangedWindow(LS_MinuteJumpActive);
+              else
+                OSDStateChangedWindow(LS_MinuteJumpDisabled);
               break;
 //            }
           }
@@ -1443,6 +1517,8 @@ void Cleanup(bool DoClearOSD)
   }
 //  LastTimeStamp = NULL;
 //  NrTimeStamps = 0;
+  OSDMode = DefaultOSDMode;
+  UndoResetStack();
   if (DoClearOSD) ClearOSD(TRUE);
 
   TRACEEXIT();
@@ -1601,6 +1677,7 @@ void ImportBookmarksToSegments(void)
   if (NrBookmarks > 0)
   {
     // first, delete all present segment markers (*CW*)
+    UndoResetStack();
     DeleteAllSegmentMarkers();
 
     // second, add a segment marker for each bookmark
@@ -1748,10 +1825,10 @@ int FindNearestSegmentMarker(void)
   return NearestMarkerIndex;
 }
 
-bool MoveSegmentMarker(dword newBlock)
+bool MoveSegmentMarker(int MarkerIndex, dword newBlock, bool RejectSmallSegments)
 {
   dword newTime;
-  int NearestMarkerIndex;
+  bool ret = FALSE;
 
   TRACEENTER();
 
@@ -1762,55 +1839,51 @@ bool MoveSegmentMarker(dword newBlock)
     return FALSE;
   }
 
-  NearestMarkerIndex = FindNearestSegmentMarker();
-  if(NearestMarkerIndex != -1)
+  if((MarkerIndex > 0) && (MarkerIndex < NrSegmentMarker - 1))
   {
     // Erlaube kein Segment mit weniger als 3 Sekunden
-    if ((newBlock > SegmentMarker[NearestMarkerIndex-1].Block + 3*BlocksOneSecond) && (newBlock + 3*BlocksOneSecond < SegmentMarker[NearestMarkerIndex+1].Block))
+    if (!RejectSmallSegments || ((newBlock > SegmentMarker[MarkerIndex-1].Block + 3*BlocksOneSecond) && (newBlock + 3*BlocksOneSecond < SegmentMarker[MarkerIndex+1].Block)))
     {
       // neue Zeit ermitteln
       newTime = NavGetBlockTimeStamp(newBlock);
       if((newTime != 0) || (newBlock <= 3 * BlocksOneSecond))
       {
-        SegmentMarker[NearestMarkerIndex].Block = newBlock;
-        SegmentMarker[NearestMarkerIndex].Timems = newTime;
-        SegmentMarker[NearestMarkerIndex].Percent = ((float)PlayInfo.currentBlock / PlayInfo.totalBlock) * 100.0;
-
-        TRACEEXIT();
-        return TRUE;
+        SegmentMarker[MarkerIndex].Block = newBlock;
+        SegmentMarker[MarkerIndex].Timems = newTime;
+        SegmentMarker[MarkerIndex].Percent = ((float)PlayInfo.currentBlock / PlayInfo.totalBlock) * 100.0;
+        ret = TRUE;
       }
     }
   }
 
   TRACEEXIT();
-  return FALSE;
+  return ret;
 }
 
-bool DeleteSegmentMarker(word MarkerIndex)
+bool DeleteSegmentMarker(int MarkerIndex)
 {
   int i;
+  bool ret = FALSE;
 
   TRACEENTER();
 
-  if((MarkerIndex <= 0) || (MarkerIndex >= (NrSegmentMarker - 1)))
+  if((MarkerIndex > 0) && (MarkerIndex < NrSegmentMarker - 1))
   {
-    TRACEEXIT();
-    return FALSE;
+    for(i = MarkerIndex; i < NrSegmentMarker - 1; i++)
+      memcpy(&SegmentMarker[i], &SegmentMarker[i + 1], sizeof(tSegmentMarker));
+
+//    memset(&SegmentMarker[NrSegmentMarker - 1], 0, sizeof(tSegmentMarker));
+    NrSegmentMarker--;
+
+    SegmentMarker[NrSegmentMarker - 1].Selected = FALSE;        // the very last marker (no segment)
+    if(NrSegmentMarker < 3) SegmentMarker[0].Selected = FALSE;  // there is only one segment (from start to end)
+    if(ActiveSegment >= MarkerIndex) ActiveSegment--;
+    if(ActiveSegment >= NrSegmentMarker - 1) ActiveSegment = NrSegmentMarker - 2;
+    ret = TRUE;
   }
 
-  for(i = MarkerIndex; i < NrSegmentMarker - 1; i++)
-    memcpy(&SegmentMarker[i], &SegmentMarker[i + 1], sizeof(tSegmentMarker));
-
-//  memset(&SegmentMarker[NrSegmentMarker - 1], 0, sizeof(tSegmentMarker));
-  NrSegmentMarker--;
-
-  SegmentMarker[NrSegmentMarker - 1].Selected = FALSE;        // the very last marker (no segment)
-  if(NrSegmentMarker < 3) SegmentMarker[0].Selected = FALSE;  // there is only one segment (from start to end)
-  if(ActiveSegment >= MarkerIndex) ActiveSegment--;
-  if(ActiveSegment >= NrSegmentMarker - 1) ActiveSegment = NrSegmentMarker - 2;
-
   TRACEEXIT();
-  return TRUE;
+  return ret;
 }
 
 void DeleteAllSegmentMarkers(void)
@@ -1819,6 +1892,7 @@ void DeleteAllSegmentMarkers(void)
 
   if (NrSegmentMarker > 2)
   {
+    UndoResetStack();
     memcpy(&SegmentMarker[1], &SegmentMarker[NrSegmentMarker-1], sizeof(tSegmentMarker));
 //    memset(&SegmentMarker[2], 0, (NrSegmentMarker-2) * sizeof(tSegmentMarker));
     NrSegmentMarker = 2;
@@ -1829,18 +1903,26 @@ void DeleteAllSegmentMarkers(void)
   TRACEEXIT();
 }
 
-void SelectSegmentMarker(void)
+bool SelectSegmentMarker(void)
 {
+  bool ret = FALSE;
   TRACEENTER();
 
   if (NrSegmentMarker > 2)
   {
     if (JumpRequestedSegment != 0xFFFF)
+    {
       SegmentMarker[JumpRequestedSegment].Selected = !SegmentMarker[JumpRequestedSegment].Selected;
+      ret = SegmentMarker[JumpRequestedSegment].Selected;
+    }
     else
+    {
       SegmentMarker[ActiveSegment].Selected = !SegmentMarker[ActiveSegment].Selected;
+      ret = SegmentMarker[ActiveSegment].Selected;
+    }
   }
   TRACEEXIT();
+  return ret;
 }
 
 
@@ -1921,6 +2003,7 @@ void ExportSegmentsToBookmarks(void)
   if (NrSegmentMarker > 2)
   {
     // first, delete all present bookmarks
+    UndoResetStack();
     DeleteAllBookmarks();
     NrBookmarks = 0;
 
@@ -1941,7 +2024,7 @@ void ExportSegmentsToBookmarks(void)
   TRACEEXIT();
 }
 
-bool AddBookmark(dword newBlock)
+bool AddBookmark(dword newBlock, bool RejectSmallScenes)
 {
   int i, j;
 
@@ -1967,7 +2050,7 @@ bool AddBookmark(dword newBlock)
   else if (newBlock > Bookmarks[NrBookmarks - 1])
   {
     // Erlaube keinen Abschnitt mit weniger als 3 Sekunden
-    if (newBlock <= Bookmarks[NrBookmarks-1] + 3*BlocksOneSecond)
+    if (RejectSmallScenes && (newBlock <= Bookmarks[NrBookmarks-1] + 3*BlocksOneSecond))
     {
       TRACEEXIT();
       return FALSE;
@@ -1981,7 +2064,7 @@ bool AddBookmark(dword newBlock)
       if(Bookmarks[i] >= newBlock)
       {
         // Erlaube keinen Abschnitt mit weniger als 3 Sekunden
-        if ((i > 0 && (newBlock <= Bookmarks[i-1] + 3*BlocksOneSecond)) || (newBlock + 3*BlocksOneSecond >= Bookmarks[i]))
+        if (RejectSmallScenes && ((i > 0 && (newBlock <= Bookmarks[i-1] + 3*BlocksOneSecond)) || (newBlock + 3*BlocksOneSecond >= Bookmarks[i])))
         {
           TRACEEXIT();
           return FALSE;
@@ -2028,10 +2111,9 @@ int FindNearestBookmark(void)
   return NearestBookmarkIndex;
 }
 
-bool MoveBookmark(dword newBlock)
+bool MoveBookmark(int BookmarkIndex, dword newBlock, bool RejectSmallScenes)
 {
-  int NearestBookmarkIndex;
-
+  bool ret = FALSE;
   TRACEENTER();
 
   if(newBlock > PlayInfo.totalBlock  /*!PLAYINFOVALID() || ((int)newBlock < 0)*/)   // PlayInfo ist sicher, da in Z.804 überprüft, Prüfung für newBlock nun restriktiver
@@ -2041,31 +2123,29 @@ bool MoveBookmark(dword newBlock)
     return FALSE;
   }
 
-  NearestBookmarkIndex = FindNearestBookmark();
-  if(NearestBookmarkIndex != -1)
+  if ((BookmarkIndex >= 0) && (BookmarkIndex < NrBookmarks))
   {
     // Erlaube keinen Abschnitt mit weniger als 3 Sekunden
-    if (((NearestBookmarkIndex == 0) || (newBlock > Bookmarks[NearestBookmarkIndex-1] + 3*BlocksOneSecond)) && ((NearestBookmarkIndex == NrBookmarks-1) || (newBlock + 3*BlocksOneSecond < Bookmarks[NearestBookmarkIndex+1])))
+    if (!RejectSmallScenes || (((BookmarkIndex == 0) || (newBlock > Bookmarks[BookmarkIndex-1] + 3*BlocksOneSecond)) && ((BookmarkIndex == NrBookmarks-1) || (newBlock + 3*BlocksOneSecond < Bookmarks[BookmarkIndex+1]))))
     {
-      Bookmarks[NearestBookmarkIndex] = newBlock;
+      Bookmarks[BookmarkIndex] = newBlock;
       SaveBookmarks();
-      TRACEEXIT();
-      return TRUE;
+      ret = TRUE;
     }
   }
 
   TRACEEXIT();
-  return FALSE;
+  return ret;
 }
 
-bool DeleteBookmark(word BookmarkIndex)
+bool DeleteBookmark(int BookmarkIndex)
 {
   bool ret = FALSE;
   int i;
 
   TRACEENTER();
 
-  if (BookmarkIndex < NrBookmarks)
+  if ((BookmarkIndex >= 0) && (BookmarkIndex < NrBookmarks))
   {
     for(i = BookmarkIndex; i < NrBookmarks - 1; i++)
       Bookmarks[i] = Bookmarks[i + 1];
@@ -2083,15 +2163,92 @@ bool DeleteBookmark(word BookmarkIndex)
 void DeleteAllBookmarks(void)
 {
   int i;
-
   TRACEENTER();
 
-  for(i = 0; i < NrBookmarks; i++)
-    Bookmarks[i] = 0;
-
+  if (NrBookmarks > 0)
+  {
+    UndoResetStack();
+    for(i = 0; i < NrBookmarks; i++)
+      Bookmarks[i] = 0;
+  }
   NrBookmarks = 0;
   SaveBookmarks();
 
+  TRACEEXIT();
+}
+
+// ----------------------------------------------------------------------------
+//                          Rückgängig-Funktionen
+// ----------------------------------------------------------------------------
+void UndoAddEvent(bool Bookmark, dword PreviousBlock, dword NewBlock)
+{
+  TRACEENTER();
+  TAP_PrintNet("MovieCutter: UndoAddEvent(%s, PreviousBlock=%lu, NewBlock=%lu)\n", (Bookmark) ? "Bookmark" : "SegmentMarker", PreviousBlock, NewBlock);
+  TRACEEXIT();
+}
+
+void UndoLastAction(void)
+{
+  int i;
+
+  TRACEENTER();
+/*  TAP_PrintNet("MovieCutter: UndoLastAction(%s, PreviousBlock=%lu, NewBlock=%lu)\n", (Bookmark) ? "Bookmark" : "SegmentMarker", PreviousBlock, NewBlock);
+
+  if (Bookmark)
+  {
+    if (NewBlock != 0)
+    {
+      for(i = 0; i < NrBookmarks; i++)
+        if(Bookmarks[i] == NewBlock) break;
+      if((i < NrBookmarks) && (Bookmarks[i] == NewBlock))
+      {
+        if (PreviousBlock != 0)
+          MoveBookmark(i, PreviousBlock, FALSE);
+        else
+          DeleteBookmark(i);
+      }
+    }
+    else
+    {
+      for(i = 0; i < NrBookmarks; i++)
+        if(Bookmarks[i] == PreviousBlock) break;
+      if((i < NrBookmarks) && (Bookmarks[i] == PreviousBlock))
+        AddBookmark(PreviousBlock, FALSE);
+    }
+  }
+  else
+  {
+    if (NewBlock != 0)
+    {
+      for(i = 1; i < NrSegmentMarker - 1; i++)
+        if(SegmentMarker[i].Block == NewBlock) break;
+      if((i < NrSegmentMarker - 1) && (SegmentMarker[i].Block == NewBlock))
+      {
+        if (PreviousBlock != 0)
+          MoveSegmentMarker(i, PreviousBlock, FALSE);
+        else
+          DeleteSegmentMarker(i);
+      }
+    }
+    else
+    {
+      for(i = 1; i < NrSegmentMarker - 1; i++)
+        if(SegmentMarker[i].Block == PreviousBlock) break;
+      if((i < NrSegmentMarker - 1) && (SegmentMarker[i].Block == PreviousBlock))
+        AddBookmark(PreviousBlock, FALSE);
+    }
+  }*/
+
+  OSDSegmentListDrawList();
+  OSDInfoDrawProgressbar(TRUE);
+  OSDStateChangedWindow(LS_UndoLastAction);
+  TRACEEXIT();
+}
+
+void UndoResetStack(void)
+{
+  TRACEENTER();
+  TAP_PrintNet("MovieCutter: UndoResetStack()\n");
   TRACEEXIT();
 }
 
@@ -2918,6 +3075,7 @@ void OSDInfoDrawPlayIcons(bool Force)
   TYPE_GrData           *Btn_Play, *Btn_Pause, *Btn_Fwd, *Btn_Rwd, *Btn_Slow;
   static TYPE_TrickMode  LastTrickMode = TRICKMODE_Slow;
   static byte            LastTrickModeSwitch = 0;
+  static bool            LastNoOSDMode = TRUE;
   byte                   TrickModeSwitch;
 
   TRACEENTER();
@@ -2937,7 +3095,7 @@ void OSDInfoDrawPlayIcons(bool Force)
 
   if(rgnInfoBar)
   {
-    if(Force || (TrickMode != LastTrickMode) || (TrickModeSwitch != LastTrickModeSwitch))
+    if(Force || ((OSDMode == MD_NoOSD) != LastNoOSDMode) || (TrickMode != LastTrickMode) || (TrickModeSwitch != LastTrickModeSwitch))
     {
       Btn_Play  = &_Button_Play_Inactive_Gd;
       Btn_Pause = &_Button_Pause_Inactive_Gd;
@@ -2990,10 +3148,11 @@ void OSDInfoDrawPlayIcons(bool Force)
 
   if(rgnInfoBarMini)
   {
-    if((TrickMode != LastTrickMode) || (TrickModeSwitch != LastTrickModeSwitch))
+    if(((OSDMode == MD_NoOSD) != LastNoOSDMode) || (TrickMode != LastTrickMode) || (TrickModeSwitch != LastTrickModeSwitch))
     {
-      if(!rgnPlayState)
-        rgnPlayState = TAP_Osd_Create(626, 50, 100, 50, 0, 0);
+      if(rgnPlayState)
+        TAP_Osd_Delete(rgnPlayState);
+      rgnPlayState = TAP_Osd_Create(626, 50, 100, 50, 0, 0);
       LastPlayStateChange = TAP_GetTick();
       if(LastPlayStateChange == 0) LastPlayStateChange = 1;
 
@@ -3012,6 +3171,7 @@ void OSDInfoDrawPlayIcons(bool Force)
     }
   }
 
+  LastNoOSDMode = (OSDMode == MD_NoOSD) 
   TRACEEXIT();
 }
 
@@ -3077,6 +3237,31 @@ void OSDInfoDrawMinuteJump(void)
     TAP_Osd_Sync();
   }
 
+  TRACEEXIT();
+}
+
+void OSDStateChangedWindow(int MessageID)
+{
+  char *MessageStr;
+  TRACEENTER();
+
+  if((!rgnInfoBar && !rgnInfoBarMini) || (rgnInfoBarMini && (MessageID==LS_MinuteJumpActive || MessageID==LS_MinuteJumpDisabled)))
+  {
+    if(rgnPlayState)
+      TAP_Osd_Delete(rgnPlayState);
+    rgnPlayState = TAP_Osd_Create(626, 50, 100, 50, 0, 0);
+    LastPlayStateChange = TAP_GetTick();
+    if(LastPlayStateChange == 0) LastPlayStateChange = 1;
+
+    MessageStr = LangGetString(MessageID);
+    if (MessageID == LS_MinuteJumpActive)
+    {
+      TAP_SPrint(LogString, sizeof(LogString), MessageStr, MinuteJump);
+      MessageStr = LogString;
+    }
+    FMUC_PutString(rgnPlayState, 0, 10, 100, MessageStr, COLOR_White, COLOR_None, &Calibri_10_FontDataUC, TRUE, ALIGN_CENTER);
+    TAP_Osd_Sync();
+  }
   TRACEEXIT();
 }
 
@@ -3154,8 +3339,9 @@ void Playback_Faster(void)
       return;
     }
   }
-  OSDInfoDrawPlayIcons(FALSE);
   Appl_SetPlaybackSpeed(TrickMode, TrickModeSpeed, TRUE);
+  isPlaybackRunning();
+  OSDInfoDrawPlayIcons(FALSE);
 
   TRACEEXIT();
 }
@@ -3228,8 +3414,9 @@ void Playback_Slower(void)
       return;
     }
   }
-  OSDInfoDrawPlayIcons(FALSE);
   Appl_SetPlaybackSpeed(TrickMode, TrickModeSpeed, TRUE);
+  isPlaybackRunning();
+  OSDInfoDrawPlayIcons(FALSE);
 
   TRACEEXIT();
 }
@@ -3240,8 +3427,9 @@ void Playback_Normal(void)
 
   TrickMode = TRICKMODE_Normal;
   TrickModeSpeed = 1;
-  OSDInfoDrawPlayIcons(FALSE);
   Appl_SetPlaybackSpeed(TrickMode, TrickModeSpeed, TRUE);
+  isPlaybackRunning();
+  OSDInfoDrawPlayIcons(FALSE);
 
   TRACEEXIT();
 }
@@ -3252,8 +3440,9 @@ void Playback_Pause(void)
 
   TrickMode = TRICKMODE_Pause;
   TrickModeSpeed = 0;
-  OSDInfoDrawPlayIcons(FALSE);
   Appl_SetPlaybackSpeed(TrickMode, TrickModeSpeed, TRUE);
+  isPlaybackRunning();
+  OSDInfoDrawPlayIcons(FALSE);
 
   TRACEEXIT();
 }
@@ -3277,8 +3466,9 @@ void Playback_FFWD(void)
     TrickMode = TRICKMODE_Forward;
     TrickModeSpeed++;
     if (TrickModeSpeed < 6) TrickModeSpeed++;
-    OSDInfoDrawPlayIcons(FALSE);
     Appl_SetPlaybackSpeed(TrickMode, TrickModeSpeed, TRUE);
+    isPlaybackRunning();
+    OSDInfoDrawPlayIcons(FALSE);
   }
   else
     Playback_Normal();
@@ -3305,8 +3495,9 @@ void Playback_RWD(void)
     TrickMode = TRICKMODE_Rewind;
     TrickModeSpeed++;
     if (TrickModeSpeed < 6) TrickModeSpeed++;
-    OSDInfoDrawPlayIcons(FALSE);
     Appl_SetPlaybackSpeed(TrickMode, TrickModeSpeed, TRUE);
+    isPlaybackRunning();
+    OSDInfoDrawPlayIcons(FALSE);
   }
   else
     Playback_Normal();
@@ -3329,8 +3520,9 @@ void Playback_Slow(void)
     if(TrickModeSpeed < 3) TrickModeSpeed++;
     else TrickModeSpeed = 1;
   TrickMode = TRICKMODE_Slow;
-  OSDInfoDrawPlayIcons(FALSE);
   Appl_SetPlaybackSpeed(TrickMode, TrickModeSpeed, TRUE);
+  isPlaybackRunning();
+  OSDInfoDrawPlayIcons(FALSE);
 
   TRACEEXIT();
 }
@@ -3880,6 +4072,9 @@ void MovieCutterDeleteFile(void)
   HDD_Delete2(PlaybackName, PlaybackDir, TRUE);
 //  NoPlaybackCheck = FALSE;
 
+  Cleanup(TRUE);
+  State = AutoOSDPolicy ? ST_WaitForPlayback : ST_InactiveMode;
+
   TRACEEXIT();
 }
 
@@ -4286,6 +4481,7 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
   if (SegmentMarker[max(min(ActiveSegment, NrSegmentMarker-2), 0)].Block > 0)
     TAP_Hdd_ChangePlaybackPos(SegmentMarker[max(min(ActiveSegment, NrSegmentMarker-2), 0)].Block);
 
+  UndoResetStack();
   PlaybackRepeatSet(OldRepeatMode);
   if (State == ST_UnacceptedFile)
   {
@@ -4553,11 +4749,12 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd)
           {
             p += 6; p2 = strstr(p, "\n");
             if(p2) *p2 = '\0';
+            if(strlen(p) > 80) p[80] = '\0';
           }
           else
             p = "(-> falscher Alarm?)";
         }
-        TAP_SPrint(LogString, sizeof(LogString), "%s\n%s", LangGetString(LS_CheckFSFailed), (p && strlen(p)<=80) ? p : "");
+        TAP_SPrint(LogString, sizeof(LogString), "%s\n%s", LangGetString(LS_CheckFSFailed), (p) ? p : "");
         ShowErrorMessage(LogString);
       }
     }
