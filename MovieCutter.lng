@@ -84,17 +84,19 @@ de_057=Dateisystem scheint einwandfrei.
 de_058=Dateiname oder -pfad ist zu lang!
 de_059=
 de_060=MovieCutter aktiv
-de_061=Schnittmarke erzeugt
-de_062=Schnittmarke verschoben
-de_063=Schnittmarke gelöscht
-de_064=Bookmark angelegt
-de_065=Bookmark verschoben
-de_066=Bookmark gelöscht
-de_067=Segment markiert
-de_068=Markierung aufgehoben
-de_069=Letzte Aktion rückgängig
-de_070=Minutensprung aktiv: %d
-de_071=Minutensprung deaktiviert
+de_061=Segment-Modus
+de_062=Bookmark-Modus
+de_063=Schnittmarke erzeugt
+de_064=Schnittmarke verschoben
+de_065=Schnittmarke gelöscht
+de_066=Bookmark angelegt
+de_067=Bookmark verschoben
+de_068=Bookmark gelöscht
+de_069=Segment markiert
+de_070=Markierung aufgehoben
+de_071=Letzte Aktion rückgängig
+de_072=Minutensprung aktiv: %d
+de_073=Minutensprung deaktiviert
 
 
 #English
@@ -159,17 +161,19 @@ en_057=File system seems valid.
 en_058=File name or path is too long!
 en_059=
 en_060=MovieCutter active
-en_061=Cut marker created
-en_062=Cut marker moved
-en_063=Cut marker deleted
-en_064=Bookmark created
-en_065=Bookmark moved
-en_066=Bookmark deleted
-en_067=Segment selected
-en_068=Selection removed
-en_069=Undo last action
-en_070=Minute jump active: %d
-en_071=Minute jump disabled
+en_061=Segment mode
+en_062=Bookmark mode
+en_063=Cut marker created
+en_064=Cut marker moved
+en_065=Cut marker deleted
+en_066=Bookmark created
+en_067=Bookmark moved
+en_068=Bookmark deleted
+en_069=Segment selected
+en_070=Selection removed
+en_071=Undo last action
+en_072=Minute jump active: %d
+en_073=Minute jump disabled
 
 
 #French

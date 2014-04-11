@@ -183,6 +183,8 @@ typedef enum
   LS_Dummy,
  // User notifications (10)
   LS_MovieCutterActive,
+  LS_SegmentMode,
+  LS_BookmarkMode,
   LS_SegMarkerCreated,
   LS_SegMarkerMoved,
   LS_SegMarkerDeleted,
@@ -367,6 +369,7 @@ int TAP_Main(void)
 
   // Load INI
   LoadINI();
+  OSDMode = DefaultOSDMode;
 
   TRACEEXIT();
   return 1;
@@ -756,7 +759,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
       if (State == ST_UnacceptedFile) break;
 
-      if((event == EVT_KEY) && ((param1 == RKEY_Ab) || (param1 == RKEY_Option)))
+      if((event == EVT_KEY) && ((param1 == RKEY_Ab) || (param1 == RKEY_Option)))  // *** NUR wenn kein OSD eingeblendet ist!!!
       {
         // beim erneuten Einblenden kann man sich das Neu-Berechnen aller Werte sparen (AUCH wenn 2 Aufnahmen gleiche Blockzahl haben!!)
         if ((int)PlayInfo.currentBlock >= 0)
@@ -785,7 +788,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     case ST_InactiveMode:    // OSD is hidden and has to be manually activated
     {
       // if cut-key is pressed -> show MovieCutter OSD (ST_WaitForPlayback)
-      if((event == EVT_KEY) && ((param1 == RKEY_Ab) || (param1 == RKEY_Option)))
+      if((event == EVT_KEY) && ((param1 == RKEY_Ab) || (param1 == RKEY_Option)))  // *** NUR wenn kein OSD eingeblendet ist!!!
       {
         if (!isPlaybackRunning()) break;
         State = ST_WaitForPlayback;
@@ -812,12 +815,13 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         break;
       }
 
-      if((event == EVT_KEY) && ((param1==RKEY_Exit && OSDMode==MD_NoOSD) || param1==RKEY_Info || param1==RKEY_Teletext || param1==RKEY_PlayList))
+      if((event == EVT_KEY) && ((param1==RKEY_Exit && OSDMode==MD_NoOSD) || param1==RKEY_Info || param1==RKEY_Teletext || param1==RKEY_PlayList || param1==RKEY_AudioTrk || param1==RKEY_Subt))
       {
 #ifdef FULLDEBUG
   WriteLogMC(PROGRAM_NAME, "TAP_EventHandler(): State=ST_ActiveOSD, Key=RKEY_Exit --> Aufruf von CutFileSave()");
 #endif
-        LastOSDMode = OSDMode;
+        if (OSDMode != MD_NoOSD)
+          LastOSDMode = OSDMode;
         JumpRequestedSegment = 0xFFFF;
         CutFileSave();
         PlaybackRepeatSet(OldRepeatMode);
@@ -827,7 +831,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         //Exit immediately so that other cases can not interfere with the cleanup
         DoNotReenter = FALSE;
         TRACEEXIT();
-        return ((param1 == RKEY_Info || param1 == RKEY_Teletext || param1 == RKEY_PlayList) ? param1 : 0);
+        return ((param1 != RKEY_Exit) ? param1 : 0);
       }
 
       if ((int)PlayInfo.currentBlock < 0)
@@ -869,6 +873,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             break;
           }
 
+          case RKEY_VFormat:
+          case RKEY_Fav:
           case RKEY_Guide:
           {
             BookmarkMode = !BookmarkMode;
@@ -876,6 +882,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             OSDInfoDrawProgressbar(TRUE);
             OSDInfoDrawBookmarkMode();
             OSDInfoDrawMinuteJump();
+            OSDStateChangedWindow((BookmarkMode) ? LS_BookmarkMode : LS_SegmentMode);
             break;
           }
 
@@ -943,6 +950,14 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             else
               Playback_JumpNextSegment();
             break;
+          }
+
+          case RKEY_Recall:
+          {
+            UndoLastAction();
+            OSDSegmentListDrawList();
+            OSDInfoDrawProgressbar(TRUE);
+            OSDStateChangedWindow(LS_UndoLastAction);
           }
 
           case RKEY_Red:
@@ -1063,7 +1078,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             }
             if (OSDMode != MD_FullOSD)
             {
-              LastOSDMode = MD_FullOSD;
+              LastOSDMode = OSDMode;
               OSDMode = MD_FullOSD;
               OSDRedrawEverything();
             }
@@ -1159,10 +1174,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               MinuteJumpBlocks = (PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec)) * MinuteJump*60;
               LastMinuteKey = TAP_GetTick();
               OSDInfoDrawMinuteJump();
-              if (MinuteJump)
-                OSDStateChangedWindow(LS_MinuteJumpActive);
-              else
-                OSDStateChangedWindow(LS_MinuteJumpDisabled);
+              OSDStateChangedWindow((MinuteJump) ? LS_MinuteJumpActive : LS_MinuteJumpDisabled);
               break;
 //            }
           }
@@ -1194,6 +1206,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           {
             TAP_Osd_Delete(rgnPlayState);
             rgnPlayState = 0;
+            TAP_Osd_Sync();
           }
           LastPlayStateChange = 0;
         }
@@ -1297,6 +1310,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             break;
           }
 
+          case RKEY_VFormat:
+          case RKEY_Fav:
           case RKEY_Guide:
           {
             BookmarkMode = !BookmarkMode;
@@ -2239,9 +2254,6 @@ void UndoLastAction(void)
     }
   }*/
 
-  OSDSegmentListDrawList();
-  OSDInfoDrawProgressbar(TRUE);
-  OSDStateChangedWindow(LS_UndoLastAction);
   TRACEEXIT();
 }
 
@@ -2571,11 +2583,20 @@ void CreateOSD(void)
 {
   TRACEENTER();
 
-  if(!rgnInfoBar && !rgnInfoBarMini)
+/*  if(!rgnInfoBar && !rgnInfoBarMini && OSDMode != MD_NoOSD)
   {
     TAP_ExitNormal();
     TAP_EnterNormalNoInfo();
     TAP_ExitNormal();
+  } */
+
+  if ((OSDMode != MD_MiniOSD) && (OSDMode != MD_NoOSD))
+  {
+    if(rgnPlayState)
+    {
+      TAP_Osd_Delete(rgnPlayState);
+      rgnPlayState = 0;
+    }
   }
 
   if (OSDMode != MD_MiniOSD)
@@ -2584,11 +2605,6 @@ void CreateOSD(void)
     {
       TAP_Osd_Delete(rgnInfoBarMini);
       rgnInfoBarMini = 0;
-    }
-    if(rgnPlayState)
-    {
-      TAP_Osd_Delete(rgnPlayState);
-      rgnPlayState = 0;
     }
   }
 
@@ -3008,7 +3024,10 @@ void OSDInfoDrawBackground(void)
 
   if(rgnInfoBarMini)
   {
+    TAP_Osd_FillBox(rgnInfoBarMini, 0, 0, 720, 50, COLOR_Black);
+    TAP_Osd_DrawRectangle(rgnInfoBarMini, 0, 0, 720, 50, 1, COLOR_Gray);
     FMUC_PutString(rgnInfoBarMini, 0, 10, 720, "Mini OSD coming soon...", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER);
+    TAP_Osd_Sync();
   }
 
   TRACEEXIT();
@@ -3145,8 +3164,7 @@ void OSDInfoDrawPlayIcons(bool Force)
       TAP_Osd_Sync();
     }
   }
-
-  if(rgnInfoBarMini)
+  else
   {
     if(((OSDMode == MD_NoOSD) != LastNoOSDMode) || (TrickMode != LastTrickMode) || (TrickModeSwitch != LastTrickModeSwitch))
     {
@@ -3249,17 +3267,24 @@ void OSDStateChangedWindow(int MessageID)
   {
     if(rgnPlayState)
       TAP_Osd_Delete(rgnPlayState);
-    rgnPlayState = TAP_Osd_Create(626, 50, 100, 50, 0, 0);
+    rgnPlayState = TAP_Osd_Create(480, 50, 200, 50, 0, 0);
     LastPlayStateChange = TAP_GetTick();
     if(LastPlayStateChange == 0) LastPlayStateChange = 1;
 
     MessageStr = LangGetString(MessageID);
+    if (MessageID == LS_MovieCutterActive)
+    {
+      TAP_SPrint(LogString, sizeof(LogString), "%s (%s)", MessageStr, LangGetString((BookmarkMode) ? LS_BookmarkMode : LS_SegmentMode));
+      MessageStr = LogString;
+    }
     if (MessageID == LS_MinuteJumpActive)
     {
       TAP_SPrint(LogString, sizeof(LogString), MessageStr, MinuteJump);
       MessageStr = LogString;
     }
-    FMUC_PutString(rgnPlayState, 0, 10, 100, MessageStr, COLOR_White, COLOR_None, &Calibri_10_FontDataUC, TRUE, ALIGN_CENTER);
+    TAP_Osd_FillBox(rgnPlayState, 0, 0, 200, 50, COLOR_Black);
+    TAP_Osd_DrawRectangle(rgnPlayState, 0, 0, 200, 50, 1, COLOR_Gray);
+    FMUC_PutString(rgnPlayState, 0, 10, 200, MessageStr, COLOR_White, COLOR_None, &Calibri_10_FontDataUC, TRUE, ALIGN_CENTER);
     TAP_Osd_Sync();
   }
   TRACEEXIT();
@@ -4008,6 +4033,11 @@ void MovieCutterSelectOddSegments(void)
       ActionMenuDraw();
     }
   }
+  else
+  {
+    State = ST_ActionMenu;
+    ActionMenuDraw();
+  }
   TRACEEXIT();
 }
 
@@ -4038,6 +4068,11 @@ void MovieCutterSelectEvenSegments(void)
       ActionMenuDraw();
     }
   }
+  else
+  {
+    State = ST_ActionMenu;
+    ActionMenuDraw();
+  }
   TRACEEXIT();
 }
 
@@ -4053,6 +4088,8 @@ void MovieCutterUnselectAll(void)
   OSDInfoDrawProgressbar(TRUE);
 //  OSDRedrawEverything();
 
+  State = ST_ActionMenu;
+  ActionMenuDraw();
   TRACEEXIT();
 }
 
