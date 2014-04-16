@@ -557,7 +557,7 @@ bool FileCut(char *SourceFileName, char *CutFileName, char const *Directory, dwo
   #endif
 
 // Verschiebe die rec-Datei nach /mnt/hd/MCTemp
-static dword TempDirNr = 0;
+/*static dword TempDirNr = 0;
 TempDirNr++;
 char TempDir[512], RmTempDir[512];
 TAP_SPrint(TempDir, sizeof(TempDir), "%s/MCTemp%lu", TAPFSROOT, TempDirNr);
@@ -574,7 +574,7 @@ char AbsSourceFileName[FBLIB_DIR_SIZE], AbsDestFileName[FBLIB_DIR_SIZE];
 TAP_SPrint(AbsSourceFileName, sizeof(AbsSourceFileName), "%s%s/%s", TAPFSROOT, Directory, SourceFileName);
 TAP_SPrint(AbsDestFileName, sizeof(AbsDestFileName), "%s/%s", TempDir, "Temp.rec");
 rename(AbsSourceFileName, AbsDestFileName);
-
+*/
 
   //Flush the caches *experimental*
   sync();
@@ -594,7 +594,7 @@ rename(AbsSourceFileName, AbsDestFileName);
   //Save the current directory resources and change into our directory (current directory of the TAP)
   ApplHdd_SaveWorkFolder();
   TAP_SPrint(AbsDirectory, sizeof(AbsDirectory), "%s%s", &TAPFSROOT[1], Directory);  //do not include the leading slash
-  ret = ApplHdd_SelectFolder(&FolderStruct, &TempDir[1]); //AbsDirectory);
+  ret = ApplHdd_SelectFolder(&FolderStruct, AbsDirectory);  // &TempDir[1]
 TAP_SPrint(LogString, sizeof(LogString), "FileCut(): SelectFolder returned: %lu", ret);
 
   if (!ret) ret = DevHdd_DeviceOpen(&pFolderStruct, &FolderStruct);
@@ -621,8 +621,8 @@ TAP_SPrint(LogString, sizeof(LogString), "FileCut(): SelectFolder returned: %lu"
     }
 
     //Do the cutting
-//    ret = ApplHdd_FileCutPaste(SourceFileName, StartBlock, NrBlocks, CutFileName);
-    ret = ApplHdd_FileCutPaste("Temp.rec", StartBlock, NrBlocks, "Temp_cut.rec");
+    ret = ApplHdd_FileCutPaste(SourceFileName, StartBlock, NrBlocks, CutFileName);
+//    ret = ApplHdd_FileCutPaste("Temp.rec", StartBlock, NrBlocks, "Temp_cut.rec");
   }
 
   //Restore all resources
@@ -636,13 +636,13 @@ TAP_SPrint(LogString, sizeof(LogString), "FileCut(): SelectFolder returned: %lu"
   WriteLogMC("MovieCutterLib", LogString);
   TAP_SPrint(LogString, sizeof(LogString), "FileCut(): pFolderStruct=%lu, pFolderStruct->Magic=%8.8lx", (dword)pFolderStruct, pFolderStruct->Magic);
   WriteLogMC("MovieCutterLib", LogString);
-  if (ret2 && pFolderStruct) pFolderStruct->Magic = 0x00000000;
+//  if (ret2 && pFolderStruct) pFolderStruct->Magic = 0x00000000;
 #endif
   HDD_TAP_PopDir();
 
 // Liste der geöffneten Ordner ausgeben
 #ifdef FULLDEBUG
-  DirTableTest(pFolderStruct);
+//  DirTableTest(pFolderStruct);
 #endif
 
   //Flush the caches *experimental*
@@ -658,12 +658,11 @@ TAP_SPrint(LogString, sizeof(LogString), "FileCut(): SelectFolder returned: %lu"
 
 
 // Verschiebe geschnittene Datei wieder zurück
-rename(AbsDestFileName, AbsSourceFileName);
+/*rename(AbsDestFileName, AbsSourceFileName);
 TAP_SPrint(AbsSourceFileName, sizeof(AbsSourceFileName), "%s%s/%s", TAPFSROOT, Directory, CutFileName);
 TAP_SPrint(AbsDestFileName, sizeof(AbsDestFileName), "%s/%s", TempDir, "Temp_cut.rec");
 rename(AbsDestFileName, AbsSourceFileName);
-system(RmTempDir);
-
+system(RmTempDir); */
 
   if(ret)
   {

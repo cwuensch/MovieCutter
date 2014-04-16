@@ -207,6 +207,7 @@ bool                    SaveCutBak = TRUE;
 bool                    DisableSpecialEnd = FALSE;
 bool                    ShowRebootMessage = TRUE;
 bool                    CheckFSAfterCut = FALSE;
+bool                    CheckFSBetweenCut = FALSE;
 bool                    AskBeforeEdit = TRUE;
 dword                   DefaultMinuteJump = 0;
 tOSDMode                DefaultOSDMode = MD_FullOSD;
@@ -489,7 +490,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       if(isPlaybackRunning() && ((int)PlayInfo.totalBlock > 0) && ((int)PlayInfo.currentBlock >= 0))
       {
         TAP_GetState(&SysState, &SysSubState);
-        if(SysState != STATE_Normal) break;
+        if(SysState != STATE_Normal || (SysSubState != SUBSTATE_Normal && SysSubState != 0)) break;
         if(!PlayInfo.file || !PlayInfo.file->name[0]) break;
 
 //        OSDMode = DefaultOSDMode;  // unnötig
@@ -759,8 +760,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
       if (State == ST_UnacceptedFile) break;
 
-      if((event == EVT_KEY) && ((param1 == RKEY_Ab) || (param1 == RKEY_Option)))  // *** NUR wenn kein OSD eingeblendet ist!!!
+      if((event == EVT_KEY) && (param1 == RKEY_Ab || param1 == RKEY_Option))
       {
+        TAP_GetState(&SysState, &SysSubState);
+        if(SysState != STATE_Normal || SysSubState != SUBSTATE_Normal) break;  // (nur wenn kein OSD eingeblendet ist!)
+
         // beim erneuten Einblenden kann man sich das Neu-Berechnen aller Werte sparen (AUCH wenn 2 Aufnahmen gleiche Blockzahl haben!!)
         if ((int)PlayInfo.currentBlock >= 0)
         {
@@ -788,9 +792,12 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     case ST_InactiveMode:    // OSD is hidden and has to be manually activated
     {
       // if cut-key is pressed -> show MovieCutter OSD (ST_WaitForPlayback)
-      if((event == EVT_KEY) && ((param1 == RKEY_Ab) || (param1 == RKEY_Option)))  // *** NUR wenn kein OSD eingeblendet ist!!!
+      if((event == EVT_KEY) && (param1 == RKEY_Ab || param1 == RKEY_Option))
       {
+        TAP_GetState(&SysState, &SysSubState);
+        if(SysState != STATE_Normal || SysSubState != SUBSTATE_Normal) break;  // (nur wenn kein OSD eingeblendet ist!)
         if (!isPlaybackRunning()) break;
+
         State = ST_WaitForPlayback;
         param1 = 0;
       }
@@ -815,7 +822,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         break;
       }
 
-      if((event == EVT_KEY) && ((param1==RKEY_Exit && OSDMode==MD_NoOSD) || param1==RKEY_Info || param1==RKEY_Teletext || param1==RKEY_PlayList || param1==RKEY_AudioTrk || param1==RKEY_Subt))
+      if((event == EVT_KEY) && ((param1==RKEY_Exit && OSDMode==MD_NoOSD) || param1==RKEY_Stop || param1==RKEY_Info || param1==RKEY_Teletext || param1==RKEY_PlayList || param1==RKEY_AudioTrk || param1==RKEY_Subt))
       {
 #ifdef FULLDEBUG
   WriteLogMC(PROGRAM_NAME, "TAP_EventHandler(): State=ST_ActiveOSD, Key=RKEY_Exit --> Aufruf von CutFileSave()");
@@ -1134,13 +1141,13 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             break;
           }
 
-          case RKEY_Stop:
+/*          case RKEY_Stop:
           {
             TAP_Hdd_StopTs();
             HDD_ChangeDir(PlaybackDir);
             break;
           }
-
+*/
           case RKEY_Right:
           {
             Playback_Faster();
@@ -1284,7 +1291,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                   if (!BookmarkMode)
                   {
                     OSDMenuSaveMyRegion(rgnSegmentList);
-                    /*if(*/!CheckFileSystem(0, 1)/*)
+                    /*if(*/!CheckFileSystem(0, 1, 1, TRUE)/*)
                       ShowErrorMessage((fsck_Cancelled) ? LangGetString(LS_CheckFSAborted) : LangGetString(LS_CheckFSFailed))*/;
                   }
                   else
@@ -1396,7 +1403,7 @@ bool ShowConfirmationDialog(char *MessageStr)
   ret = (LastMessageBoxKey == RKEY_Ok) && (OSDMenuMessageBoxLastButton() == 0);
 
   TAP_Osd_Sync();
-  if(OldSysSubState == SUBSTATE_Normal) TAP_EnterNormalNoInfo();
+  if(OldSysSubState != 0) TAP_EnterNormalNoInfo();
 //  OSDMenuFreeStdFonts();
 
   HDD_TAP_PopDir();
@@ -1426,7 +1433,7 @@ void ShowErrorMessage(char *MessageStr)
   }
 
   TAP_Osd_Sync();
-  if(OldSysSubState == SUBSTATE_Normal) TAP_EnterNormalNoInfo();
+  if(OldSysSubState != 0) TAP_EnterNormalNoInfo();
 //  OSDMenuFreeStdFonts();
 
   HDD_TAP_PopDir();
@@ -1631,6 +1638,7 @@ void LoadINI(void)
     DisableSpecialEnd = INIGetInt("DisableSpecialEnd", 0, 0, 1) == 1;
     ShowRebootMessage = INIGetInt("ShowRebootMessage", 1, 0, 1) != 0;
     CheckFSAfterCut   = INIGetInt("CheckFSAfterCut", 0, 0, 1) == 1;
+    CheckFSBetweenCut = INIGetInt("CheckFSBetweenCut", 0, 0, 1) == 1;
 
     AskBeforeEdit     = INIGetInt("AskBeforeEdit", 1, 0, 1) != 0;
     DefaultMinuteJump = INIGetInt("DefaultMinuteJump", 0, 0, 99);
@@ -1643,6 +1651,8 @@ void LoadINI(void)
   INICloseFile();
   if (!AutoOSDPolicy && DefaultOSDMode == MD_NoOSD)
     DefaultOSDMode = MD_FullOSD;
+  if (CheckFSBetweenCut)
+    CheckFSAfterCut = FALSE;
 
   if(IniFileState == INILOCATION_NewFile)
     SaveINI();
@@ -1664,6 +1674,7 @@ void SaveINI(void)
   INISetInt("DisableSpecialEnd", DisableSpecialEnd ? 1 : 0);
   INISetInt("ShowRebootMessage", ShowRebootMessage ? 1 : 0);
   INISetInt("CheckFSAfterCut", CheckFSAfterCut ? 1 : 0);
+  INISetInt("CheckFSBetweenCut", CheckFSBetweenCut ? 1 : 0);
 
   INISetInt("AskBeforeEdit", AskBeforeEdit ? 1 : 0);
   INISetInt("DefaultMinuteJump", DefaultMinuteJump);
@@ -4214,7 +4225,7 @@ void MovieCutterProcess(bool KeepCut)
       if (isPlaybackRunning())
       {
 //        NoPlaybackCheck = TRUE;
-        TAP_Hdd_StopTs();
+        TAP_Hdd_StopTs();  // ****
       }
 //      NoPlaybackCheck = TRUE;
       HDD_ChangeDir(PlaybackDir);
@@ -4297,6 +4308,14 @@ void MovieCutterProcess(bool KeepCut)
             HDD_Rename2(TempFileName, PlaybackName, PlaybackDir, TRUE);
           }
         }
+      }
+
+      // Dateisystem-Prüfung zwischen den Schnittoperationen (optional)
+      if (CheckFSBetweenCut)
+      {
+        CheckFileSystem(2*(maxProgress - NrSelectedSegments + 1 - ((CheckFSAfterCut) ? 1 : 0)) - 1, 2*(maxProgress - NrSelectedSegments + 1 - ((CheckFSAfterCut) ? 1 : 0)), 2*maxProgress, FALSE);
+        OSDMenuSaveMyRegion(rgnSegmentList);
+        OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), 2*(maxProgress - NrSelectedSegments + 1 - ((CheckFSAfterCut) ? 1 : 0)), 2*maxProgress, NULL);
       }
 
       // Überprüfung von Existenz und Größe der geschnittenen Aufnahme
@@ -4421,7 +4440,7 @@ void MovieCutterProcess(bool KeepCut)
       OSDSegmentListDrawList();
       OSDInfoDrawProgressbar(TRUE);
 
-TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegments - ((CheckFSAfterCut) ? 1 : 0), maxProgress)
+TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegments - ((CheckFSAfterCut) ? 1 : 0), maxProgress);
       if (OSDMenuProgressBarIsVisible())
         OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), maxProgress - NrSelectedSegments - ((CheckFSAfterCut) ? 1 : 0), maxProgress, NULL);
     }
@@ -4474,7 +4493,7 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
 //    TAP_SystemProc();
 
     /*char ErrorString[512], *p=NULL, *p2=NULL;
-    if(*/CheckFileSystem(maxProgress-1, maxProgress);/*)
+    if(*/CheckFileSystem(maxProgress-1, maxProgress, maxProgress, TRUE);/*)
     {
       OSDMenuSaveMyRegion(rgnSegmentList);
       OSDMenuInfoBoxShow(PROGRAM_NAME " " VERSION, "File system seems valid.", NULL);
@@ -4587,7 +4606,7 @@ bool PlaybackRepeatGet()
   return (PlaybackRepeatMode(FALSE, 0, 0, 0) == 2);
 }
 
-bool CheckFileSystem(dword ProgressStart, dword ProgressEnd)
+bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, bool ShowOkInfo)
 {
   const int             BufSize = 10000;
   FILE                 *fLogFile = NULL, *fPidFile = NULL;
@@ -4609,7 +4628,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd)
   HDD_ChangeDir("/ProgramFiles/Settings/MovieCutter");
 
 //  OSDMenuSaveMyRegion(rgnSegmentList);
-  OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), ProgressStart, ProgressEnd, NULL);
+  OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), ProgressStart, ProgressMax, NULL);
 
   remove("/tmp/fsck.log");
 //  remove("/tmp/fsck.pid");
@@ -4636,12 +4655,17 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd)
 
     // Mount-Point aus dem Pfad extrahieren
     p = MountPoint;
+    p2 = NULL;
     while ((p) && (i > 0))
     {
       p = strchr((p+1), '/');
+      if (i == 3) p2 = p;  // (nur) beim zweiten Durchlauf p2 festlegen
       i--;
     }
-    if(p) MountPoint[p - MountPoint] = '\0';
+    if(p)
+      MountPoint[p - MountPoint] = '\0';
+    else if(p2)
+      MountPoint[p2 - MountPoint] = '\0';
     TAP_PrintNet("MountPoint: '%s'", MountPoint);
     
     // Mount-Point in der Mount-Tabelle suchen
@@ -4666,7 +4690,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd)
 
     // --- 2.) Run fsck and create a log file ---
     StartTime = TF2UnixTime(Now(NULL));
-    TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/jfs_fsck -n -v %s > /tmp/fsck.log & echo $! > /tmp/fsck.pid", TAPFSROOT, DeviceNode);  // > /tmp/fsck.pid
+    TAP_SPrint(CommandLine, sizeof(CommandLine), "echo y | %s/ProgramFiles/jfs_fsck %s -v %s > /tmp/fsck.log & echo $! > /tmp/fsck.pid", TAPFSROOT, ((CheckFSBetweenCut) ? "-a" : "-n"), DeviceNode);  // > /tmp/fsck.pid
     system(CommandLine);
 
     //Get the PID of the fsck-Process
@@ -4690,9 +4714,9 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd)
       TAP_Delay(50);
       i++;
       if (i <= 240 && i % 10)
-        OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), 24*ProgressStart + (i/10)*(ProgressEnd-ProgressStart), 24*ProgressEnd, NULL);
+        OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), 24*ProgressStart + (i/10)*(ProgressEnd-ProgressStart), 24*ProgressMax, NULL);
       TAP_SystemProc();
-      if(fsck_Cancelled)
+      if(fsck_Cancelled && !CheckFSBetweenCut)  // ****
       {
         char KillCommand[16];
         TAP_SPrint(KillCommand, sizeof(KillCommand), "kill %lu", fsck_Pid);
@@ -4756,7 +4780,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd)
     if (!fsck_Cancelled)
     {
       // Display full ProgressBar and destroy it
-      OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), ProgressEnd, ProgressEnd, NULL);
+      OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), ProgressEnd, ProgressMax, NULL);
       TAP_Sleep(100);
       OSDMenuProgressBarDestroyNoOSDUpdate();
 
@@ -4764,11 +4788,14 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd)
       if(ErrorString == NULL)
       {
         WriteLogMC(PROGRAM_NAME, "CheckFileSystem: File system seems valid.");
-        OSDMenuSaveMyRegion(rgnSegmentList);
-        OSDMenuInfoBoxShow(PROGRAM_NAME, LangGetString(LS_CheckFSSuccess), 0);
-        TAP_SystemProc();
-        TAP_Delay(100);
-        OSDMenuInfoBoxDestroyNoOSDUpdate();
+        if (ShowOkInfo)
+        {
+          OSDMenuSaveMyRegion(rgnSegmentList);
+          OSDMenuInfoBoxShow(PROGRAM_NAME, LangGetString(LS_CheckFSSuccess), 0);
+          TAP_SystemProc();
+          TAP_Delay(100);
+          OSDMenuInfoBoxDestroyNoOSDUpdate();
+        }
 //        TAP_Osd_Sync();
       }
       else
@@ -4810,7 +4837,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd)
     ShowErrorMessage(LangGetString(LS_CheckFSAborted));
   }
 
-  if(OldSysSubState == SUBSTATE_Normal) TAP_EnterNormalNoInfo();
+  if(OldSysSubState != 0) TAP_EnterNormalNoInfo();
 
   HDD_TAP_PopDir();
   TRACEEXIT();
