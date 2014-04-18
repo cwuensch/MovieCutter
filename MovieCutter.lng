@@ -87,16 +87,16 @@ de_060=MovieCutter aktiv
 de_061=Segment-Modus
 de_062=Bookmark-Modus
 de_063=Schnittmarke erzeugt
-de_064=Schnittmarke verschoben
+de_064=Schnittmarke bewegt
 de_065=Schnittmarke gelöscht
 de_066=Bookmark angelegt
 de_067=Bookmark verschoben
 de_068=Bookmark gelöscht
 de_069=Segment markiert
-de_070=Markierung aufgehoben
-de_071=Letzte Aktion rückgängig
-de_072=Minutensprung aktiv: %d
-de_073=Minutensprung deaktiviert
+de_070=Selektion aufgehoben
+de_071=Letzte rückgängig
+de_072=Minutensprung an: %d
+de_073=Minutensprung aus
 
 
 #English
@@ -172,8 +172,8 @@ en_068=Bookmark deleted
 en_069=Segment selected
 en_070=Selection removed
 en_071=Undo last action
-en_072=Minute jump active: %d
-en_073=Minute jump disabled
+en_072=Minute jump: %d
+en_073=Minute jump off
 
 
 #French
@@ -277,7 +277,7 @@ nl_034=Alle de-selecteren
 nl_035=Lijst met segmenten legen
 nl_036=Alle markeringen verwijderen
 nl_037=Zet segmenten om in markeringen
-nl_038=segmenten
+nl_038=Segmenten
 nl_039=Markeringen
 nl_040=pagina
 nl_041=Begin

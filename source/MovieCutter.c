@@ -199,6 +199,9 @@ typedef enum
   LS_NrStrings
 } tLngStrings;
 
+// Konstanten
+const int               ScreenWidth = 720;
+const int               ScreenHeight = 576;
 
 // MovieCutter INI-Flags
 bool                    AutoOSDPolicy = FALSE;
@@ -264,14 +267,15 @@ tFontDataUC             Calibri_10_FontDataUC;
 tFontDataUC             Calibri_12_FontDataUC;
 tFontDataUC             Calibri_14_FontDataUC;
 #endif
+tFontDataUC             Courier_New_13_FontDataUC;
 word                    rgnSegmentList = 0;
 word                    rgnInfoBar = 0;
 word                    rgnInfoBarMini = 0;
 word                    rgnPlayState = 0;
 word                    rgnActionMenu = 0;
 int                     ActionMenuItem;
-dword                   LastPlayStateChange = 0;
-dword                   BookmarkMode_x;
+dword                   LastPlayStateChange;
+dword                   OSDBookmarkMode_x, OSDClockPos_x;
 
 char                    LogString[512];
 
@@ -316,12 +320,14 @@ int TAP_Main(void)
   // Load Fonts
   if (!(FMUC_LoadFontFile("Calibri_10.ufnt", &Calibri_10_FontDataUC)
      && FMUC_LoadFontFile("Calibri_12.ufnt", &Calibri_12_FontDataUC)
-     && FMUC_LoadFontFile("Calibri_14.ufnt", &Calibri_14_FontDataUC)))
+     && FMUC_LoadFontFile("Calibri_14.ufnt", &Calibri_14_FontDataUC)
+     && FMUC_LoadFontFile("Courier_New_13.ufnt", &Courier_New_13_FontDataUC)))
   {
     WriteLogMC(PROGRAM_NAME, "Loading fonts failed!");
     FMUC_FreeFontFile(&Calibri_10_FontDataUC);
     FMUC_FreeFontFile(&Calibri_12_FontDataUC);
     FMUC_FreeFontFile(&Calibri_14_FontDataUC);
+    FMUC_FreeFontFile(&Courier_New_13_FontDataUC);
 
     TRACEEXIT();
     return 0;
@@ -342,6 +348,7 @@ int TAP_Main(void)
     FMUC_FreeFontFile(&Calibri_10_FontDataUC);
     FMUC_FreeFontFile(&Calibri_12_FontDataUC);
     FMUC_FreeFontFile(&Calibri_14_FontDataUC);
+    FMUC_FreeFontFile(&Courier_New_13_FontDataUC);
 
     TRACEEXIT();
     return 0;
@@ -360,6 +367,7 @@ int TAP_Main(void)
     FMUC_FreeFontFile(&Calibri_10_FontDataUC);
     FMUC_FreeFontFile(&Calibri_12_FontDataUC);
     FMUC_FreeFontFile(&Calibri_14_FontDataUC);
+    FMUC_FreeFontFile(&Courier_New_13_FontDataUC);
 
     TRACEEXIT();
     return 0;
@@ -662,7 +670,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           #ifdef FULLDEBUG
             if (RecDateTime > 0xd0790000)
               RecDateTime = TF2UnixTime(RecDateTime);
-            TAP_PrintNet("Reboot-Check (%s): TimeSinceRec=%lu, UpTime=%lu, RecDateTime=%s", (TimeSinceRec <= UpTime + 1) ? "TRUE" : "FALSE", TimeSinceRec, UpTime, asctime(localtime(&RecDateTime)));
+            TAP_PrintNet("Reboot-Check (%s): TimeSinceRec=%lu, UpTime=%lu, RecDateTime=%s", (TimeSinceRec <= UpTime + 1) ? "TRUE" : "FALSE", TimeSinceRec, UpTime, asctime(localtime((time_t*) &RecDateTime)));
           #endif
 
           if (TimeSinceRec <= UpTime + 1)
@@ -1207,20 +1215,17 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           JumpRequestedSegment = 0xFFFF;
           JumpRequestedTime = 0;
         }
-        if((LastPlayStateChange != 0) && (labs(TAP_GetTick() - LastPlayStateChange) > 300))
+        if(rgnPlayState && (labs(TAP_GetTick() - LastPlayStateChange) > 300))
         {
-          if(rgnPlayState)
-          {
-            TAP_Osd_Delete(rgnPlayState);
-            rgnPlayState = 0;
-            TAP_Osd_Sync();
-          }
-          LastPlayStateChange = 0;
+          TAP_Osd_Delete(rgnPlayState);
+          rgnPlayState = 0;
+          TAP_Osd_Sync();
+//          LastPlayStateChange = 0;
         }
         CheckLastSeconds();
         OSDInfoDrawProgressbar(FALSE);
-        OSDInfoDrawPlayIcons(FALSE);
         SetCurrentSegment();
+        OSDInfoDrawPlayIcons(FALSE);
         OSDInfoDrawCurrentPosition(FALSE);
         OSDInfoDrawClock(FALSE);
         LastDraw = TAP_GetTick();
@@ -1360,6 +1365,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       FMUC_FreeFontFile(&Calibri_10_FontDataUC);
       FMUC_FreeFontFile(&Calibri_12_FontDataUC);
       FMUC_FreeFontFile(&Calibri_14_FontDataUC);
+      FMUC_FreeFontFile(&Courier_New_13_FontDataUC);
       OSDMenuFreeStdFonts();
       TAP_Exit();
       break;
@@ -1645,8 +1651,8 @@ void LoadINI(void)
     DefaultOSDMode    = (tOSDMode) INIGetInt("DefaultOSDMode", MD_FullOSD, 0, 3);
     Overscan_X        = INIGetInt("Overscan_X", 20, 0, 100);
     Overscan_Y        = INIGetInt("Overscan_Y", 0, 0, 100);
-    SegmentList_X     = INIGetInt("SegmentList_X", 50, 0, 720 - _SegmentList_Background_Gd.width);
-    SegmentList_Y     = INIGetInt("SegmentList_Y", 82, 0, 576 - _SegmentList_Background_Gd.height);
+    SegmentList_X     = INIGetInt("SegmentList_X", 50, 0, ScreenWidth - _SegmentList_Background_Gd.width);
+    SegmentList_Y     = INIGetInt("SegmentList_Y", 82, 0, ScreenHeight - _SegmentList_Background_Gd.height);
   }
   INICloseFile();
   if (!AutoOSDPolicy && DefaultOSDMode == MD_NoOSD)
@@ -2643,11 +2649,11 @@ void CreateOSD(void)
 
   if ((OSDMode == MD_FullOSD) || (OSDMode == MD_NoSegmentList))
     if(!rgnInfoBar)
-      rgnInfoBar = TAP_Osd_Create(0, 576 - _Info_Background_Gd.height, _Info_Background_Gd.width, _Info_Background_Gd.height, 0, 0);
+      rgnInfoBar = TAP_Osd_Create(0, ScreenHeight - _Info_Background_Gd.height, _Info_Background_Gd.width, _Info_Background_Gd.height, 0, 0);
 
   if (OSDMode == MD_MiniOSD)
     if(!rgnInfoBarMini)
-      rgnInfoBarMini = TAP_Osd_Create(0, 576 - Overscan_Y - 150, 720, 50, 0, 0);
+      rgnInfoBarMini = TAP_Osd_Create(0, ScreenHeight - Overscan_Y - 250, ScreenWidth, 50, 0, 0);
 
   TRACEEXIT();
 }
@@ -2661,8 +2667,8 @@ void OSDRedrawEverything(void)
   OSDInfoDrawBackground();
   OSDInfoDrawRecName();
   OSDInfoDrawProgressbar(TRUE);
-  OSDInfoDrawPlayIcons(TRUE);
   SetCurrentSegment();
+  OSDInfoDrawPlayIcons(TRUE);
   OSDInfoDrawCurrentPosition(TRUE);
   OSDInfoDrawClock(TRUE);
   OSDInfoDrawBookmarkMode();
@@ -2675,15 +2681,14 @@ void OSDRedrawEverything(void)
 // -------------
 void OSDSegmentListDrawList(void)
 {
-  const int             RegionWidth    = 164,  BelowTextArea_Y = 307;
-  const int             StartTextField_X = 5,  StartTextField_Y = 29,  EndTextField_X = 148;
-  const int             TextFieldHeight = 26,  TextFieldDist    =  2;
-  const int             Scrollbar_X = 150,     Scrollbar_Y = 40,     /*ScrollbarWidth = 10,*/    ScrollbarHeight = 256;
-  const int             NrWidth     = FMUC_GetStringWidth("99.", &Calibri_12_FontDataUC);
-  const int             DashWidth   = FMUC_GetStringWidth(" - ", &Calibri_12_FontDataUC);
-  const int             TimeWidth   = FMUC_GetStringWidth("99:99:99", &Calibri_12_FontDataUC);
-  const dword           C1 = COLOR_Yellow;
-  const dword           C2 = COLOR_White;
+  const int             RegionWidth        = _SegmentList_Background_Gd.width;
+  const int             StartTextField_X   =    5,   EndTextField_X  = 148;
+  const int             StartTextField_Y   =   29,   TextFieldHeight =  26,   TextFieldDist = 2;
+  const int             Scrollbar_X        =  150,   Scrollbar_Y     =  40,  /*ScrollbarWidth = 10,*/    ScrollbarHeight = 256;
+  const int             BelowTextArea_Y    =  307;
+  const int             NrWidth     =  FMUC_GetStringWidth("99.", &Calibri_12_FontDataUC);
+  const int             DashWidth   =  FMUC_GetStringWidth(" - ", &Calibri_12_FontDataUC);
+  const int             TimeWidth   =  FMUC_GetStringWidth("99:99:99", &Calibri_12_FontDataUC);
 
   word                  CurrentSegment;
   word                  ScrollButtonHeight, ScrollButtonPos;
@@ -2707,7 +2712,7 @@ void OSDSegmentListDrawList(void)
 
     // Hintergrund, Überschrift, Buttons
     TAP_Osd_PutGd(rgnSegmentList, 0, 0, &_SegmentList_Background_Gd, FALSE);
-    FMUC_PutString(rgnSegmentList, 0, 2, RegionWidth, LangGetString(LS_SegmentList), COLOR_White, COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_CENTER);
+    FMUC_PutString(rgnSegmentList, 0, 2, RegionWidth-1, LangGetString(LS_SegmentList), COLOR_White, COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_CENTER);
     TAP_Osd_PutGd(rgnSegmentList, EndTextField_X - 2*19 - 3, BelowTextArea_Y + 6, &_Button_Up_small_Gd, TRUE);
     TAP_Osd_PutGd(rgnSegmentList, EndTextField_X - 19,       BelowTextArea_Y + 6, &_Button_Down_small_Gd, TRUE);
 
@@ -2736,7 +2741,7 @@ void OSDSegmentListDrawList(void)
         if((Start + i) == CurrentSegment)
         {
 //          if((SegmentMarker[p+i + 1].Timems - SegmentMarker[p+i].Timems) < 60001)
-//            TAP_Osd_PutGd(rgnSegmentList, 3, 44 + 28*i, &_Selection_Red_Gd, FALSE);
+//            TAP_Osd_PutGd(rgnSegmentList, StartTextField_X, StartTextField_Y + i*(TextFieldHeight+TextFieldDist), &&_Selection_Red_Gd, FALSE);
 //          else
           TAP_Osd_PutGd(rgnSegmentList, StartTextField_X, StartTextField_Y + i*(TextFieldHeight+TextFieldDist), &_Selection_Blue_Gd, FALSE);
         }
@@ -2746,7 +2751,7 @@ void OSDSegmentListDrawList(void)
 
         PosX = StartTextField_X;
         PosY = StartTextField_Y + i*(TextFieldHeight+TextFieldDist) + 3;
-        UseColor = (SegmentMarker[Start + i].Selected) ? C1 : C2;
+        UseColor = (SegmentMarker[Start + i].Selected) ? COLOR_Yellow : COLOR_White;
 
         TAP_SPrint(OutStr, sizeof(OutStr), "%d.", Start + i + 1);
         if (Start + i + 1 >= 100) TAP_SPrint(OutStr, sizeof(OutStr), "00.");
@@ -2939,42 +2944,54 @@ void OSDInfoDrawProgressbar(bool Force)
 
 void OSDInfoDrawCurrentPosition(bool Force)
 {
-  dword                 Time;
-  float                 Percent;
-  char                  TimePctString[24];
-  char                  PercentString[12];
-  dword                 fw;
   static byte           LastSec = 99;
-//  static dword          LastDraw = 0;
-//  static dword          maxBlock = 0;
+  static dword          LastDraw = 0;
+  static dword          maxBlock = 0;
 
   TRACEENTER();
+  if (((int)PlayInfo.totalBlock <= 0) /*|| ((int)PlayInfo.currentBlock < 0)*/)   // wenn currentBlock nicht gesetzt, schlimmstenfalls zu hohe Prozentzahl
+  {
+    TRACEEXIT();
+    return;
+  }
 
   // Experiment: Stabilisierung der vor- und zurückspringenden Zeit-Anzeige (noch linear)
-//  if (PlayInfo.currentBlock > maxBlock) maxBlock = PlayInfo.currentBlock;
+  if ((TrickMode != TRICKMODE_Normal) || (PlayInfo.currentBlock > maxBlock)) maxBlock = PlayInfo.currentBlock;
     
-//  if((labs(TAP_GetTick() - LastDraw) > 10) || Force)
-//  {
-    if(rgnInfoBar && ((int)PlayInfo.totalBlock > 0) /*&& ((int)PlayInfo.currentBlock >= 0)*/)   // wenn currentBlock nicht gesetzt, schlimmstenfalls zu hohe Prozentzahl
+  if ((TrickMode != TRICKMODE_Normal) || (labs(TAP_GetTick() - LastDraw) > 10) || Force)
+  {
+    dword             Time;
+    float             Percent;
+    char              TimePctString[24];
+    char              PercentString[12];
+
+    Time = NavGetBlockTimeStamp(maxBlock) / 1000;
+    if(((Time % 60) != LastSec) || Force)
     {
-      Time = NavGetBlockTimeStamp(PlayInfo.currentBlock) / 1000;
-      if(((Time % 60) != LastSec) || Force)
+      SecToTimeString(Time, TimePctString);
+      Percent = ((float)maxBlock / PlayInfo.totalBlock) * 100.0;
+      if (abs(Percent) >= 999) Percent = 999.0;
+      TAP_SPrint(PercentString, sizeof(PercentString), " (%1.1f%%)", Percent);
+      strcat(TimePctString, PercentString);
+
+      if(rgnInfoBar)
       {
-        SecToTimeString(Time, TimePctString);
-        Percent = ((float)PlayInfo.currentBlock / PlayInfo.totalBlock) * 100.0;
-        if (abs(Percent) >= 999) Percent = 999.0;
-        TAP_SPrint(PercentString, sizeof(PercentString), " (%1.1f%%)", Percent);
-        strcat(TimePctString, PercentString);
-        TAP_Osd_FillBox(rgnInfoBar, 60, 48, 283, 31, RGB(30, 30, 30));
-        fw = FMUC_GetStringWidth(TimePctString, &Calibri_14_FontDataUC);
-        FMUC_PutString(rgnInfoBar, max(0, 200 - (int)(fw >> 1)), 52, 660, TimePctString, COLOR_White, COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT);
-        LastSec = Time % 60;
-        TAP_Osd_Sync();
+        const int FrameWidth = 283, FrameHeight = 31, FramePosX = 60, FramePosY = 48;
+
+        TAP_Osd_FillBox(rgnInfoBar, FramePosX, FramePosY, FrameWidth, FrameHeight, RGB(30, 30, 30));
+//        fw = FMUC_GetStringWidth(TimePctString, &Courier_New_13_FontDataUC);
+        FMUC_PutString(rgnInfoBar, FramePosX, FramePosY + 4, FramePosX + FrameWidth - 1, TimePctString, COLOR_White, COLOR_None, &Courier_New_13_FontDataUC, FALSE, ALIGN_CENTER);
       }
+      if(rgnInfoBarMini)
+      {
+        FMUC_PutString(rgnInfoBarMini, 0, 0, 200, TimePctString, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_LEFT);
+      }
+      LastSec = Time % 60;
+      TAP_Osd_Sync();
     }
-//    maxBlock = 0;
-//    LastDraw = TAP_GetTick();
-//  }
+    maxBlock = 0;
+    LastDraw = TAP_GetTick();
+  }
 
   TRACEEXIT();
 }
@@ -2997,47 +3014,47 @@ void OSDInfoDrawBackground(void)
     TAP_Osd_PutGd(rgnInfoBar, x, 48, &_Button_Red_Gd, TRUE);
     x += _Button_Red_Gd.width;
     s = LangGetString(LS_Delete);
-    FMUC_PutString(rgnInfoBar, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
+    FMUC_PutString(rgnInfoBar, x, 47, 719, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
     x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
 
     TAP_Osd_PutGd(rgnInfoBar, x, 48, &_Button_Green_Gd, TRUE);
     x += _Button_Green_Gd.width;
     s = LangGetString(LS_Add);
-    FMUC_PutString(rgnInfoBar, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
+    FMUC_PutString(rgnInfoBar, x, 47, 719, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
     x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
 
     TAP_Osd_PutGd(rgnInfoBar, x, 48, &_Button_Yellow_Gd, TRUE);
     x += _Button_Yellow_Gd.width;
     s = LangGetString(LS_Move);
-    FMUC_PutString(rgnInfoBar, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
+    FMUC_PutString(rgnInfoBar, x, 47, 719, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
     x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
 
     TAP_Osd_PutGd(rgnInfoBar, x, 48, &_Button_Blue_Gd, TRUE);
     x += _Button_Blue_Gd.width;
     s = LangGetString(LS_Select);
-    FMUC_PutString(rgnInfoBar, x, 47, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
+    FMUC_PutString(rgnInfoBar, x, 47, 719, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
 
     x = 350;
     TAP_Osd_PutGd(rgnInfoBar, x, 68, &_Button_Menu_Gd, TRUE);
     x += _Button_Menu_Gd.width;
     s = LangGetString(LS_PauseMenu);
-    FMUC_PutString(rgnInfoBar, x, 67, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
+    FMUC_PutString(rgnInfoBar, x, 67, 719, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
     x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
 
     TAP_Osd_PutGd(rgnInfoBar, x, 68, &_Button_Exit_Gd, TRUE);
     x += _Button_Exit_Gd.width;
     s = LangGetString(LS_Exit);
-    FMUC_PutString(rgnInfoBar, x, 67, 720, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
+    FMUC_PutString(rgnInfoBar, x, 67, 719, s, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_LEFT);
     x += FMUC_GetStringWidth(s, &Calibri_12_FontDataUC);
     
-    BookmarkMode_x = x;
+    OSDBookmarkMode_x = x;
   }
 
   if(rgnInfoBarMini)
   {
     TAP_Osd_FillBox(rgnInfoBarMini, 0, 0, 720, 50, COLOR_Black);
     TAP_Osd_DrawRectangle(rgnInfoBarMini, 0, 0, 720, 50, 1, COLOR_Gray);
-    FMUC_PutString(rgnInfoBarMini, 0, 10, 720, "Mini OSD coming soon...", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER);
+    FMUC_PutString(rgnInfoBarMini, 0, 10, 719, "Mini OSD coming soon...", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER);
     TAP_Osd_Sync();
   }
 
@@ -3046,6 +3063,7 @@ void OSDInfoDrawBackground(void)
 
 void OSDInfoDrawRecName(void)
 {
+  const int             FrameWidth = 435,   FramePosX = 65,   FramePosY = 11;
   const dword           TimeWidth = FMUC_GetStringWidth("99:99:99", &Calibri_12_FontDataUC);
   char                  NameStr[MAX_FILE_NAME_SIZE + 1];
   char                  TimeStr[12], *pTimeStr;
@@ -3061,7 +3079,7 @@ void OSDInfoDrawRecName(void)
     NameStr[MAX_FILE_NAME_SIZE] = '\0';
     NameStr[strlen(NameStr) - 4] = '\0';
 
-    if (FMUC_GetStringWidth(NameStr, &Calibri_14_FontDataUC) + TimeWidth + 65 > 500)
+    if (FMUC_GetStringWidth(NameStr, &Calibri_14_FontDataUC) + TimeWidth > (dword)FrameWidth)
     {
       LastSpace = strrchr(NameStr, ' ');
       if (LastSpace)
@@ -3079,11 +3097,11 @@ void OSDInfoDrawRecName(void)
           EndOfName = &NameStr[strlen(NameStr) - 10];
       }
       EndOfNameWidth = FMUC_GetStringWidth(EndOfName, &Calibri_14_FontDataUC);
-      FMUC_PutString(rgnInfoBar, 65, 11, 500-TimeWidth-EndOfNameWidth, NameStr, COLOR_White, COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT);
-      FMUC_PutString(rgnInfoBar, 500-TimeWidth-EndOfNameWidth, 11, 500-TimeWidth, EndOfName, COLOR_White, COLOR_None, &Calibri_14_FontDataUC, FALSE, ALIGN_LEFT);
+      FMUC_PutString(rgnInfoBar, FramePosX, FramePosY, FramePosX + FrameWidth - TimeWidth - EndOfNameWidth - 1, NameStr, COLOR_White, COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT);
+      FMUC_PutString(rgnInfoBar, FramePosX + FrameWidth - TimeWidth - EndOfNameWidth, FramePosY, FramePosX + FrameWidth - TimeWidth, EndOfName, COLOR_White, COLOR_None, &Calibri_14_FontDataUC, FALSE, ALIGN_LEFT);
     }
     else
-      FMUC_PutString(rgnInfoBar, 65, 11, 500-TimeWidth, NameStr, COLOR_White, COLOR_None, &Calibri_14_FontDataUC, FALSE, ALIGN_LEFT);
+      FMUC_PutString(rgnInfoBar, FramePosX, FramePosY, FramePosX + FrameWidth - TimeWidth - 1, NameStr, COLOR_White, COLOR_None, &Calibri_14_FontDataUC, FALSE, ALIGN_LEFT);
 
 //    if(PLAYINFOVALID())  // bei ungültiger PlayInfo lautet schlimmstenfalls die Zeitanzeige 9999:28
 //    {
@@ -3093,119 +3111,126 @@ void OSDInfoDrawRecName(void)
         TimeStr[strlen(TimeStr) - 3] = '\0';
       else
         pTimeStr = &TimeStr[2];
-      FMUC_PutString(rgnInfoBar, 500-TimeWidth, 14, 500, pTimeStr, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_RIGHT);
+      FMUC_PutString(rgnInfoBar, FramePosX + FrameWidth - TimeWidth, FramePosY + 3, FramePosX + FrameWidth - 1, pTimeStr, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_RIGHT);
 //    }
   }
-
   TRACEEXIT();
 }
 
 void OSDInfoDrawPlayIcons(bool Force)
 {
-  TYPE_GrData           *Btn_Play, *Btn_Pause, *Btn_Fwd, *Btn_Rwd, *Btn_Slow;
   static TYPE_TrickMode  LastTrickMode = TRICKMODE_Slow;
-  static byte            LastTrickModeSwitch = 0;
-  static bool            LastNoOSDMode = TRUE;
-  byte                   TrickModeSwitch;
+  static byte            LastTrickModeSpeed = 99;
+//  static bool            LastNoOSDMode = TRUE;
 
   TRACEENTER();
 
-  TrickModeSwitch = 0;
-/*  switch(TrickMode)
-  {
-    case TRICKMODE_Normal:
-    case TRICKMODE_Pause: break;
-
-    case TRICKMODE_Forward:  TrickModeSwitch = 0x10; break;
-    case TRICKMODE_Rewind:   TrickModeSwitch = 0x20; break;
-    case TRICKMODE_Slow:     TrickModeSwitch = 0x30; break;
-  }
-  TrickModeSwitch += TrickModeSpeed; */
-  TrickModeSwitch = (TrickMode << 4) + TrickModeSpeed;
-
   if(rgnInfoBar)
   {
-    if(Force || ((OSDMode == MD_NoOSD) != LastNoOSDMode) || (TrickMode != LastTrickMode) || (TrickModeSwitch != LastTrickModeSwitch))
+    const int            FramePosX = 549,   FramePosY = 8,   StartButtonPosX = FramePosX + 8;
+    const int            ButtonWidth = _Button_Play_Inactive_Gd.width, ButtonHeight = _Button_Play_Inactive_Gd.height, ButtonDist = 3;
+    const int            FrameWidth = 5*ButtonWidth + 4*ButtonDist + 16;
+    const int            FrameHeight = ButtonHeight + 19;
+    char                 SpeedText[6];
+    int                  PosX, TextPosX=0;
+
+    if(Force || /*((OSDMode == MD_NoOSD) != LastNoOSDMode) ||*/ (TrickMode != LastTrickMode) || (TrickModeSpeed != LastTrickModeSpeed))
     {
-      Btn_Play  = &_Button_Play_Inactive_Gd;
-      Btn_Pause = &_Button_Pause_Inactive_Gd;
-      Btn_Fwd   = &_Button_Ffwd_Inactive_Gd;
-      Btn_Rwd   = &_Button_Rwd_Inactive_Gd;
-      Btn_Slow  = &_Button_Slow_Inactive_Gd;
+      PosX = StartButtonPosX;
+      TAP_Osd_PutGd(rgnInfoBar, PosX, FramePosY, ((TrickMode == TRICKMODE_Rewind)  ? &_Button_Rwd_Active_Gd   : &_Button_Rwd_Inactive_Gd),   FALSE);
+      if (TrickMode == TRICKMODE_Rewind) TextPosX = PosX - 8; 
 
-      switch(TrickMode)
+      PosX += ButtonWidth + ButtonDist;
+      TAP_Osd_PutGd(rgnInfoBar, PosX, FramePosY, ((TrickMode == TRICKMODE_Pause)   ? &_Button_Pause_Active_Gd : &_Button_Pause_Inactive_Gd), FALSE);
+
+      PosX += ButtonWidth + ButtonDist;
+      TAP_Osd_PutGd(rgnInfoBar, PosX, FramePosY, ((TrickMode == TRICKMODE_Slow)    ? &_Button_Slow_Active_Gd  : &_Button_Slow_Inactive_Gd),  FALSE);
+      if (TrickMode == TRICKMODE_Slow) TextPosX = PosX - 8; 
+
+      PosX += ButtonWidth + ButtonDist;
+      TAP_Osd_PutGd(rgnInfoBar, PosX, FramePosY, ((TrickMode == TRICKMODE_Normal)  ? &_Button_Play_Active_Gd  : &_Button_Play_Inactive_Gd),  FALSE);
+
+      PosX += ButtonWidth + ButtonDist;
+      TAP_Osd_PutGd(rgnInfoBar, PosX, FramePosY, ((TrickMode == TRICKMODE_Forward) ? &_Button_Ffwd_Active_Gd  : &_Button_Ffwd_Inactive_Gd),  FALSE);
+      if (TrickMode == TRICKMODE_Forward) TextPosX = PosX - 8;
+
+      TAP_Osd_FillBox(rgnInfoBar, FramePosX, FramePosY + ButtonHeight, FrameWidth, FrameHeight - ButtonHeight, RGB(51, 51, 51));
+      if (TrickMode == TRICKMODE_Rewind || TrickMode == TRICKMODE_Forward || TrickMode == TRICKMODE_Slow)
       {
-        case TRICKMODE_Normal:   Btn_Play  = &_Button_Play_Active_Gd; break;
-        case TRICKMODE_Forward:  Btn_Fwd   = &_Button_Ffwd_Active_Gd; break;
-        case TRICKMODE_Rewind:   Btn_Rwd   = &_Button_Rwd_Active_Gd; break;
-        case TRICKMODE_Slow:     Btn_Slow  = &_Button_Slow_Active_Gd; break;
-        case TRICKMODE_Pause:    Btn_Pause = &_Button_Pause_Active_Gd; break;
+        TAP_SPrint(SpeedText, sizeof(SpeedText), ((TrickMode == TRICKMODE_Slow) ? "1/%dx" : "%dx"), (1 << TrickModeSpeed));
+        FMUC_PutString(rgnInfoBar, TextPosX - 8, FramePosX + ButtonHeight, TextPosX + ButtonWidth + 16, SpeedText, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_CENTER);
       }
-
-      TAP_Osd_PutGd(rgnInfoBar, 557, 8, Btn_Rwd, FALSE);
-      TAP_Osd_PutGd(rgnInfoBar, 584, 8, Btn_Pause, FALSE);
-      TAP_Osd_PutGd(rgnInfoBar, 611, 8, Btn_Slow, FALSE);
-      TAP_Osd_PutGd(rgnInfoBar, 638, 8, Btn_Play, FALSE);
-      TAP_Osd_PutGd(rgnInfoBar, 665, 8, Btn_Fwd, FALSE);
 
       LastTrickMode = TrickMode;
-
-      TAP_Osd_FillBox(rgnInfoBar, 552, 26, 145, 19, RGB(51, 51, 51));
-      switch(TrickModeSwitch)
-      {
-        case 0x11: FMUC_PutString(rgnInfoBar, 657, 26, 697, "2x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x12: FMUC_PutString(rgnInfoBar, 657, 26, 697, "4x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x13: FMUC_PutString(rgnInfoBar, 657, 26, 697, "8x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x14: FMUC_PutString(rgnInfoBar, 657, 26, 697, "16x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x15: FMUC_PutString(rgnInfoBar, 657, 26, 697, "32x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x16: FMUC_PutString(rgnInfoBar, 657, 26, 697, "64x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x21: FMUC_PutString(rgnInfoBar, 549, 26, 589, "2x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x22: FMUC_PutString(rgnInfoBar, 549, 26, 589, "4x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x23: FMUC_PutString(rgnInfoBar, 549, 26, 589, "8x",    COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x24: FMUC_PutString(rgnInfoBar, 549, 26, 589, "16x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x25: FMUC_PutString(rgnInfoBar, 549, 26, 589, "32x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x26: FMUC_PutString(rgnInfoBar, 549, 26, 589, "64x",   COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x31: FMUC_PutString(rgnInfoBar, 602, 26, 642, "1/2x",  COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x32: FMUC_PutString(rgnInfoBar, 602, 26, 642, "1/4x",  COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x33: FMUC_PutString(rgnInfoBar, 602, 26, 642, "1/8x",  COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-        case 0x34: FMUC_PutString(rgnInfoBar, 602, 26, 642, "1/16x", COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER); break;
-      }
-      LastTrickModeSwitch = TrickModeSwitch;
-
+      LastTrickModeSpeed = TrickModeSpeed;
       TAP_Osd_Sync();
     }
   }
   else
   {
-    if(((OSDMode == MD_NoOSD) != LastNoOSDMode) || (TrickMode != LastTrickMode) || (TrickModeSwitch != LastTrickModeSwitch))
+    const int            RegionWidth = 200;
+    const int            RegionHeight = 50;
+    const int            ButtonWidth = _Button_Play_Inactive_Gd.width;
+    char                 SpeedText[6];
+    TYPE_GrData         *ActiveSymbol = NULL;
+
+    if((TrickMode != LastTrickMode) || (TrickModeSpeed != LastTrickModeSpeed))
     {
       if(rgnPlayState)
         TAP_Osd_Delete(rgnPlayState);
-      rgnPlayState = TAP_Osd_Create(626, 50, 100, 50, 0, 0);
+      rgnPlayState = TAP_Osd_Create(ScreenWidth - RegionWidth - Overscan_X, Overscan_Y, RegionWidth, RegionHeight, 0, 0);
       LastPlayStateChange = TAP_GetTick();
-      if(LastPlayStateChange == 0) LastPlayStateChange = 1;
+//      if(LastPlayStateChange == 0) LastPlayStateChange = 1;
 
       switch(TrickMode)
       {
-        case TRICKMODE_Normal:   TAP_Osd_PutGd(rgnPlayState, 0, 0, &_Button_Play_Active_Gd, FALSE); break;
-        case TRICKMODE_Forward:  TAP_Osd_PutGd(rgnPlayState, 0, 0, &_Button_Ffwd_Active_Gd, FALSE); break;
-        case TRICKMODE_Rewind:   TAP_Osd_PutGd(rgnPlayState, 0, 0, &_Button_Rwd_Active_Gd, FALSE); break;
-        case TRICKMODE_Slow:     TAP_Osd_PutGd(rgnPlayState, 0, 0, &_Button_Slow_Active_Gd, FALSE); break;
-        case TRICKMODE_Pause:    TAP_Osd_PutGd(rgnPlayState, 0, 0, &_Button_Pause_Active_Gd, FALSE); break;
+        case TRICKMODE_Normal:   ActiveSymbol = &_Button_Play_Active_Gd;  break;
+        case TRICKMODE_Forward:  ActiveSymbol = &_Button_Ffwd_Active_Gd;  break;
+        case TRICKMODE_Rewind:   ActiveSymbol = &_Button_Rwd_Active_Gd;   break;
+        case TRICKMODE_Slow:     ActiveSymbol = &_Button_Slow_Active_Gd;  break;
+        case TRICKMODE_Pause:    ActiveSymbol = &_Button_Pause_Active_Gd; break;
+        default:                 return;
+      }
+      TAP_Osd_PutGd(rgnPlayState, 0, 0, ActiveSymbol, FALSE);
+
+      if (TrickMode == TRICKMODE_Rewind || TrickMode == TRICKMODE_Forward || TrickMode == TRICKMODE_Slow)
+      {
+        TAP_SPrint(SpeedText, sizeof(SpeedText), ((TrickMode == TRICKMODE_Slow) ? "1/%dx" : "%dx"), (1 << TrickModeSpeed));
+        FMUC_PutString(rgnInfoBar, ButtonWidth + 5, 0, RegionWidth - 1, SpeedText, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_LEFT);
       }
 
       LastTrickMode = TrickMode;
-      LastTrickModeSwitch = TrickModeSwitch;
+      LastTrickModeSpeed = TrickModeSpeed;
       TAP_Osd_Sync();
     }
   }
 
-  LastNoOSDMode = (OSDMode == MD_NoOSD) 
+//  LastNoOSDMode = (OSDMode == MD_NoOSD);
+  TRACEEXIT();
+}
+
+void OSDInfoDrawBookmarkMode(void)
+{
+  const int             FrameWidth = 60,                  FrameHeight = 19;
+  const int             FramePosX  = OSDBookmarkMode_x,   FramePosY   = 68;
+  TRACEENTER();
+
+  if(rgnInfoBar)
+  {
+    TAP_Osd_FillBox(rgnInfoBar, FramePosX, FramePosY, FrameWidth, FrameHeight, RGB(51, 51, 51));
+    FMUC_PutString (rgnInfoBar, FramePosX, FramePosY + 2, FramePosX + FrameWidth-1, ((BookmarkMode ? LangGetString(LS_Bookmarks) : LangGetString(LS_Segments))), ((BookmarkMode) ? RGB(60,255,60) : RGB(250,139,18)), COLOR_None, &Calibri_10_FontDataUC, FALSE, ALIGN_CENTER);
+    TAP_Osd_Sync();
+  }
+
   TRACEEXIT();
 }
 
 void OSDInfoDrawClock(bool Force)
 {
+  const int             FrameWidth  = FMUC_GetStringWidth("99:99", &Calibri_14_FontDataUC) + 2;
+  const int             FrameHeight = 25;
+  const int             FramePosY   = 65;
+
   word                  mjd;
   byte                  hour, min, sec;
   static byte           LastMin = 99;
@@ -3215,12 +3240,13 @@ void OSDInfoDrawClock(bool Force)
 
   if(rgnInfoBar)
   {
+    OSDClockPos_x = ScreenWidth - FrameWidth - Overscan_X;
     TAP_GetTime(&mjd, &hour, &min, &sec);
     if((min != LastMin) || Force)
     {
       TAP_SPrint(Time, sizeof(Time), "%2.2d:%2.2d", hour, min);
-      TAP_Osd_FillBox(rgnInfoBar, 638, 65, 60, 25, RGB(16, 16, 16));
-      FMUC_PutString(rgnInfoBar, 638, 65, 710, Time, COLOR_White, COLOR_None, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT);
+      TAP_Osd_FillBox(rgnInfoBar, OSDClockPos_x, FramePosY, FrameWidth, FrameHeight, RGB(16, 16, 16));
+      FMUC_PutString (rgnInfoBar, OSDClockPos_x, FramePosY, OSDClockPos_x + FrameWidth, Time, COLOR_White, COLOR_None, &Calibri_14_FontDataUC, FALSE, ALIGN_RIGHT);
       LastMin = min;
       TAP_Osd_Sync();
     }
@@ -3229,39 +3255,27 @@ void OSDInfoDrawClock(bool Force)
   TRACEEXIT();
 }
 
-void OSDInfoDrawBookmarkMode(void)
-{
-  TRACEENTER();
-
-  if(rgnInfoBar)
-  {
-    TAP_Osd_FillBox(rgnInfoBar, BookmarkMode_x, 68, 60, 19, RGB(51, 51, 51));
-    FMUC_PutString(rgnInfoBar, BookmarkMode_x, 70, BookmarkMode_x+60, ((BookmarkMode ? LangGetString(LS_Bookmarks) : LangGetString(LS_Segments))), ((BookmarkMode) ? RGB(60,255,60) : RGB(250,139,18)), COLOR_None, &Calibri_10_FontDataUC, FALSE, ALIGN_CENTER);
-    TAP_Osd_Sync();
-  }
-
-  TRACEEXIT();
-}
-
 void OSDInfoDrawMinuteJump(void)
 {
+  const int             FrameWidth =  50,   FrameHeight = 35;
+  const int             FramePosX  = 507,   FramePosY   =  8;
   char InfoStr[5];
 
   TRACEENTER();
 
   if(rgnInfoBar)
   {
-    TAP_Osd_FillBox(rgnInfoBar, 507, 8, 50, 35, RGB(51, 51, 51));
+    TAP_Osd_FillBox(rgnInfoBar, FramePosX, FramePosY, FrameWidth, FrameHeight, RGB(51, 51, 51));
     if(BookmarkMode || MinuteJump)
     {
-      TAP_Osd_PutGd(rgnInfoBar, 507, 8, &_Button_SkipLeft_Gd, TRUE);
-      TAP_Osd_PutGd(rgnInfoBar, 507 + 1 + _Button_SkipLeft_Gd.width, 8, &_Button_SkipRight_Gd, TRUE);
+      TAP_Osd_PutGd(rgnInfoBar, FramePosX, FramePosY, &_Button_SkipLeft_Gd, TRUE);
+      TAP_Osd_PutGd(rgnInfoBar, FramePosX + 1 + _Button_SkipLeft_Gd.width, FramePosY, &_Button_SkipRight_Gd, TRUE);
 
       if (MinuteJump)
         TAP_SPrint(InfoStr, sizeof(InfoStr), "%lu'", MinuteJump);
       else
         TAP_SPrint(InfoStr, sizeof(InfoStr), "BM");
-      FMUC_PutString(rgnInfoBar, 508, 26, 555, InfoStr, COLOR_White, COLOR_None, &Calibri_10_FontDataUC, TRUE, ALIGN_CENTER);
+      FMUC_PutString(rgnInfoBar, FramePosX + 1, FramePosY + 18, FramePosX + FrameWidth - 2, InfoStr, COLOR_White, COLOR_None, &Calibri_10_FontDataUC, FALSE, ALIGN_CENTER);
     }
     TAP_Osd_Sync();
   }
@@ -3271,31 +3285,41 @@ void OSDInfoDrawMinuteJump(void)
 
 void OSDStateChangedWindow(int MessageID)
 {
+  const int RegionWidth = 200;
+  const int RegionHeight = 50;
+  const int TextPositionY = 10;
   char *MessageStr;
+
   TRACEENTER();
 
   if((!rgnInfoBar && !rgnInfoBarMini) || (rgnInfoBarMini && (MessageID==LS_MinuteJumpActive || MessageID==LS_MinuteJumpDisabled)))
   {
     if(rgnPlayState)
       TAP_Osd_Delete(rgnPlayState);
-    rgnPlayState = TAP_Osd_Create(480, 50, 200, 50, 0, 0);
+    rgnPlayState = TAP_Osd_Create(ScreenWidth - RegionWidth - Overscan_X, Overscan_Y, RegionWidth, RegionHeight, 0, 0);
     LastPlayStateChange = TAP_GetTick();
-    if(LastPlayStateChange == 0) LastPlayStateChange = 1;
+//    if(LastPlayStateChange == 0) LastPlayStateChange = 1;
+
+    TAP_Osd_FillBox(rgnPlayState, 0, 0, RegionWidth, RegionHeight, COLOR_Black);
+    TAP_Osd_DrawRectangle(rgnPlayState, 0, 0, RegionWidth, RegionHeight, 1, COLOR_Gray);
 
     MessageStr = LangGetString(MessageID);
-    if (MessageID == LS_MovieCutterActive)
+    switch(MessageID)
     {
-      TAP_SPrint(LogString, sizeof(LogString), "%s (%s)", MessageStr, LangGetString((BookmarkMode) ? LS_BookmarkMode : LS_SegmentMode));
-      MessageStr = LogString;
+      case LS_MovieCutterActive:
+      {
+        TAP_SPrint(LogString, sizeof(LogString), "%s (%s)", MessageStr, LangGetString((BookmarkMode) ? LS_BookmarkMode : LS_SegmentMode));
+        MessageStr = LogString;
+        break;
+      }
+      case LS_MinuteJumpActive:
+      {
+        TAP_SPrint(LogString, sizeof(LogString), MessageStr, MinuteJump);
+        MessageStr = LogString;
+        break;
+      }
     }
-    if (MessageID == LS_MinuteJumpActive)
-    {
-      TAP_SPrint(LogString, sizeof(LogString), MessageStr, MinuteJump);
-      MessageStr = LogString;
-    }
-    TAP_Osd_FillBox(rgnPlayState, 0, 0, 200, 50, COLOR_Black);
-    TAP_Osd_DrawRectangle(rgnPlayState, 0, 0, 200, 50, 1, COLOR_Gray);
-    FMUC_PutString(rgnPlayState, 0, 10, 200, MessageStr, COLOR_White, COLOR_None, &Calibri_10_FontDataUC, TRUE, ALIGN_CENTER);
+    FMUC_PutString(rgnPlayState, 0, TextPositionY, RegionWidth-1, MessageStr, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, TRUE, ALIGN_CENTER);
     TAP_Osd_Sync();
   }
   TRACEEXIT();
@@ -3780,10 +3804,15 @@ void CheckLastSeconds(void)
 // ----------------------------------------------------------------------------
 void ActionMenuDraw(void)
 {
-  dword                 C1, C2, C3, C4, DisplayColor;
-  int                   x, y, i;
-  static char           TempStr[128];
+  const int             StartTextField_X  =   7,   StartTextField_Y  = 4;
+  const int             TextFieldHeight   =  26,   TextFieldDist     = 2;
+  const dword           Color_Inactive    =  RGB(120, 120, 120);
+
+  char                  TempStr[128];
   char                 *DisplayStr;
+  dword                 DisplayColor;
+  dword                 PosX, PosY;
+  int                   i;
 
   TRACEENTER();
 
@@ -3795,35 +3824,30 @@ void ActionMenuDraw(void)
 
   if(!rgnActionMenu)
   {
-    rgnActionMenu = TAP_Osd_Create(((720 - _ActionMenu10_Gd.width) >> 1) +25, 70, _ActionMenu10_Gd.width, _ActionMenu10_Gd.height, 0, 0);
+    rgnActionMenu = TAP_Osd_Create(((ScreenWidth - _ActionMenu10_Gd.width) / 2) +25, 70, _ActionMenu10_Gd.width, _ActionMenu10_Gd.height, 0, 0);
 //    ActionMenuItem = 0;
   }
 
   TAP_Osd_PutGd(rgnActionMenu, 0, 0, &_ActionMenu10_Gd, FALSE);
-  TAP_Osd_PutGd(rgnActionMenu, 7, 4 + 28 * ActionMenuItem, &_ActionMenu_Bar_Gd, FALSE);
+  TAP_Osd_PutGd(rgnActionMenu, StartTextField_X, StartTextField_Y + (TextFieldHeight + TextFieldDist) * ActionMenuItem, &_ActionMenu_Bar_Gd, FALSE);
 
-  x = 20;
-  y = MI_NrMenuItems * 28 + 6;
-  TAP_Osd_PutGd(rgnActionMenu, x, y, &_Button_Down_Gd, TRUE);
-  x += (_Button_Down_Gd.width + 5);
+  PosX = StartTextField_X + 12;
+  PosY = StartTextField_Y + (TextFieldHeight + TextFieldDist) * MI_NrMenuItems + 2;
+  TAP_Osd_PutGd(rgnActionMenu, PosX, PosY, &_Button_Down_Gd, TRUE);
+  PosX += (_Button_Down_Gd.width + 5);
 
-  TAP_Osd_PutGd(rgnActionMenu, x, y, &_Button_Up_Gd, TRUE);
-  x += (_Button_Up_Gd.width + 5);
+  TAP_Osd_PutGd(rgnActionMenu, PosX, PosY, &_Button_Up_Gd, TRUE);
+  PosX += (_Button_Up_Gd.width + 5);
 
-  TAP_Osd_PutGd(rgnActionMenu, x, y, &_Button_Ok_Gd, TRUE);
-  x += (_Button_Ok_Gd.width + 5);
+  TAP_Osd_PutGd(rgnActionMenu, PosX, PosY, &_Button_Ok_Gd, TRUE);
+  PosX += (_Button_Ok_Gd.width + 5);
 
-  TAP_Osd_PutGd(rgnActionMenu, x, y, &_Button_Exit_Gd, TRUE);
-
-  C1 = COLOR_Black;
-  C2 = COLOR_White;
-  C3 = RGB(255, 100, 100);
-  C4 = RGB(120, 120, 120);
+  TAP_Osd_PutGd(rgnActionMenu, PosX, PosY, &_Button_Exit_Gd, TRUE);
 
   for(i = 0; i < MI_NrMenuItems; i++)
   {
     DisplayStr = NULL;
-    DisplayColor = (ActionMenuItem == i ? C1 : C2);
+    DisplayColor = (ActionMenuItem == i ? COLOR_Black : COLOR_White);
     switch(i)
     {
       case MI_SelectFunction:
@@ -3834,7 +3858,7 @@ void ActionMenuDraw(void)
         if (NrSelectedSegments == 0)
         {
           DisplayStr = LangGetString(LS_SaveCurSegment);
-          if (NrSegmentMarker <= 2) DisplayColor = C4;
+          if (NrSegmentMarker <= 2) DisplayColor = Color_Inactive;
         }
         else if (NrSelectedSegments == 1)
           DisplayStr = LangGetString(LS_Save1Segment);
@@ -3850,7 +3874,7 @@ void ActionMenuDraw(void)
         if (NrSelectedSegments == 0)
         {
           DisplayStr = LangGetString(LS_DeleteCurSegment);
-          if (NrSegmentMarker <= 2) DisplayColor = C4;
+          if (NrSegmentMarker <= 2) DisplayColor = Color_Inactive;
         }
         else if (NrSelectedSegments == 1)
           DisplayStr = LangGetString(LS_Delete1Segment);
@@ -3866,7 +3890,7 @@ void ActionMenuDraw(void)
         DisplayStr = (NrSegmentMarker == 4) ? LangGetString(LS_SelectPadding) : LangGetString(LS_SelectOddSegments);
         if (DirectSegmentsCut)
           DisplayStr = (NrSegmentMarker == 4) ? LangGetString(LS_RemovePadding) : LangGetString(LS_DeleteOddSegments);
-        if (NrSegmentMarker <= 2) DisplayColor = C4;
+        if (NrSegmentMarker <= 2) DisplayColor = Color_Inactive;
         break;
       }
       case MI_SelectEvenSegments:
@@ -3874,7 +3898,7 @@ void ActionMenuDraw(void)
         DisplayStr = (NrSegmentMarker == 4) ? LangGetString(LS_SelectMiddle) : LangGetString(LS_SelectEvenSegments);
         if (DirectSegmentsCut)
           DisplayStr = LangGetString(LS_DeleteEvenSegments);
-        if (NrSegmentMarker <= 2) DisplayColor = C4;
+        if (NrSegmentMarker <= 2) DisplayColor = Color_Inactive;
         break;
       }
       case MI_ClearAll:
@@ -3882,7 +3906,7 @@ void ActionMenuDraw(void)
         if (BookmarkMode)
         {
           DisplayStr = LangGetString(LS_DeleteAllBookmarks);
-          if (NrBookmarks <= 0) DisplayColor = C4;
+          if (NrBookmarks <= 0) DisplayColor = Color_Inactive;
         }
         else
         {
@@ -3891,7 +3915,7 @@ void ActionMenuDraw(void)
           else
           {
             DisplayStr = LangGetString(LS_ClearSegmentList);
-            if (NrSegmentMarker <= 2) DisplayColor = C4;
+            if (NrSegmentMarker <= 2) DisplayColor = Color_Inactive;
           }
         }
         break;
@@ -3906,20 +3930,20 @@ void ActionMenuDraw(void)
         else
         {
           DisplayStr = LangGetString(LS_DeleteFile);
-          DisplayColor = C3;
+          DisplayColor = RGB(255, 100, 100);
         }
         break;
       }
       case MI_ImportBookmarks:
       {
         DisplayStr = LangGetString(LS_ImportBM);
-        if (NrBookmarks <= 0) DisplayColor = C4;
+        if (NrBookmarks <= 0) DisplayColor = Color_Inactive;
         break;
       }
       case MI_ExportSegments:
       {
         DisplayStr = LangGetString(LS_ExportToBM);
-        if (NrSegmentMarker <= 2) DisplayColor = C4;
+        if (NrSegmentMarker <= 2) DisplayColor = Color_Inactive;
         break;
       }
       case MI_ExitMC:
@@ -3929,7 +3953,7 @@ void ActionMenuDraw(void)
         break;
     }
     if (DisplayStr && (i < MI_NrMenuItems))
-      FMUC_PutString(rgnActionMenu, 18, 4 + 28 * i, 300, DisplayStr, DisplayColor, COLOR_None, &Calibri_14_FontDataUC, TRUE, (i==0) ? ALIGN_CENTER : ALIGN_LEFT);
+      FMUC_PutString(rgnActionMenu, StartTextField_X + 10, StartTextField_Y + (TextFieldHeight + TextFieldDist) * i, _ActionMenu10_Gd.width-20, DisplayStr, DisplayColor, COLOR_None, &Calibri_14_FontDataUC, TRUE, ((i==0) ? ALIGN_CENTER : ALIGN_LEFT));
   }
 
   TAP_Osd_Sync();

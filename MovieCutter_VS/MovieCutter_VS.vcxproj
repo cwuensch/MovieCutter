@@ -20,6 +20,10 @@
     <ClCompile Include="..\source\MovieCutter.c" />
     <ClCompile Include="..\source\MovieCutterLib.c" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\MovieCutter.ini" />
+    <None Include="..\MovieCutter.lng" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{3032205D-61A9-4096-8EA0-DF54610DED91}</ProjectGuid>
     <Keyword>MakeFileProj</Keyword>
