@@ -233,21 +233,20 @@ const int               InfoBarLine2_Y         = 82;
 const int               InfoBarLine3_Y         = 123;  // alternativ: 135
 
 // MovieCutter INI-Flags
-bool                    AutoOSDPolicy = FALSE;
-bool                    DirectSegmentsCut = FALSE;
-bool                    SaveCutBak = TRUE;
-bool                    DisableSpecialEnd = FALSE;
-bool                    ShowRebootMessage = TRUE;
-bool                    CheckFSAfterCut = FALSE;
-bool                    CheckFSBetweenCut = FALSE;
-bool                    AskBeforeEdit = TRUE;
-bool                    DisableSleepKey = FALSE;
-dword                   DefaultMinuteJump = 0;
-tOSDMode                DefaultOSDMode = MD_FullOSD;
-dword                   Overscan_X = 20;
-dword                   Overscan_Y = 0;
-dword                   SegmentList_X = 50;
-dword                   SegmentList_Y = 82;
+bool                    AutoOSDPolicy      = FALSE;
+tOSDMode                DefaultOSDMode     = MD_FullOSD;
+dword                   DefaultMinuteJump  = 0;
+bool                    ShowRebootMessage  = TRUE;
+bool                    AskBeforeEdit      = TRUE;
+bool                    SaveCutBak         = TRUE;
+bool                    DisableSpecialEnd  = FALSE;
+bool                    CheckFSAfterCut    = FALSE;
+dword                   Overscan_X         = 50;
+dword                   Overscan_Y         = 25;
+dword                   SegmentList_X      = 50;
+dword                   SegmentList_Y      = 82;
+bool                    DirectSegmentsCut  = FALSE;
+bool                    DisableSleepKey    = FALSE;
 
 
 // MovieCutter state variables
@@ -1390,8 +1389,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                   if (!BookmarkMode)
                   {
                     OSDMenuSaveMyRegion(rgnSegmentList);
-                    /*if(*/!CheckFileSystem(0, 1, 1, TRUE)/*)
-                      ShowErrorMessage((fsck_Cancelled) ? LangGetString(LS_CheckFSAborted) : LangGetString(LS_CheckFSFailed))*/;
+                    CheckFileSystem(0, 1, 1, TRUE);
                   }
                   else
                     MovieCutterDeleteFile();
@@ -1737,28 +1735,26 @@ void LoadINI(void)
   IniFileState = INIOpenFile(INIFILENAME, PROGRAM_NAME);
   if((IniFileState != INILOCATION_NotFound) && (IniFileState != INILOCATION_NewFile))
   {
-    AutoOSDPolicy     = INIGetInt("AutoOSDPolicy", 0, 0, 1) == 1;
-    DirectSegmentsCut = INIGetInt("DirectSegmentsCut", 0, 0, 1) == 1;
-    SaveCutBak        = INIGetInt("SaveCutBak", 1, 0, 1) != 0;
-    DisableSpecialEnd = INIGetInt("DisableSpecialEnd", 0, 0, 1) == 1;
-    ShowRebootMessage = INIGetInt("ShowRebootMessage", 1, 0, 1) != 0;
-    CheckFSAfterCut   = INIGetInt("CheckFSAfterCut", 0, 0, 1) == 1;
-    CheckFSBetweenCut = INIGetInt("CheckFSBetweenCut", 0, 0, 1) == 1;
+    AutoOSDPolicy     =            INIGetInt("AutoOSDPolicy",              0,   0,    1)   ==   1;
+    DefaultOSDMode    = (tOSDMode) INIGetInt("DefaultOSDMode",    MD_FullOSD,   0,    3);
+    DefaultMinuteJump =            INIGetInt("DefaultMinuteJump",          0,   0,   99);
+    ShowRebootMessage =            INIGetInt("ShowRebootMessage",          1,   0,    1)   !=   0;
+    AskBeforeEdit     =            INIGetInt("AskBeforeEdit",              1,   0,    1)   !=   0;
+    SaveCutBak        =            INIGetInt("SaveCutBak",                 1,   0,    1)   !=   0;
+    DisableSpecialEnd =            INIGetInt("DisableSpecialEnd",          0,   0,    1)   ==   1;
+    CheckFSAfterCut   =            INIGetInt("CheckFSAfterCut",            0,   0,    1)   ==   1;
 
-    AskBeforeEdit     = INIGetInt("AskBeforeEdit", 1, 0, 1) != 0;
-    DisableSleepKey   = INIGetInt("DisableSleepKey", 0, 0, 1) == 1;
-    DefaultMinuteJump = INIGetInt("DefaultMinuteJump", 0, 0, 99);
-    DefaultOSDMode    = (tOSDMode) INIGetInt("DefaultOSDMode", MD_FullOSD, 0, 3);
-    Overscan_X        = INIGetInt("Overscan_X", 20, 0, 100);
-    Overscan_Y        = INIGetInt("Overscan_Y", 0, 0, 100);
-    SegmentList_X     = INIGetInt("SegmentList_X", 50, 0, ScreenWidth - _SegmentList_Background_Gd.width);
-    SegmentList_Y     = INIGetInt("SegmentList_Y", 82, 0, ScreenHeight - _SegmentList_Background_Gd.height);
+    Overscan_X        =            INIGetInt("Overscan_X",                50,   0,  100);
+    Overscan_Y        =            INIGetInt("Overscan_Y",                25,   0,  100);
+    SegmentList_X     =            INIGetInt("SegmentList_X",             50,   0,  ScreenWidth - _SegmentList_Background_Gd.width);
+    SegmentList_Y     =            INIGetInt("SegmentList_Y",             82,   0,  ScreenHeight - _SegmentList_Background_Gd.height);
+
+    DirectSegmentsCut =            INIGetInt("DirectSegmentsCut",          0,   0,    1)   ==   1;
+    DisableSleepKey   =            INIGetInt("DisableSleepKey",            0,   0,    1)   ==   1;
   }
   INICloseFile();
   if (!AutoOSDPolicy && DefaultOSDMode == MD_NoOSD)
     DefaultOSDMode = MD_FullOSD;
-  if (CheckFSBetweenCut)
-    CheckFSAfterCut = FALSE;
 
   if(IniFileState == INILOCATION_NewFile)
     SaveINI();
@@ -1774,22 +1770,20 @@ void SaveINI(void)
   HDD_TAP_PushDir();
   HDD_ChangeDir(LOGDIR);
   INIOpenFile(INIFILENAME, PROGRAM_NAME);
-  INISetInt("AutoOSDPolicy", AutoOSDPolicy ? 1 : 0);
-  INISetInt("DirectSegmentsCut", DirectSegmentsCut ? 1 : 0);
-  INISetInt("SaveCutBak", SaveCutBak ? 1 : 0);
-  INISetInt("DisableSpecialEnd", DisableSpecialEnd ? 1 : 0);
-  INISetInt("ShowRebootMessage", ShowRebootMessage ? 1 : 0);
-  INISetInt("CheckFSAfterCut", CheckFSAfterCut ? 1 : 0);
-  INISetInt("CheckFSBetweenCut", CheckFSBetweenCut ? 1 : 0);
-
-  INISetInt("AskBeforeEdit", AskBeforeEdit ? 1 : 0);
-  INISetInt("DisableSleepKey", DisableSleepKey ? 1 : 0);
-  INISetInt("DefaultMinuteJump", DefaultMinuteJump);
-  INISetInt("DefaultOSDMode", DefaultOSDMode);
-  INISetInt("Overscan_X", Overscan_X);
-  INISetInt("Overscan_Y", Overscan_Y);
-  INISetInt("SegmentList_X", SegmentList_X);
-  INISetInt("SegmentList_Y", SegmentList_Y);
+  INISetInt ("AutoOSDPolicy",       AutoOSDPolicy       ?  1  :  0);
+  INISetInt ("DefaultOSDMode",      DefaultOSDMode);
+  INISetInt ("DefaultMinuteJump",   DefaultMinuteJump);
+  INISetInt ("ShowRebootMessage",   ShowRebootMessage   ?  1  :  0);
+  INISetInt ("AskBeforeEdit",       AskBeforeEdit       ?  1  :  0);
+  INISetInt ("SaveCutBak",          SaveCutBak          ?  1  :  0);
+  INISetInt ("DisableSpecialEnd",   DisableSpecialEnd   ?  1  :  0);
+  INISetInt ("CheckFSAfterCut",     CheckFSAfterCut     ?  1  :  0);
+  INISetInt ("Overscan_X",          Overscan_X);
+  INISetInt ("Overscan_Y",          Overscan_Y);
+  INISetInt ("SegmentList_X",       SegmentList_X);
+  INISetInt ("SegmentList_Y",       SegmentList_Y);
+  INISetInt ("DirectSegmentsCut",   DirectSegmentsCut   ?  1  :  0);
+  INISetInt ("DisableSleepKey",     DisableSleepKey     ?  1  :  0);
   INISaveFile(INIFILENAME, INILOCATION_AtCurrentDir, NULL);
   INICloseFile();
   HDD_TAP_PopDir();
@@ -4433,7 +4427,7 @@ void MovieCutterProcess(bool KeepCut)
       if (isPlaybackRunning())
       {
 //        NoPlaybackCheck = TRUE;
-        TAP_Hdd_StopTs();  // ****
+        TAP_Hdd_StopTs();
       }
 //      NoPlaybackCheck = TRUE;
       HDD_ChangeDir(PlaybackDir);
@@ -4516,14 +4510,6 @@ void MovieCutterProcess(bool KeepCut)
             HDD_Rename2(TempFileName, PlaybackName, PlaybackDir, TRUE);
           }
         }
-      }
-
-      // Dateisystem-Prüfung zwischen den Schnittoperationen (optional)
-      if (CheckFSBetweenCut)
-      {
-        CheckFileSystem(2*(maxProgress - NrSelectedSegments + 1 - ((CheckFSAfterCut) ? 1 : 0)) - 1, 2*(maxProgress - NrSelectedSegments + 1 - ((CheckFSAfterCut) ? 1 : 0)), 2*maxProgress, FALSE);
-        OSDMenuSaveMyRegion(rgnSegmentList);
-        OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), 2*(maxProgress - NrSelectedSegments + 1 - ((CheckFSAfterCut) ? 1 : 0)), 2*maxProgress, NULL);
       }
 
       // Überprüfung von Existenz und Größe der geschnittenen Aufnahme
@@ -4700,38 +4686,7 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
 //    OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), maxProgress-1, maxProgress, NULL);
 //    TAP_SystemProc();
 
-    /*char ErrorString[512], *p=NULL, *p2=NULL;
-    if(*/CheckFileSystem(maxProgress-1, maxProgress, maxProgress, TRUE);/*)
-    {
-      OSDMenuSaveMyRegion(rgnSegmentList);
-      OSDMenuInfoBoxShow(PROGRAM_NAME " " VERSION, "File system seems valid.", NULL);
-      TAP_Delay(50);
-      OSDMenuInfoBoxDestroyNoOSDUpdate();
-    }
-    else
-    {
-//      if (OSDMenuProgressBarIsVisible()) OSDMenuProgressBarDestroyNoOSDUpdate();
-      if (fsck_Cancelled)
-      {
-//        WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: File system check aborted by user!");
-        ShowErrorMessage(LangGetString(LS_CheckFSAborted));
-      }
-      else
-      {
-//        WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: WARNING! File system is inconsistent...");
-//        WriteLogMC(PROGRAM_NAME, LogString);
-        if (strlen(LogString) <= 50 && !strstr(LogString, "\n"))
-          p = LogString;
-        else
-        {
-          p = strstr(LogString, "Files/");
-          if(p) {p += 6; p2 = strstr(p, "\n");}
-          if(p2) *p2 = '\0';
-        }
-        TAP_SPrint(ErrorString, sizeof(ErrorString), "%s\n%s", LangGetString(LS_CheckFSFailed), (p) ? p : "");
-        ShowErrorMessage(ErrorString);
-      }
-    } */
+    CheckFileSystem(maxProgress-1, maxProgress, maxProgress, TRUE);
   }
 
   if (OSDMenuProgressBarIsVisible())
@@ -4963,7 +4918,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
 
     // --- 2.) Run fsck and create a log file ---
     StartTime = TF2UnixTime(Now(NULL));
-    TAP_SPrint(CommandLine, sizeof(CommandLine), "echo y | %s/ProgramFiles/jfs_fsck %s -v %s > /tmp/fsck.log & echo $! > /tmp/fsck.pid", TAPFSROOT, ((CheckFSBetweenCut) ? "-a" : "-n"), DeviceNode);  // > /tmp/fsck.pid
+    TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/jfs_fsck -n -v %s > /tmp/fsck.log & echo $! > /tmp/fsck.pid", TAPFSROOT, DeviceNode);  // > /tmp/fsck.pid
     system(CommandLine);
 
     //Get the PID of the fsck-Process
@@ -4989,7 +4944,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
       if (i <= 240 && i % 10)
         OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), 24*ProgressStart + (i/10)*(ProgressEnd-ProgressStart), 24*ProgressMax, NULL);
       TAP_SystemProc();
-      if(fsck_Cancelled && !CheckFSBetweenCut)  // ****
+      if(fsck_Cancelled)
       {
         char KillCommand[16];
         TAP_SPrint(KillCommand, sizeof(KillCommand), "kill %lu", fsck_Pid);
@@ -5114,7 +5069,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
 
   HDD_TAP_PopDir();
   TRACEEXIT();
-  return (ErrorString == NULL);
+  return (!fsck_Cancelled && ErrorString == NULL);
 }
 
 
