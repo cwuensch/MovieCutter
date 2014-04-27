@@ -2934,15 +2934,16 @@ void OSDInfoDrawProgressbar(bool Force)
   const dword           ColorCurrentPos      = RGB(157, 8, 13);
 
   word                  OSDRegion = 0;
-  int                   FrameWidth, FrameHeight, FrameLeft, FrameTop;
-  int                   ProgBarWidth, ProgBarHeight, ProgBarLeft, ProgBarTop;
+  dword                 FrameWidth, FrameHeight, FrameLeft, FrameTop;
+  dword                 ProgBarWidth, ProgBarHeight, ProgBarLeft, ProgBarTop;
 
   static dword          LastDraw = 0;
-  static int            LastPos = 999;
-  int                   pos;
-  int                   curPos, curWidth;
+  static dword          LastPos = 999;
+  dword                 pos;
+  dword                 curPos, curWidth;
   int                   NearestMarker;
-  int                   i, j;
+  int                   i;
+  dword                 j;
 
   TRACEENTER();
 
@@ -2977,7 +2978,7 @@ void OSDInfoDrawProgressbar(bool Force)
       return;
     }
 
-    pos = (int)((float)PlayInfo.currentBlock * ProgBarWidth / PlayInfo.totalBlock);
+    pos = (dword)((float)PlayInfo.currentBlock * ProgBarWidth / PlayInfo.totalBlock);
     if(Force || (pos != LastPos))
     {
       // Draw the background
@@ -2994,9 +2995,12 @@ void OSDInfoDrawProgressbar(bool Force)
       // Fill the active segment
       if ((NrSegmentMarker >= 3) && (ActiveSegment < NrSegmentMarker-1))
       {
-        curPos     = (int)((float)SegmentMarker[ActiveSegment].Block          * ProgBarWidth / PlayInfo.totalBlock);
-        curWidth   = (int)((float)SegmentMarker[ActiveSegment + 1].Block      * ProgBarWidth / PlayInfo.totalBlock) - curPos;
-        TAP_Osd_FillBox(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, ColorActiveSegment);
+        if ((SegmentMarker[ActiveSegment].Block <= SegmentMarker[ActiveSegment+1].Block) && (SegmentMarker[ActiveSegment+1].Block <= PlayInfo.totalBlock))
+        {
+          curPos     = (dword)((float)SegmentMarker[ActiveSegment].Block          * ProgBarWidth / PlayInfo.totalBlock);
+          curWidth   = (dword)((float)SegmentMarker[ActiveSegment + 1].Block      * ProgBarWidth / PlayInfo.totalBlock) - curPos;
+          TAP_Osd_FillBox(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, ColorActiveSegment);
+        }
       }
 
       NearestMarker = (BookmarkMode) ? FindNearestBookmark() : FindNearestSegmentMarker();
@@ -3007,15 +3011,18 @@ void OSDInfoDrawProgressbar(bool Force)
         // Draw the selection
         if(SegmentMarker[i].Selected)
         {
-          curPos   = (int)((float)SegmentMarker[i].Block                      * ProgBarWidth / PlayInfo.totalBlock);
-          curWidth = (int)((float)SegmentMarker[i+1].Block                    * ProgBarWidth / PlayInfo.totalBlock) - curPos;
-          TAP_Osd_DrawRectangle(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, 2, ColorSelectedSegment);
+          if ((SegmentMarker[i].Block <= SegmentMarker[i+1].Block) && (SegmentMarker[i+1].Block <= PlayInfo.totalBlock))
+          {
+            curPos   = (dword)((float)SegmentMarker[i].Block                      * ProgBarWidth / PlayInfo.totalBlock);
+            curWidth = (dword)((float)SegmentMarker[i+1].Block                    * ProgBarWidth / PlayInfo.totalBlock) - curPos;
+            TAP_Osd_DrawRectangle(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, 2, ColorSelectedSegment);
+          }
         }
 
         // Draw the segment marker
         if((i >= 1) && (SegmentMarker[i].Block <= PlayInfo.totalBlock))
         {
-          curPos   = (int)((float)SegmentMarker[i].Block                      * ProgBarWidth / PlayInfo.totalBlock);
+          curPos     = (dword)((float)SegmentMarker[i].Block * ProgBarWidth / PlayInfo.totalBlock);
           if (!BookmarkMode)
           {
             if (i == NearestMarker)
@@ -3031,12 +3038,15 @@ void OSDInfoDrawProgressbar(bool Force)
       // Draw requested jump
       if (JumpRequestedSegment != 0xFFFF)
       {
-        curPos     = (int)((float)SegmentMarker[JumpRequestedSegment].Block   * ProgBarWidth / PlayInfo.totalBlock);
-        curWidth   = (int)((float)SegmentMarker[JumpRequestedSegment+1].Block * ProgBarWidth / PlayInfo.totalBlock) - curPos;
-        if (SegmentMarker[JumpRequestedSegment].Selected)
-          TAP_Osd_DrawRectangle(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, 1, ColorActiveSegment);
-        else
-          TAP_Osd_DrawRectangle(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, 2, ColorActiveSegment);
+        if ((SegmentMarker[JumpRequestedSegment].Block <= SegmentMarker[JumpRequestedSegment+1].Block) && (SegmentMarker[JumpRequestedSegment+1].Block <= PlayInfo.totalBlock))
+        {
+          curPos     = (dword)((float)SegmentMarker[JumpRequestedSegment].Block   * ProgBarWidth / PlayInfo.totalBlock);
+          curWidth   = (dword)((float)SegmentMarker[JumpRequestedSegment+1].Block * ProgBarWidth / PlayInfo.totalBlock) - curPos;
+          if (SegmentMarker[JumpRequestedSegment].Selected)
+            TAP_Osd_DrawRectangle(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, 1, ColorActiveSegment);
+          else
+            TAP_Osd_DrawRectangle(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, 2, ColorActiveSegment);
+        }
       }
 
       // Draw the Bookmarks
@@ -3044,7 +3054,7 @@ void OSDInfoDrawProgressbar(bool Force)
       {
         if(Bookmarks[i] <= PlayInfo.totalBlock)
         {
-          curPos   = (int)((float)Bookmarks[i] * ProgBarWidth / PlayInfo.totalBlock);
+          curPos   = (dword)((float)Bookmarks[i] * ProgBarWidth / PlayInfo.totalBlock);
           if (BookmarkMode)
           {
             if (i == NearestMarker)
@@ -3060,7 +3070,7 @@ void OSDInfoDrawProgressbar(bool Force)
       // Draw the current position
       if((int)PlayInfo.currentBlock >= 0)
       {
-        curPos = ProgBarLeft + pos;  // min(pos, ProgBarWidth - 1)
+        curPos = ProgBarLeft + min(pos, ProgBarWidth + 1);
         for(j = 0; j <= ProgBarHeight + 1; j++)
           TAP_Osd_PutPixel(OSDRegion, curPos, ProgBarTop + j, ColorCurrentPos);
         for(j = -1; j <= 1; j++)
@@ -3374,7 +3384,7 @@ void OSDInfoDrawCurrentPlayTime(bool Force)
         const int Frame1Width = 79,                                                          Frame2Width = InfoBarRightAreaWidth - Frame1Width - 1;
         const int Frame1Left  = ScreenWidth - Overscan_X - InfoBarRightAreaWidth,            Frame2Left  = Frame1Left + Frame1Width + 1;
         PercentWidth = (dword)((float)PlayInfo.currentBlock * InfoBarRightAreaWidth / PlayInfo.totalBlock);
-        PercentWidth = min(PercentWidth, InfoBarRightAreaWidth + 1);  // *****
+        PercentWidth = min(PercentWidth, InfoBarRightAreaWidth + 1);
 
         TAP_Osd_FillBox      (rgnInfoBar, Frame1Left,               InfoBarLine1_Y, InfoBarRightAreaWidth, InfoBarLine1Height, ColorInfoBarDarkSub);
         TAP_Osd_DrawRectangle(rgnInfoBar, Frame1Left + Frame1Width, InfoBarLine1_Y + 6, 1, 17, 1, RGB(92,93,93));
@@ -3402,7 +3412,7 @@ void OSDInfoDrawCurrentPlayTime(bool Force)
         FMUC_PutString(rgnPlayState, PlayTimeLeft, PlayTimeTop, PlayTimeLeft + PlayTimeWidth - 1, TimeString, COLOR_White, ColorDarkBackground, &Calibri_10_FontDataUC, FALSE, ALIGN_RIGHT);
 
         PercentWidth = (dword)((float)PlayInfo.currentBlock * ProgBarWidth / PlayInfo.totalBlock);
-        PercentWidth = min(PercentWidth, (dword)ProgBarWidth + 1);  // *****
+        PercentWidth = min(PercentWidth, (dword)ProgBarWidth + 1);
         TAP_Osd_FillBox(rgnPlayState, ProgBarLeft, ProgBarTop, ProgBarWidth, ProgBarHeight, COLOR_Gray);
         TAP_Osd_FillBox(rgnPlayState, ProgBarLeft, ProgBarTop, PercentWidth, ProgBarHeight, RGB(250,0,0));
       }
@@ -5213,7 +5223,7 @@ bool PatchOldNavFile(char *SourceFileName, bool isHD)
       {
         Difference += (navRecs[i].Timems - LastTime) - 1000;
 
-        TAP_SPrint(LogString, sizeof(LogString), "  - Gap found at nav record nr. %lu:  Offset=%llu, TimeStamp(before)=%lu, TimeStamp(after)=%lu, GapSize=%lu", (dword)navsCount /*(ftell(fSourceNav)/sizeof(tnavSD) - navsRead + i) / ((isHD) ? 2 : 1)*/, ((off_t)(navRecs[i].PHOffsetHigh) << 32) | navRecs[i].PHOffset, navRecs[i].Timems, navRecs[i].Timems-Difference, navRecs[i].Timems-LastTime);
+        TAP_SPrint(LogString, sizeof(LogString), "  - Gap found at nav record nr. %u:  Offset=%llu, TimeStamp(before)=%lu, TimeStamp(after)=%lu, GapSize=%lu", navsCount /*(ftell(fSourceNav)/sizeof(tnavSD) - navsRead + i) / ((isHD) ? 2 : 1)*/, ((off_t)(navRecs[i].PHOffsetHigh) << 32) | navRecs[i].PHOffset, navRecs[i].Timems, navRecs[i].Timems-Difference, navRecs[i].Timems-LastTime);
         WriteLogMC(PROGRAM_NAME, LogString);
       }
       LastTime = navRecs[i].Timems;
@@ -5321,7 +5331,7 @@ bool PatchOldNavFileHD(char *SourceFileName)
       {
         Difference += (navRecs[i].Timems - LastTime) - 1000;
 
-        TAP_SPrint(LogString, sizeof(LogString), "  - Gap found at nav record nr. %lu:  Offset=%llu, TimeStamp(before)=%lu, TimeStamp(after)=%lu, GapSize=%lu", (dword)navsCount /*ftell(fSourceNav)/sizeof(tnavHD) - navsRead + i*/, ((off_t)(navRecs[i].SEIOffsetHigh) << 32) | navRecs[i].SEIOffsetLow, navRecs[i].Timems, navRecs[i].Timems-Difference, navRecs[i].Timems-LastTime);
+        TAP_SPrint(LogString, sizeof(LogString), "  - Gap found at nav record nr. %u:  Offset=%llu, TimeStamp(before)=%lu, TimeStamp(after)=%lu, GapSize=%lu", navsCount /*ftell(fSourceNav)/sizeof(tnavHD) - navsRead + i*/, ((off_t)(navRecs[i].SEIOffsetHigh) << 32) | navRecs[i].SEIOffsetLow, navRecs[i].Timems, navRecs[i].Timems-Difference, navRecs[i].Timems-LastTime);
         WriteLogMC(PROGRAM_NAME, LogString);
       }
       LastTime = navRecs[i].Timems;
