@@ -100,7 +100,7 @@ de_073=Bookmark gelöscht
 de_074=Segment markiert
 de_075=Selektion aufgehoben
 de_076=Letzte rückgängig
-de_077=Minutensprung an: %d
+de_077=Minutensprung an: %d'
 de_078=Minutensprung aus
 
 
@@ -182,17 +182,17 @@ en_073=Bookmark deleted
 en_074=Segment selected
 en_075=Selection removed
 en_076=Undo last action
-en_077=Minute jump: %d
+en_077=Minute jump: %d'
 en_078=Minute jump off
 
 
 #French
-fr_000= Ajouter   
-fr_001= Effacer   
-fr_002= Quitter 
-fr_003= Déplacer   
-fr_004= Pause/Menu 
-fr_005= Marquer
+fr_000=Ajouter
+fr_001=Effacer
+fr_002=Quitter
+fr_003=Déplacer
+fr_004=Pause/Menu
+fr_005=Marquer
 fr_006=Pas de fichier .nav !\nDonnées temporelles incertaines.\nProcéder quand même ?
 fr_007=Supprimer les segments marqués
 fr_008=Supprimer ce fichier
@@ -249,12 +249,12 @@ fr_058=Nom du fichier ou chemin trop long !
 
 
 #Dutch
-nl_000= Nieuw 
-nl_001= Verwijderen 
+nl_000=Nieuw
+nl_001=Verwijderen
 nl_002=Afsluiten
-nl_003= Verplaatsen 
-nl_004=Pauze/Menu 
-nl_005= Kiezen
+nl_003=Verplaatsen
+nl_004=Pauze/Menu
+nl_005=Kiezen
 nl_006=Geen nav-bestand! Getoonde tijden kunnen fout zijn.\nToch doorgaan?
 nl_007=Gekozen segmenten verwijderen
 nl_008=Dit bestand verwijderen
