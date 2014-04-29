@@ -226,7 +226,7 @@ const dword             ColorDarkBackground    = RGB(16, 16, 16);
 const dword             ColorLightBackground   = RGB(24, 24, 24);
 const dword             ColorInfoBarDarkSub    = RGB(30, 30, 30);
 const dword             ColorInfoBarLightSub   = RGB(43, 43, 43);
-const int               InfoBarRightAreaWidth  = 193;
+const int               InfoBarRightAreaWidth  = 192;
 const int               InfoBarModeAreaWidth   = 72;
 const int               InfoBarLine1_Y         = 49,   InfoBarLine1Height = 29;
 const int               InfoBarLine2_Y         = 82;
@@ -2934,16 +2934,15 @@ void OSDInfoDrawProgressbar(bool Force)
   const dword           ColorCurrentPos      = RGB(157, 8, 13);
 
   word                  OSDRegion = 0;
-  dword                 FrameWidth, FrameHeight, FrameLeft, FrameTop;
-  dword                 ProgBarWidth, ProgBarHeight, ProgBarLeft, ProgBarTop;
+  int                   FrameWidth, FrameHeight, FrameLeft, FrameTop;
+  int                   ProgBarWidth, ProgBarHeight, ProgBarLeft, ProgBarTop;
 
   static dword          LastDraw = 0;
   static dword          LastPos = 999;
   dword                 pos;
   dword                 curPos, curWidth;
   int                   NearestMarker;
-  int                   i;
-  dword                 j;
+  int                   i, j;
 
   TRACEENTER();
 
@@ -2995,12 +2994,12 @@ void OSDInfoDrawProgressbar(bool Force)
       // Fill the active segment
       if ((NrSegmentMarker >= 3) && (ActiveSegment < NrSegmentMarker-1))
       {
-        if ((SegmentMarker[ActiveSegment].Block <= SegmentMarker[ActiveSegment+1].Block) && (SegmentMarker[ActiveSegment+1].Block <= PlayInfo.totalBlock))
-        {
-          curPos     = (dword)((float)SegmentMarker[ActiveSegment].Block          * ProgBarWidth / PlayInfo.totalBlock);
-          curWidth   = (dword)((float)SegmentMarker[ActiveSegment + 1].Block      * ProgBarWidth / PlayInfo.totalBlock) - curPos;
+//        if ((SegmentMarker[ActiveSegment].Block <= SegmentMarker[ActiveSegment+1].Block) && (SegmentMarker[ActiveSegment+1].Block <= PlayInfo.totalBlock))
+//        {
+          curPos     = min((dword)((float)SegmentMarker[ActiveSegment].Block          * ProgBarWidth / PlayInfo.totalBlock), (dword)ProgBarWidth + 1);
+          curWidth   = min((dword)((float)SegmentMarker[ActiveSegment + 1].Block      * ProgBarWidth / PlayInfo.totalBlock) - curPos, (dword)ProgBarWidth + 1 - curPos);
           TAP_Osd_FillBox(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, ColorActiveSegment);
-        }
+//        }
       }
 
       NearestMarker = (BookmarkMode) ? FindNearestBookmark() : FindNearestSegmentMarker();
@@ -3011,12 +3010,12 @@ void OSDInfoDrawProgressbar(bool Force)
         // Draw the selection
         if(SegmentMarker[i].Selected)
         {
-          if ((SegmentMarker[i].Block <= SegmentMarker[i+1].Block) && (SegmentMarker[i+1].Block <= PlayInfo.totalBlock))
-          {
-            curPos   = (dword)((float)SegmentMarker[i].Block                      * ProgBarWidth / PlayInfo.totalBlock);
-            curWidth = (dword)((float)SegmentMarker[i+1].Block                    * ProgBarWidth / PlayInfo.totalBlock) - curPos;
+//          if ((SegmentMarker[i].Block <= SegmentMarker[i+1].Block) && (SegmentMarker[i+1].Block <= PlayInfo.totalBlock))
+//          {
+            curPos   = min((dword)((float)SegmentMarker[i].Block                      * ProgBarWidth / PlayInfo.totalBlock), (dword)ProgBarWidth + 1);
+            curWidth = min((dword)((float)SegmentMarker[i+1].Block                    * ProgBarWidth / PlayInfo.totalBlock) - curPos, (dword)ProgBarWidth + 1 - curPos);
             TAP_Osd_DrawRectangle(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, 2, ColorSelectedSegment);
-          }
+//          }
         }
 
         // Draw the segment marker
@@ -3038,15 +3037,15 @@ void OSDInfoDrawProgressbar(bool Force)
       // Draw requested jump
       if (JumpRequestedSegment != 0xFFFF)
       {
-        if ((SegmentMarker[JumpRequestedSegment].Block <= SegmentMarker[JumpRequestedSegment+1].Block) && (SegmentMarker[JumpRequestedSegment+1].Block <= PlayInfo.totalBlock))
-        {
-          curPos     = (dword)((float)SegmentMarker[JumpRequestedSegment].Block   * ProgBarWidth / PlayInfo.totalBlock);
-          curWidth   = (dword)((float)SegmentMarker[JumpRequestedSegment+1].Block * ProgBarWidth / PlayInfo.totalBlock) - curPos;
+//        if ((SegmentMarker[JumpRequestedSegment].Block <= SegmentMarker[JumpRequestedSegment+1].Block) && (SegmentMarker[JumpRequestedSegment+1].Block <= PlayInfo.totalBlock))
+//        {
+          curPos     = min((dword)((float)SegmentMarker[JumpRequestedSegment].Block   * ProgBarWidth / PlayInfo.totalBlock), (dword)ProgBarWidth + 1);
+          curWidth   = min((dword)((float)SegmentMarker[JumpRequestedSegment+1].Block * ProgBarWidth / PlayInfo.totalBlock) - curPos, (dword)ProgBarWidth - 1 - curPos);
           if (SegmentMarker[JumpRequestedSegment].Selected)
             TAP_Osd_DrawRectangle(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, 1, ColorActiveSegment);
           else
             TAP_Osd_DrawRectangle(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, 2, ColorActiveSegment);
-        }
+//        }
       }
 
       // Draw the Bookmarks
@@ -3054,7 +3053,7 @@ void OSDInfoDrawProgressbar(bool Force)
       {
         if(Bookmarks[i] <= PlayInfo.totalBlock)
         {
-          curPos   = (dword)((float)Bookmarks[i] * ProgBarWidth / PlayInfo.totalBlock);
+          curPos     = (dword)((float)Bookmarks[i] * ProgBarWidth / PlayInfo.totalBlock);
           if (BookmarkMode)
           {
             if (i == NearestMarker)
@@ -3070,7 +3069,7 @@ void OSDInfoDrawProgressbar(bool Force)
       // Draw the current position
       if((int)PlayInfo.currentBlock >= 0)
       {
-        curPos = ProgBarLeft + min(pos, ProgBarWidth + 1);
+        curPos = ProgBarLeft + min(pos, (dword)ProgBarWidth + 1);
         for(j = 0; j <= ProgBarHeight + 1; j++)
           TAP_Osd_PutPixel(OSDRegion, curPos, ProgBarTop + j, ColorCurrentPos);
         for(j = -1; j <= 1; j++)
@@ -3110,8 +3109,8 @@ void OSDInfoDrawBackground(void)
     TAP_Osd_FillBox(rgnInfoBar, 0, 45, ScreenWidth, GetOSDRegionHeight(rgnInfoBar) - 45, ColorDarkBackground);
 
     // Draw the title area
-    TAP_Osd_PutGd(rgnInfoBar, Overscan_X + 13, 11, &_Icon_Playing_Gd, TRUE);
-    TAP_Osd_DrawRectangle(rgnInfoBar, ScreenWidth - Overscan_X - InfoBarRightAreaWidth - 1, 12, 1, 22, 1, RGB(92,93,93));
+    TAP_Osd_PutGd(rgnInfoBar, Overscan_X + 12, 11, &_Icon_Playing_Gd, TRUE);
+    TAP_Osd_DrawRectangle(rgnInfoBar, ScreenWidth - Overscan_X - InfoBarRightAreaWidth - 2, 12, 1, 22, 1, RGB(92,93,93));
 
     // Draw the color buttons area
     const int FrameWidth = ScreenWidth - 2*Overscan_X - InfoBarRightAreaWidth - InfoBarModeAreaWidth - 4;
@@ -3124,7 +3123,7 @@ void OSDInfoDrawBackground(void)
       ColorButtonLengths[i] = FMUC_GetStringWidth(ColorButtonStrings[i], &Calibri_12_FontDataUC);
       ButtonDist += ColorButtons[i]->width + ColorButtonLengths[i];
     }
-    ButtonDist = (FrameWidth - (ButtonDist + 12) - 10) / 4;
+    ButtonDist = (FrameWidth - (ButtonDist + 12) - 12) / 4;
     ButtonDist = min(ButtonDist, 14);
 
     PosY = InfoBarLine1_Y + 5;
@@ -3175,13 +3174,17 @@ void OSDInfoDrawBackground(void)
 
 void OSDInfoDrawRecName(void)
 {
-  const int             TitleHeight = FMUC_GetStringHeight(PlaybackName, &Calibri_14_FontDataUC);
-  const int             TimeWidth   = FMUC_GetStringWidth (" 9:99:99",   &Calibri_12_FontDataUC);
-  const int             FrameLeft   = Overscan_X + 48,                                                    FrameTop    =  0;  // 10
-  const int             FrameWidth  = ScreenWidth - Overscan_X - InfoBarRightAreaWidth - FrameLeft - 2,   FrameHeight = 45;  // 26
-  const int             TextTop     = FrameTop + (FrameHeight - TitleHeight) / 2 - 1;
-  char                  NameStr[MAX_FILE_NAME_SIZE + 1];
-  char                  TimeStr[12], *pTimeStr;
+  const int             FrameLeft    = Overscan_X + 45,                                                    FrameTop    =  0;  // 10
+  const int             FrameWidth   = ScreenWidth - Overscan_X - InfoBarRightAreaWidth - FrameLeft - 2,   FrameHeight = 45;  // 26
+  const int             TimeWidth    = FMUC_GetStringWidth("99:99 h", &Calibri_12_FontDataUC) + 1,         TimeLeft    = FrameLeft + FrameWidth - TimeWidth - 2;
+  int                   TimeTop      = FrameTop + 13,                                                      TitleLeft   = FrameLeft + 2;
+  int                   TitleWidth   = FrameWidth - TimeWidth - (TitleLeft - FrameLeft) - 12;
+  int                   TitleHeight, TitleTop;
+  char                  TitleStr[MAX_FILE_NAME_SIZE + 1];
+  char                  TimeStr[8];
+  dword                 TimeVal, Hours, Minutes, Seconds;
+
+  tFontDataUC          *UseTitleFont = NULL;
   char                 *LastSpace = NULL;
   char                 *EndOfName = NULL;
   int                   EndOfNameWidth;
@@ -3190,44 +3193,77 @@ void OSDInfoDrawRecName(void)
 
   if(rgnInfoBar)
   {
-TAP_Osd_FillBox(rgnInfoBar, FrameLeft, FrameTop, FrameWidth, FrameHeight, COLOR_Blue);
-    strncpy(NameStr, PlaybackName, sizeof(NameStr));
-    NameStr[MAX_FILE_NAME_SIZE] = '\0';
-    NameStr[strlen(NameStr) - 4] = '\0';
+//    TAP_Osd_FillBox(rgnInfoBar, FrameLeft, FrameTop, FrameWidth, FrameHeight, COLOR_Blue);
 
-    if ((int)FMUC_GetStringWidth(NameStr, &Calibri_14_FontDataUC) + TimeWidth > FrameWidth)
+    // Dateiname in neuen String kopieren und .rec entfernen
+    strncpy(TitleStr, PlaybackName, sizeof(TitleStr));
+    TitleStr[MAX_FILE_NAME_SIZE] = '\0';
+//    NameStr[strlen(NameStr) - 4] = '\0';
+
+    // Passende Schriftgröße ermitteln
+    UseTitleFont = &Calibri_14_FontDataUC;
+    if(FMUC_GetStringWidth(TitleStr, UseTitleFont) + 10 > (dword)TitleWidth)
     {
-      LastSpace = strrchr(NameStr, ' ');
+      UseTitleFont = &Calibri_12_FontDataUC;
+      TimeTop--;
+      TitleLeft -= 2;
+      TitleWidth += 2;
+    }
+
+    // Vertikale Schriftposition berechnen
+    TitleHeight = FMUC_GetStringHeight(TitleStr, UseTitleFont);
+    TitleTop = FrameTop + (FrameHeight - TitleHeight) / 2 - 1;
+
+    // Titel ausgeben
+    if(FMUC_GetStringWidth(TitleStr, UseTitleFont) > (dword)TitleWidth)
+    {
+      // Falls immernoch zu lang, Titel in der Mitte kürzen
+      LastSpace = strrchr(TitleStr, ' ');
       if (LastSpace)
       {
         LastSpace[0] = '*';
-        EndOfName = strrchr(NameStr, ' ');
+        EndOfName = strrchr(TitleStr, ' ');
         LastSpace[0] = ' ';
       }
-
-      if (!EndOfName)
+      if (EndOfName)
+        EndOfName++;
+      else
       {
         if (LastSpace)
-          EndOfName = LastSpace;
+          EndOfName = LastSpace + 1;
         else
-          EndOfName = &NameStr[strlen(NameStr) - 10];
+          EndOfName = &TitleStr[strlen(TitleStr) - 12];
       }
-      EndOfNameWidth = FMUC_GetStringWidth(EndOfName, &Calibri_14_FontDataUC);
-      FMUC_PutString(rgnInfoBar, FrameLeft, TextTop, FrameLeft + FrameWidth - TimeWidth - EndOfNameWidth - 1, NameStr, COLOR_White, COLOR_Cyan, &Calibri_14_FontDataUC, TRUE, ALIGN_LEFT);
-      FMUC_PutString(rgnInfoBar, FrameLeft + FrameWidth - TimeWidth - EndOfNameWidth, TextTop, FrameLeft + FrameWidth - TimeWidth - 1, EndOfName, COLOR_White, COLOR_Red, &Calibri_14_FontDataUC, FALSE, ALIGN_LEFT);
+      EndOfNameWidth = FMUC_GetStringWidth(EndOfName, UseTitleFont);
+      FMUC_PutString(rgnInfoBar, TitleLeft,                               TitleTop, TitleLeft + TitleWidth - EndOfNameWidth, TitleStr,  COLOR_White, ColorInfoBarTitle, UseTitleFont, TRUE, ALIGN_LEFT);
+      FMUC_PutString(rgnInfoBar, TitleLeft + TitleWidth - EndOfNameWidth, TitleTop, TitleLeft + TitleWidth,                  EndOfName, COLOR_White, ColorInfoBarTitle, UseTitleFont, FALSE, ALIGN_LEFT);
     }
     else
-      FMUC_PutString(rgnInfoBar, FrameLeft, TextTop, FrameLeft + FrameWidth - TimeWidth - 1, NameStr, COLOR_White, COLOR_DarkYellow, &Calibri_14_FontDataUC, FALSE, ALIGN_LEFT);
+      FMUC_PutString(rgnInfoBar, TitleLeft,                               TitleTop, TitleLeft + TitleWidth,                  TitleStr,  COLOR_White, ColorInfoBarTitle, UseTitleFont, TRUE, ALIGN_LEFT);
 
-//    if(PLAYINFOVALID())  // bei ungültiger PlayInfo lautet schlimmstenfalls die Zeitanzeige 9999:28
+    TAP_Osd_DrawRectangle(rgnInfoBar, TimeLeft - 4, 12, 1, 22, 1, RGB(92,93,93));
+
+//    if(PLAYINFOVALID())  // bei ungültiger PlayInfo lautet schlimmstenfalls die Zeitanzeige 99:99
 //    {
-      SecToTimeString(PlayInfo.duration * 60 + PlayInfo.durationSec, TimeStr);
-      pTimeStr = TimeStr;
-      if (PlayInfo.duration >= 60)
-        TimeStr[strlen(TimeStr) - 3] = '\0';
+      TimeVal = PlayInfo.duration * 60 + PlayInfo.durationSec;
+      if (TimeVal >= 3600)
+      {
+        Hours    = (int)(TimeVal / 3600);
+        Minutes  = (int)(TimeVal / 60) % 60;
+        if (Hours >= 100) {Hours = 99; Minutes = 99;}
+        TAP_SPrint(TimeStr, 8, "%lu:%02lu h", Hours, Minutes);
+      }
+      else if (TimeVal >= 60)
+      {
+        Minutes  = (int)(TimeVal / 60) % 60;
+        TAP_SPrint(TimeStr, 7, "%lu min", Minutes);
+      }
       else
-        pTimeStr = &TimeStr[2];
-      FMUC_PutString(rgnInfoBar, FrameLeft + FrameWidth - TimeWidth, TextTop + 3, FrameLeft + FrameWidth - 1, pTimeStr, COLOR_White, COLOR_Green, &Calibri_12_FontDataUC, FALSE, ALIGN_RIGHT);
+      {
+        Seconds  = TimeVal % 60;
+        TAP_SPrint(TimeStr, 7, "%lu sek", Seconds);
+      }
+      FMUC_PutString(rgnInfoBar, TimeLeft, TimeTop, TimeLeft + TimeWidth - 1, TimeStr, COLOR_White, ColorInfoBarTitle, &Calibri_12_FontDataUC, FALSE, ALIGN_CENTER);
 //    }
   }
   TRACEEXIT();
@@ -3381,7 +3417,7 @@ void OSDInfoDrawCurrentPlayTime(bool Force)
 
       if(rgnInfoBar)
       {
-        const int Frame1Width = 79,                                                          Frame2Width = InfoBarRightAreaWidth - Frame1Width - 1;
+        const int Frame1Width = 78,                                                          Frame2Width = InfoBarRightAreaWidth - Frame1Width - 1;
         const int Frame1Left  = ScreenWidth - Overscan_X - InfoBarRightAreaWidth,            Frame2Left  = Frame1Left + Frame1Width + 1;
         PercentWidth = (dword)((float)PlayInfo.currentBlock * InfoBarRightAreaWidth / PlayInfo.totalBlock);
         PercentWidth = min(PercentWidth, InfoBarRightAreaWidth + 1);
@@ -3473,7 +3509,7 @@ void OSDInfoDrawClock(bool Force)
 
 void OSDInfoDrawMinuteJump(void)
 {
-  const int             FrameLeft  = ScreenWidth - Overscan_X - InfoBarRightAreaWidth + 6;
+  const int             FrameLeft  = ScreenWidth - Overscan_X - InfoBarRightAreaWidth + 5;
   const int             FrameTop   = 4,                                                            ButtonTop   = FrameTop + 17;
   const int             FrameWidth = _Button_SkipLeft_Gd.width + _Button_SkipRight_Gd.width + 1,   FrameHeight = ButtonTop - FrameTop + _Button_SkipLeft_Gd.height;
   char InfoStr[5];

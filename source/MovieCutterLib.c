@@ -178,7 +178,7 @@ void SecToTimeString(dword Time, char *const TimeString)  // needs max. 4 + 1 + 
   Min  = (int)(Time / 60) % 60;
   Sec  = Time % 60;
   if (Hour >= 10000) Hour = 9999;
-  TAP_SPrint(TimeString, 11, "%lu:%2.2lu:%2.2lu", Hour, Min, Sec);
+  TAP_SPrint(TimeString, 11, "%lu:%02lu:%02lu", Hour, Min, Sec);
 
   TRACEEXIT();
 }
@@ -193,7 +193,7 @@ void MSecToTimeString(dword Timems, char *const TimeString)  // needs max. 4 + 1
   Min  = (int)(Timems / 60000) % 60;
   Sec  = (int)(Timems / 1000) % 60;
   Millisec = Timems % 1000;
-  TAP_SPrint(TimeString, 15, "%lu:%2.2lu:%2.2lu.%03lu", Hour, Min, Sec, Millisec);
+  TAP_SPrint(TimeString, 15, "%lu:%02lu:%02lu.%03lu", Hour, Min, Sec, Millisec);
 
   TRACEEXIT();
 }
