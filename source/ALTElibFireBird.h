@@ -12,6 +12,8 @@
   #define Calibri_12_FontDataUC Calibri_12_FontData
   #define Calibri_14_FontDataUC Calibri_14_FontData
 
+  #define tFontDataUC tFontData
+
 
   inline dword FIS_fwAppl_SetPlaybackSpeed(void)
   {
@@ -28,6 +30,26 @@
 
     __Appl_SetPlaybackSpeed = (void*)FIS_fwAppl_SetPlaybackSpeed();
     if(__Appl_SetPlaybackSpeed) __Appl_SetPlaybackSpeed(Mode, Speed, p3);
+  }
+
+
+  inline dword FIS_fwAppl_StartPlayback(void)
+  {
+    static dword          fwAppl_StartPlayback = 0;
+
+    if(!fwAppl_StartPlayback)
+      fwAppl_StartPlayback = TryResolve("_Z18Appl_StartPlaybackPKcjb");
+
+    return fwAppl_StartPlayback;
+  }
+  int Appl_StartPlayback(char *FileName, unsigned int p2, bool p3, bool ScaleInPip)
+  {
+    int (*__Appl_StartPlayback)(char const*, unsigned int, bool, bool);
+    int  ret = -1;
+
+    __Appl_StartPlayback = (void*)FIS_fwAppl_StartPlayback();
+    if(__Appl_StartPlayback) ret = __Appl_StartPlayback(FileName, p2, p3, ScaleInPip);
+    return ret;
   }
 
 

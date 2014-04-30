@@ -8,11 +8,12 @@
 #include                <stdlib.h>
 #include                <string.h>
 #include                <unistd.h>
-#include                "tap.h"
-#include                "libFireBird.h"
-#include                "MovieCutter.h"
+#include                <tap.h>
+#include                "libFireBird.h"   // <libFireBird.h>
+#include                "CWTapApiLib.h"
 #include                "MovieCutterLib.h"
 #include                "MovieCutter_TAPCOM.h"
+#include                "MovieCutter.h"
 #include                "Graphics/ActionMenu10.gd"
 #include                "Graphics/ActionMenu_Bar.gd"
 #include                "Graphics/SegmentList_Background.gd"
@@ -292,9 +293,9 @@ bool                    HDVideo;
 
 // OSD object variables
 #ifndef Calibri_10_FontDataUC
-tFontDataUC             Calibri_10_FontDataUC;
-tFontDataUC             Calibri_12_FontDataUC;
-tFontDataUC             Calibri_14_FontDataUC;
+  tFontDataUC           Calibri_10_FontDataUC;
+  tFontDataUC           Calibri_12_FontDataUC;
+  tFontDataUC           Calibri_14_FontDataUC;
 #endif
 tFontDataUC             Courier_New_13_FontDataUC;
 word                    rgnSegmentList = 0;
@@ -3427,7 +3428,11 @@ void OSDInfoDrawCurrentPlayTime(bool Force)
 
         TAP_Osd_FillBox(rgnInfoBar, Frame1Left,   InfoBarLine1_Y + InfoBarLine1Height - 2, PercentWidth, 2, COLOR_Gray);
         FMUC_PutString (rgnInfoBar, Frame1Left+1, InfoBarLine1_Y + 5, Frame1Left + Frame1Width - 1, PercentString, COLOR_White, ColorInfoBarDarkSub, &Calibri_12_FontDataUC, FALSE, ALIGN_CENTER);
-        FMUC_PutString (rgnInfoBar, Frame2Left,   InfoBarLine1_Y + 5, Frame2Left + Frame2Width - 1, TimeString,    COLOR_White, ColorInfoBarDarkSub, &Courier_New_13_FontDataUC, FALSE, ALIGN_CENTER);
+        #ifndef Calibri_10_FontDataUC
+          FMUC_PutString (rgnInfoBar, Frame2Left,   InfoBarLine1_Y + 5, Frame2Left + Frame2Width - 1, TimeString,    COLOR_White, ColorInfoBarDarkSub, &Courier_New_13_FontDataUC, FALSE, ALIGN_CENTER);
+        #else
+          FMUC_PutString (rgnInfoBar, Frame2Left,   InfoBarLine1_Y + 5, Frame2Left + Frame2Width - 1, TimeString,    COLOR_White, ColorInfoBarDarkSub, &Calibri_12_FontDataUC,     FALSE, ALIGN_CENTER);
+        #endif
       }
       if(rgnInfoBarMini)
       {
