@@ -1,3 +1,41 @@
+2014-05-02 v3.0  NEU:
+        (beta!)   *** vollständige Überarbeitung des OSD (s.u.)
+                   ** OSD-Synchronisation beim Neuzeichnen reduziert (-> verhindert Flackern)
+                   ** Rückgängig-Funktionalität: Es können bis zu 100 zuletzt durchgeführte Aktionen vom Typ
+                      Setzen/Verschieben/Löschen von Segment-Markern oder Bookmarks rückgängig gemacht werden.
+                      ACHTUNG! Schnittoperationen sind irreversibel und können NICHT rückgängig gemacht werden!
+                    * Im Schnittmenü können die Zahlentasten als Shortcuts verwendet werden.
+                    * Der MovieCutter ist nun darauf optimiert, per Autostart gestartet zu werden und permanent zu laufen.
+                    * Alle Tasten, die während der normalen Wiedergabe zur Verfügung stehen, können nun auch im MC genutzt werden.
+
+                 BEDIENUNG:
+                    - Die Umschaltung zwischen Segment- und Bookmark-Modus geschieht jetzt mit der VF (oder der FAV) Taste. Alternativ auch mit GUIDE.
+
+                    - Die WEISSE Taste dient nun zum Umschalten zwischen 3 verschiedenen OSD-Modi:
+                        a.) Vollständiges OSD: enthält alle bisherigen Elemente des MovieCutters.
+                        b.) Dasselbe OSD, allerdings ohne Anzeige der Segmentliste.
+                        c.) MiniOSD: enthält nur die Zeitleiste mit Schnittmarken und Bookmarks.
+
+                    - Einmaliges Drücken der EXIT-Taste blendet das MovieCutter-OSD vollständig aus.
+                      Der MovieCutter arbeitet dann weiter im Hintergrund und reagiert auf sämtliche Funktionstasten.
+
+                    - Nochmaliges Drücken der EXIT-Taste deaktiviert den MovieCutter (wie bei vorherigen Versionen).
+                      Durch Drücken der WEISSEN Taste kann der MovieCutter dann wieder aktiviert werden.
+
+                    - Die SLEEP-Taste beendet das MovieCutter-TAP vollständig (egal in welchem Zustand MC sich befindet).
+
+                 INI-File:
+                    - DefaultOSDMode:    0: MC arbeitet im Hintergrund. - 1: Vollständiges OSD. - 2: OSD ohne Segmentliste. - 3: OSD im Minimal-Modus.
+                    - DefaultMinuteJump: 0: Minutensprung-Modus ist beim Starten deaktiviert. - 1-99: Voreingestellter Wert für den Minutensprung-Modus.
+                    - AskBeforeEdit:     1: Vor dem Ausführen einer irreversiblen Schnittoperation nachfragen. - 0: Keine Rückfrage.
+                    - Overscan_X:        Abstand des OSD vom linken/rechten Bildschirmrand. Mögliche Werte: 0-100 (empfohlen: 30-60)
+                    - Overscan_Y:        Abstand des OSD vom oberen/unteren Bildschirmrand. Mögliche Werte: 0-100 (Standard: 25)
+                    - SegmentList_X:     Anzeigeposition der Segmentliste (x-Koordinate der oberen linken Ecke, mögliche Werte: 0-556)
+                    - SegmentList_Y:     Anzeigeposition der Segmentliste (y-Koordinate der oberen linken Ecke, mögliche Werte: 0-246)
+                    - DisableSleepKey:   1: Deaktiviert die Beendigung des MovieCutters durch Drücken der Sleep-Taste.
+                    - DisableSpecialEnd: Debugging-Einstellung (Standard: 0).
+
+
 2014-03-31 v2.0j    - kleiner Bugfix: fsck.log wurde nicht neu angelegt
                     - interne Änderung: Schneiden des letzten Segments auf alte Art
                     - interne Änderung: keine Unterbrechung des Schnitts durch andere TAPs
