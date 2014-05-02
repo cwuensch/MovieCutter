@@ -70,7 +70,7 @@ bool HDD_GetFileSizeAndInode2(char *FileName, char *Directory, __ino64_t *OutCIn
     bool                (*__HDD_GetFileSizeAndInode)(char*, __ino64_t*, __off64_t*);
     __HDD_GetFileSizeAndInode = (bool(*)(char*, __ino64_t*, __off64_t*)) HDD_GetFileSizeAndInode;
 
-    TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s%s/%s",     TAPFSROOT, Directory, FileName);
+    TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s%s/%s", TAPFSROOT, Directory, FileName);
     ret = __HDD_GetFileSizeAndInode(AbsFileName, OutCInode, OutFileSize);
   }
   else

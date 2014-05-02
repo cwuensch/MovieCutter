@@ -2,7 +2,7 @@
 #define __MOVIECUTTERH__
 
 #define PROGRAM_NAME          "MovieCutter"
-#define VERSION               "V2.1 alpha"  // alpha = α,  beta = β, � = ü
+#define VERSION               "V3.0 beta"  // alpha = α,  beta = β, � = ü
 #define TAPID                 0x8E0A4247
 //#define AUTHOR                "FireBird / Christian W�nsch"
 #define AUTHOR                "FireBird / C. Wünsch"
@@ -10,6 +10,7 @@
 
 #define NRSEGMENTMARKER       101            // max. number of file markers +1 (marker for the end of file)
 #define NRBOOKMARKS           144
+#define NRUNDOEVENTS          100
 #define CUTFILEVERSION        2
 #define LOGDIR                "/ProgramFiles/Settings/MovieCutter"
 #define LNGFILENAME           PROGRAM_NAME ".lng"
@@ -59,15 +60,15 @@ void  MovieCutterUnselectAll(void);
 void  MovieCutterProcess(bool KeepCut);
 void  MovieCutterSaveSegments(void);
 void  OSDInfoDrawBackground(void);
-void  OSDInfoDrawBookmarkMode(void);
+void  OSDInfoDrawBookmarkMode(bool DoSync);
 void  OSDInfoDrawClock(bool Force);
 void  OSDInfoDrawCurrentPlayTime(bool Force);
-void  OSDInfoDrawMinuteJump(void);
-void  OSDInfoDrawPlayIcons(bool Force);
-void  OSDInfoDrawProgressbar(bool Force);
+void  OSDInfoDrawMinuteJump(bool DoSync);
+void  OSDInfoDrawPlayIcons(bool Force, bool DoSync);
+void  OSDInfoDrawProgressbar(bool Force, bool DoSync);
 void  OSDInfoDrawRecName(void);
 void  OSDRedrawEverything(void);
-void  OSDSegmentListDrawList(void);
+void  OSDSegmentListDrawList(bool DoSync);
 void  OSDTextStateWindow(int MessageID);
 void  Playback_Faster(void);
 void  Playback_FFWD(void);
