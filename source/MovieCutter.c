@@ -441,7 +441,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
   TRACEENTER();
   #if STACKTRACE == TRUE
-    TAP_PrintNet("Status = %lu\n", State);
+    TAP_PrintNet("Status = %u\n", State);
   #endif
 
   // Behandlung offener MessageBoxen (rekursiver Aufruf, auch bei DoNotReenter)

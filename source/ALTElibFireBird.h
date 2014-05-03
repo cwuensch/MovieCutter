@@ -32,7 +32,6 @@
     if(__Appl_SetPlaybackSpeed) __Appl_SetPlaybackSpeed(Mode, Speed, p3);
   }
 
-
   inline dword FIS_fwAppl_StartPlayback(void)
   {
     static dword          fwAppl_StartPlayback = 0;
@@ -79,12 +78,12 @@
 
   void FMUC_PutString(word rgn, dword x, dword y, dword maxX, const char * str, dword fcolor, dword bcolor, tFontData *FontData, byte bDot, byte align)
   {
-    return FMUC_PutString(rgn, x, y, maxX, str, fcolor, bcolor, FontData, bDot, align);
+    FM_PutString(rgn, x, y, maxX, str, fcolor, bcolor, FontData, bDot, align);
   }
 
   void FMUC_PutStringAA(word rgn, dword x, dword y, dword maxX, const char * str, dword fcolor, dword bcolor, tFontData *FontData, byte bDot, byte align, float AntiAliasFactor)
   {
-    FMUC_PutStringAA(rgn, x, y, maxX, str, fcolor, bcolor, FontData, bDot, align, AntiAliasFactor);
+    FM_PutStringAA(rgn, x, y, maxX, str, fcolor, bcolor, FontData, bDot, align, AntiAliasFactor);
   }
 
 

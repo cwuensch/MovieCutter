@@ -13,7 +13,9 @@
 
 //#define STACKTRACE            TRUE
 #if STACKTRACE == TRUE
+  #undef TRACEENTER
   #define TRACEENTER()    CallTraceEnter((char*)__FUNCTION__)
+  #undef TRACEEXIT
   #define TRACEEXIT()     CallTraceExit(NULL)
 #else
   #define TRACEENTER()
