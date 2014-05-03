@@ -97,6 +97,7 @@ typedef struct
   bool                  Bookmark;  // TRUE for Bookmark-Event, FALSE for Segment-Event
   dword                 PrevBlockNr;
   dword                 NewBlockNr;
+  bool                  SegmentWasSelected;
 } tUndoEvent;
 
 typedef enum
@@ -1028,10 +1029,12 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
           case RKEY_Recall:
           {
-            UndoLastAction();
-            OSDSegmentListDrawList(FALSE);
-            OSDInfoDrawProgressbar(TRUE, TRUE);
-            OSDTextStateWindow(LS_UndoLastAction);
+            if (UndoLastAction())
+            {
+              OSDSegmentListDrawList(FALSE);
+              OSDInfoDrawProgressbar(TRUE, TRUE);
+              OSDTextStateWindow(LS_UndoLastAction);
+            }
             break;
           }
 
@@ -1045,7 +1048,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 dword NearestBlock = Bookmarks[NearestIndex];
                 if (DeleteBookmark(NearestIndex))
                 {
-                  UndoAddEvent(TRUE, NearestBlock, 0);
+                  UndoAddEvent(TRUE, NearestBlock, 0, FALSE);
                   OSDInfoDrawProgressbar(TRUE, TRUE);
                   OSDTextStateWindow(LS_BookmarkDeleted);
 //                  OSDRedrawEverything();
@@ -1058,9 +1061,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               if (NearestIndex > 0)
               {
                 dword NearestBlock = SegmentMarker[NearestIndex].Block;
+                bool SegmentWasSelected = SegmentMarker[NearestIndex].Selected;
                 if (DeleteSegmentMarker(NearestIndex))
                 {
-                  UndoAddEvent(FALSE, NearestBlock, 0);
+                  UndoAddEvent(FALSE, NearestBlock, 0, SegmentWasSelected);
                   OSDSegmentListDrawList(FALSE);
                   OSDInfoDrawProgressbar(TRUE, TRUE);
                   OSDTextStateWindow(LS_SegMarkerDeleted);
@@ -1075,9 +1079,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           {
             if (BookmarkMode)
             {
-              if(AddBookmark(PlayInfo.currentBlock, TRUE))
+              if(AddBookmark(PlayInfo.currentBlock, TRUE) >= 0)
               {
-                UndoAddEvent(TRUE, 0, PlayInfo.currentBlock);
+                UndoAddEvent(TRUE, 0, PlayInfo.currentBlock, FALSE);
                 OSDInfoDrawProgressbar(TRUE, TRUE);
                 OSDTextStateWindow(LS_BookmarkCreated);
 //                OSDRedrawEverything();
@@ -1085,9 +1089,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             }
             else
             {
-              if(AddSegmentMarker(PlayInfo.currentBlock, TRUE))
+              if(AddSegmentMarker(PlayInfo.currentBlock, TRUE) >= 0)
               {
-                UndoAddEvent(FALSE, 0, PlayInfo.currentBlock);
+                UndoAddEvent(FALSE, 0, PlayInfo.currentBlock, FALSE);
                 OSDSegmentListDrawList(FALSE);
                 OSDInfoDrawProgressbar(TRUE, TRUE);
                 OSDTextStateWindow(LS_SegMarkerCreated);
@@ -1109,7 +1113,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 dword NearestBlock = Bookmarks[NearestIndex];
                 if(MoveBookmark(NearestIndex, PlayInfo.currentBlock, TRUE))
                 {
-                  UndoAddEvent(TRUE, NearestBlock, PlayInfo.currentBlock);
+                  UndoAddEvent(TRUE, NearestBlock, PlayInfo.currentBlock, FALSE);
                   OSDInfoDrawProgressbar(TRUE, TRUE);
                   OSDTextStateWindow(LS_BookmarkMoved);
                 }
@@ -1123,7 +1127,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 dword NearestBlock = SegmentMarker[NearestIndex].Block;
                 if(MoveSegmentMarker(NearestIndex, PlayInfo.currentBlock, TRUE))
                 {
-                  UndoAddEvent(FALSE, NearestBlock, PlayInfo.currentBlock);
+                  UndoAddEvent(FALSE, NearestBlock, PlayInfo.currentBlock, FALSE);
                   if(ActiveSegment + 1 == NearestIndex) ActiveSegment++;
                   OSDSegmentListDrawList(FALSE);
                   OSDInfoDrawProgressbar(TRUE, TRUE);
@@ -1859,17 +1863,18 @@ bool AddDefaultSegmentMarker(void)
   TRACEENTER();
 
   NrSegmentMarker = 0;
-  ret = AddSegmentMarker(0, TRUE);
-  ret = ret && AddSegmentMarker(PlayInfo.totalBlock, TRUE);
+  ret = (AddSegmentMarker(0, TRUE) >= 0);
+  ret = ret && (AddSegmentMarker(PlayInfo.totalBlock, TRUE) >= 0);
 
   TRACEEXIT();
   return ret;
 }
 
-bool AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
+int AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
 {
   char                  StartTime[16];
   dword                 newTime;
+  int                   ret = -1;
   int                   i, j;
 
   TRACEENTER();
@@ -1878,7 +1883,7 @@ bool AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
   {
     WriteLogMC(PROGRAM_NAME, "AddSegmentMarker: newBlock > totalBlock - darf nicht auftreten!");
     TRACEEXIT();
-    return FALSE;
+    return -1;
   }
 
   if(NrSegmentMarker >= NRSEGMENTMARKER)
@@ -1888,14 +1893,14 @@ bool AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
 //    OSDRedrawEverything();
 
     TRACEEXIT();
-    return FALSE;
+    return -1;
   }
 
   newTime = NavGetBlockTimeStamp(newBlock);
   if((newTime == 0) && (newBlock > 3 * BlocksOneSecond))
   {
     TRACEEXIT();
-    return FALSE;
+    return -1;
   }
 
   //Find the point where to insert the new marker so that the list stays sorted
@@ -1906,6 +1911,7 @@ bool AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
     SegmentMarker[NrSegmentMarker].Timems  = newTime;
     SegmentMarker[NrSegmentMarker].Percent = ((float)newBlock / PlayInfo.totalBlock) * 100.0;
     SegmentMarker[NrSegmentMarker].Selected = FALSE;
+    ret = NrSegmentMarker;
     NrSegmentMarker++;
   }
   else
@@ -1917,14 +1923,14 @@ bool AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
         if(SegmentMarker[i].Block == newBlock)
         {
           TRACEEXIT();
-          return FALSE;
+          return -1;
         }
         
         // Erlaube kein Segment mit weniger als 3 Sekunden
         if (RejectSmallSegments && ((newBlock <= SegmentMarker[i-1].Block + 3*BlocksOneSecond) || (newBlock + 3*BlocksOneSecond >= SegmentMarker[i].Block)))
         {
           TRACEEXIT();
-          return FALSE;
+          return -1;
         }
 
         for(j = NrSegmentMarker; j > i; j--)
@@ -1940,6 +1946,7 @@ bool AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
         WriteLogMC(PROGRAM_NAME, LogString);
 
         if(ActiveSegment + 1 >= i) ActiveSegment++;
+        ret = i;
         break;
       }
     }
@@ -1947,7 +1954,7 @@ bool AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
   }
 
   TRACEEXIT();
-  return TRUE;
+  return ret;
 }
 
 int FindNearestSegmentMarker(void)
@@ -2177,8 +2184,9 @@ void ExportSegmentsToBookmarks(void)
   TRACEEXIT();
 }
 
-bool AddBookmark(dword newBlock, bool RejectSmallScenes)
+int AddBookmark(dword newBlock, bool RejectSmallScenes)
 {
+  int ret = -1;
   int i, j;
 
   TRACEENTER();
@@ -2187,28 +2195,32 @@ bool AddBookmark(dword newBlock, bool RejectSmallScenes)
   {
     WriteLogMC(PROGRAM_NAME, "AddBookmark: newBlock > totalBlock - darf nicht auftreten!");
     TRACEEXIT();
-    return FALSE;
+    return -1;
   }
 
   if(NrBookmarks >= NRBOOKMARKS)
   {
     WriteLogMC(PROGRAM_NAME, "AddBookmark: Bookmark list is full!");
     TRACEEXIT();
-    return FALSE;
+    return -1;
   }
 
   //Find the point where to insert the new marker so that the list stays sorted
   if (NrBookmarks == 0)
+  {
     Bookmarks[0] = newBlock;
+    ret = 0;
+  }
   else if (newBlock > Bookmarks[NrBookmarks - 1])
   {
     // Erlaube keinen Abschnitt mit weniger als 3 Sekunden
     if (RejectSmallScenes && (newBlock <= Bookmarks[NrBookmarks-1] + 3*BlocksOneSecond))
     {
       TRACEEXIT();
-      return FALSE;
+      return -1;
     }
     Bookmarks[NrBookmarks] = newBlock;
+    ret = NrBookmarks;
   }
   else
   {
@@ -2219,20 +2231,21 @@ bool AddBookmark(dword newBlock, bool RejectSmallScenes)
         if(Bookmarks[i] == newBlock)
         {
           TRACEEXIT();
-          return FALSE;
+          return -1;
         }
 
         // Erlaube keinen Abschnitt mit weniger als 3 Sekunden
         if (RejectSmallScenes && ((i > 0 && (newBlock <= Bookmarks[i-1] + 3*BlocksOneSecond)) || (newBlock + 3*BlocksOneSecond >= Bookmarks[i])))
         {
           TRACEEXIT();
-          return FALSE;
+          return -1;
         }
 
         for(j = NrBookmarks; j > i; j--)
           Bookmarks[j] = Bookmarks[j - 1];
 
         Bookmarks[i] = newBlock;
+        ret = i;
         break;
       }
     }
@@ -2241,7 +2254,7 @@ bool AddBookmark(dword newBlock, bool RejectSmallScenes)
   SaveBookmarks();
 
   TRACEEXIT();
-  return TRUE;
+  return ret;
 }
 
 int FindNearestBookmark(void)
@@ -2339,7 +2352,7 @@ void DeleteAllBookmarks(void)
 // ----------------------------------------------------------------------------
 //                          Rückgängig-Funktionen
 // ----------------------------------------------------------------------------
-void UndoAddEvent(bool Bookmark, dword PreviousBlock, dword NewBlock)
+void UndoAddEvent(bool Bookmark, dword PreviousBlock, dword NewBlock, bool SegmentWasSelected)
 {
   tUndoEvent* NextAction;
   TRACEENTER();
@@ -2352,14 +2365,15 @@ void UndoAddEvent(bool Bookmark, dword PreviousBlock, dword NewBlock)
     NextAction = &UndoStack[UndoLastItem];
     TAP_PrintNet("MovieCutter: UndoAddEvent %d (%s, PreviousBlock=%lu, NewBlock=%lu)\n", UndoLastItem, (Bookmark) ? "Bookmark" : "SegmentMarker", PreviousBlock, NewBlock);
 
-    NextAction->Bookmark    = Bookmark;
-    NextAction->PrevBlockNr = PreviousBlock;
-    NextAction->NewBlockNr  = NewBlock;
+    NextAction->Bookmark           = Bookmark;
+    NextAction->PrevBlockNr        = PreviousBlock;
+    NextAction->NewBlockNr         = NewBlock;
+    NextAction->SegmentWasSelected = SegmentWasSelected;
   }
   TRACEEXIT();
 }
 
-void UndoLastAction(void)
+bool UndoLastAction(void)
 {
   tUndoEvent* LastAction;
   int i;
@@ -2369,7 +2383,7 @@ void UndoLastAction(void)
   if (UndoLastItem >= NRUNDOEVENTS)
   {
     TRACEEXIT();
-    return;
+    return FALSE;
   }
   LastAction = &UndoStack[UndoLastItem];
   TAP_PrintNet("MovieCutter: UndoLastAction %d (%s, PreviousBlock=%lu, NewBlock=%lu)\n", UndoLastItem, (LastAction->Bookmark) ? "Bookmark" : "SegmentMarker", LastAction->PrevBlockNr, LastAction->NewBlockNr);
@@ -2407,12 +2421,14 @@ void UndoLastAction(void)
     }
     else if (LastAction->PrevBlockNr != 0)
     {
-      AddSegmentMarker(LastAction->PrevBlockNr, FALSE);
+      i = AddSegmentMarker(LastAction->PrevBlockNr, FALSE);
+      if (i >= 0)
+        SegmentMarker[i].Selected = LastAction->SegmentWasSelected;
     }
     else if (UndoLastItem == 0)
     {
       TRACEEXIT();
-      return;
+      return FALSE;
     }
   }
 
@@ -2426,6 +2442,7 @@ void UndoLastAction(void)
     UndoLastItem = NRUNDOEVENTS - 1;
 
   TRACEEXIT();
+  return TRUE;
 }
 
 void UndoResetStack(void)
@@ -4509,7 +4526,7 @@ void MovieCutterProcess(bool KeepCut)
   // NEU: Wenn Segmente zum Löschen ausgewählt sind, aber das Ende nicht gelöscht werden soll -> versuche dieses durch Löschen vor Beschädigung zu schützen
 /*  if (!KeepCut && !SegmentMarker[NrSegmentMarker - 2].Selected)
   {
-    if (AddSegmentMarker(PlayInfo.totalBlock - 3, FALSE))
+    if (AddSegmentMarker(PlayInfo.totalBlock - 3, FALSE) >= 0)
     {
       SegmentMarker[NrSegmentMarker - 2].Selected = TRUE;
       NrSelectedSegments++;
