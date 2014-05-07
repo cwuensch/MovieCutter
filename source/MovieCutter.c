@@ -537,11 +537,14 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     // -----------------------------
     case ST_WaitForPlayback:    // Idle loop while there is no playback active, shows OSD as soon as playback starts
     {
-      if(isPlaybackRunning() && ((int)PlayInfo.totalBlock > 0) && ((int)PlayInfo.currentBlock >= 0))
+      if(isPlaybackRunning())
       {
-        TAP_GetState(&SysState, &SysSubState);
-        if(SysState != STATE_Normal || (SysSubState != SUBSTATE_Normal && SysSubState != 0)) break;
+        param1 = 0;
         if(!PlayInfo.file || !PlayInfo.file->name[0]) break;
+        if(((int)PlayInfo.totalBlock <= 0) || ((int)PlayInfo.currentBlock < 0)) break;
+
+        TAP_GetState(&SysState, &SysSubState);
+        if(SysState != STATE_Normal || (SysSubState != SUBSTATE_Normal && SysSubState != SUBSTATE_PvrPlayingSearch && SysSubState != 0)) break;
 
 //        OSDMode = DefaultOSDMode;  // unnötig
         BookmarkMode = FALSE;
@@ -813,7 +816,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       if((event == EVT_KEY) && (param1 == RKEY_Ab || param1 == RKEY_Option))
       {
         TAP_GetState(&SysState, &SysSubState);
-        if(SysState != STATE_Normal || SysSubState != SUBSTATE_Normal) break;  // (nur wenn kein OSD eingeblendet ist!)
+        if(SysState != STATE_Normal || (SysSubState != SUBSTATE_Normal && SysSubState != SUBSTATE_PvrPlayingSearch)) break;  // (nur wenn kein OSD eingeblendet ist!)
 
         // beim erneuten Einblenden kann man sich das Neu-Berechnen aller Werte sparen (AUCH wenn 2 Aufnahmen gleiche Blockzahl haben!!)
         if ((int)PlayInfo.currentBlock >= 0)
@@ -845,7 +848,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       if((event == EVT_KEY) && (param1 == RKEY_Ab || param1 == RKEY_Option))
       {
         TAP_GetState(&SysState, &SysSubState);
-        if(SysState != STATE_Normal || SysSubState != SUBSTATE_Normal) break;  // (nur wenn kein OSD eingeblendet ist!)
+        if(SysState != STATE_Normal || (SysSubState != SUBSTATE_Normal && SysSubState != SUBSTATE_PvrPlayingSearch)) break;  // (nur wenn kein OSD eingeblendet ist!)
         if (!isPlaybackRunning()) break;
 
         State = ST_WaitForPlayback;
@@ -896,7 +899,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         break;  // *** kritisch ***
 
       TAP_GetState(&SysState, &SysSubState);
-      if(SysSubState == SUBSTATE_Normal) TAP_ExitNormal();
+      if(SysSubState != 0) TAP_ExitNormal();
 
       if(event == EVT_KEY)
       {
@@ -2775,12 +2778,12 @@ void CreateOSD(void)
 {
   TRACEENTER();
 
-/*  if(!rgnInfoBar && !rgnInfoBarMini && OSDMode != MD_NoOSD)
+  if(!rgnInfoBar && !rgnInfoBarMini && OSDMode != MD_NoOSD)  // Workaround: Wenn Play-Leiste eingeblendet ist (SysSubState == SUBSTATE_PvrPlayingSearch) wird diese sonst nicht ausgeblendet
   {
-    TAP_ExitNormal();
+//    TAP_ExitNormal();
     TAP_EnterNormalNoInfo();
     TAP_ExitNormal();
-  } */
+  }
 
   if ((OSDMode != MD_MiniOSD) && (OSDMode != MD_NoOSD))
   {
