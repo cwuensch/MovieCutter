@@ -1930,7 +1930,7 @@ int AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
         }
         
         // Erlaube kein Segment mit weniger als 3 Sekunden
-        if (RejectSmallSegments && ((newBlock <= SegmentMarker[i-1].Block + 3*BlocksOneSecond) || (newBlock + 3*BlocksOneSecond >= SegmentMarker[i].Block)))
+        if (RejectSmallSegments && ((i > 1 && (newBlock <= SegmentMarker[i-1].Block + 3*BlocksOneSecond)) || (i < NrSegmentMarker-2 && (newBlock + 3*BlocksOneSecond >= SegmentMarker[i].Block))))
         {
           TRACEEXIT();
           return -1;
@@ -2004,18 +2004,26 @@ bool MoveSegmentMarker(int MarkerIndex, dword newBlock, bool RejectSmallSegments
 
   if((MarkerIndex > 0) && (MarkerIndex < NrSegmentMarker - 1))
   {
-    // Erlaube kein Segment mit weniger als 3 Sekunden
-    if (!RejectSmallSegments || ((newBlock > SegmentMarker[MarkerIndex-1].Block + 3*BlocksOneSecond) && (newBlock + 3*BlocksOneSecond < SegmentMarker[MarkerIndex+1].Block)))
+    if (SegmentMarker[MarkerIndex].Block == newBlock)
     {
-      // neue Zeit ermitteln
-      newTime = NavGetBlockTimeStamp(newBlock);
-      if((newTime != 0) || (newBlock <= 3 * BlocksOneSecond))
-      {
-        SegmentMarker[MarkerIndex].Block = newBlock;
-        SegmentMarker[MarkerIndex].Timems = newTime;
-        SegmentMarker[MarkerIndex].Percent = ((float)PlayInfo.currentBlock / PlayInfo.totalBlock) * 100.0;
-        ret = TRUE;
-      }
+      TRACEEXIT();
+      return FALSE;
+    }
+    // Erlaube kein Segment mit weniger als 3 Sekunden
+    if (RejectSmallSegments && ((MarkerIndex > 1 && (newBlock <= SegmentMarker[MarkerIndex-1].Block + 3*BlocksOneSecond)) || (MarkerIndex < NrSegmentMarker-2 && (newBlock + 3*BlocksOneSecond >= SegmentMarker[MarkerIndex+1].Block))))
+    {
+      TRACEEXIT();
+      return FALSE;
+    }
+
+    // neue Zeit ermitteln
+    newTime = NavGetBlockTimeStamp(newBlock);
+    if((newTime != 0) || (newBlock <= 3 * BlocksOneSecond))
+    {
+      SegmentMarker[MarkerIndex].Block = newBlock;
+      SegmentMarker[MarkerIndex].Timems = newTime;
+      SegmentMarker[MarkerIndex].Percent = ((float)PlayInfo.currentBlock / PlayInfo.totalBlock) * 100.0;
+      ret = TRUE;
     }
   }
 
@@ -2300,13 +2308,21 @@ bool MoveBookmark(int BookmarkIndex, dword newBlock, bool RejectSmallScenes)
 
   if ((BookmarkIndex >= 0) && (BookmarkIndex < NrBookmarks))
   {
-    // Erlaube keinen Abschnitt mit weniger als 3 Sekunden
-    if (!RejectSmallScenes || (((BookmarkIndex == 0) || (newBlock > Bookmarks[BookmarkIndex-1] + 3*BlocksOneSecond)) && ((BookmarkIndex == NrBookmarks-1) || (newBlock + 3*BlocksOneSecond < Bookmarks[BookmarkIndex+1]))))
+    if (Bookmarks[BookmarkIndex] == newBlock)
     {
-      Bookmarks[BookmarkIndex] = newBlock;
-      SaveBookmarks();
-      ret = TRUE;
+      TRACEEXIT();
+      return FALSE;
     }
+    
+    // Erlaube keinen Abschnitt mit weniger als 3 Sekunden
+    if (RejectSmallScenes && ((BookmarkIndex > 0 && (newBlock <= Bookmarks[BookmarkIndex-1] + 3*BlocksOneSecond)) || (BookmarkIndex < NrBookmarks-1 && (newBlock + 3*BlocksOneSecond >= Bookmarks[BookmarkIndex+1]))))
+    {
+      TRACEEXIT();
+      return FALSE;
+    }
+    Bookmarks[BookmarkIndex] = newBlock;
+    SaveBookmarks();
+    ret = TRUE;
   }
 
   TRACEEXIT();
@@ -2393,19 +2409,16 @@ bool UndoLastAction(void)
 
   if (LastAction->Bookmark)
   {
-    if (LastAction->NewBlockNr != 0)
+    for(i = 0; i < NrBookmarks; i++)
+      if(Bookmarks[i] == LastAction->NewBlockNr) break;
+    if((i < NrBookmarks) && (Bookmarks[i] == LastAction->NewBlockNr))
     {
-      for(i = 0; i < NrBookmarks; i++)
-        if(Bookmarks[i] == LastAction->NewBlockNr) break;
-      if((i < NrBookmarks) && (Bookmarks[i] == LastAction->NewBlockNr))
-      {
-        if (LastAction->PrevBlockNr != 0)
-          MoveBookmark(i, LastAction->PrevBlockNr, FALSE);
-        else
-          DeleteBookmark(i);
-      }
+      if (LastAction->PrevBlockNr != 0)
+        MoveBookmark(i, LastAction->PrevBlockNr, FALSE);
+      else
+        DeleteBookmark(i);
     }
-    else
+    else if (LastAction->NewBlockNr == 0)
       AddBookmark(LastAction->PrevBlockNr, FALSE);
   }
   else

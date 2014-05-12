@@ -2,6 +2,7 @@
   #define __ALTEFBLIB__
 
   #include "../../../../FireBirdLib/ALTElibFireBird.h"
+//  #include "/cygdrive/d/Topfield/FireBirdLib/ALTElibFireBird.h"
 
 
   extern tFontData        Calibri_10_FontData;
