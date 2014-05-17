@@ -12,7 +12,8 @@
 #endif
 
 //#define STACKTRACE            TRUE
-#if STACKTRACE == TRUE
+
+#ifdef STACKTRACE
   #undef TRACEENTER
   #define TRACEENTER()    CallTraceEnter((char*)__FUNCTION__)
   #undef TRACEEXIT
@@ -89,6 +90,8 @@ bool        SaveBookmarksToInf(char const *SourceFileName, char const *Directory
 long64      HDD_GetFileSize(char const *FileName);
 bool        HDD_SetFileDateTime(char const *FileName, char const *Directory, dword NewDateTime);
 tTimeStamp* NavLoad(char const *SourceFileName, char const *Directory, dword *const NrTimeStamps, bool isHD);
+
+/**** löschen ****/bool        HDD_DoInodeCheck(const char *SourceFileName, const char *CutFileName, const char *Directory);
 
 
 //These will prevent the compiler from complaining

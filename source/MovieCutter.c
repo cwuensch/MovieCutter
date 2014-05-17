@@ -505,6 +505,33 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   {
     if (OSDMenuMessageBoxIsVisible()) OSDMenuMessageBoxDestroy();
 //    TAP_EnterNormal();
+
+
+HDD_DoInodeCheck("Der weisse Hai - Teil 2.rec", "Der weisse Hai - Teil 2 (Cut-6).rec", "/DataFiles/MC-Testfilme");
+
+/*  FILE *fRepair;
+  fRepair = fopen("/mnt/hd/DataFiles/MC-Testfilme/Der weisse Hai - Teil 2 (Cut-6).rec", "rb");
+  if(fRepair)
+  {
+    fseeko64(fRepair, 0, SEEK_END);
+    ftruncate(fileno(fRepair), ftell(fRepair));
+    fclose(fRepair);
+  }
+
+  fRepair = fopen("/tmp/debugfs.in", "w");
+  if (fRepair)
+  {
+    fprintf(fRepair, "i 86016\n");
+    fprintf(fRepair, "m\n");
+    fprintf(fRepair, "9 %llx\n", 125394ll);
+    fprintf(fRepair, "x\n");
+    fprintf(fRepair, "q\n");
+    fclose(fRepair);
+  }
+  system("cat /tmp/debugfs.in | /mnt/hd/ProgramFiles/jfs_debugfs /dev/sda2 > /tmp/debugfs.log");
+  TAP_PrintNet("fertig!\n");
+*/
+
     State = ST_Exit;
     param1 = 0;
   }
@@ -529,6 +556,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       JumpPerformedTime = 0;
 */
       if (HDD_Exist2("jfs_fsck", "/ProgramFiles")) system("chmod a+x /mnt/hd/ProgramFiles/jfs_fsck &");
+      if (HDD_Exist2("jfs_icheck", "/ProgramFiles")) system("chmod a+x /mnt/hd/ProgramFiles/jfs_icheck &");
       State = AutoOSDPolicy ? ST_WaitForPlayback : ST_InactiveMode;
       break;
     }
@@ -563,6 +591,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
         //Flush the caches *experimental*
         sync();
+        sleep(1);
 
         WriteLogMC(PROGRAM_NAME, "========================================\n");
 
@@ -854,6 +883,13 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         State = ST_WaitForPlayback;
         param1 = 0;
       }
+
+// **** LÖSCHEN ****
+if((event == EVT_KEY) && (param1 == RKEY_Sat))
+{
+  if (!PlaybackDir) PlaybackDir = "/DataFiles";
+  CheckFileSystem(0, 1, 1, TRUE);
+}
       break;
     }
 
@@ -4620,6 +4656,13 @@ void MovieCutterProcess(bool KeepCut)
           BehindCutPoint.BlockNr = SegmentMarker[NrSegmentMarker-2].Block;
           BehindCutPoint.Timems  = SegmentMarker[NrSegmentMarker-2].Timems;
           WriteLogMC(PROGRAM_NAME, "(* first special mode for cut ending *)");
+
+          FILE *OutLogFile = fopen("/mnt/hd/ProgramFiles/Settings/MovieCutter/Aufnahmenfresser.log", "a");
+          if(OutLogFile)
+          {
+            fputs("EndSchnitt - special mode:\n", OutLogFile);
+            fclose(OutLogFile);
+          }
         }
         else if (KeepCut)
           BehindCutPoint.BlockNr = 0xFFFFFFFF;  //letztes Segment soll gespeichert werden -> versuche bis zum tatsächlichen Ende zu gehen
@@ -4635,16 +4678,21 @@ void MovieCutterProcess(bool KeepCut)
         HDD_Delete2(TempFileName, PlaybackDir, TRUE);
       }
       sync();
-      for (j=0; j < 30; j++)
+      sleep(1);
+/*      for (j=0; j < 30; j++)
       {
 //        TAP_SystemProc();
         TAP_Sleep(10);
       }
       system("hdparm -f /dev/sda");
       system("hdparm -f /dev/sdb");
-      system("hdparm -f /dev/sdc");
+      system("hdparm -f /dev/sdc");  */
       HDD_ChangeDir(PlaybackDir);
 
+/*KeepCut = TRUE;
+TAP_SPrint(LogString, sizeof(LogString), "%s - Cut %d - vorher.txt", PlaybackName, NrSegmentMarker - 2 - i);
+RunFileFrag(PlaybackName, PlaybackDir, LogString);
+*/
       // Schnittoperation
       ret = MovieCutter(PlaybackName, ((CutEnding) ? TempFileName : CutFileName), PlaybackDir, &CutStartPoint, &BehindCutPoint, (KeepCut || CutEnding), HDVideo);
 
@@ -4673,7 +4721,12 @@ void MovieCutterProcess(bool KeepCut)
           }
         }
       }
-
+/*
+TAP_SPrint(LogString, sizeof(LogString), "%s - Cut %d - nachher.txt", PlaybackName, NrSegmentMarker - 2 - i);
+RunFileFrag(PlaybackName, PlaybackDir, LogString);
+TAP_SPrint(LogString, sizeof(LogString), "%s - Cut %d - CutFile.txt", CutFileName, NrSegmentMarker - 2 - i);
+RunFileFrag(CutFileName, PlaybackDir, LogString);
+*/
       // Überprüfung von Existenz und Größe der geschnittenen Aufnahme
       RecFileSize = 0;
       if(HDD_Exist2(PlaybackName, PlaybackDir))
@@ -4831,14 +4884,15 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
   }
 
   sync();
-  for (j=0; j < 30; j++)
+  sleep(1);
+/*  for (j=0; j < 30; j++)
   {
 //    TAP_SystemProc();
     TAP_Sleep(10);
   }
   system("hdparm -f /dev/sda");
   system("hdparm -f /dev/sdb");
-  system("hdparm -f /dev/sdc");
+  system("hdparm -f /dev/sdc");  */
   HDD_ChangeDir(PlaybackDir);
 
   //Check file system consistency and show a warning
@@ -4996,17 +5050,33 @@ bool PlaybackRepeatGet()
   return (PlaybackRepeatMode(FALSE, 0, 0, 0) == REPEAT_Total);
 }
 
+
+/*void RunFileFrag(char *FileName, char *Directory, char *LogFileName)
+{
+  char                  AbsFileName[FBLIB_DIR_SIZE];
+  char                  CommandLine[512];
+
+  TAP_SPrint(CommandLine, sizeof(CommandLine), "Erzeuge FileFrag-Log %s", LogFileName);
+  WriteLogMC("RunFileFrag", CommandLine);
+
+  TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s%s/%s", TAPFSROOT, Directory, FileName);
+  TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/filefrag -e -v \"%s\" > \"%s/ProgramFiles/Settings/MovieCutter/%s\"", TAPFSROOT, AbsFileName, TAPFSROOT, LogFileName);
+  system(CommandLine);
+}
+*/
+
 bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, bool ShowOkInfo)
 {
   const int             BufSize = 10000;
   FILE                 *fLogFile = NULL, *fPidFile = NULL;
   char                 *LogBuffer = NULL, *ErrorString = NULL, *p = NULL, *p2 = NULL;
   char                  CommandLine[512];
-  char                  MountPoint[FBLIB_DIR_SIZE], DeviceNode[20];
+  char                  DeviceNode[20];
   char                  PidStr[13];
   dword                 fsck_Pid = 0;
   dword                 StartTime;
-  int                   BytesRead = 0, i;
+  dword                 BytesRead = 0;
+  int                   i;
   dword                 OldSysState, OldSysSubState;
 
   TRACEENTER();
@@ -5027,70 +5097,23 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
   if (LogBuffer)
   {
     // --- 1.) Detect the device node of the partition to be checked ---
-    TAP_SPrint(DeviceNode, sizeof(DeviceNode), "/dev/sda2");
-
-    // Falls Pfad mit '/..' beginnt, Rückschritt entfernen und durch '/mnt' ersetzen
-    if (strncmp(PlaybackDir, "/../", 4) == 0)
-    {
-      TAP_SPrint(MountPoint, sizeof(MountPoint), "/mnt%s/", &PlaybackDir[3]);
-      // wähle die ersten 2 Pfadebenen (/mnt/sdb2)
-      i = 2;
-    }
-    else
-    {
-      TAP_SPrint(MountPoint, sizeof(MountPoint), "%s/", AbsPlaybackDir);
-      // wähle die ersten 4 Pfadebenen (/mnt/hd/DataFiles/WD)
-      i = 4;
-    }
-
-    // Mount-Point aus dem Pfad extrahieren
-    p = MountPoint;
-    p2 = NULL;
-    while ((p) && (i > 0))
-    {
-      p = strchr((p+1), '/');
-      if (i == 3) p2 = p;  // (nur) beim zweiten Durchlauf p2 festlegen
-      i--;
-    }
-    if(p)
-      MountPoint[p - MountPoint] = '\0';
-    else if(p2)
-      MountPoint[p2 - MountPoint] = '\0';
-    TAP_PrintNet("MountPoint: '%s'", MountPoint);
-    
-    // Mount-Point in der Mount-Tabelle suchen
-    TAP_SPrint(CommandLine, sizeof(CommandLine), "mount | egrep \"%s\" > /tmp/fsck.dev", MountPoint);  // > /tmp/fsck.dev
-    system(CommandLine);
-
-    // Device-Node aus der Mount-Tabelle auslesen
-    fPidFile = fopen("/tmp/fsck.dev", "r");
-//    fPidFile = popen(CommandLine, "r");
-    if(fPidFile)
-    {
-      fgets(DeviceNode, 20, fPidFile);
-      fclose(fPidFile);
-
-      p = strchr(DeviceNode, ' ');
-      if (p) *p = '\0';
-    }
-    TAP_PrintNet(" -> DeviceNode: '%s'\n", DeviceNode);
-
+    HDD_GetDeviceNode(PlaybackDir, DeviceNode);
     TAP_SPrint(LogString, sizeof(LogString), "CheckFileSystem: Checking file system of device '%s'...", DeviceNode);
     WriteLogMC(PROGRAM_NAME, LogString);
 
     // --- 2.) Run fsck and create a log file ---
     StartTime = TF2UnixTime(Now(NULL));
-    TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/jfs_fsck -n -v %s > /tmp/fsck.log & echo $! > /tmp/fsck.pid", TAPFSROOT, DeviceNode);  // > /tmp/fsck.pid
+    TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/jfs_fsck -n -v %s > /tmp/fsck.log & echo $!", TAPFSROOT, DeviceNode);  // > /tmp/fsck.pid
     system(CommandLine);
 
     //Get the PID of the fsck-Process
-    fPidFile = fopen("/tmp/fsck.pid", "r");
-//    fPidFile = popen(CommandLine, "r");
+//    fPidFile = fopen("/tmp/fsck.pid", "r");
+    fPidFile = popen(CommandLine, "r");
     if(fPidFile)
     {
-      fgets(PidStr, 13, fPidFile);
-      fsck_Pid = atoi(PidStr);
-      fclose(fPidFile);
+      if (fgets(PidStr, 13, fPidFile))
+        fsck_Pid = atoi(PidStr);
+      pclose(fPidFile);
     }
 
     //Wait for termination of fsck
@@ -5210,7 +5233,12 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
           else
             p = "(-> falscher Alarm?)";
         }
-        TAP_SPrint(LogString, sizeof(LogString), "%s\n%s", LangGetString(LS_CheckFSFailed), (p) ? p : "");
+
+        char NameString[81];
+        NameString[0] = '\0';
+        if(p)
+          StrToISO(p, NameString);
+        TAP_SPrint(LogString, sizeof(LogString), "%s\n%s", LangGetString(LS_CheckFSFailed), (p) ? NameString : "");
         ShowErrorMessage(LogString);
       }
     }

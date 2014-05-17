@@ -5,6 +5,7 @@
 #endif
 
 #include                <stdio.h>
+#include                <stdlib.h>
 #include                <string.h>
 #include                <unistd.h>
 #include                <tap.h>
@@ -58,7 +59,7 @@ bool HDD_Exist2(char *FileName, const char *Directory)
 }
 
 
-bool HDD_GetFileSizeAndInode2(char *FileName, char *Directory, __ino64_t *OutCInode, __off64_t *OutFileSize)
+bool HDD_GetFileSizeAndInode2(const char *FileName, const char *Directory, __ino64_t *OutCInode, __off64_t *OutFileSize)
 {
   char                  AbsFileName[FBLIB_DIR_SIZE];
   bool                  ret;
@@ -112,6 +113,79 @@ bool HDD_StartPlayback2(char *FileName, const char *Directory)
 
   TRACEEXIT();
   return ret;
+}
+
+void HDD_GetDeviceNode(const char *Path, char *const OutDeviceNode)  // max. 20 Zeichen (inkl. Nullchar) in OutDeviceNode
+{
+  static char           LastMountPoint[FBLIB_DIR_SIZE], LastDeviceNode[20];
+  char                  MountPoint[FBLIB_DIR_SIZE], CommandLine[512];
+  char                 *p = NULL, *p2 = NULL;
+  FILE                 *fMntStream;
+  int                   i;
+
+  TRACEENTER();
+
+  // Falls Pfad mit '/..' beginnt, Rückschritt entfernen und durch '/mnt' ersetzen
+  if (strncmp(Path, "/../", 4) == 0)
+  {
+    TAP_SPrint(MountPoint, sizeof(MountPoint), "/mnt%s/", &Path[3]);
+    // wähle die ersten 2 Pfadebenen (/mnt/sdb2)
+    i = 2;
+  }
+  else
+  {
+    // Falls Pfad nicht absolut ist, /mnt/hd davorsetzen und Slash anhängen
+    if (strncmp(Path, "/mnt/", 5) == 0)
+      TAP_SPrint(MountPoint, sizeof(MountPoint), "%s/", Path);
+    else
+      TAP_SPrint(MountPoint, sizeof(MountPoint), "%s%s/", TAPFSROOT, Path);
+    // wähle die ersten 4 Pfadebenen (/mnt/hd/DataFiles/WD)
+    i = 4;
+  }
+
+  // Mount-Point aus dem Pfad extrahieren
+  p = MountPoint;
+  p2 = NULL;
+  while ((p) && (i > 0))
+  {
+    p = strchr((p+1), '/');
+    if (i == 3) p2 = p;  // (nur) beim zweiten Durchlauf p2 festlegen
+    i--;
+  }
+  if(p)
+    MountPoint[p - MountPoint] = '\0';
+  else if(p2)
+    MountPoint[p2 - MountPoint] = '\0';
+  TAP_PrintNet("MountPoint: '%s'", MountPoint);
+
+  // Abkürzung
+  if (strcmp(MountPoint, LastMountPoint) == 0)
+    TAP_SPrint(OutDeviceNode, 20, LastDeviceNode);
+  else
+  {
+    // Rückgabewert initialisieren, falls es fehlschlägt
+    TAP_SPrint(OutDeviceNode, 20, "/dev/sda2");
+
+    // Mount-Point in der Mount-Tabelle suchen
+    TAP_SPrint(CommandLine, sizeof(CommandLine), "mount | egrep \"%s\"", MountPoint);  // > /tmp/fsck.dev
+    system(CommandLine);
+
+    // Device-Node aus der Mount-Tabelle auslesen
+    fMntStream = popen(CommandLine, "r");
+    if(fMntStream)
+    {
+      fgets(OutDeviceNode, 20, fMntStream);
+      pclose(fMntStream);
+
+      p = strchr(OutDeviceNode, ' ');
+      if (p) *p = '\0';
+    }
+    TAP_SPrint(LastMountPoint, sizeof(LastMountPoint), "%s", MountPoint);
+    TAP_SPrint(LastDeviceNode, sizeof(LastDeviceNode), OutDeviceNode);
+  }
+  TAP_PrintNet(" -> DeviceNode: '%s'\n", OutDeviceNode);
+
+  TRACEEXIT();
 }
 
 // create, fopen, fread, fwrite

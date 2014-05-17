@@ -16,6 +16,7 @@
 
 
 bool        FileCut(char *SourceFileName, char *CutFileName, char const *Directory, dword StartBlock, dword NrBlocks);
+bool        HDD_DoInodeCheck(const char *SourceFileName, const char *CutFileName, const char *Directory);
 bool        WriteByteToFile(char const *FileName, char const *Directory, off_t BytePosition, char OldValue, char NewValue);
 bool        PatchRecFile(char const *SourceFileName, char const *Directory, off_t RequestedCutPosition, byte CutPointArray[], off_t OutPatchedBytes[]);
 bool        UnpatchRecFile(char const *SourceFileName, char const *CutFileName, char const *Directory, off_t CutStartPos, off_t BehindCutPos, off_t const PatchedBytes[], dword NrPatchedBytes);
@@ -209,8 +210,10 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *Directory
   if(CutPointArea2)
     PatchRecFile(SourceFileName, Directory, BehindCutPos, CutPointArea2, &PatchedBytes[2 * CUTPOINTSECTORRADIUS]);
 
+char* CutTempTestName = "_CUTFILE.rec";
+
   // DO THE CUTTING
-  if(!FileCut(SourceFileName, CutFileName, Directory, CutStartPoint->BlockNr, BehindCutPoint->BlockNr - CutStartPoint->BlockNr))
+  if(!FileCut(SourceFileName, CutTempTestName, Directory, CutStartPoint->BlockNr, BehindCutPoint->BlockNr - CutStartPoint->BlockNr))
   {
     WriteLogMC("MovieCutterLib", "MovieCutter() E0002: Firmware cutting routine failed.");
     TAP_MemFree(CutPointArea1);
@@ -218,7 +221,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *Directory
     TRACEEXIT();
     return RC_Error;
   }
-  if(!HDD_Exist2(CutFileName, Directory))
+  if(!HDD_Exist2(CutTempTestName, Directory))
   {
     WriteLogMC("MovieCutterLib", "MovieCutter() E0003: Cut file not created.");
     TAP_MemFree(CutPointArea1);
@@ -226,6 +229,9 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *Directory
     TRACEEXIT();
     return RC_Error;
   }
+
+HDD_Rename2(CutTempTestName, CutFileName, Directory, TRUE);
+
 
   // Detect the size of the cut file
   if(!HDD_GetFileSizeAndInode2(CutFileName, Directory, NULL, &CutFileSize))
@@ -403,7 +409,6 @@ bool FileCut(char *SourceFileName, char *CutFileName, char const *Directory, dwo
   TYPE_PlayInfo         PlayInfo;
   dword                 ret = -1;
   dword                 x;
-  int                   i;
 
   TRACEENTER();
   #ifdef FULLDEBUG
@@ -420,13 +425,16 @@ bool FileCut(char *SourceFileName, char *CutFileName, char const *Directory, dwo
 
   HDD_Delete2(CutFileName, Directory, FALSE);
 
+  HDD_DoInodeCheck(SourceFileName, NULL, Directory);
+
   //Flush the caches *experimental*
   sync();
-  for (i=0; i < 30; i++)
+  sleep(1);
+/*  for (i=0; i < 30; i++)
   {
 //    TAP_SystemProc();
     TAP_Sleep(10);
-  }
+  }  */
 
   HDD_TAP_PushDir();
 
@@ -454,16 +462,47 @@ bool FileCut(char *SourceFileName, char *CutFileName, char const *Directory, dwo
 
   HDD_TAP_PopDir();
 
+
+/*  char CommandLine[512];
+  __ino64_t InodeNr;
+  __off64_t FileSize;
+
+  FILE* fRepair = fopen("/tmp/debugfs.in", "w");
+  if (fRepair)
+  {
+    if (HDD_GetFileSizeAndInode2(SourceFileName, Directory, &InodeNr, &FileSize))
+    {
+      fprintf(fRepair, "i %llu\n", InodeNr);
+      fprintf(fRepair, "m\n");
+      fprintf(fRepair, "9 %llx\n", ((FileSize-1) >> 12) + 1);
+      fprintf(fRepair, "x\n");
+    }
+    if (HDD_GetFileSizeAndInode2(CutFileName, Directory, &InodeNr, &FileSize))
+    {
+      fprintf(fRepair, "i %llu\n", InodeNr);
+      fprintf(fRepair, "m\n");
+      fprintf(fRepair, "9 %llx\n", ((FileSize-1) >> 12) + 1);
+      fprintf(fRepair, "x\n");
+    }
+    fprintf(fRepair, "q\n");
+    fclose(fRepair);
+  }
+  TAP_SPrint(CommandLine, sizeof(CommandLine), "cat /tmp/debugfs.in | %s/ProgramFiles/jfs_debugfs %s > /tmp/debugfs.log", TAPFSROOT, "/dev/sda2");
+  system(CommandLine);
+*/
+  HDD_DoInodeCheck(SourceFileName, CutFileName, Directory);
+
   //Flush the caches *experimental*
   sync();
-  for (i=0; i < 30; i++)
+  sleep(1);
+/*  for (i=0; i < 30; i++)
   {
 //    TAP_SystemProc();
     TAP_Sleep(10);
   }
   system("hdparm -f /dev/sda");
   system("hdparm -f /dev/sdb");
-  system("hdparm -f /dev/sdc");
+  system("hdparm -f /dev/sdc");  */
 
   if(ret != 0)
   {
@@ -474,6 +513,45 @@ bool FileCut(char *SourceFileName, char *CutFileName, char const *Directory, dwo
 
   TRACEEXIT();
   return TRUE;
+}
+
+bool HDD_DoInodeCheck(const char *SourceFileName, const char *CutFileName, const char *Directory)
+{
+  char                  DeviceNode[20], CommandLine[1024], Buffer[512];
+  FILE                 *LogStream, *OutLogFile;
+  int                   ret = -1, p;
+
+  TRACEENTER();
+  WriteLogMC("MovieCutterLib", "Checking file inodes for wrong di_nblocks value:");
+
+  OutLogFile = fopen("/mnt/hd/ProgramFiles/Settings/MovieCutter/Aufnahmenfresser.log", "a");
+  if(OutLogFile) fputs((CutFileName) ? "nachher:\n" : "vorher:\n", OutLogFile);
+
+  HDD_GetDeviceNode(Directory, DeviceNode);
+  if (CutFileName)
+    TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/jfs_icheck -f %s \"%s%s/%s\" \"%s%s/%s\" 2>&1", TAPFSROOT, DeviceNode, TAPFSROOT, Directory, SourceFileName, TAPFSROOT, Directory, CutFileName);
+  else
+    TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/jfs_icheck %s \"%s%s/%s\" 2>&1", TAPFSROOT, DeviceNode, TAPFSROOT, Directory, SourceFileName);
+  TAP_PrintNet("%s\n", CommandLine);
+
+  LogStream = popen(CommandLine, "r");
+  if(LogStream)
+  {
+    while (fgets(Buffer, sizeof(Buffer), LogStream))
+    {
+      if (strncmp(Buffer, "jfs_icheck", 10) == 0) continue;
+      if(OutLogFile) fputs(Buffer, OutLogFile);
+      p = strlen(Buffer) - 1;
+      if ((p >= 0) && (Buffer[p] == '\n')) Buffer[p] = '\0';
+      WriteLogMC("MovieCutterLib", Buffer);
+    }
+    ret = pclose(LogStream) / 256;
+    fclose(OutLogFile);
+    TAP_PrintNet("jfs_icheck exit state: %d\n", ret);
+  }
+
+  TRACEEXIT();
+  return (ret == 0);
 }
 
 
