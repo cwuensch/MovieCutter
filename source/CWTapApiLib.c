@@ -115,10 +115,10 @@ bool HDD_StartPlayback2(char *FileName, const char *Directory)
   return ret;
 }
 
-void HDD_GetDeviceNode(const char *Path, char *const OutDeviceNode)  // max. 20 Zeichen (inkl. Nullchar) in OutDeviceNode
+bool HDD_GetDeviceNode(const char *Path, char *const OutDeviceNode)  // max. 20 Zeichen (inkl. Nullchar) in OutDeviceNode
 {
   static char           LastMountPoint[FBLIB_DIR_SIZE], LastDeviceNode[20];
-  char                  MountPoint[FBLIB_DIR_SIZE], CommandLine[512];
+  char                  MountPoint[FBLIB_DIR_SIZE], CommandLine[512], Zeile[512];
   char                 *p = NULL, *p2 = NULL;
   FILE                 *fMntStream;
   int                   i;
@@ -167,7 +167,7 @@ void HDD_GetDeviceNode(const char *Path, char *const OutDeviceNode)  // max. 20 
     TAP_SPrint(OutDeviceNode, 20, "/dev/sda2");
 
     // Mount-Point in der Mount-Tabelle suchen
-    TAP_SPrint(CommandLine, sizeof(CommandLine), "mount | egrep \"%s\"", MountPoint);  // > /tmp/fsck.dev
+/*    TAP_SPrint(CommandLine, sizeof(CommandLine), "mount | egrep \"%s\"", MountPoint);  // > /tmp/fsck.dev
     system(CommandLine);
 
     // Device-Node aus der Mount-Tabelle auslesen
@@ -180,12 +180,39 @@ void HDD_GetDeviceNode(const char *Path, char *const OutDeviceNode)  // max. 20 
       p = strchr(OutDeviceNode, ' ');
       if (p) *p = '\0';
     }
-    TAP_SPrint(LastMountPoint, sizeof(LastMountPoint), "%s", MountPoint);
-    TAP_SPrint(LastDeviceNode, sizeof(LastDeviceNode), OutDeviceNode);
+*/
+    // Device-Node aus der Mount-Tabelle auslesen
+    fMntStream = fopen("/proc/mounts", "r");
+    if(fMntStream)
+    {
+      p = 0;
+      while (fgets(Zeile, sizeof(Zeile), fMntStream))
+      {
+        p = strchr(Zeile, ' ');
+        if (p && *(p+1))
+          if (strncmp((p+1), MountPoint, strlen(MountPoint)) == 0) break;
+        p = 0;
+      }
+      fclose(fMntStream);
+
+      if (p)
+      {
+        *p = '\0';
+        TAP_SPrint(OutDeviceNode, 20, Zeile);
+      }
+      TAP_SPrint(LastMountPoint, sizeof(LastMountPoint), "%s", MountPoint);
+      TAP_SPrint(LastDeviceNode, sizeof(LastDeviceNode), OutDeviceNode);
+    }
+    else
+    {
+      TRACEEXIT();
+      return FALSE;
+    }
   }
   TAP_PrintNet(" -> DeviceNode: '%s'\n", OutDeviceNode);
 
   TRACEEXIT();
+  return TRUE;
 }
 
 // create, fopen, fread, fwrite
