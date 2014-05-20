@@ -44,8 +44,8 @@ void  DeleteAllBookmarks(void);
 bool  DeleteSegmentMarker(int MarkerIndex);
 void  DeleteAllSegmentMarkers(void);
 void  ExportSegmentsToBookmarks(void);
-int   FindNearestBookmark(void);
-int   FindNearestSegmentMarker(void);
+int   FindNearestBookmark(dword curBlock);
+int   FindNearestSegmentMarker(dword curBlock);
 dword NavGetBlockTimeStamp(dword PlaybackBlockNr);
 void  ImportBookmarksToSegments(void);
 bool  isPlaybackRunning(void);
@@ -72,6 +72,7 @@ void  OSDSegmentListDrawList(bool DoSync);
 void  OSDTextStateWindow(int MessageID);
 void  Playback_Faster(void);
 void  Playback_FFWD(void);
+void  Playback_SetJumpNavigate(bool pJumpRequest, bool pNavRequest, bool pBackwards);
 void  Playback_JumpBackward(void);
 void  Playback_JumpForward(void);
 void  Playback_JumpNextSegment(void);
@@ -97,7 +98,7 @@ dword TMSCommander_handler(dword param1);
 void  UndoAddEvent(bool Bookmark, dword PreviousBlock, dword NewBlock, bool SegmentWasSelected);
 bool  UndoLastAction(void);
 void  UndoResetStack(void);
-bool PatchOldNavFile(char *SourceFileName, bool isHD);
+bool  PatchOldNavFile(char *SourceFileName, bool isHD);
 extern void OSDMenuFreeStdFonts(void);
 
 #endif

@@ -522,7 +522,7 @@ bool HDD_DoInodeCheck(const char *SourceFileName, const char *CutFileName, const
   int                   ret = -1, p;
 
   TRACEENTER();
-  WriteLogMC("MovieCutterLib", "Checking file inodes for wrong di_nblocks value:");
+  WriteLogMC("MovieCutterLib", "Checking file inodes for wrong di_nblocks:");
 
   OutLogFile = fopen("/mnt/hd/ProgramFiles/Settings/MovieCutter/Aufnahmenfresser.log", "a");
   if(OutLogFile) fputs((CutFileName) ? "nachher:\n" : "vorher:\n", OutLogFile);
