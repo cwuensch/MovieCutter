@@ -76,6 +76,7 @@ typedef struct
 } tnavHD;
 
 void        WriteLogMC(char *ProgramName, char *s);
+void        WriteDebugLog(char *format, ...);
 tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *Directory, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepCut, bool isHD);
 void        GetNextFreeCutName(char const *SourceFileName, char *CutFileName, char const *Directory, word LeaveNamesOut);
 void        SecToTimeString(dword Time, char *const TimeString);     // needs max. 4 + 1 + 2 + 1 + 2 + 1 = 11 chars
@@ -90,8 +91,6 @@ bool        SaveBookmarksToInf(char const *SourceFileName, char const *Directory
 long64      HDD_GetFileSize(char const *FileName);
 bool        HDD_SetFileDateTime(char const *FileName, char const *Directory, dword NewDateTime);
 tTimeStamp* NavLoad(char const *SourceFileName, char const *Directory, dword *const NrTimeStamps, bool isHD);
-
-/**** löschen ****/bool        HDD_DoInodeCheck(const char *SourceFileName, const char *CutFileName, const char *Directory);
 
 
 //These will prevent the compiler from complaining

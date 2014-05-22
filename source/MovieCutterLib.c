@@ -9,6 +9,7 @@
 #include                <string.h>
 #include                <unistd.h>
 #include                <utime.h>
+#include                <stdarg.h>
 #include                <tap.h>
 #include                <libFireBird.h>
 #include                "CWTapApiLib.h"
@@ -16,7 +17,6 @@
 
 
 bool        FileCut(char *SourceFileName, char *CutFileName, char const *Directory, dword StartBlock, dword NrBlocks);
-bool        HDD_DoInodeCheck(const char *SourceFileName, const char *CutFileName, const char *Directory);
 bool        WriteByteToFile(char const *FileName, char const *Directory, off_t BytePosition, char OldValue, char NewValue);
 bool        PatchRecFile(char const *SourceFileName, char const *Directory, off_t RequestedCutPosition, byte CutPointArray[], off_t OutPatchedBytes[]);
 bool        UnpatchRecFile(char const *SourceFileName, char const *CutFileName, char const *Directory, off_t CutStartPos, off_t BehindCutPos, off_t const PatchedBytes[], dword NrPatchedBytes);
@@ -52,6 +52,25 @@ void WriteLogMC(char *ProgramName, char *s)
 
   TAP_Hdd_ChangeDir("/ProgramFiles/Settings/MovieCutter");
   LogEntry("MovieCutter.log", ProgramName, TRUE, TIMESTAMP_YMDHMS, s);
+  HDD_TAP_PopDir();
+}
+
+void WriteDebugLog(char *format, ...)
+{
+  char Text[512];
+
+  HDD_TAP_PushDir();
+  TAP_Hdd_ChangeDir("/ProgramFiles/Settings/MovieCutter");
+
+  if(format)
+  {
+    va_list args;
+    va_start(args, format);
+    vsnprintf(Text, sizeof(Text), format, args);
+    va_end(args);
+    LogEntry("Aufnahmenfresser.log", "", FALSE, TIMESTAMP_YMDHMS, Text);
+  }
+
   HDD_TAP_PopDir();
 }
 
@@ -422,19 +441,11 @@ bool FileCut(char *SourceFileName, char *CutFileName, char const *Directory, dwo
     Appl_StopPlaying();
     Appl_WaitEvt(0xE507, &x, 1, 0xFFFFFFFF, 300);
   }
-
   HDD_Delete2(CutFileName, Directory, FALSE);
-
-  HDD_DoInodeCheck(SourceFileName, NULL, Directory);
 
   //Flush the caches *experimental*
   sync();
   sleep(1);
-/*  for (i=0; i < 30; i++)
-  {
-//    TAP_SystemProc();
-    TAP_Sleep(10);
-  }  */
 
   HDD_TAP_PushDir();
 
@@ -459,40 +470,11 @@ bool FileCut(char *SourceFileName, char *CutFileName, char const *Directory, dwo
     }
   }
   ApplHdd_RestoreWorkFolder();
-
   HDD_TAP_PopDir();
 
-
-/*  char CommandLine[512];
-  __ino64_t InodeNr;
-  __off64_t FileSize;
-
-  FILE* fRepair = fopen("/tmp/debugfs.in", "w");
-  if (fRepair)
-  {
-    if (HDD_GetFileSizeAndInode2(SourceFileName, Directory, &InodeNr, &FileSize))
-    {
-      fprintf(fRepair, "i %llu\n", InodeNr);
-      fprintf(fRepair, "m\n");
-      fprintf(fRepair, "9 %llx\n", ((FileSize-1) >> 12) + 1);
-      fprintf(fRepair, "x\n");
-    }
-    if (HDD_GetFileSizeAndInode2(CutFileName, Directory, &InodeNr, &FileSize))
-    {
-      fprintf(fRepair, "i %llu\n", InodeNr);
-      fprintf(fRepair, "m\n");
-      fprintf(fRepair, "9 %llx\n", ((FileSize-1) >> 12) + 1);
-      fprintf(fRepair, "x\n");
-    }
-    fprintf(fRepair, "q\n");
-    fclose(fRepair);
-  }
-  TAP_SPrint(CommandLine, sizeof(CommandLine), "cat /tmp/debugfs.in | %s/ProgramFiles/jfs_debugfs %s > /tmp/debugfs.log", TAPFSROOT, "/dev/sda2");
-  system(CommandLine);
-*/
-  HDD_DoInodeCheck(SourceFileName, CutFileName, Directory);
-
   //Flush the caches *experimental*
+  sync();
+  sleep(1);
   sync();
   sleep(1);
 /*  for (i=0; i < 30; i++)
@@ -500,9 +482,9 @@ bool FileCut(char *SourceFileName, char *CutFileName, char const *Directory, dwo
 //    TAP_SystemProc();
     TAP_Sleep(10);
   }
-  system("hdparm -f /dev/sda");
-  system("hdparm -f /dev/sdb");
-  system("hdparm -f /dev/sdc");  */
+  system("/mnt/hd/ProgramFiles/busybox hdparm -f /dev/sda");
+  system("/mnt/hd/ProgramFiles/busybox hdparm -f /dev/sdb");
+  system("/mnt/hd/ProgramFiles/busybox hdparm -f /dev/sdc");  */
 
   if(ret != 0)
   {
@@ -513,45 +495,6 @@ bool FileCut(char *SourceFileName, char *CutFileName, char const *Directory, dwo
 
   TRACEEXIT();
   return TRUE;
-}
-
-bool HDD_DoInodeCheck(const char *SourceFileName, const char *CutFileName, const char *Directory)
-{
-  char                  DeviceNode[20], CommandLine[1024], Buffer[512];
-  FILE                 *LogStream, *OutLogFile;
-  int                   ret = -1, p;
-
-  TRACEENTER();
-  WriteLogMC("MovieCutterLib", "Checking file inodes for wrong di_nblocks:");
-
-  OutLogFile = fopen("/mnt/hd/ProgramFiles/Settings/MovieCutter/Aufnahmenfresser.log", "a");
-  if(OutLogFile) fputs((CutFileName) ? "nachher:\n" : "vorher:\n", OutLogFile);
-
-  HDD_GetDeviceNode(Directory, DeviceNode);
-  if (CutFileName)
-    TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/jfs_icheck -f %s \"%s%s/%s\" \"%s%s/%s\" 2>&1", TAPFSROOT, DeviceNode, TAPFSROOT, Directory, SourceFileName, TAPFSROOT, Directory, CutFileName);
-  else
-    TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/jfs_icheck %s \"%s%s/%s\" 2>&1", TAPFSROOT, DeviceNode, TAPFSROOT, Directory, SourceFileName);
-  TAP_PrintNet("%s\n", CommandLine);
-
-  LogStream = popen(CommandLine, "r");
-  if(LogStream)
-  {
-    while (fgets(Buffer, sizeof(Buffer), LogStream))
-    {
-      if (strncmp(Buffer, "jfs_icheck", 10) == 0) continue;
-      if(OutLogFile) fputs(Buffer, OutLogFile);
-      p = strlen(Buffer) - 1;
-      if ((p >= 0) && (Buffer[p] == '\n')) Buffer[p] = '\0';
-      WriteLogMC("MovieCutterLib", Buffer);
-    }
-    ret = pclose(LogStream) / 256;
-    fclose(OutLogFile);
-    TAP_PrintNet("jfs_icheck exit state: %d\n", ret);
-  }
-
-  TRACEEXIT();
-  return (ret == 0);
 }
 
 
@@ -773,6 +716,7 @@ bool WriteByteToFile(char const *FileName, char const *Directory, off_t BytePosi
   // Write the new byte to the file
   fseeko64(f, -1, SEEK_CUR);
   ret = fputc(NewValue, f);
+  fflush(f);
   fclose(f);
   if(ret != NewValue)
   {

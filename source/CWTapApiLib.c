@@ -118,7 +118,7 @@ bool HDD_StartPlayback2(char *FileName, const char *Directory)
 bool HDD_GetDeviceNode(const char *Path, char *const OutDeviceNode)  // max. 20 Zeichen (inkl. Nullchar) in OutDeviceNode
 {
   static char           LastMountPoint[FBLIB_DIR_SIZE], LastDeviceNode[20];
-  char                  MountPoint[FBLIB_DIR_SIZE], CommandLine[512], Zeile[512];
+  char                  MountPoint[FBLIB_DIR_SIZE], Zeile[512];
   char                 *p = NULL, *p2 = NULL;
   FILE                 *fMntStream;
   int                   i;
@@ -166,21 +166,6 @@ bool HDD_GetDeviceNode(const char *Path, char *const OutDeviceNode)  // max. 20 
     // Rückgabewert initialisieren, falls es fehlschlägt
     TAP_SPrint(OutDeviceNode, 20, "/dev/sda2");
 
-    // Mount-Point in der Mount-Tabelle suchen
-/*    TAP_SPrint(CommandLine, sizeof(CommandLine), "mount | egrep \"%s\"", MountPoint);  // > /tmp/fsck.dev
-    system(CommandLine);
-
-    // Device-Node aus der Mount-Tabelle auslesen
-    fMntStream = popen(CommandLine, "r");
-    if(fMntStream)
-    {
-      fgets(OutDeviceNode, 20, fMntStream);
-      pclose(fMntStream);
-
-      p = strchr(OutDeviceNode, ' ');
-      if (p) *p = '\0';
-    }
-*/
     // Device-Node aus der Mount-Tabelle auslesen
     fMntStream = fopen("/proc/mounts", "r");
     if(fMntStream)

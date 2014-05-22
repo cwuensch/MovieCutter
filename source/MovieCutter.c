@@ -210,7 +210,9 @@ typedef enum
   LS_CheckFSFailed,
   LS_CheckFSAborted,
   LS_CheckFSSuccess,
+  LS_MoreErrorsFound,
   LS_FileNameTooLong,
+  LS_Warning,
   LS_Undo,
   LS_ChangeMode,
   LS_OSD,
@@ -359,9 +361,9 @@ int TAP_Main(void)
   CreateSettingsDir();
   KeyTranslate(TRUE, &TAP_EventHandler);
 
-  TAP_SPrint(LogString, sizeof(LogString), "***  MovieCutter %s started!  ***", VERSION);
+  TAP_SPrint(LogString, sizeof(LogString), "***  MovieCutter %s started! (FBLib %s) ***", VERSION, __FBLIB_VERSION__);
   WriteLogMC(PROGRAM_NAME, LogString);
-  WriteLogMC(PROGRAM_NAME, "====================================");
+  WriteLogMC(PROGRAM_NAME, "=======================================================");
   TAP_SPrint(LogString, sizeof(LogString), "Receiver Model: %s (%u)", GetToppyString(GetSysID()), GetSysID());
   WriteLogMC(PROGRAM_NAME, LogString);
   TAP_SPrint(LogString, sizeof(LogString), "Firmware: %s", GetApplVer());
@@ -520,33 +522,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   {
     if (OSDMenuMessageBoxIsVisible()) OSDMenuMessageBoxDestroy();
 //    TAP_EnterNormal();
-
-
-HDD_DoInodeCheck("Der weisse Hai - Teil 2.rec", "Der weisse Hai - Teil 2 (Cut-6).rec", "/DataFiles/MC-Testfilme");
-
-/*  FILE *fRepair;
-  fRepair = fopen("/mnt/hd/DataFiles/MC-Testfilme/Der weisse Hai - Teil 2 (Cut-6).rec", "rb");
-  if(fRepair)
-  {
-    fseeko64(fRepair, 0, SEEK_END);
-    ftruncate(fileno(fRepair), ftell(fRepair));
-    fclose(fRepair);
-  }
-
-  fRepair = fopen("/tmp/debugfs.in", "w");
-  if (fRepair)
-  {
-    fprintf(fRepair, "i 86016\n");
-    fprintf(fRepair, "m\n");
-    fprintf(fRepair, "9 %llx\n", 125394ll);
-    fprintf(fRepair, "x\n");
-    fprintf(fRepair, "q\n");
-    fclose(fRepair);
-  }
-  system("cat /tmp/debugfs.in | /mnt/hd/ProgramFiles/jfs_debugfs /dev/sda2 > /tmp/debugfs.log");
-  TAP_PrintNet("fertig!\n");
-*/
-
     State = ST_Exit;
     param1 = 0;
   }
@@ -572,7 +547,6 @@ HDD_DoInodeCheck("Der weisse Hai - Teil 2.rec", "Der weisse Hai - Teil 2 (Cut-6)
       JumpPerformedTime = 0;
 */
       if (HDD_Exist2("jfs_fsck", "/ProgramFiles")) system("chmod a+x /mnt/hd/ProgramFiles/jfs_fsck &");
-      if (HDD_Exist2("jfs_icheck", "/ProgramFiles")) system("chmod a+x /mnt/hd/ProgramFiles/jfs_icheck &");
       State = AutoOSDPolicy ? ST_WaitForPlayback : ST_InactiveMode;
       break;
     }
@@ -624,7 +598,7 @@ HDD_DoInodeCheck("Der weisse Hai - Teil 2.rec", "Der weisse Hai - Teil 2 (Cut-6)
         {
           State = ST_UnacceptedFile;
           WriteLogMC(PROGRAM_NAME, "File name or path is too long!");
-          ShowErrorMessage(LangGetString(LS_FileNameTooLong));
+          ShowErrorMessage(LangGetString(LS_FileNameTooLong), NULL);
           PlaybackRepeatSet(OldRepeatMode);
           ClearOSD(TRUE);
           break;
@@ -652,7 +626,7 @@ HDD_DoInodeCheck("Der weisse Hai - Teil 2.rec", "Der weisse Hai - Teil 2 (Cut-6)
         {
           State = ST_UnacceptedFile;
           WriteLogMC(PROGRAM_NAME, ".rec size could not be detected!");
-          ShowErrorMessage(LangGetString(LS_NoRecSize));
+          ShowErrorMessage(LangGetString(LS_NoRecSize), NULL);
           PlaybackRepeatSet(OldRepeatMode);
           ClearOSD(TRUE);
           break;
@@ -668,7 +642,7 @@ HDD_DoInodeCheck("Der weisse Hai - Teil 2.rec", "Der weisse Hai - Teil 2 (Cut-6)
         {
           State = ST_UnacceptedFile;
           WriteLogMC(PROGRAM_NAME, "File is crypted!");
-          ShowErrorMessage(LangGetString(LS_IsCrypted));
+          ShowErrorMessage(LangGetString(LS_IsCrypted), NULL);
           PlaybackRepeatSet(OldRepeatMode);
           ClearOSD(TRUE);
           break;
@@ -704,7 +678,7 @@ HDD_DoInodeCheck("Der weisse Hai - Teil 2.rec", "Der weisse Hai - Teil 2 (Cut-6)
         {
           State = ST_UnacceptedFile;
           WriteLogMC(PROGRAM_NAME, "Could not detect type of video stream!");
-          ShowErrorMessage(LangGetString(LS_HDDetectionFailed));
+          ShowErrorMessage(LangGetString(LS_HDDetectionFailed), NULL);
           PlaybackRepeatSet(OldRepeatMode);
           ClearOSD(TRUE);
           break;
@@ -744,7 +718,7 @@ HDD_DoInodeCheck("Der weisse Hai - Teil 2.rec", "Der weisse Hai - Teil 2 (Cut-6)
           {
             State = ST_UnacceptedFile;
             WriteLogMC(PROGRAM_NAME, "Error loading the .nav file!");
-            ShowErrorMessage(LangGetString(LS_NavLoadFailed));
+            ShowErrorMessage(LangGetString(LS_NavLoadFailed), NULL);
             PlaybackRepeatSet(OldRepeatMode);
             ClearOSD(TRUE);
             break;
@@ -793,7 +767,7 @@ HDD_DoInodeCheck("Der weisse Hai - Teil 2.rec", "Der weisse Hai - Teil 2 (Cut-6)
           {
             LastTotalBlocks = 0;
             WriteLogMC(PROGRAM_NAME, ".nav file patched by Compatibility Layer.");
-            ShowErrorMessage(LangGetString(LS_NavPatched));
+            ShowErrorMessage(LangGetString(LS_NavPatched), NULL);
             PlaybackRepeatSet(OldRepeatMode);
             break;
           }
@@ -824,7 +798,7 @@ HDD_DoInodeCheck("Der weisse Hai - Teil 2.rec", "Der weisse Hai - Teil 2 (Cut-6)
           {
             State = ST_UnacceptedFile;
             WriteLogMC(PROGRAM_NAME, "Error adding default segment markers!");
-            ShowErrorMessage(LangGetString(LS_NavLoadFailed));
+            ShowErrorMessage(LangGetString(LS_NavLoadFailed), NULL);
             PlaybackRepeatSet(OldRepeatMode);
             ClearOSD(TRUE);
             break;
@@ -901,13 +875,6 @@ HDD_DoInodeCheck("Der weisse Hai - Teil 2.rec", "Der weisse Hai - Teil 2 (Cut-6)
         State = ST_WaitForPlayback;
         param1 = 0;
       }
-
-// **** LÖSCHEN ****
-if((event == EVT_KEY) && (param1 == RKEY_Sat))
-{
-  if (!PlaybackDir) PlaybackDir = "/DataFiles";
-  CheckFileSystem(0, 1, 1, TRUE);
-}
       break;
     }
 
@@ -1465,7 +1432,7 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat))
                   if (!BookmarkMode)
                   {
                     OSDMenuSaveMyRegion(rgnSegmentList);
-                    CheckFileSystem(0, 1, 1, TRUE);
+                    CheckFileSystem(0, 1, 1, TRUE, TRUE, 0);
                   }
                   else
                     MovieCutterDeleteFile();
@@ -1589,7 +1556,7 @@ bool ShowConfirmationDialog(char *MessageStr)
 }
 
 // Die Funktionen zeigt einen Informationsdialog (OK) an, und wartet auf die Bestätigung des Benutzers.
-void ShowErrorMessage(char *MessageStr)
+void ShowErrorMessage(char *MessageStr, char *TitleStr)
 {
   dword OldSysState, OldSysSubState;
 
@@ -1597,7 +1564,7 @@ void ShowErrorMessage(char *MessageStr)
   HDD_TAP_PushDir();
   TAP_GetState(&OldSysState, &OldSysSubState);
 
-  OSDMenuMessageBoxInitialize(PROGRAM_NAME, MessageStr);
+  OSDMenuMessageBoxInitialize((TitleStr) ? TitleStr : PROGRAM_NAME, MessageStr);
   OSDMenuSaveMyRegion(rgnSegmentList);
   OSDMenuMessageBoxDoNotEnterNormalMode(TRUE);
   OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
@@ -1949,7 +1916,7 @@ int AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
   if(NrSegmentMarker >= NRSEGMENTMARKER)
   {
     WriteLogMC(PROGRAM_NAME, "AddSegmentMarker: SegmentMarker list is full!");
-    ShowErrorMessage(LangGetString(LS_ListIsFull));
+    ShowErrorMessage(LangGetString(LS_ListIsFull), NULL);
 //    OSDRedrawEverything();
 
     TRACEEXIT();
@@ -4680,6 +4647,8 @@ void MovieCutterProcess(bool KeepCut)
   char                  TempFileName[MAX_FILE_NAME_SIZE + 1];
   tTimeStamp            CutStartPoint, BehindCutPoint;
   dword                 DeltaBlock; //, DeltaTime;
+  char                 *DeviceNode = NULL;
+  int                   icheckErrors;
   int                   i, j;
   tResultCode           ret = RC_Error;
 
@@ -4720,24 +4689,16 @@ void MovieCutterProcess(bool KeepCut)
   isMultiSelect = (NrSelectedSegments > 0);
   if (!NrSelectedSegments) NrSelectedSegments = 1;
 
-  // NEU: Wenn Segmente zum Löschen ausgewählt sind, aber das Ende nicht gelöscht werden soll -> versuche dieses durch Löschen vor Beschädigung zu schützen
-/*  if (!KeepCut && !SegmentMarker[NrSegmentMarker - 2].Selected)
-  {
-    if (AddSegmentMarker(PlayInfo.totalBlock - 3, FALSE) >= 0)
-    {
-      SegmentMarker[NrSegmentMarker - 2].Selected = TRUE;
-      NrSelectedSegments++;
-      if (!isMultiSelect)
-      {
-        SegmentMarker[ActiveSegment].Selected = TRUE;
-        isMultiSelect = TRUE;
-      }
-      WriteLogMC(PROGRAM_NAME, "Inserting new segment marker, to crop the ending -> prevents disruption of ending!");
-      CutDumpList();
-    }
-  } */
 
-//  ClearOSD(FALSE);
+// Aufnahmenfresser-Test und Ausgabe
+HDD_GetDeviceNode(PlaybackDir, DeviceNode);
+WriteDebugLog("======================\n");
+WriteDebugLog("Starte Schnittprozess:");
+WriteDebugLog("MC-Version: %s, FBLib: %s, SpecialEnd %s, ", VERSION, __FBLIB_VERSION__, (DisableSpecialEnd) ? "nicht aktiv" : "aktiv");
+WriteDebugLog("%d Schnittoperationen vorgesehen.");
+WriteDebugLog("---------------");
+icheckErrors = 0;
+if (!HDD_DoInodeCheck(PlaybackName, PlaybackDir, DeviceNode, FALSE, "Original")) icheckErrors++;
 
   int maxProgress = NrSelectedSegments + ((CheckFSAfterCut) ? 1 : 0);
   OSDMenuSaveMyRegion(rgnSegmentList);
@@ -4818,28 +4779,30 @@ void MovieCutterProcess(bool KeepCut)
       if (CutEnding)
       {
         strncpy(TempFileName, PlaybackName, sizeof(TempFileName));
-//        TempFileName[strlen(PlaybackName) - 4] = '\0';
         TAP_SPrint(&TempFileName[strlen(PlaybackName) - 4], 10, "_temp%s", &PlaybackName[strlen(PlaybackName) - 4]);
         HDD_Delete2(TempFileName, PlaybackDir, TRUE);
       }
+
+      //Flush the caches *experimental*
       sync();
       sleep(1);
-/*      for (j=0; j < 30; j++)
-      {
-//        TAP_SystemProc();
-        TAP_Sleep(10);
-      }
-      system("hdparm -f /dev/sda");
-      system("hdparm -f /dev/sdb");
-      system("hdparm -f /dev/sdc");  */
       HDD_ChangeDir(PlaybackDir);
 
-/*KeepCut = TRUE;
-TAP_SPrint(LogString, sizeof(LogString), "%s - Cut %d - vorher.txt", PlaybackName, NrSegmentMarker - 2 - i);
-RunFileFrag(PlaybackName, PlaybackDir, LogString);
-*/
       // Schnittoperation
-      ret = MovieCutter(PlaybackName, ((CutEnding) ? TempFileName : CutFileName), PlaybackDir, &CutStartPoint, &BehindCutPoint, (KeepCut || CutEnding), HDVideo);
+      ret = MovieCutter(PlaybackName, ((CutEnding) ? TempFileName : CutFileName), PlaybackDir, &CutStartPoint, &BehindCutPoint, (TRUE || KeepCut || CutEnding), HDVideo);
+
+// INFplus
+__ino64_t OldInodeNr, NewInodeNr;
+if (CutEnding)
+  HDD_GetFileSizeAndInode2(PlaybackName, PlaybackDir, &OldInodeNr, NULL);
+else
+  HDD_GetFileSizeAndInode2(CutFileName, PlaybackDir, &NewInodeNr, NULL);
+
+// Aufnahmenfresser-Test und Ausgabe
+if (!HDD_DoInodeCheck(((CutEnding) ? TempFileName : CutFileName), PlaybackDir, DeviceNode, TRUE, "CutFile")) icheckErrors++;
+if (!HDD_DoInodeCheck(PlaybackName, PlaybackDir, DeviceNode, TRUE, "RestFile")) icheckErrors++;
+if (!KeepCut && !CutEnding)
+  HDD_Delete2(CutFileName, PlaybackDir, TRUE);  // beim Löschen im MovieCutter-Aufruf das TRUE wieder rausnehmen
 
       // Das erzeugte CutFile wird zum neuen SourceFile
       if (CutEnding)
@@ -4866,18 +4829,35 @@ RunFileFrag(PlaybackName, PlaybackDir, LogString);
           }
         }
       }
-/*
-TAP_SPrint(LogString, sizeof(LogString), "%s - Cut %d - nachher.txt", PlaybackName, NrSegmentMarker - 2 - i);
-RunFileFrag(PlaybackName, PlaybackDir, LogString);
-TAP_SPrint(LogString, sizeof(LogString), "%s - Cut %d - CutFile.txt", CutFileName, NrSegmentMarker - 2 - i);
-RunFileFrag(CutFileName, PlaybackDir, LogString);
-*/
+
       // Überprüfung von Existenz und Größe der geschnittenen Aufnahme
       RecFileSize = 0;
       if(HDD_Exist2(PlaybackName, PlaybackDir))
-        HDD_GetFileSizeAndInode2(PlaybackName, PlaybackDir, NULL, &RecFileSize);
+        HDD_GetFileSizeAndInode2(PlaybackName, PlaybackDir, (CutEnding) ? &NewInodeNr : &OldInodeNr, &RecFileSize);
       TAP_SPrint(LogString, sizeof(LogString), "Size of the new playback file (after cut): %llu", RecFileSize);
       WriteLogMC(PROGRAM_NAME, LogString);
+
+
+// INFplus
+if (CutEnding || KeepCut)
+{
+  char OldInfPlusName[MAX_FILE_NAME_SIZE + 1];
+  char CommandLine[512];
+  const char* InfPlusDir = "/ProgramFiles/Settings/INFplus";
+
+  TAP_SPrint(OldInfPlusName, sizeof(OldInfPlusName), "%010llu.INF+", OldInodeNr);
+  if (HDD_Exist2(OldInfPlusName, InfPlusDir))
+  {
+    TAP_SPrint(CommandLine, sizeof(CommandLine), "%s %s%s/%s %s%s/%010llu.INF+", (KeepCut) ? "cp" : "mv", TAPFSROOT, InfPlusDir, OldInfPlusName, TAPFSROOT, InfPlusDir, NewInodeNr);
+WriteLogMC(PROGRAM_NAME, CommandLine);
+    system(CommandLine);
+    TAP_SPrint(CommandLine, sizeof(CommandLine), "ln -f \"%s%s/%s.inf\" %s%s/%010llu.INF", TAPFSROOT, PlaybackDir, (CutEnding) ? PlaybackName : CutFileName, TAPFSROOT, InfPlusDir, NewInodeNr);
+WriteLogMC(PROGRAM_NAME, CommandLine);
+    system(CommandLine);
+//    TAP_SPrint(CommandLine, sizeof(CommandLine), "ln -f \"%s%s/%s.inf\" %s%s/%010llu.INF", TAPFSROOT, PlaybackDir, (CutEnding) ? CutFileName : PlaybackName, TAPFSROOT, InfPlusDir, OldInodeNr);
+//    system(CommandLine);
+  }
+}
 
       // Wiedergabe wird neu gestartet
       if (RecFileSize > 0)
@@ -4894,10 +4874,6 @@ RunFileFrag(CutFileName, PlaybackDir, LogString);
         PlaybackRepeatSet(TRUE);
         HDD_ChangeDir(PlaybackDir);
 
-#ifdef FULLDEBUG
-        TAP_SPrint(LogString, sizeof(LogString), "%d iterations needed to get valid PlaybackInfo!", j);
-        WriteLogMC(PROGRAM_NAME, LogString);
-#endif
         TAP_SPrint(LogString, sizeof(LogString), "Reported new totalBlock = %lu", PlayInfo.totalBlock);
         WriteLogMC(PROGRAM_NAME, LogString);
       }
@@ -4908,7 +4884,7 @@ RunFileFrag(CutFileName, PlaybackDir, LogString);
         WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: Cutting process failed or totalBlock is 0!");
         State = ST_UnacceptedFile;
         OSDMenuProgressBarDestroyNoOSDUpdate();
-        ShowErrorMessage(LangGetString(LS_CutHasFailed));
+        ShowErrorMessage(LangGetString(LS_CutHasFailed), NULL);
         break;
       }
 
@@ -4932,21 +4908,19 @@ RunFileFrag(CutFileName, PlaybackDir, LogString);
 //      }
 
       DeltaBlock = BehindCutPoint.BlockNr - CutStartPoint.BlockNr;
-      for(j = NrSegmentMarker - 1; /*j >= WorkingSegment*/ j > 0; j--)
+      for(j = NrSegmentMarker - 1; j > 0; j--)
       {
         if(j == WorkingSegment)
         {
           // das aktuelle Segment auf die tatsächliche Schnittposition setzen
           SegmentMarker[WorkingSegment].Block =  ((!CutEnding) ? CutStartPoint : BehindCutPoint).BlockNr;
           SegmentMarker[WorkingSegment].Timems = ((!CutEnding) ? CutStartPoint : BehindCutPoint).Timems;
-//          SegmentMarker[WorkingSegment].Percent = ((float)SegmentMarker[WorkingSegment].Block / PlayInfo.totalBlock) * 100.0;
         }
-        else if(SegmentMarker[j].Block + 11 >= BehindCutPoint.BlockNr)  // unnötig?
+        else if(SegmentMarker[j].Block + 11 >= BehindCutPoint.BlockNr)
         {
           // nachfolgende Semente verschieben
           SegmentMarker[j].Block -= min(DeltaBlock, SegmentMarker[j].Block);
           SegmentMarker[j].Timems = NavGetBlockTimeStamp(SegmentMarker[j].Block);  // -= min(DeltaTime, SegmentMarker[j].Timems);
-//          SegmentMarker[j].Percent = ((float)SegmentMarker[j].Block / PlayInfo.totalBlock) * 100.0;
         }
         SegmentMarker[j].Percent = ((float)SegmentMarker[j].Block / PlayInfo.totalBlock) * 100.0;
 
@@ -4968,17 +4942,17 @@ RunFileFrag(CutFileName, PlaybackDir, LogString);
       }
 
       // Wenn Spezial-Crop-Modus, nochmal testen, ob auch mit der richtigen rec weitergemacht wird
-/*      if(CutEnding)
+      if(CutEnding)
       {
-        if(//(ret==RC_Warning) ||// !HDD_Exist2(PlaybackName, PlaybackDir) || HDD_Exist2(TempFileName, PlaybackDir))
+        if(/*(ret==RC_Warning) || !HDD_Exist2(PlaybackName, PlaybackDir) ||*/ HDD_Exist2(TempFileName, PlaybackDir))
         {
           State = ST_UnacceptedFile;
           WriteLogMC(PROGRAM_NAME, "Error processing the last segment: Renaming failed!");
           OSDMenuProgressBarDestroyNoOSDUpdate();
-          ShowErrorMessage(LangGetString(LS_CutHasFailed));
+          ShowErrorMessage(LangGetString(LS_CutHasFailed), NULL);
           break;
         }
-      }  */
+      }
 
       //Bail out if the currentBlock could not be detected
       if((int)PlayInfo.currentBlock < 0)
@@ -4986,12 +4960,13 @@ RunFileFrag(CutFileName, PlaybackDir, LogString);
         WriteLogMC(PROGRAM_NAME, "MovieCutterProcess: Restarting playback failed! CurrentBlock not detected...");
         State = ST_UnacceptedFile;
         OSDMenuProgressBarDestroyNoOSDUpdate();
-        ShowErrorMessage(LangGetString(LS_CutHasFailed));
+        ShowErrorMessage(LangGetString(LS_CutHasFailed), NULL);
         break;
       }
 
       JumpRequestedSegment = 0xFFFF;
       JumpRequestedBlock = (dword) -1;
+      NrBookmarks = 0;
       OSDSegmentListDrawList(FALSE);
       OSDInfoDrawProgressbar(TRUE, TRUE);
 
@@ -5004,51 +4979,42 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
   }
   CutFileSave();
   CutDumpList();
-/*  if(TimeStamps)
-  {
-    TAP_MemFree(TimeStamps);
-    TimeStamps = NULL;
-  }
-  TimeStamps = NavLoad(PlaybackName, &NrTimeStamps, HDVideo);
-  LastTimeStamp = &TimeStamps[0];
-  ReadBookmarks();
-  CalcLastSeconds();
-  LastTotalBlocks = PlayInfo.totalBlock;
-  Playback_Normal(); */
 
 //  TAP_Osd_Sync();
 //  ClearOSD(FALSE);
-
-//  NrBookmarks = 0;
 //  OSDRedrawEverything();
 
-
-  if (CheckFSAfterCut && !OSDMenuProgressBarIsVisible())
-  {
-    OSDMenuSaveMyRegion(rgnSegmentList);
-    OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), maxProgress - 1, maxProgress, NULL);
-  }
-
+  //Flush the caches *experimental*
   sync();
   sleep(1);
-/*  for (j=0; j < 30; j++)
-  {
-//    TAP_SystemProc();
-    TAP_Sleep(10);
-  }
-  system("hdparm -f /dev/sda");
-  system("hdparm -f /dev/sdb");
-  system("hdparm -f /dev/sdc");  */
-  HDD_ChangeDir(PlaybackDir);
 
   //Check file system consistency and show a warning
-  if (CheckFSAfterCut)
+  if (CheckFSAfterCut || icheckErrors)
   {
-    Playback_Pause();
-//    OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), maxProgress-1, maxProgress, NULL);
-//    TAP_SystemProc();
+    if (!OSDMenuProgressBarIsVisible())
+    {
+      OSDMenuSaveMyRegion(rgnSegmentList);
+      OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), maxProgress - 1, maxProgress, NULL);
+    }
 
-    CheckFileSystem(maxProgress-1, maxProgress, maxProgress, TRUE);
+    if (isPlaybackRunning()) TAP_Hdd_StopTs();
+    sync();
+    sleep(1);
+    CheckFileSystem(maxProgress-1, maxProgress, maxProgress, TRUE, TRUE, icheckErrors);
+
+    if (RecFileSize > 0)
+    {
+      HDD_StartPlayback2(PlaybackName, PlaybackDir);
+      PlayInfo.totalBlock = 0;
+      j = 0;
+      while ((j < 2000) && (!isPlaybackRunning() || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0))
+      {
+        TAP_SystemProc();
+        j++;
+      }
+      PlaybackRepeatSet(TRUE);
+      HDD_ChangeDir(PlaybackDir);
+    }
   }
 
   if (OSDMenuProgressBarIsVisible())
@@ -5113,6 +5079,16 @@ bool isPlaybackRunning(void)
 
   TRACEEXIT();
   return (PlayInfo.playMode == PLAYMODE_Playing);
+}
+
+void RemoveEndLineBreak (char *const Text)
+{
+  TRACEENTER();
+
+  int p = strlen(Text) - 1;
+  if ((p >= 0) && (Text[p] == '\n')) Text[p] = '\0';
+  
+  TRACEEXIT();
 }
 
 void CalcLastSeconds(void)
@@ -5197,32 +5173,50 @@ bool PlaybackRepeatGet()
 }
 
 
-/*void RunFileFrag(char *FileName, char *Directory, char *LogFileName)
+bool HDD_DoInodeCheck(const char *FileName, const char *Directory, const char *DeviceNode, bool DoFix, const char *Prefix)
 {
-  char                  AbsFileName[FBLIB_DIR_SIZE];
-  char                  CommandLine[512];
+  char                  CommandLine[1024], Buffer[512];
+  FILE                 *LogStream;
+  int                   ret = -1;
 
-  TAP_SPrint(CommandLine, sizeof(CommandLine), "Erzeuge FileFrag-Log %s", LogFileName);
-  WriteLogMC("RunFileFrag", CommandLine);
+  TRACEENTER();
+  WriteLogMC("MovieCutterLib", "Checking file inodes for wrong di_nblocks:");
 
-  TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s%s/%s", TAPFSROOT, Directory, FileName);
-  TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/filefrag -e -v \"%s\" > \"%s/ProgramFiles/Settings/MovieCutter/%s\"", TAPFSROOT, AbsFileName, TAPFSROOT, LogFileName);
-  system(CommandLine);
+  TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/jfs_fsck icheck %s %s \"%s%s/%s\" 2>&1", TAPFSROOT, (DoFix) ? "-f" : "", DeviceNode, TAPFSROOT, Directory, FileName);
+
+  LogStream = popen(CommandLine, "r");
+  if(LogStream)
+  {
+    while (fgets(Buffer, sizeof(Buffer), LogStream))
+    {
+      if (strncmp(Buffer, "jfs_icheck", 10) == 0) continue;
+      RemoveEndLineBreak(Buffer);
+      WriteLogMC(PROGRAM_NAME, Buffer);
+      WriteDebugLog("%s:\t%s", Prefix, Buffer);
+    }
+    ret = pclose(LogStream) / 256;
+    if ((ret < 0) || ((ret & 0x02) && DoFix && !(ret & 0x04)))
+    {
+      TAP_SPrint(LogString, sizeof(LogString), "Error! jfs_icheck returned %d.", ret);
+      WriteLogMC(PROGRAM_NAME, LogString);
+      WriteDebugLog(LogString);
+    }
+  }
+
+  TRACEEXIT();
+  return (ret >= 0 && !(ret & 0x02));  // 0x02 = File needs fix
 }
-*/
 
-bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, bool ShowOkInfo)
+bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, bool ShowOkInfo, bool DoFix, int icheckErrors)
 {
-  const int             BufSize = 10000;
-  FILE                 *fLogFile = NULL, *fPidFile = NULL;
-  char                 *LogBuffer = NULL, *ErrorString = NULL, *p = NULL, *p2 = NULL;
-  char                  CommandLine[512];
-  char                  DeviceNode[20];
-  char                  PidStr[13];
+  FILE                 *fPidFile = NULL, *fLogFileIn = NULL, *fLogFileOut = NULL;
+  char                  CommandLine[512], Buffer[512], DeviceNode[20], PidStr[13];
+  char                  FirstErrorFile[80], *p = NULL, *p2 = NULL;
   dword                 fsck_Pid = 0;
   dword                 StartTime;
-  dword                 BytesRead = 0;
+  int                   DefectFiles = 0, RepairedFiles = 0;
   int                   i;
+  bool                  StartProcessing = FALSE, StartLogging = FALSE, Phase4Started = FALSE, fsck_Errors;
   dword                 OldSysState, OldSysSubState;
 
   TRACEENTER();
@@ -5239,175 +5233,207 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
   remove("/tmp/fsck.log");
 //  remove("/tmp/fsck.pid");
 
-  LogBuffer = (char*) TAP_MemAlloc(BufSize);
-  if (LogBuffer)
+  // --- 1.) Detect the device node of the partition to be checked ---
+  HDD_GetDeviceNode(PlaybackDir, DeviceNode);
+  TAP_SPrint(LogString, sizeof(LogString), "CheckFileSystem: Checking file system of device '%s'...", DeviceNode);
+  WriteLogMC(PROGRAM_NAME, LogString);
+
+  // --- 2.) Try remounting the HDD as read-only first
+  TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,ro %s", DeviceNode);
+  system(CommandLine);
+system("mount > /tmp/mounttab.txt");
+
+  // --- 3.) Run fsck and create a log file ---
+  StartTime = TF2UnixTime(Now(NULL));
+  TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/jfs_fsck -n -v %s -q %s > /tmp/fsck.log & echo $!", TAPFSROOT, ((DoFix) ? "-r" : ""), DeviceNode);  // > /tmp/fsck.pid
+  system(CommandLine);
+
+  //Get the PID of the fsck-Process
+//  fPidFile = fopen("/tmp/fsck.pid", "r");
+  fPidFile = popen(CommandLine, "r");
+  if(fPidFile)
   {
-    // --- 1.) Detect the device node of the partition to be checked ---
-    HDD_GetDeviceNode(PlaybackDir, DeviceNode);
-    TAP_SPrint(LogString, sizeof(LogString), "CheckFileSystem: Checking file system of device '%s'...", DeviceNode);
-    WriteLogMC(PROGRAM_NAME, LogString);
+    if (fgets(PidStr, 13, fPidFile))
+      fsck_Pid = atoi(PidStr);
+    pclose(fPidFile);
+  }
 
-    // --- 2.) Run fsck and create a log file ---
-    StartTime = TF2UnixTime(Now(NULL));
-    TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/jfs_fsck -n -v %s > /tmp/fsck.log & echo $!", TAPFSROOT, DeviceNode);  // > /tmp/fsck.pid
-    system(CommandLine);
-
-    //Get the PID of the fsck-Process
-//    fPidFile = fopen("/tmp/fsck.pid", "r");
-    fPidFile = popen(CommandLine, "r");
-    if(fPidFile)
+  //Wait for termination of fsck
+  i = 0;
+  TAP_SPrint(CommandLine, sizeof(CommandLine), "/proc/%lu", fsck_Pid);
+  while (access(CommandLine, F_OK) != -1)
+  {
+//    BytesRead += fread(&LogBuffer[BytesRead], 1, BufSize-BytesRead-1, fLogFile);
+//    LogBuffer[BytesRead] = '\0';
+//    TAP_PrintNet(LogBuffer);
+    TAP_Sleep(100);
+    i++;
+    if (i <= 120 && i % 10)
+      OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), 12*ProgressStart + (i/10)*(ProgressEnd-ProgressStart), 12*ProgressMax, NULL);
+    TAP_SystemProc();
+    if(fsck_Cancelled)
     {
-      if (fgets(PidStr, 13, fPidFile))
-        fsck_Pid = atoi(PidStr);
-      pclose(fPidFile);
+      char KillCommand[16];
+      TAP_SPrint(KillCommand, sizeof(KillCommand), "kill %lu", fsck_Pid);
+      system(KillCommand);
     }
+  }
+  fsck_Pid = 0;
 
-    //Wait for termination of fsck
-    i = 0;
-    TAP_SPrint(CommandLine, sizeof(CommandLine), "/proc/%lu", fsck_Pid);
-    while (access(CommandLine, F_OK) != -1)
-    {
-//      BytesRead += fread(&LogBuffer[BytesRead], 1, BufSize-BytesRead-1, fLogFile);
-//      LogBuffer[BytesRead] = '\0';
-//      TAP_PrintNet(LogBuffer);
-      TAP_Delay(50);
-      i++;
-      if (i <= 240 && i % 10)
-        OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), 24*ProgressStart + (i/10)*(ProgressEnd-ProgressStart), 24*ProgressMax, NULL);
-      TAP_SystemProc();
-      if(fsck_Cancelled)
-      {
-        char KillCommand[16];
-        TAP_SPrint(KillCommand, sizeof(KillCommand), "kill %lu", fsck_Pid);
-        system(KillCommand);
-      }
-    }
-    fsck_Pid = 0;
+  // --- 4.) Make HDD writable again ---
+  TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,rw %s", DeviceNode);
+  system(CommandLine);
 
-    // --- 3.) Open and analyse the generated log file ---
-    fsck_Cancelled = TRUE;
-    fLogFile = fopen("/tmp/fsck.log", "rb");
-    if(fLogFile)
-    {
-      BytesRead = fread(LogBuffer, 1, BufSize-1, fLogFile);
-      LogBuffer[BytesRead] = '\0';
-
-      //Search for **Step 4
-      p = strstr(LogBuffer, "**Phase 4");
-      if(p != 0)
-      {
-        //Read until **Step 5
-        p = strstr((p+1), "\n");
-        if (p != 0)
-        {
-          p2 = strstr((p+1), "**Phase 5");
-          if (p2 != 0)
-            fsck_Cancelled = FALSE;
-          else
-            p2 = &LogBuffer[BytesRead];
-          if (p2 > p+1)
-          {
-            fsck_Cancelled = FALSE;
-            *(p2-1) = '\0';
-            ErrorString = p+1;
-          }
-        }
-      }
-      else
-        WriteLogMC(PROGRAM_NAME, "CheckFileSystem() E1c03.");
-      fclose(fLogFile);
-    }
-    else
-      WriteLogMC(PROGRAM_NAME, "CheckFileSystem() E1c02.");
-
-    // Copy the log to MovieCutter folder
+  // --- 5.) Open and analyse the generated log file ---
+  fsck_Cancelled = TRUE;
+  fsck_Errors = FALSE;
+  fLogFileIn = fopen("/tmp/fsck.log", "r");
+  if(fLogFileIn)
+  {
     TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/Settings/MovieCutter/fsck.log", TAPFSROOT);
-    fLogFile = fopen(CommandLine, "r+b");
-    if(fLogFile)
-      fseek(fLogFile, 0, SEEK_END);
-    else
-      fLogFile = fopen(CommandLine, "wb");
-    if(fLogFile)
+    fLogFileOut = fopen(CommandLine, "a");
+
+    if(fLogFileOut)
     {
-      fprintf(fLogFile, "\n=========================================================\n");
-      fprintf(fLogFile, "*** File system check started %s", asctime(localtime(&StartTime)));
-      fwrite(LogBuffer, 1, BytesRead, fLogFile);
-      fclose(fLogFile);
+      fprintf(fLogFileOut, "\n=========================================================\n");
+      fprintf(fLogFileOut, "*** File system check started %s\n", asctime(localtime(&StartTime)));
     }
-    TAP_SPrint(CommandLine, sizeof(CommandLine), "cp /tmp/fsck.log %s/ProgramFiles/Settings/MovieCutter/Lastfsck.log", TAPFSROOT);
-    system(CommandLine);
 
-    // --- 4.) Output after completion or abortion of process ---
-    if (!fsck_Cancelled)
+    FirstErrorFile[0] = '\0';
+    while (fgets(Buffer, sizeof(Buffer), fLogFileIn))
     {
-      // Display full ProgressBar and destroy it
-      OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), ProgressEnd, ProgressMax, NULL);
-      TAP_Sleep(100);
-      OSDMenuProgressBarDestroyNoOSDUpdate();
+      if(fLogFileOut) fputs(Buffer, fLogFileOut);
 
-      // Display information message box
-      if(ErrorString == NULL)
+      if (strncmp(Buffer, "**Phase 1", 9) == 0)
       {
-        WriteLogMC(PROGRAM_NAME, "CheckFileSystem: File system seems valid.");
-        if (ShowOkInfo)
-        {
-          OSDMenuSaveMyRegion(rgnSegmentList);
-          OSDMenuInfoBoxShow(PROGRAM_NAME, LangGetString(LS_CheckFSSuccess), 0);
-          TAP_SystemProc();
-          TAP_Delay(100);
-          OSDMenuInfoBoxDestroyNoOSDUpdate();
-        }
-//        TAP_Osd_Sync();
+        StartProcessing = TRUE;
+        StartLogging = TRUE;
+        continue;
       }
-      else
+      else if (StartProcessing == FALSE)
       {
-        WriteLogMC(PROGRAM_NAME, "CheckFileSystem: WARNING! File system is inconsistent...");
-        WriteLogMC(PROGRAM_NAME, ErrorString);
+        continue;
+      }
+      else if (strncmp(Buffer, "**Phase 2", 9) == 0)
+      {
+        StartLogging = FALSE;
+      }
+      else if (strncmp(Buffer, "**Phase 4", 9) == 0)
+      {
+        Phase4Started = TRUE;
+      }
+      else if ((strncmp(Buffer, "**Phase 5", 9) == 0) || (strncmp(Buffer, "**Finished", 9) == 0))
+      {
+        StartProcessing = FALSE;
+        StartLogging = FALSE;
+        fsck_Cancelled = FALSE;
+      }
+      else if (strncmp(Buffer, "[MC1]", 5) == 0)  // [MC1] 1234: inode has incorrect nblocks value (nblocks=111, real=999).
+      {                                           
+        DefectFiles++;                            
+        RemoveEndLineBreak(Buffer); WriteLogMC("CheckFS", Buffer);
 
-        // Detaillierten Fehler-String in die Message schreiben
-        if (strlen(ErrorString) <= 50 && !strstr(ErrorString, "\n"))
-          p = ErrorString;
-        else
+        if (fgets(Buffer, sizeof(Buffer), fLogFileIn))  // File system object FF1324 is linked as: /DataFiles/Recording.rec
         {
-          p = strstr(ErrorString, "Files/");
-          if(p)
+          RemoveEndLineBreak(Buffer);
+          if (!FirstErrorFile[0])
           {
-            p += 6; p2 = strstr(p, "\n");
-            if(p2) *p2 = '\0';
-            if(strlen(p) > 80) p[80] = '\0';
+            p = strstr(Buffer, "is linked as: ");
+            if(p && (p+14))
+            {
+              p += 14;
+              p2 = strrchr(p, '/');
+              if (p2 && (p2+1))
+                strncpy(FirstErrorFile, p2, sizeof(FirstErrorFile));
+              else
+                strncpy(FirstErrorFile, p, sizeof(FirstErrorFile));
+              FirstErrorFile[sizeof(FirstErrorFile)-1] = '\0';
+            }
           }
-          else
-            p = "(-> falscher Alarm?)";
         }
+      }
+      else if (strncmp(Buffer, "[MC2]", 5) == 0)  // [MC2] 1234: inode has been successfully fixed.
+      {
+        fsck_Errors = TRUE;
+        RepairedFiles++;
+      }
+      else if (strncmp(Buffer, "[MC3]", 5) == 0)  // [MC3] 1234: Error fixing nblocks value (return code x).
+      {
+        fsck_Errors = TRUE;
+      }
+      else if (strncmp(Buffer, "[MC4]", 5) == 0)  // [MC4] x of y files successfully fixed.
+      {
+        fsck_Errors = TRUE;
+      }
+      else if (Phase4Started)
+      {
+        fsck_Errors = TRUE;
+        TAP_SPrint(FirstErrorFile, sizeof(FirstErrorFile), LangGetString(LS_MoreErrorsFound));
+      }
 
-        char NameString[81];
-        NameString[0] = '\0';
-        if(p)
-          StrToISO(p, NameString);
-        TAP_SPrint(LogString, sizeof(LogString), "%s\n%s", LangGetString(LS_CheckFSFailed), (p) ? NameString : "");
-        ShowErrorMessage(LogString);
+      if(StartLogging)
+      {
+        RemoveEndLineBreak(Buffer);
+        WriteLogMC("CheckFS", Buffer);
       }
     }
-    TAP_MemFree(LogBuffer);
+    if(fLogFileOut) fclose(fLogFileOut);
+    fclose(fLogFileIn);
   }
   else
+    WriteLogMC(PROGRAM_NAME, "CheckFileSystem() E1c02.");
+
+  // Copy the log to MovieCutter folder
+  TAP_SPrint(CommandLine, sizeof(CommandLine), "cp /tmp/fsck.log %s/ProgramFiles/Settings/MovieCutter/Lastfsck.log", TAPFSROOT);
+  system(CommandLine);
+
+  // --- 6.) Output after completion or abortion of process ---
+  if (!fsck_Cancelled)
   {
-    WriteLogMC(PROGRAM_NAME, "CheckFileSystem: E1c01!");
-    fsck_Cancelled = TRUE;
+    // Display full ProgressBar and destroy it
+    OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), ProgressEnd, ProgressMax, NULL);
+    TAP_Sleep(100);
+    OSDMenuProgressBarDestroyNoOSDUpdate();
+
+    // Display information message box
+    if(!fsck_Errors)
+    {
+      WriteLogMC(PROGRAM_NAME, "CheckFileSystem: File system seems valid.");
+      if (ShowOkInfo)
+      {
+        OSDMenuSaveMyRegion(rgnSegmentList);
+        OSDMenuInfoBoxShow(PROGRAM_NAME, LangGetString(LS_CheckFSSuccess), 0);
+        TAP_SystemProc();
+        TAP_Delay(200);
+        OSDMenuInfoBoxDestroyNoOSDUpdate();
+      }
+//        TAP_Osd_Sync();
+    }
+    else
+    {
+      WriteLogMC(PROGRAM_NAME, "CheckFileSystem: WARNING! File system is inconsistent...");
+
+      // Detaillierten Fehler-String in die Message schreiben
+
+      char TempStr[sizeof(FirstErrorFile)];
+      StrToISO (FirstErrorFile, TempStr);
+      TAP_SPrint(LogString, sizeof(LogString), LangGetString(LS_CheckFSFailed), icheckErrors, RepairedFiles, DefectFiles, FirstErrorFile[0] ? TempStr : "");
+      ShowErrorMessage(LogString, LangGetString(LS_Warning));
+    }
   }
   
   if (OSDMenuProgressBarIsVisible()) OSDMenuProgressBarDestroyNoOSDUpdate();
   if(fsck_Cancelled)
   {
     WriteLogMC(PROGRAM_NAME, "CheckFileSystem: File system check has been aborted!");
-    ShowErrorMessage(LangGetString(LS_CheckFSAborted));
+    ShowErrorMessage(LangGetString(LS_CheckFSAborted), LangGetString(LS_Warning));
   }
 
   if(OldSysSubState != 0) TAP_EnterNormalNoInfo();
 
   HDD_TAP_PopDir();
   TRACEEXIT();
-  return (!fsck_Cancelled && ErrorString == NULL);
+  return (!fsck_Cancelled && !fsck_Errors);
 }
 
 
