@@ -3335,6 +3335,9 @@ void OSDInfoDrawRecName(void)
 
     // Dateiname in neuen String kopieren und .rec entfernen
     strncpy(TitleStr, PlaybackName, sizeof(TitleStr));
+    #ifdef Calibri_10_FontDataUC
+      StrToISO(PlaybackName, TitleStr);
+    #endif
     TitleStr[MAX_FILE_NAME_SIZE] = '\0';
 //    NameStr[strlen(NameStr) - 4] = '\0';
 
@@ -4647,7 +4650,7 @@ void MovieCutterProcess(bool KeepCut)
   char                  TempFileName[MAX_FILE_NAME_SIZE + 1];
   tTimeStamp            CutStartPoint, BehindCutPoint;
   dword                 DeltaBlock; //, DeltaTime;
-  char                 *DeviceNode = NULL;
+  char                  DeviceNode[20];
   int                   icheckErrors;
   int                   i, j;
   tResultCode           ret = RC_Error;
@@ -4972,7 +4975,10 @@ WriteLogMC(PROGRAM_NAME, CommandLine);
 
 TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegments - ((CheckFSAfterCut) ? 1 : 0), maxProgress);
       if (OSDMenuProgressBarIsVisible())
+      {
+        OSDMenuSaveMyRegion(rgnSegmentList);
         OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), maxProgress - NrSelectedSegments - ((CheckFSAfterCut) ? 1 : 0), maxProgress, NULL);
+      }
     }
     if ((NrSelectedSegments <= 0 /* && !SegmentMarker[NrSegmentMarker-2].Selected*/) || (NrSegmentMarker <= 2))
       break;
@@ -5216,7 +5222,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
   dword                 StartTime;
   int                   DefectFiles = 0, RepairedFiles = 0;
   int                   i;
-  bool                  StartProcessing = FALSE, StartLogging = FALSE, Phase4Started = FALSE, fsck_Errors;
+  bool                  StartProcessing = FALSE, Phase1Active = FALSE, Phase1Counter = 0, Phase4Active = FALSE, fsck_Errors, fsck_FixErrors;
   dword                 OldSysState, OldSysSubState;
 
   TRACEENTER();
@@ -5268,7 +5274,7 @@ system("mount > /tmp/mounttab.txt");
 //    TAP_PrintNet(LogBuffer);
     TAP_Sleep(100);
     i++;
-    if (i <= 120 && i % 10)
+    if (i < 120 && i % 10)
       OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), 12*ProgressStart + (i/10)*(ProgressEnd-ProgressStart), 12*ProgressMax, NULL);
     TAP_SystemProc();
     if(fsck_Cancelled)
@@ -5287,18 +5293,19 @@ system("mount > /tmp/mounttab.txt");
   // --- 5.) Open and analyse the generated log file ---
   fsck_Cancelled = TRUE;
   fsck_Errors = FALSE;
+  fsck_FixErrors = FALSE;
+  TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/Settings/MovieCutter/fsck.log", TAPFSROOT);
+  fLogFileOut = fopen(CommandLine, "a");
+
+  if(fLogFileOut)
+  {
+    fprintf(fLogFileOut, "\n=========================================================\n");
+    fprintf(fLogFileOut, "*** File system check started %s\n", asctime(localtime(&StartTime)));
+  }
+
   fLogFileIn = fopen("/tmp/fsck.log", "r");
   if(fLogFileIn)
   {
-    TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/Settings/MovieCutter/fsck.log", TAPFSROOT);
-    fLogFileOut = fopen(CommandLine, "a");
-
-    if(fLogFileOut)
-    {
-      fprintf(fLogFileOut, "\n=========================================================\n");
-      fprintf(fLogFileOut, "*** File system check started %s\n", asctime(localtime(&StartTime)));
-    }
-
     FirstErrorFile[0] = '\0';
     while (fgets(Buffer, sizeof(Buffer), fLogFileIn))
     {
@@ -5307,7 +5314,8 @@ system("mount > /tmp/mounttab.txt");
       if (strncmp(Buffer, "**Phase 1", 9) == 0)
       {
         StartProcessing = TRUE;
-        StartLogging = TRUE;
+        Phase1Active = TRUE;
+        Phase1Counter++;
         continue;
       }
       else if (StartProcessing == FALSE)
@@ -5316,25 +5324,27 @@ system("mount > /tmp/mounttab.txt");
       }
       else if (strncmp(Buffer, "**Phase 2", 9) == 0)
       {
-        StartLogging = FALSE;
+        Phase1Active = FALSE;
       }
       else if (strncmp(Buffer, "**Phase 4", 9) == 0)
       {
-        Phase4Started = TRUE;
+        Phase4Active = TRUE;
       }
-      else if ((strncmp(Buffer, "**Phase 5", 9) == 0) || (strncmp(Buffer, "**Finished", 9) == 0))
+      else if ((strncmp(Buffer, "**Phase 5", 9) == 0) || (strncmp(Buffer, "**Finished", 10) == 0))
       {
         StartProcessing = FALSE;
-        StartLogging = FALSE;
+        Phase1Active = FALSE;
+        Phase4Active = FALSE;
         fsck_Cancelled = FALSE;
       }
       else if (strncmp(Buffer, "[MC1]", 5) == 0)  // [MC1] 1234: inode has incorrect nblocks value (nblocks=111, real=999).
       {                                           
-        DefectFiles++;                            
+        if (Phase1Counter == 1) DefectFiles++;                            
         RemoveEndLineBreak(Buffer); WriteLogMC("CheckFS", Buffer);
 
         if (fgets(Buffer, sizeof(Buffer), fLogFileIn))  // File system object FF1324 is linked as: /DataFiles/Recording.rec
         {
+          if(fLogFileOut) fputs(Buffer, fLogFileOut);
           RemoveEndLineBreak(Buffer);
           if (!FirstErrorFile[0])
           {
@@ -5344,9 +5354,11 @@ system("mount > /tmp/mounttab.txt");
               p += 14;
               p2 = strrchr(p, '/');
               if (p2 && (p2+1))
-                strncpy(FirstErrorFile, p2, sizeof(FirstErrorFile));
+//                strncpy(FirstErrorFile, p2+1, sizeof(FirstErrorFile));
+                TAP_SPrint(FirstErrorFile, sizeof(FirstErrorFile), "\"%s\"", p2+1);
               else
-                strncpy(FirstErrorFile, p, sizeof(FirstErrorFile));
+//                strncpy(FirstErrorFile, p, sizeof(FirstErrorFile));
+                TAP_SPrint(FirstErrorFile, sizeof(FirstErrorFile), "\"%s\"", p);
               FirstErrorFile[sizeof(FirstErrorFile)-1] = '\0';
             }
           }
@@ -5360,25 +5372,30 @@ system("mount > /tmp/mounttab.txt");
       else if (strncmp(Buffer, "[MC3]", 5) == 0)  // [MC3] 1234: Error fixing nblocks value (return code x).
       {
         fsck_Errors = TRUE;
+        fsck_FixErrors = TRUE;
       }
       else if (strncmp(Buffer, "[MC4]", 5) == 0)  // [MC4] x of y files successfully fixed.
       {
         fsck_Errors = TRUE;
       }
-      else if (Phase4Started)
+      else if (Phase1Active)
+      {
+        if (Phase1Counter > 1) fsck_FixErrors = TRUE;
+      }
+      else if (Phase4Active)
       {
         fsck_Errors = TRUE;
         TAP_SPrint(FirstErrorFile, sizeof(FirstErrorFile), LangGetString(LS_MoreErrorsFound));
       }
 
-      if(StartLogging)
+      if(Phase1Active)
       {
         RemoveEndLineBreak(Buffer);
         WriteLogMC("CheckFS", Buffer);
       }
     }
-    if(fLogFileOut) fclose(fLogFileOut);
     fclose(fLogFileIn);
+    if(fLogFileOut) fclose(fLogFileOut);
   }
   else
     WriteLogMC(PROGRAM_NAME, "CheckFileSystem() E1c02.");
@@ -5414,10 +5431,10 @@ system("mount > /tmp/mounttab.txt");
       WriteLogMC(PROGRAM_NAME, "CheckFileSystem: WARNING! File system is inconsistent...");
 
       // Detaillierten Fehler-String in die Message schreiben
-
-      char TempStr[sizeof(FirstErrorFile)];
-      StrToISO (FirstErrorFile, TempStr);
-      TAP_SPrint(LogString, sizeof(LogString), LangGetString(LS_CheckFSFailed), icheckErrors, RepairedFiles, DefectFiles, FirstErrorFile[0] ? TempStr : "");
+      if (DefectFiles > 1)
+        TAP_SPrint(&FirstErrorFile[strlen(FirstErrorFile)], sizeof(FirstErrorFile)-strlen(FirstErrorFile), ", + %d", DefectFiles-1);
+      StrMkISO(FirstErrorFile);
+      TAP_SPrint(LogString, sizeof(LogString), LangGetString(LS_CheckFSFailed), icheckErrors, RepairedFiles, DefectFiles, ((fsck_FixErrors) ? "??" : "ok"), ((FirstErrorFile[0]) ? FirstErrorFile : "") );
       ShowErrorMessage(LogString, LangGetString(LS_Warning));
     }
   }

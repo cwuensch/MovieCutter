@@ -118,6 +118,7 @@ bool HDD_StartPlayback2(char *FileName, const char *Directory)
 bool HDD_GetDeviceNode(const char *Path, char *const OutDeviceNode)  // max. 20 Zeichen (inkl. Nullchar) in OutDeviceNode
 {
   static char           LastMountPoint[FBLIB_DIR_SIZE], LastDeviceNode[20];
+  static bool           LastMountSet = FALSE;
   char                  MountPoint[FBLIB_DIR_SIZE], Zeile[512];
   char                 *p = NULL, *p2 = NULL;
   FILE                 *fMntStream;
@@ -159,7 +160,7 @@ bool HDD_GetDeviceNode(const char *Path, char *const OutDeviceNode)  // max. 20 
   TAP_PrintNet("MountPoint: '%s'", MountPoint);
 
   // Abkürzung
-  if (strcmp(MountPoint, LastMountPoint) == 0)
+  if (LastMountSet && (strcmp(MountPoint, LastMountPoint) == 0))
     TAP_SPrint(OutDeviceNode, 20, LastDeviceNode);
   else
   {
@@ -187,6 +188,7 @@ bool HDD_GetDeviceNode(const char *Path, char *const OutDeviceNode)  // max. 20 
       }
       TAP_SPrint(LastMountPoint, sizeof(LastMountPoint), "%s", MountPoint);
       TAP_SPrint(LastDeviceNode, sizeof(LastDeviceNode), OutDeviceNode);
+      LastMountSet = TRUE;
     }
     else
     {
