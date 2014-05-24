@@ -5294,10 +5294,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
     TAP_Sleep(100);
     i++;
     if ((i < 120) && !(i % 10))
-    {
       OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), 12*ProgressStart + (i/10)*(ProgressEnd-ProgressStart), 12*ProgressMax, NULL);
-      TAP_PrintNet("i=%d: curVal=%lu, Start=%lu, max=%lu\n", i, 12*ProgressStart + (i/10)*(ProgressEnd-ProgressStart), 12*ProgressStart, 12*ProgressMax);
-    }
     TAP_SystemProc();
     if(fsck_Cancelled)
     {
@@ -5318,7 +5315,16 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
     {
       HDD_StartPlayback2(PlaybackName, PlaybackDir);
       PlayInfo.totalBlock = 0;
+
+      // auf das Starten des Playbacks warten
+      i = 0;
+      while ((i < 2000) && (!isPlaybackRunning() || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0))
+      {
+        TAP_SystemProc();
+        i++;
+      }
     }
+    PlaybackRepeatSet(TRUE);
   }
 
   // --- 5.) Open and analyse the generated log file ---
@@ -5477,15 +5483,9 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
     ShowErrorMessage(LangGetString(LS_CheckFSAborted), LangGetString(LS_Warning));
   }
 
-  // auf das Starten des Playbacks warten
+  // Prüfen, ob das Playback wieder gestartet wurde
   if (DoFix && (OldSysSubState == 0) && (LastTotalBlocks > 0) && (RecFileSize > 0))
   {
-    i = 0;
-    while ((i < 2000) && (!isPlaybackRunning() || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0))
-    {
-      TAP_SystemProc();
-      i++;
-    }
     if((int)PlayInfo.totalBlock <= 0)
     {
       WriteLogMC(PROGRAM_NAME, "CheckFileSystem: Error restarting the playback!");
@@ -5493,7 +5493,6 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
       LastTotalBlocks = PlayInfo.totalBlock;
       ClearOSD(TRUE);
     }
-    PlaybackRepeatSet(TRUE);
   }
   else if (OldSysSubState != 0) 
     TAP_EnterNormalNoInfo();
