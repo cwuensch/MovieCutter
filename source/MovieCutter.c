@@ -4650,7 +4650,7 @@ void MovieCutterProcess(bool KeepCut)
   char                  TempFileName[MAX_FILE_NAME_SIZE + 1];
   tTimeStamp            CutStartPoint, BehindCutPoint;
   dword                 DeltaBlock; //, DeltaTime;
-  char                  DeviceNode[20];
+  char                  DeviceNode[20], CommandLine[512];
   int                   icheckErrors;
   int                   i, j;
   tResultCode           ret = RC_Error;
@@ -4695,13 +4695,24 @@ void MovieCutterProcess(bool KeepCut)
 
 // Aufnahmenfresser-Test und Ausgabe
 HDD_GetDeviceNode(PlaybackDir, DeviceNode);
+//TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,rw,integrity %s", DeviceNode);
+//system(CommandLine);
 WriteDebugLog("======================\n");
 WriteDebugLog("Starte Schnittprozess:");
 WriteDebugLog("MC-Version: %s, FBLib: %s, SpecialEnd %s, ", VERSION, __FBLIB_VERSION__, (DisableSpecialEnd) ? "nicht aktiv" : "aktiv");
-WriteDebugLog("%d Schnittoperationen vorgesehen.");
+FILE *MountState;
+TAP_SPrint(CommandLine, sizeof(CommandLine), "mount | grep '%s on'", DeviceNode);
+MountState = popen(CommandLine, "r");
+if(MountState)
+{
+  fgets(CommandLine, sizeof(CommandLine), MountState);
+  WriteDebugLog("Device: %s, gemountet als: %s. (%s)", DeviceNode, ((CommandLine[0] && !strstr(CommandLine, "nointegrity")) ? "integrity" : ((CommandLine[0]) ? "nointegrity" : "unbekannt")), RemoveEndLineBreak(CommandLine));
+}
+if (!HDD_DoInodeCheck(PlaybackName, PlaybackDir, DeviceNode, FALSE, "Original")) icheckErrors++;
+WriteDebugLog("%d Schnittoperation(en) vorgesehen.", NrSelectedSegments);
 WriteDebugLog("---------------");
 icheckErrors = 0;
-if (!HDD_DoInodeCheck(PlaybackName, PlaybackDir, DeviceNode, FALSE, "Original")) icheckErrors++;
+
 
   int maxProgress = NrSelectedSegments + ((CheckFSAfterCut) ? 1 : 0);
   OSDMenuSaveMyRegion(rgnSegmentList);
@@ -4807,6 +4818,7 @@ if (!HDD_DoInodeCheck(PlaybackName, PlaybackDir, DeviceNode, TRUE, "RestFile")) 
 if (!KeepCut && !CutEnding)
   HDD_Delete2(CutFileName, PlaybackDir, TRUE);  // beim Löschen im MovieCutter-Aufruf das TRUE wieder rausnehmen
 
+
       // Das erzeugte CutFile wird zum neuen SourceFile
       if (CutEnding)
       {
@@ -4845,7 +4857,6 @@ if (!KeepCut && !CutEnding)
 if (CutEnding || KeepCut)
 {
   char OldInfPlusName[MAX_FILE_NAME_SIZE + 1];
-  char CommandLine[512];
   const char* InfPlusDir = "/ProgramFiles/Settings/INFplus";
 
   TAP_SPrint(OldInfPlusName, sizeof(OldInfPlusName), "%010llu.INF+", OldInodeNr);
@@ -5087,7 +5098,7 @@ bool isPlaybackRunning(void)
   return (PlayInfo.playMode == PLAYMODE_Playing);
 }
 
-void RemoveEndLineBreak (char *const Text)
+char* RemoveEndLineBreak (char *const Text)
 {
   TRACEENTER();
 
@@ -5095,6 +5106,7 @@ void RemoveEndLineBreak (char *const Text)
   if ((p >= 0) && (Text[p] == '\n')) Text[p] = '\0';
   
   TRACEEXIT();
+  return Text;
 }
 
 void CalcLastSeconds(void)
@@ -5181,32 +5193,42 @@ bool PlaybackRepeatGet()
 
 bool HDD_DoInodeCheck(const char *FileName, const char *Directory, const char *DeviceNode, bool DoFix, const char *Prefix)
 {
-  char                  CommandLine[1024], Buffer[512];
+  char                  CommandLine[1024];
   FILE                 *LogStream;
   int                   ret = -1;
 
   TRACEENTER();
   WriteLogMC("MovieCutterLib", "Checking file inodes for wrong di_nblocks:");
 
-  TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/jfs_fsck icheck %s %s \"%s%s/%s\" 2>&1", TAPFSROOT, (DoFix) ? "-f" : "", DeviceNode, TAPFSROOT, Directory, FileName);
+  TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,ro %s", DeviceNode);
+  if (system(CommandLine) != 0)
+    WriteDebugLog("Schreibgeschützter Remount nicht erfolgreich!");
 
+  LogString[0] = '\0';
+  TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/jfs_fsck icheck %s %s \"%s%s/%s\" 2>&1", TAPFSROOT, (DoFix) ? "-f" : "", DeviceNode, TAPFSROOT, Directory, FileName);
   LogStream = popen(CommandLine, "r");
   if(LogStream)
   {
-    while (fgets(Buffer, sizeof(Buffer), LogStream))
-    {
-      if (strncmp(Buffer, "jfs_icheck", 10) == 0) continue;
-      RemoveEndLineBreak(Buffer);
-      WriteLogMC(PROGRAM_NAME, Buffer);
-      WriteDebugLog("%s:\t%s", Prefix, Buffer);
-    }
+    fgets(LogString, sizeof(LogString), LogStream);
+    LogString[0] = '\0';
+    while (fgets(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), LogStream))
+    { /* nothing */ }
     ret = pclose(LogStream) / 256;
-    if ((ret < 0) || ((ret & 0x02) && DoFix && !(ret & 0x04)))
-    {
-      TAP_SPrint(LogString, sizeof(LogString), "Error! jfs_icheck returned %d.", ret);
-      WriteLogMC(PROGRAM_NAME, LogString);
-      WriteDebugLog(LogString);
-    }
+  }
+  TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,rw %s", DeviceNode);
+  system(CommandLine);
+
+  if (LogString[0])
+  {
+    RemoveEndLineBreak(LogString);
+    WriteLogMC(PROGRAM_NAME, LogString);
+    WriteDebugLog("%s:\t%s", Prefix, LogString);
+  }
+  if ((ret < 0) || ((ret & 0x02) && DoFix && !(ret & 0x04)))
+  {
+    TAP_SPrint(LogString, sizeof(LogString), "Error! jfs_icheck returned %d.", ret);
+    WriteLogMC(PROGRAM_NAME, LogString);
+    WriteDebugLog(LogString);
   }
 
   TRACEEXIT();
@@ -5246,8 +5268,8 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
 
   // --- 2.) Try remounting the HDD as read-only first
   TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,ro %s", DeviceNode);
-  system(CommandLine);
-system("mount > /tmp/mounttab.txt");
+  if (system(CommandLine) != 0)
+    WriteLogMC(PROGRAM_NAME, "CheckFileSystem: Schreibgeschützter Remount nicht erfolgreich!");
 
   // --- 3.) Run fsck and create a log file ---
   StartTime = TF2UnixTime(Now(NULL));

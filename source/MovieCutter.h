@@ -89,7 +89,7 @@ void  Playback_Slower(void);
 bool  PlaybackRepeatSet(bool EnableRepeatAll);
 bool  PlaybackRepeatGet();
 bool  ReadBookmarks(void);
-void  RemoveEndLineBreak (char *const Text);
+char* RemoveEndLineBreak (char *const Text);
 bool  SaveBookmarks(void);
 void  SaveINI(void);
 bool  SelectSegmentMarker(void);
