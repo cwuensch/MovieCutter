@@ -224,7 +224,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *Directory
   // Patch the rec-File to prevent the firmware from cutting in the middle of a packet
   for (i = 0; i < 4 * CUTPOINTSECTORRADIUS; i++)
     PatchedBytes[i] = 0;
-  if(CutPointArea1)
+  if(CutPointArea1 && (CutStartPos > 0))
     PatchRecFile(SourceFileName, Directory, CutStartPos, CutPointArea1, PatchedBytes);
   if(CutPointArea2)
     PatchRecFile(SourceFileName, Directory, BehindCutPos, CutPointArea2, &PatchedBytes[2 * CUTPOINTSECTORRADIUS]);

@@ -2102,6 +2102,7 @@ void DeleteAllSegmentMarkers(void)
 
 bool SelectSegmentMarker(void)
 {
+  int i;
   bool ret = FALSE;
   TRACEENTER();
 
@@ -2111,6 +2112,16 @@ bool SelectSegmentMarker(void)
     {
       SegmentMarker[JumpRequestedSegment].Selected = !SegmentMarker[JumpRequestedSegment].Selected;
       ret = SegmentMarker[JumpRequestedSegment].Selected;
+    }
+    else if (JumpRequestedBlock != (dword) -1)
+    {
+      for(i = NrSegmentMarker - 2; i >= 0; i--)
+        if (JumpRequestedBlock >= SegmentMarker[i].Block)
+        {
+          SegmentMarker[i].Selected = !SegmentMarker[i].Selected;
+          ret = SegmentMarker[i].Selected;
+          break;
+        }
     }
     else
     {
@@ -4692,6 +4703,10 @@ void MovieCutterProcess(bool KeepCut)
   isMultiSelect = (NrSelectedSegments > 0);
   if (!NrSelectedSegments) NrSelectedSegments = 1;
 
+  int maxProgress = NrSelectedSegments + ((CheckFSAfterCut) ? 1 : 0);
+  OSDMenuSaveMyRegion(rgnSegmentList);
+  OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), 0, maxProgress, NULL);
+
 
 // Aufnahmenfresser-Test und Ausgabe
 HDD_GetDeviceNode(PlaybackDir, DeviceNode);
@@ -4714,9 +4729,6 @@ WriteDebugLog("---------------");
 icheckErrors = 0;
 
 
-  int maxProgress = NrSelectedSegments + ((CheckFSAfterCut) ? 1 : 0);
-  OSDMenuSaveMyRegion(rgnSegmentList);
-  OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), 0, maxProgress, NULL);
   for(i = NrSegmentMarker - 2; i >= 0 /*-1*/; i--)
   {
     if(isMultiSelect)
@@ -4776,13 +4788,7 @@ icheckErrors = 0;
           BehindCutPoint.BlockNr = SegmentMarker[NrSegmentMarker-2].Block;
           BehindCutPoint.Timems  = SegmentMarker[NrSegmentMarker-2].Timems;
           WriteLogMC(PROGRAM_NAME, "(* first special mode for cut ending *)");
-
-          FILE *OutLogFile = fopen("/mnt/hd/ProgramFiles/Settings/MovieCutter/Aufnahmenfresser.log", "a");
-          if(OutLogFile)
-          {
-            fputs("EndSchnitt - special mode:\n", OutLogFile);
-            fclose(OutLogFile);
-          }
+          WriteDebugLog("EndSchnitt - special mode:");
         }
         else if (KeepCut)
           BehindCutPoint.BlockNr = 0xFFFFFFFF;  //letztes Segment soll gespeichert werden -> versuche bis zum tatsächlichen Ende zu gehen
@@ -4802,15 +4808,14 @@ icheckErrors = 0;
       sleep(1);
       HDD_ChangeDir(PlaybackDir);
 
-      // Schnittoperation
-      ret = MovieCutter(PlaybackName, ((CutEnding) ? TempFileName : CutFileName), PlaybackDir, &CutStartPoint, &BehindCutPoint, (TRUE || KeepCut || CutEnding), HDVideo);
-
 // INFplus
 __ino64_t OldInodeNr, NewInodeNr;
-if (CutEnding)
-  HDD_GetFileSizeAndInode2(PlaybackName, PlaybackDir, &OldInodeNr, NULL);
-else
-  HDD_GetFileSizeAndInode2(CutFileName, PlaybackDir, &NewInodeNr, NULL);
+char InfFileName[MAX_FILE_NAME_SIZE + 1];
+TAP_SPrint(InfFileName, sizeof(InfFileName), "%s.inf", PlaybackName);
+HDD_GetFileSizeAndInode2(InfFileName, PlaybackDir, &OldInodeNr, NULL);
+
+      // Schnittoperation
+      ret = MovieCutter(PlaybackName, ((CutEnding) ? TempFileName : CutFileName), PlaybackDir, &CutStartPoint, &BehindCutPoint, (TRUE || KeepCut || CutEnding), HDVideo);
 
 // Aufnahmenfresser-Test und Ausgabe
 if (!HDD_DoInodeCheck(((CutEnding) ? TempFileName : CutFileName), PlaybackDir, DeviceNode, TRUE, "CutFile")) icheckErrors++;
@@ -4848,7 +4853,7 @@ if (!KeepCut && !CutEnding)
       // Überprüfung von Existenz und Größe der geschnittenen Aufnahme
       RecFileSize = 0;
       if(HDD_Exist2(PlaybackName, PlaybackDir))
-        HDD_GetFileSizeAndInode2(PlaybackName, PlaybackDir, (CutEnding) ? &NewInodeNr : &OldInodeNr, &RecFileSize);
+        HDD_GetFileSizeAndInode2(PlaybackName, PlaybackDir, NULL, &RecFileSize);
       TAP_SPrint(LogString, sizeof(LogString), "Size of the new playback file (after cut): %llu", RecFileSize);
       WriteLogMC(PROGRAM_NAME, LogString);
 
@@ -4856,20 +4861,14 @@ if (!KeepCut && !CutEnding)
 // INFplus
 if (CutEnding || KeepCut)
 {
-  char OldInfPlusName[MAX_FILE_NAME_SIZE + 1];
-  const char* InfPlusDir = "/ProgramFiles/Settings/INFplus";
-
-  TAP_SPrint(OldInfPlusName, sizeof(OldInfPlusName), "%010llu.INF+", OldInodeNr);
-  if (HDD_Exist2(OldInfPlusName, InfPlusDir))
+  TAP_SPrint(InfFileName, sizeof(InfFileName), "%010llu.INF+", OldInodeNr);
+  if (HDD_Exist2(InfFileName, "/ProgramFiles/Settings/INFplus"))
   {
-    TAP_SPrint(CommandLine, sizeof(CommandLine), "%s %s%s/%s %s%s/%010llu.INF+", (KeepCut) ? "cp" : "mv", TAPFSROOT, InfPlusDir, OldInfPlusName, TAPFSROOT, InfPlusDir, NewInodeNr);
-WriteLogMC(PROGRAM_NAME, CommandLine);
+    TAP_SPrint(InfFileName, sizeof(InfFileName), "%s.inf", (CutEnding) ? PlaybackName : CutFileName);
+    HDD_GetFileSizeAndInode2(InfFileName, PlaybackDir, &NewInodeNr, NULL);
+
+    TAP_SPrint(CommandLine, sizeof(CommandLine), "%s %s/ProgramFiles/Settings/INFplus/%010llu.INF+ %s/ProgramFiles/Settings/INFplus/%010llu.INF+", (KeepCut) ? "cp" : "mv", TAPFSROOT, OldInodeNr, TAPFSROOT, NewInodeNr);
     system(CommandLine);
-    TAP_SPrint(CommandLine, sizeof(CommandLine), "ln -f \"%s%s/%s.inf\" %s%s/%010llu.INF", TAPFSROOT, PlaybackDir, (CutEnding) ? PlaybackName : CutFileName, TAPFSROOT, InfPlusDir, NewInodeNr);
-WriteLogMC(PROGRAM_NAME, CommandLine);
-    system(CommandLine);
-//    TAP_SPrint(CommandLine, sizeof(CommandLine), "ln -f \"%s%s/%s.inf\" %s%s/%010llu.INF", TAPFSROOT, PlaybackDir, (CutEnding) ? CutFileName : PlaybackName, TAPFSROOT, InfPlusDir, OldInodeNr);
-//    system(CommandLine);
   }
 }
 
@@ -5015,6 +5014,7 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
     }
     CheckFileSystem(maxProgress-1, maxProgress, maxProgress, TRUE, TRUE, icheckErrors);
   }
+  HDD_ChangeDir(PlaybackDir);
 
   if (OSDMenuProgressBarIsVisible())
   {
@@ -5182,9 +5182,12 @@ bool HDD_DoInodeCheck(const char *FileName, const char *Directory, const char *D
   TRACEENTER();
   WriteLogMC("MovieCutterLib", "Checking file inodes for wrong di_nblocks:");
 
-  TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,ro %s", DeviceNode);
-  if (system(CommandLine) != 0)
-    WriteDebugLog("Schreibgeschützter Remount nicht erfolgreich!");
+  if(DoFix)
+  {
+    TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,ro %s", DeviceNode);
+    if (system(CommandLine) != 0)
+      WriteDebugLog("Schreibgeschützter Remount nicht erfolgreich!");
+  }
 
   LogString[0] = '\0';
   TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/jfs_fsck icheck %s %s \"%s%s/%s\" 2>&1", TAPFSROOT, (DoFix) ? "-f" : "", DeviceNode, TAPFSROOT, Directory, FileName);
@@ -5197,8 +5200,11 @@ bool HDD_DoInodeCheck(const char *FileName, const char *Directory, const char *D
     { /* nothing */ }
     ret = pclose(LogStream) / 256;
   }
-  TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,rw %s", DeviceNode);
-  system(CommandLine);
+  if (DoFix)
+  {
+    TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,rw %s", DeviceNode);
+    system(CommandLine);
+  }
 
   if (LogString[0])
   {
@@ -5245,7 +5251,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
 
 
   // aktuelles Playback stoppen
-  if (isPlaybackRunning()) TAP_Hdd_StopTs();
+  if (DoFix && isPlaybackRunning()) TAP_Hdd_StopTs();
   sync();
   sleep(1);
 
@@ -5255,9 +5261,12 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
   WriteLogMC(PROGRAM_NAME, LogString);
 
   // --- 2.) Try remounting the HDD as read-only first
-  TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,ro %s", DeviceNode);
-  if (system(CommandLine) != 0)
-    WriteLogMC(PROGRAM_NAME, "CheckFileSystem: Schreibgeschützter Remount nicht erfolgreich!");
+  if (DoFix)
+  {
+    TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,ro %s", DeviceNode);
+    if (system(CommandLine) != 0)
+      WriteLogMC(PROGRAM_NAME, "CheckFileSystem: Schreibgeschützter Remount nicht erfolgreich!");
+  }
 
   // --- 3.) Run fsck and create a log file ---
   StartTime = TF2UnixTime(Now(NULL));
@@ -5284,8 +5293,11 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
 //    TAP_PrintNet(LogBuffer);
     TAP_Sleep(100);
     i++;
-    if (i < 120 && i % 10)
+    if ((i < 120) && !(i % 10))
+    {
       OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), 12*ProgressStart + (i/10)*(ProgressEnd-ProgressStart), 12*ProgressMax, NULL);
+      TAP_PrintNet("i=%d: curVal=%lu, Start=%lu, max=%lu\n", i, 12*ProgressStart + (i/10)*(ProgressEnd-ProgressStart), 12*ProgressStart, 12*ProgressMax);
+    }
     TAP_SystemProc();
     if(fsck_Cancelled)
     {
@@ -5297,13 +5309,16 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
   fsck_Pid = 0;
 
   // --- 4.) Make HDD writable again ---
-  TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,rw %s", DeviceNode);
-  system(CommandLine);
-  // Playback wieder starten
-  if ((OldSysSubState == 0) && (LastTotalBlocks > 0) && (RecFileSize > 0))
+  if (DoFix)
   {
-    HDD_StartPlayback2(PlaybackName, PlaybackDir);
-    PlayInfo.totalBlock = 0;
+    TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,rw %s", DeviceNode);
+    system(CommandLine);
+    // Playback wieder starten
+    if ((OldSysSubState == 0) && (LastTotalBlocks > 0) && (RecFileSize > 0))
+    {
+      HDD_StartPlayback2(PlaybackName, PlaybackDir);
+      PlayInfo.totalBlock = 0;
+    }
   }
 
   // --- 5.) Open and analyse the generated log file ---
@@ -5463,7 +5478,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
   }
 
   // auf das Starten des Playbacks warten
-  if ((OldSysSubState == 0) && (LastTotalBlocks > 0) && (RecFileSize > 0))
+  if (DoFix && (OldSysSubState == 0) && (LastTotalBlocks > 0) && (RecFileSize > 0))
   {
     i = 0;
     while ((i < 2000) && (!isPlaybackRunning() || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0))
