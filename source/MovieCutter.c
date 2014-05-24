@@ -5013,25 +5013,7 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
       OSDMenuSaveMyRegion(rgnSegmentList);
       OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), maxProgress - 1, maxProgress, NULL);
     }
-
-    if (isPlaybackRunning()) TAP_Hdd_StopTs();
-    sync();
-    sleep(1);
     CheckFileSystem(maxProgress-1, maxProgress, maxProgress, TRUE, TRUE, icheckErrors);
-
-    if (RecFileSize > 0)
-    {
-      HDD_StartPlayback2(PlaybackName, PlaybackDir);
-      PlayInfo.totalBlock = 0;
-      j = 0;
-      while ((j < 2000) && (!isPlaybackRunning() || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0))
-      {
-        TAP_SystemProc();
-        j++;
-      }
-      PlaybackRepeatSet(TRUE);
-      HDD_ChangeDir(PlaybackDir);
-    }
   }
 
   if (OSDMenuProgressBarIsVisible())
@@ -5253,13 +5235,19 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
   fsck_Cancelled = FALSE;
 
   HDD_TAP_PushDir();
-  HDD_ChangeDir("/ProgramFiles/Settings/MovieCutter");
+//  HDD_ChangeDir("/ProgramFiles/Settings/MovieCutter");
 
 //  OSDMenuSaveMyRegion(rgnSegmentList);
   OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), ProgressStart, ProgressMax, NULL);
 
   remove("/tmp/fsck.log");
 //  remove("/tmp/fsck.pid");
+
+
+  // aktuelles Playback stoppen
+  if (isPlaybackRunning()) TAP_Hdd_StopTs();
+  sync();
+  sleep(1);
 
   // --- 1.) Detect the device node of the partition to be checked ---
   HDD_GetDeviceNode(PlaybackDir, DeviceNode);
@@ -5311,6 +5299,12 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
   // --- 4.) Make HDD writable again ---
   TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,rw %s", DeviceNode);
   system(CommandLine);
+  // Playback wieder starten
+  if ((OldSysSubState == 0) && (LastTotalBlocks > 0) && (RecFileSize > 0))
+  {
+    HDD_StartPlayback2(PlaybackName, PlaybackDir);
+    PlayInfo.totalBlock = 0;
+  }
 
   // --- 5.) Open and analyse the generated log file ---
   fsck_Cancelled = TRUE;
@@ -5376,10 +5370,10 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
               p += 14;
               p2 = strrchr(p, '/');
               if (p2 && (p2+1))
-//                strncpy(FirstErrorFile, p2+1, sizeof(FirstErrorFile));
+//              strncpy(FirstErrorFile, p2+1, sizeof(FirstErrorFile));
                 TAP_SPrint(FirstErrorFile, sizeof(FirstErrorFile), "\"%s\"", p2+1);
               else
-//                strncpy(FirstErrorFile, p, sizeof(FirstErrorFile));
+//              strncpy(FirstErrorFile, p, sizeof(FirstErrorFile));
                 TAP_SPrint(FirstErrorFile, sizeof(FirstErrorFile), "\"%s\"", p);
               FirstErrorFile[sizeof(FirstErrorFile)-1] = '\0';
             }
@@ -5446,7 +5440,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
         TAP_Delay(200);
         OSDMenuInfoBoxDestroyNoOSDUpdate();
       }
-//        TAP_Osd_Sync();
+//      TAP_Osd_Sync();
     }
     else
     {
@@ -5468,7 +5462,26 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
     ShowErrorMessage(LangGetString(LS_CheckFSAborted), LangGetString(LS_Warning));
   }
 
-  if(OldSysSubState != 0) TAP_EnterNormalNoInfo();
+  // auf das Starten des Playbacks warten
+  if ((OldSysSubState == 0) && (LastTotalBlocks > 0) && (RecFileSize > 0))
+  {
+    i = 0;
+    while ((i < 2000) && (!isPlaybackRunning() || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0))
+    {
+      TAP_SystemProc();
+      i++;
+    }
+    if((int)PlayInfo.totalBlock <= 0)
+    {
+      WriteLogMC(PROGRAM_NAME, "CheckFileSystem: Error restarting the playback!");
+      State = ST_UnacceptedFile;
+      LastTotalBlocks = PlayInfo.totalBlock;
+      ClearOSD(TRUE);
+    }
+    PlaybackRepeatSet(TRUE);
+  }
+  else if (OldSysSubState != 0) 
+    TAP_EnterNormalNoInfo();
 
   HDD_TAP_PopDir();
   TRACEEXIT();
