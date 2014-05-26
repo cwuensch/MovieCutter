@@ -210,6 +210,7 @@ typedef enum
   LS_CheckFSFailed,
   LS_CheckFSAborted,
   LS_CheckFSSuccess,
+  LS_SuspectFilesFound,
   LS_MoreErrorsFound,
   LS_FileNameTooLong,
   LS_Warning,
@@ -259,7 +260,8 @@ bool                    ShowRebootMessage  = TRUE;
 bool                    AskBeforeEdit      = TRUE;
 bool                    SaveCutBak         = TRUE;
 bool                    DisableSpecialEnd  = FALSE;
-bool                    CheckFSAfterCut    = FALSE;
+bool                    DoiCheckFix        = FALSE;
+byte                    CheckFSAfterCut    = 0;   // 0 - auto, 1 - always, 2 - never
 dword                   Overscan_X         = 50;
 dword                   Overscan_Y         = 25;
 dword                   SegmentList_X      = 50;
@@ -1789,7 +1791,8 @@ void LoadINI(void)
     AskBeforeEdit     =            INIGetInt("AskBeforeEdit",              1,   0,    1)   !=   0;
     SaveCutBak        =            INIGetInt("SaveCutBak",                 1,   0,    1)   !=   0;
     DisableSpecialEnd =            INIGetInt("DisableSpecialEnd",          0,   0,    1)   ==   1;
-    CheckFSAfterCut   =            INIGetInt("CheckFSAfterCut",            0,   0,    1)   ==   1;
+    DoiCheckFix       =            INIGetInt("DoiCheckFix",                0,   0,    1)   ==   1;
+    CheckFSAfterCut   =            INIGetInt("CheckFSAfterCut",            0,   0,    2);
 
     Overscan_X        =            INIGetInt("Overscan_X",                50,   0,  100);
     Overscan_Y        =            INIGetInt("Overscan_Y",                25,   0,  100);
@@ -1825,7 +1828,8 @@ void SaveINI(void)
   INISetInt ("AskBeforeEdit",       AskBeforeEdit       ?  1  :  0);
   INISetInt ("SaveCutBak",          SaveCutBak          ?  1  :  0);
   INISetInt ("DisableSpecialEnd",   DisableSpecialEnd   ?  1  :  0);
-  INISetInt ("CheckFSAfterCut",     CheckFSAfterCut     ?  1  :  0);
+  INISetInt ("DoiCheckFix",         DoiCheckFix         ?  1  :  0);
+  INISetInt ("CheckFSAfterCut",     CheckFSAfterCut);
   INISetInt ("Overscan_X",          Overscan_X);
   INISetInt ("Overscan_Y",          Overscan_Y);
   INISetInt ("SegmentList_X",       SegmentList_X);
@@ -4703,7 +4707,7 @@ void MovieCutterProcess(bool KeepCut)
   isMultiSelect = (NrSelectedSegments > 0);
   if (!NrSelectedSegments) NrSelectedSegments = 1;
 
-  int maxProgress = NrSelectedSegments + ((CheckFSAfterCut) ? 1 : 0);
+  int maxProgress = NrSelectedSegments + ((CheckFSAfterCut==2) ? 0 : 1);
   OSDMenuSaveMyRegion(rgnSegmentList);
   OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), 0, maxProgress, NULL);
 
@@ -4818,8 +4822,8 @@ HDD_GetFileSizeAndInode2(InfFileName, PlaybackDir, &OldInodeNr, NULL);
       ret = MovieCutter(PlaybackName, ((CutEnding) ? TempFileName : CutFileName), PlaybackDir, &CutStartPoint, &BehindCutPoint, (TRUE || KeepCut || CutEnding), HDVideo);
 
 // Aufnahmenfresser-Test und Ausgabe
-if (!HDD_DoInodeCheck(((CutEnding) ? TempFileName : CutFileName), PlaybackDir, DeviceNode, TRUE, "CutFile")) icheckErrors++;
-if (!HDD_DoInodeCheck(PlaybackName, PlaybackDir, DeviceNode, TRUE, "RestFile")) icheckErrors++;
+if (!HDD_DoInodeCheck(((CutEnding) ? TempFileName : CutFileName), PlaybackDir, DeviceNode, DoiCheckFix, "CutFile")) icheckErrors++;
+if (!HDD_DoInodeCheck(PlaybackName, PlaybackDir, DeviceNode, DoiCheckFix, "RestFile")) icheckErrors++;
 if (!KeepCut && !CutEnding)
   HDD_Delete2(CutFileName, PlaybackDir, TRUE);  // beim Löschen im MovieCutter-Aufruf das TRUE wieder rausnehmen
 
@@ -4866,7 +4870,6 @@ if (CutEnding || KeepCut)
   {
     TAP_SPrint(InfFileName, sizeof(InfFileName), "%s.inf", (CutEnding) ? PlaybackName : CutFileName);
     HDD_GetFileSizeAndInode2(InfFileName, PlaybackDir, &NewInodeNr, NULL);
-
     TAP_SPrint(CommandLine, sizeof(CommandLine), "%s %s/ProgramFiles/Settings/INFplus/%010llu.INF+ %s/ProgramFiles/Settings/INFplus/%010llu.INF+", (KeepCut) ? "cp" : "mv", TAPFSROOT, OldInodeNr, TAPFSROOT, NewInodeNr);
     system(CommandLine);
   }
@@ -4983,11 +4986,11 @@ if (CutEnding || KeepCut)
       OSDSegmentListDrawList(FALSE);
       OSDInfoDrawProgressbar(TRUE, TRUE);
 
-TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegments - ((CheckFSAfterCut) ? 1 : 0), maxProgress);
+TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegments - ((CheckFSAfterCut==2) ? 0 : 1), maxProgress);
       if (OSDMenuProgressBarIsVisible())
       {
         OSDMenuSaveMyRegion(rgnSegmentList);
-        OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), maxProgress - NrSelectedSegments - ((CheckFSAfterCut) ? 1 : 0), maxProgress, NULL);
+        OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), maxProgress - NrSelectedSegments - ((CheckFSAfterCut==2) ? 0 : 1), maxProgress, NULL);
       }
     }
     if ((NrSelectedSegments <= 0 /* && !SegmentMarker[NrSegmentMarker-2].Selected*/) || (NrSegmentMarker <= 2))
@@ -5005,7 +5008,7 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
   sleep(1);
 
   //Check file system consistency and show a warning
-  if (CheckFSAfterCut || icheckErrors)
+  if ((CheckFSAfterCut == 1) || icheckErrors)
   {
     if (!OSDMenuProgressBarIsVisible())
     {
@@ -5013,6 +5016,12 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
       OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), maxProgress - 1, maxProgress, NULL);
     }
     CheckFileSystem(maxProgress-1, maxProgress, maxProgress, TRUE, TRUE, icheckErrors);
+  }
+  else if (icheckErrors)
+  {
+    if(OSDMenuProgressBarIsVisible()) OSDMenuProgressBarDestroyNoOSDUpdate();
+    TAP_SPrint(LogString, sizeof(LogString), LangGetString(LS_SuspectFilesFound), icheckErrors);
+    ShowErrorMessage(LogString, LangGetString(LS_Warning));
   }
   HDD_ChangeDir(PlaybackDir);
 
@@ -5435,7 +5444,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
     if(fLogFileOut) fclose(fLogFileOut);
   }
   else
-    WriteLogMC(PROGRAM_NAME, "CheckFileSystem() E1c02.");
+    WriteLogMC(PROGRAM_NAME, "CheckFileSystem() E1c01.");
 
   // Copy the log to MovieCutter folder
   TAP_SPrint(CommandLine, sizeof(CommandLine), "cp /tmp/fsck.log %s/ProgramFiles/Settings/MovieCutter/Lastfsck.log", TAPFSROOT);
