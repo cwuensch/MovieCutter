@@ -5008,7 +5008,7 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
   sleep(1);
 
   //Check file system consistency and show a warning
-  if ((CheckFSAfterCut == 1) || icheckErrors)
+  if ((CheckFSAfterCut == 1) || (CheckFSAfterCut != 2 && icheckErrors))
   {
     if (!OSDMenuProgressBarIsVisible())
     {
