@@ -5481,6 +5481,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
         TAP_SPrint(&FirstErrorFile[strlen(FirstErrorFile)], sizeof(FirstErrorFile)-strlen(FirstErrorFile), ", + %d", DefectFiles-1);
       StrMkISO(FirstErrorFile);
       TAP_SPrint(LogString, sizeof(LogString), LangGetString(LS_CheckFSFailed), icheckErrors, RepairedFiles, DefectFiles, ((fsck_FixErrors) ? "??" : "ok"), ((FirstErrorFile[0]) ? FirstErrorFile : "") );
+      WriteLogMC(PROGRAM_NAME, LogString);
       ShowErrorMessage(LogString, LangGetString(LS_Warning));
     }
   }
