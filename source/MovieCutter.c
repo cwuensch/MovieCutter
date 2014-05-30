@@ -584,7 +584,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
         //Flush the caches *experimental*
         sync();
-        sleep(1);
+        TAP_Sleep(1);
 
         WriteLogMC(PROGRAM_NAME, "========================================\n");
 
@@ -4809,7 +4809,7 @@ icheckErrors = 0;
 
       //Flush the caches *experimental*
       sync();
-      sleep(1);
+      TAP_Sleep(1);
       HDD_ChangeDir(PlaybackDir);
 
 // INFplus
@@ -5005,7 +5005,7 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
 
   //Flush the caches *experimental*
   sync();
-  sleep(1);
+  TAP_Sleep(1);
 
   //Check file system consistency and show a warning
   if ((CheckFSAfterCut == 1) || (CheckFSAfterCut != 2 && icheckErrors))
@@ -5262,7 +5262,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
   // aktuelles Playback stoppen
   if (DoFix && isPlaybackRunning()) TAP_Hdd_StopTs();
   sync();
-  sleep(1);
+  TAP_Sleep(1);
 
   // --- 1.) Detect the device node of the partition to be checked ---
   HDD_GetDeviceNode(PlaybackDir, DeviceNode);

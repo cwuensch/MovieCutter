@@ -445,7 +445,7 @@ bool FileCut(char *SourceFileName, char *CutFileName, char const *Directory, dwo
 
   //Flush the caches *experimental*
   sync();
-  sleep(1);
+  TAP_Sleep(1);
 
   HDD_TAP_PushDir();
 
@@ -474,9 +474,9 @@ bool FileCut(char *SourceFileName, char *CutFileName, char const *Directory, dwo
 
   //Flush the caches *experimental*
   sync();
-  sleep(1);
+  TAP_Sleep(1);
   sync();
-  sleep(1);
+  TAP_Sleep(1);
 /*  for (i=0; i < 30; i++)
   {
 //    TAP_SystemProc();
