@@ -11,6 +11,7 @@
 #include                <tap.h>
 #include                "libFireBird.h"   // <libFireBird.h>
 #include                "CWTapApiLib.h"
+#include                "HddToolsLib.h"
 #include                "MovieCutterLib.h"
 #include                "MovieCutter_TAPCOM.h"
 #include                "MovieCutter.h"
@@ -289,7 +290,7 @@ dword                   JumpRequestedBlock = (dword) -1;      //Is set, when use
 dword                   JumpRequestedTime = 0;                //Is set, when one of the options on top is active
 dword                   JumpPerformedTime = 0;                //Is set after a segment jump has been performed to reduce flicker
 dword                   LastMessageBoxKey;
-bool                    fsck_Cancelled;
+//bool                    fsck_Cancelled;
 tUndoEvent             *UndoStack = NULL;
 int                     UndoLastItem;
 
@@ -480,7 +481,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   if(DoNotReenter && OSDMenuProgressBarIsVisible())
   {
     if(event == EVT_KEY && (param1 == RKEY_Exit || param1 == RKEY_Sleep))
-      fsck_Cancelled = TRUE;
+      HDD_CancelCheckFS();
     param1 = 0;
   }
 
@@ -523,6 +524,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   if(event == EVT_KEY && param1 == RKEY_Sleep && !DisableSleepKey)
   {
     if (OSDMenuMessageBoxIsVisible()) OSDMenuMessageBoxDestroy();
+
+    HDD_FixInodeList("FixInodes.bin", "/ProgramFiles/Settings/MovieCutter", "/dev/sda2");
+    
+    
 //    TAP_EnterNormal();
     State = ST_Exit;
     param1 = 0;
@@ -1432,10 +1437,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 case MI_DeleteFile:
                 {
                   if (!BookmarkMode)
-                  {
-                    OSDMenuSaveMyRegion(rgnSegmentList);
-                    CheckFileSystem(0, 1, 1, TRUE, TRUE, 0);
-                  }
+                    CheckFileSystem(0, 1, 1, TRUE, 0);
                   else
                     MovieCutterDeleteFile();
                   break;
@@ -4665,6 +4667,7 @@ void MovieCutterProcess(bool KeepCut)
   char                  TempFileName[MAX_FILE_NAME_SIZE + 1];
   tTimeStamp            CutStartPoint, BehindCutPoint;
   dword                 DeltaBlock; //, DeltaTime;
+  dword                 CurPlayPosition;
   char                  DeviceNode[20], CommandLine[512];
   int                   icheckErrors;
   int                   i, j;
@@ -4710,7 +4713,7 @@ void MovieCutterProcess(bool KeepCut)
   int maxProgress = NrSelectedSegments + ((CheckFSAfterCut==2) ? 0 : 1);
   OSDMenuSaveMyRegion(rgnSegmentList);
   OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_Cutting), 0, maxProgress, NULL);
-
+  CurPlayPosition = PlayInfo.currentBlock;
 
 // Aufnahmenfresser-Test und Ausgabe
 HDD_GetDeviceNode(PlaybackDir, DeviceNode);
@@ -4727,7 +4730,7 @@ if(MountState)
   fgets(CommandLine, sizeof(CommandLine), MountState);
   WriteDebugLog("Device: %s, gemountet als: %s. (%s)", DeviceNode, ((CommandLine[0] && !strstr(CommandLine, "nointegrity")) ? "integrity" : ((CommandLine[0]) ? "nointegrity" : "unbekannt")), RemoveEndLineBreak(CommandLine));
 }
-if (!HDD_DoInodeCheck(PlaybackName, PlaybackDir, DeviceNode, FALSE, "Original")) icheckErrors++;
+if (!HDD_CheckInode(PlaybackName, PlaybackDir, DeviceNode, FALSE, "Original")) icheckErrors++;
 WriteDebugLog("%d Schnittoperation(en) vorgesehen.", NrSelectedSegments);
 WriteDebugLog("---------------");
 icheckErrors = 0;
@@ -4818,12 +4821,21 @@ char InfFileName[MAX_FILE_NAME_SIZE + 1];
 TAP_SPrint(InfFileName, sizeof(InfFileName), "%s.inf", PlaybackName);
 HDD_GetFileSizeAndInode2(InfFileName, PlaybackDir, &OldInodeNr, NULL);
 
+
       // Schnittoperation
       ret = MovieCutter(PlaybackName, ((CutEnding) ? TempFileName : CutFileName), PlaybackDir, &CutStartPoint, &BehindCutPoint, (TRUE || KeepCut || CutEnding), HDVideo);
 
 // Aufnahmenfresser-Test und Ausgabe
-if (!HDD_DoInodeCheck(((CutEnding) ? TempFileName : CutFileName), PlaybackDir, DeviceNode, DoiCheckFix, "CutFile")) icheckErrors++;
-if (!HDD_DoInodeCheck(PlaybackName, PlaybackDir, DeviceNode, DoiCheckFix, "RestFile")) icheckErrors++;
+if (!HDD_CheckInode(((CutEnding) ? TempFileName : CutFileName), PlaybackDir, DeviceNode, DoiCheckFix, "CutFile"))
+{
+  icheckErrors++;
+  HDD_CheckInode(((CutEnding) ? TempFileName : CutFileName), PlaybackDir, DeviceNode, DoiCheckFix, "CutFile");
+}
+if (!HDD_CheckInode(PlaybackName, PlaybackDir, DeviceNode, DoiCheckFix, "RestFile"))
+{
+  icheckErrors++;
+  HDD_CheckInode(PlaybackName, PlaybackDir, DeviceNode, DoiCheckFix, "RestFile");
+}
 if (!KeepCut && !CutEnding)
   HDD_Delete2(CutFileName, PlaybackDir, TRUE);  // beim Löschen im MovieCutter-Aufruf das TRUE wieder rausnehmen
 
@@ -4957,6 +4969,18 @@ if (CutEnding || KeepCut)
         SegmentMarker[NrSegmentMarker-1].Percent = 100;
       }
 
+      // Letzte Playback-Position anpassen
+      if(CurPlayPosition)
+      {
+        CalcLastSeconds();
+        if (CurPlayPosition > BlockNrLastSecond)
+          CurPlayPosition = 0;
+        else if (CurPlayPosition >= BehindCutPoint.BlockNr)
+          CurPlayPosition -= DeltaBlock;
+        else if ((CurPlayPosition >= CutStartPoint.BlockNr) && !CutEnding)
+          CurPlayPosition = (WorkingSegment < NrSegmentMarker - 1) ? BehindCutPoint.BlockNr : 0;
+      }
+
       // Wenn Spezial-Crop-Modus, nochmal testen, ob auch mit der richtigen rec weitergemacht wird
       if(CutEnding)
       {
@@ -5010,12 +5034,12 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
   //Check file system consistency and show a warning
   if ((CheckFSAfterCut == 1) || (CheckFSAfterCut != 2 && icheckErrors))
   {
-    if (!OSDMenuProgressBarIsVisible())
+/*    if (!OSDMenuProgressBarIsVisible())
     {
       OSDMenuSaveMyRegion(rgnSegmentList);
       OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), maxProgress - 1, maxProgress, NULL);
-    }
-    CheckFileSystem(maxProgress-1, maxProgress, maxProgress, TRUE, TRUE, icheckErrors);
+    }  */
+    CheckFileSystem(maxProgress-1, maxProgress, maxProgress, TRUE, icheckErrors);
   }
   else if (icheckErrors)
   {
@@ -5033,8 +5057,9 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
   }
 
   if(TrickMode == TRICKMODE_Pause) Playback_Normal();
-  if (SegmentMarker[max(min(ActiveSegment, NrSegmentMarker-2), 0)].Block > 0)
-    TAP_Hdd_ChangePlaybackPos(SegmentMarker[max(min(ActiveSegment, NrSegmentMarker-2), 0)].Block);
+//  if (SegmentMarker[max(min(ActiveSegment, NrSegmentMarker-2), 0)].Block > 0)
+//    TAP_Hdd_ChangePlaybackPos(SegmentMarker[max(min(ActiveSegment, NrSegmentMarker-2), 0)].Block);
+  TAP_Hdd_ChangePlaybackPos(CurPlayPosition);
 
   UndoResetStack();
   PlaybackRepeatSet(OldRepeatMode);
@@ -5089,17 +5114,6 @@ bool isPlaybackRunning(void)
   return (PlayInfo.playMode == PLAYMODE_Playing);
 }
 
-char* RemoveEndLineBreak (char *const Text)
-{
-  TRACEENTER();
-
-  int p = strlen(Text) - 1;
-  if ((p >= 0) && (Text[p] == '\n')) Text[p] = '\0';
-  
-  TRACEEXIT();
-  return Text;
-}
-
 void CalcLastSeconds(void)
 {
   TRACEENTER();
@@ -5135,104 +5149,64 @@ void CheckLastSeconds(void)
 // ----------------------------------------------------------------------------
 //                           System-Funktionen
 // ----------------------------------------------------------------------------
-// Sets the Playback Repeat Mode: 0=REPEAT_None, 1=REPEAT_Region, 2=REPEAT_Total.
-// If RepeatMode != REPEAT_Region, the other parameters are without function.
-// Returns the old value if success, N_RepeatMode if failure
-TYPE_RepeatMode PlaybackRepeatMode(bool ChangeMode, TYPE_RepeatMode RepeatMode, dword RepeatStartBlock, dword RepeatEndBlock)
+bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, bool DoFix, int SuspectFiles)
 {
-  static TYPE_RepeatMode  *_RepeatMode = NULL;
-  static int              *_RepeatStart = NULL;
-  static int              *_RepeatEnd = NULL;
-  TYPE_RepeatMode          OldValue;
-
-  if(_RepeatMode == NULL)
-  {
-    _RepeatMode = (TYPE_RepeatMode*)TryResolve("_playbackRepeatMode");
-    if(_RepeatMode == NULL) return N_RepeatMode;
-  }
-
-  if(_RepeatStart == NULL)
-  {
-    _RepeatStart = (int*)TryResolve("_playbackRepeatRegionStart");
-    if(_RepeatStart == NULL) return N_RepeatMode;
-  }
-
-  if(_RepeatEnd == NULL)
-  {
-    _RepeatEnd = (int*)TryResolve("_playbackRepeatRegionEnd");
-    if(_RepeatEnd == NULL) return N_RepeatMode;
-  }
-
-  OldValue = *_RepeatMode;
-  if (ChangeMode)
-  {
-    *_RepeatMode = RepeatMode;
-    *_RepeatStart = (RepeatMode == REPEAT_Region) ? (int)RepeatStartBlock : -1;
-    *_RepeatEnd = (RepeatMode == REPEAT_Region) ? (int)RepeatEndBlock : -1;
-  }
-  return OldValue;
-}
-bool PlaybackRepeatSet(bool EnableRepeatAll)
-{
-  return (PlaybackRepeatMode(TRUE, ((EnableRepeatAll) ? REPEAT_Total : REPEAT_None), 0, 0) != N_RepeatMode);
-}
-bool PlaybackRepeatGet()
-{
-  return (PlaybackRepeatMode(FALSE, 0, 0, 0) == REPEAT_Total);
-}
-
-
-bool HDD_DoInodeCheck(const char *FileName, const char *Directory, const char *DeviceNode, bool DoFix, const char *Prefix)
-{
-  char                  CommandLine[1024];
-  FILE                 *LogStream;
-  int                   ret = -1;
-
+  char                  ErrorStrFmt[512], DeviceNode[20];
+  dword                 OldSysState, OldSysSubState;
+  bool                  ret = FALSE;
+  
   TRACEENTER();
-  WriteLogMC("MovieCutterLib", "Checking file inodes for wrong di_nblocks:");
+  TAP_GetState(&OldSysState, &OldSysSubState);
 
-  if(DoFix)
-  {
-    TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,ro %s", DeviceNode);
-    if (system(CommandLine) != 0)
-      WriteDebugLog("Schreibgeschützter Remount nicht erfolgreich!");
-  }
+  // ProgressBar initialisieren
+  OSDMenuSaveMyRegion(rgnSegmentList);
+  HDDCheck_InitProgBar(ProgressStart, ProgressEnd, ProgressMax, rgnSegmentList, LangGetString(LS_Warning), LangGetString(LS_MoreErrorsFound), LangGetString(LS_CheckingFileSystem));
 
-  LogString[0] = '\0';
-  TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/jfs_fsck icheck %s %s \"%s%s/%s\" 2>&1", TAPFSROOT, (DoFix) ? "-f" : "", DeviceNode, TAPFSROOT, Directory, FileName);
-  LogStream = popen(CommandLine, "r");
-  if(LogStream)
-  {
-    fgets(LogString, sizeof(LogString), LogStream);
-    LogString[0] = '\0';
-    while (fgets(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), LogStream))
-    { /* nothing */ }
-    ret = pclose(LogStream) / 256;
-  }
-  if (DoFix)
-  {
-    TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,rw %s", DeviceNode);
-    system(CommandLine);
-  }
+  // DeviceNode ermitteln
+  if (PlaybackDir && PlaybackDir[0])
+    HDD_GetDeviceNode(PlaybackDir, DeviceNode);
+  else
+    TAP_SPrint(DeviceNode, sizeof(DeviceNode), "/dev/sda2");
 
-  if (LogString[0])
+  // Suspekte Dateien in den ErrorString einsetzen
+//  TAP_SPrint(ErrorStrFmt, sizeof(ErrorStrFmt), "Suspekt: %d", SuspectFiles);
+//  strncat(ErrorStrFmt, LangGetString(LS_CheckFSFailed), sizeof(ErrorStrFmt) - strlen(ErrorStrFmt) - 1);
+//  ErrorStrFmt[sizeof(ErrorStrFmt) - 1] = '\0';
+  TAP_SPrint(ErrorStrFmt, sizeof(ErrorStrFmt), LangGetString(LS_CheckFSFailed), SuspectFiles);
+
+  ret = HDD_CheckFileSystem(DeviceNode, NULL, &ShowErrorMessage, TRUE, LangGetString(LS_CheckFSSuccess), ErrorStrFmt, LangGetString(LS_CheckFSAborted));
+
+  // Prüfen, ob das Playback wieder gestartet wurde
+  if (DoFix && (OldSysSubState == 0) && (LastTotalBlocks > 0) && (RecFileSize > 0))
   {
-    RemoveEndLineBreak(LogString);
-    WriteLogMC(PROGRAM_NAME, LogString);
-    WriteDebugLog("%s:\t%s", Prefix, LogString);
+    if((int)PlayInfo.totalBlock <= 0)
+    {
+      WriteLogMC(PROGRAM_NAME, "CheckFileSystem: Error restarting the playback!");
+      State = ST_UnacceptedFile;
+      LastTotalBlocks = PlayInfo.totalBlock;
+      ClearOSD(TRUE);
+    }
+    else
+    {
+      if (SegmentMarker[NrSegmentMarker - 1].Block != PlayInfo.totalBlock)
+      {
+#ifdef FULLDEBUG
+  TAP_SPrint(LogString, sizeof(LogString), "CheckFileSystem: Nach Playback-Restart neues TotalBlock %lu (vorher %lu)!", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
+  WriteLogMC(PROGRAM_NAME, LogString);
+#endif
+        SegmentMarker[NrSegmentMarker - 1].Block = PlayInfo.totalBlock;
+      }
+    }
   }
-  if ((ret < 0) || ((ret & 0x02) && DoFix && !(ret & 0x04)))
-  {
-    TAP_SPrint(LogString, sizeof(LogString), "Error! jfs_icheck returned %d.", ret);
-    WriteLogMC(PROGRAM_NAME, LogString);
-    WriteDebugLog(LogString);
-  }
+  else if (OldSysSubState != 0) 
+    TAP_EnterNormalNoInfo();
 
   TRACEEXIT();
-  return (ret >= 0 && !(ret & 0x02));  // 0x02 = File needs fix
+  return ret;
 }
 
-bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, bool ShowOkInfo, bool DoFix, int icheckErrors)
+
+/*bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, bool ShowOkInfo, bool DoFix, int icheckErrors)
 {
   FILE                 *fPidFile = NULL, *fLogFileIn = NULL, *fLogFileOut = NULL;
   char                  CommandLine[512], Buffer[512], DeviceNode[20], PidStr[13];
@@ -5481,6 +5455,9 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
         TAP_SPrint(&FirstErrorFile[strlen(FirstErrorFile)], sizeof(FirstErrorFile)-strlen(FirstErrorFile), ", + %d", DefectFiles-1);
       StrMkISO(FirstErrorFile);
       TAP_SPrint(LogString, sizeof(LogString), LangGetString(LS_CheckFSFailed), icheckErrors, RepairedFiles, DefectFiles, ((fsck_FixErrors) ? "??" : "ok"), ((FirstErrorFile[0]) ? FirstErrorFile : "") );
+      #ifdef Calibri_10_FontDataUC
+        StrMkISO(LogString);
+      #endif
       WriteLogMC(PROGRAM_NAME, LogString);
       ShowErrorMessage(LogString, LangGetString(LS_Warning));
     }
@@ -5511,7 +5488,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
   TRACEEXIT();
   return (!fsck_Cancelled && !fsck_Errors);
 }
-
+*/
 
 // ----------------------------------------------------------------------------
 //                            NAV-Funktionen

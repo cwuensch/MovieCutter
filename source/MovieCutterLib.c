@@ -229,10 +229,8 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *Directory
   if(CutPointArea2)
     PatchRecFile(SourceFileName, Directory, BehindCutPos, CutPointArea2, &PatchedBytes[2 * CUTPOINTSECTORRADIUS]);
 
-char* CutTempTestName = "_CUTFILE.rec";
-
   // DO THE CUTTING
-  if(!FileCut(SourceFileName, CutTempTestName, Directory, CutStartPoint->BlockNr, BehindCutPoint->BlockNr - CutStartPoint->BlockNr))
+  if(!FileCut(SourceFileName, CutFileName, Directory, CutStartPoint->BlockNr, BehindCutPoint->BlockNr - CutStartPoint->BlockNr))
   {
     WriteLogMC("MovieCutterLib", "MovieCutter() E0002: Firmware cutting routine failed.");
     TAP_MemFree(CutPointArea1);
@@ -240,7 +238,7 @@ char* CutTempTestName = "_CUTFILE.rec";
     TRACEEXIT();
     return RC_Error;
   }
-  if(!HDD_Exist2(CutTempTestName, Directory))
+  if(!HDD_Exist2(CutFileName, Directory))
   {
     WriteLogMC("MovieCutterLib", "MovieCutter() E0003: Cut file not created.");
     TAP_MemFree(CutPointArea1);
@@ -248,9 +246,6 @@ char* CutTempTestName = "_CUTFILE.rec";
     TRACEEXIT();
     return RC_Error;
   }
-
-HDD_Rename2(CutTempTestName, CutFileName, Directory, TRUE);
-
 
   // Detect the size of the cut file
   if(!HDD_GetFileSizeAndInode2(CutFileName, Directory, NULL, &CutFileSize))

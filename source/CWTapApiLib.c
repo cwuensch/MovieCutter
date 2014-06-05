@@ -115,6 +115,53 @@ bool HDD_StartPlayback2(char *FileName, const char *Directory)
   return ret;
 }
 
+// Sets the Playback Repeat Mode: 0=REPEAT_None, 1=REPEAT_Region, 2=REPEAT_Total.
+// If RepeatMode != REPEAT_Region, the other parameters are without function.
+// Returns the old value if success, N_RepeatMode if failure
+TYPE_RepeatMode PlaybackRepeatMode(bool ChangeMode, TYPE_RepeatMode RepeatMode, dword RepeatStartBlock, dword RepeatEndBlock)
+{
+  static TYPE_RepeatMode  *_RepeatMode = NULL;
+  static int              *_RepeatStart = NULL;
+  static int              *_RepeatEnd = NULL;
+  TYPE_RepeatMode          OldValue;
+
+  if(_RepeatMode == NULL)
+  {
+    _RepeatMode = (TYPE_RepeatMode*)TryResolve("_playbackRepeatMode");
+    if(_RepeatMode == NULL) return N_RepeatMode;
+  }
+
+  if(_RepeatStart == NULL)
+  {
+    _RepeatStart = (int*)TryResolve("_playbackRepeatRegionStart");
+    if(_RepeatStart == NULL) return N_RepeatMode;
+  }
+
+  if(_RepeatEnd == NULL)
+  {
+    _RepeatEnd = (int*)TryResolve("_playbackRepeatRegionEnd");
+    if(_RepeatEnd == NULL) return N_RepeatMode;
+  }
+
+  OldValue = *_RepeatMode;
+  if (ChangeMode)
+  {
+    *_RepeatMode = RepeatMode;
+    *_RepeatStart = (RepeatMode == REPEAT_Region) ? (int)RepeatStartBlock : -1;
+    *_RepeatEnd = (RepeatMode == REPEAT_Region) ? (int)RepeatEndBlock : -1;
+  }
+  return OldValue;
+}
+bool PlaybackRepeatSet(bool EnableRepeatAll)
+{
+  return (PlaybackRepeatMode(TRUE, ((EnableRepeatAll) ? REPEAT_Total : REPEAT_None), 0, 0) != N_RepeatMode);
+}
+bool PlaybackRepeatGet()
+{
+  return (PlaybackRepeatMode(FALSE, 0, 0, 0) == REPEAT_Total);
+}
+
+
 bool HDD_GetDeviceNode(const char *Path, char *const OutDeviceNode)  // max. 20 Zeichen (inkl. Nullchar) in OutDeviceNode
 {
   static char           LastMountPoint[FBLIB_DIR_SIZE], LastDeviceNode[20];
@@ -200,6 +247,17 @@ bool HDD_GetDeviceNode(const char *Path, char *const OutDeviceNode)  // max. 20 
 
   TRACEEXIT();
   return TRUE;
+}
+
+char* RemoveEndLineBreak (char *const Text)
+{
+  TRACEENTER();
+
+  int p = strlen(Text) - 1;
+  if ((p >= 0) && (Text[p] == '\n')) Text[p] = '\0';
+  
+  TRACEEXIT();
+  return Text;
 }
 
 // create, fopen, fread, fwrite

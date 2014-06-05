@@ -24,5 +24,9 @@ bool HDD_Exist2(char *FileName, const char *Directory);
 bool HDD_GetFileSizeAndInode2(const char *FileName, const char *Directory, __ino64_t *OutCInode, __off64_t *OutFileSize);
 bool HDD_StartPlayback2(char *FileName, const char *Directory);
 bool HDD_GetDeviceNode(const char *Path, char *const OutDeviceNode);
+//TYPE_RepeatMode PlaybackRepeatMode(bool ChangeMode, TYPE_RepeatMode RepeatMode, dword RepeatStartBlock, dword RepeatEndBlock);
+bool  PlaybackRepeatSet(bool EnableRepeatAll);
+bool  PlaybackRepeatGet();
+char* RemoveEndLineBreak (char *const Text);
 
 #endif

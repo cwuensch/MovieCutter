@@ -12,6 +12,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\source\CWTapApiLib.h" />
+    <ClInclude Include="..\source\HddToolsLib.h" />
     <ClInclude Include="..\source\MovieCutter.h" />
     <ClInclude Include="..\source\MovieCutterLib.h" />
     <ClInclude Include="..\source\MovieCutter_TAPCOM.h" />
@@ -19,6 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\source\CWTapApiLib.c" />
+    <ClCompile Include="..\source\HddToolsLib.c" />
     <ClCompile Include="..\source\MovieCutter.c" />
     <ClCompile Include="..\source\MovieCutterLib.c" />
   </ItemGroup>
