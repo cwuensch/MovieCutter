@@ -88,9 +88,43 @@
   }
 
 
-  void OSDMenuMessageBoxAllowScrollOver() {}
-  void OSDMenuFreeStdFonts(void) {}
+  #define STDSTRINGSIZE   256
+  #define MAXMBBUTTONS     5
+  typedef struct
+  {
+    dword                 NrButtons;
+    dword                 CurrentButton;
+    char                  Button[MAXMBBUTTONS][STDSTRINGSIZE];
+    char                  Title[STDSTRINGSIZE];
+    char                  Text[STDSTRINGSIZE];
+  //  tFontData            *FontColorPickerTitle;
+  //  tFontData            *FontColorPickerCursor;
+  } tMessageBox;
 
+  extern tMessageBox      MessageBox;
+  bool                    MessageBoxAllowScrollOver = FALSE;
+
+  void  OSDMenuMessageBoxAllowScrollOver()
+  {
+    MessageBoxAllowScrollOver = TRUE;
+  }
+
+  void OSDMenuMessageBoxDoScrollOver(word *event, dword *param1)
+  {
+    if(MessageBoxAllowScrollOver && MessageBox.NrButtons == 2)
+    {
+      if ((*event == EVT_KEY) && (*param1 == RKEY_Left))
+      {
+        if(MessageBox.CurrentButton == 0)
+          *param1 = RKEY_Right;
+      }
+      if ((*event == EVT_KEY) && (*param1 == RKEY_Right))
+      {  
+        if(MessageBox.CurrentButton >= (MessageBox.NrButtons - 1))
+          *param1 = RKEY_Left;
+      }
+    }
+  }
 
   extern word ProgressBarOSDRgn;
   extern word ProgressBarFullRgn;
@@ -108,6 +142,8 @@
     OSDMenuInfoBoxDestroyNoOSDUpdate();
     ProgressBarLastValue =  0xfff;
   }
+
+  void  OSDMenuFreeStdFonts(void) {}
 
 
   inline dword FIS_vTempRecSlot(void)
