@@ -8,6 +8,7 @@
 #include                <stdlib.h>
 #include                <string.h>
 #include                <unistd.h>
+#include                <utime.h>
 #include                <tap.h>
 #include                <libFireBird.h>
 #include                "CWTapApiLib.h"
@@ -84,6 +85,57 @@ bool HDD_GetFileSizeAndInode2(const char *FileName, const char *Directory, __ino
   TRACEEXIT();
   return ret;
 }
+
+long64 HDD_GetFileSize_ALT(char const *FileName)
+{
+  TYPE_File            *f = NULL;
+  long64                FileSize;
+
+  TRACEENTER();
+
+  f = TAP_Hdd_Fopen(FileName);
+  if(!f)
+  {
+    TRACEEXIT();
+    return -1;
+  }
+  FileSize = f->size;
+  TAP_Hdd_Fclose(f);
+
+  TRACEEXIT();
+  return FileSize;
+}
+
+bool HDD_SetFileDateTime(char const *FileName, char const *Directory, dword NewDateTime)
+{
+  char                  AbsFileName[FBLIB_DIR_SIZE];
+  tstat64               statbuf;
+  int                   status;
+  struct utimbuf        utimebuf;
+
+  TRACEENTER();
+
+  TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s%s/%s", TAPFSROOT, Directory, FileName);
+  if((status = lstat64(AbsFileName, &statbuf)))
+  {
+    TRACEEXIT();
+    return FALSE;
+  }
+
+  if(NewDateTime > 0xd0790000)
+  {
+    utimebuf.actime = statbuf.st_atime;
+    utimebuf.modtime = TF2UnixTime(NewDateTime);
+    utime(AbsFileName, &utimebuf);
+
+    TRACEEXIT();
+    return TRUE;
+  }
+
+  TRACEEXIT();
+  return FALSE;
+}
+
 
 bool HDD_StartPlayback2(char *FileName, const char *Directory)
 {
@@ -164,9 +216,9 @@ bool PlaybackRepeatGet()
 
 bool HDD_GetDeviceNode(const char *Path, char *const OutDeviceNode)  // max. 20 Zeichen (inkl. Nullchar) in OutDeviceNode
 {
-  static char           LastMountPoint[FBLIB_DIR_SIZE], LastDeviceNode[20];
+  static char           LastMountPoint[MAX_FILE_NAME_SIZE+1], LastDeviceNode[20];
   static bool           LastMountSet = FALSE;
-  char                  MountPoint[FBLIB_DIR_SIZE], Zeile[512];
+  char                  MountPoint[MAX_FILE_NAME_SIZE+1], Zeile[512];
   char                 *p = NULL, *p2 = NULL;
   FILE                 *fMntStream;
   int                   i;
@@ -218,13 +270,28 @@ bool HDD_GetDeviceNode(const char *Path, char *const OutDeviceNode)  // max. 20 
     fMntStream = fopen("/proc/mounts", "r");
     if(fMntStream)
     {
-      p = 0;
+      char rdDeviceNode[20], rdMountPoint[128];
+      while (fgets(Zeile, sizeof(Zeile), fMntStream))
+      {
+        if (sscanf(Zeile, "%s19 %s127", rdDeviceNode, rdMountPoint) == 2)
+        {
+          if (strncmp(rdMountPoint, MountPoint, strlen(MountPoint)) == 0)
+          {
+            TAP_SPrint(OutDeviceNode, 20, rdDeviceNode);
+            TAP_SPrint(LastMountPoint, sizeof(LastMountPoint), MountPoint);
+            TAP_SPrint(LastDeviceNode, sizeof(LastDeviceNode), rdDeviceNode);
+            LastMountSet = TRUE;
+            break;
+          }
+        }
+      }
+/*      p = NULL;
       while (fgets(Zeile, sizeof(Zeile), fMntStream))
       {
         p = strchr(Zeile, ' ');
         if (p && *(p+1))
           if (strncmp((p+1), MountPoint, strlen(MountPoint)) == 0) break;
-        p = 0;
+        p = NULL;
       }
       fclose(fMntStream);
 
@@ -233,9 +300,9 @@ bool HDD_GetDeviceNode(const char *Path, char *const OutDeviceNode)  // max. 20 
         *p = '\0';
         TAP_SPrint(OutDeviceNode, 20, Zeile);
       }
-      TAP_SPrint(LastMountPoint, sizeof(LastMountPoint), "%s", MountPoint);
+      TAP_SPrint(LastMountPoint, sizeof(LastMountPoint), MountPoint);
       TAP_SPrint(LastDeviceNode, sizeof(LastDeviceNode), OutDeviceNode);
-      LastMountSet = TRUE;
+      LastMountSet = TRUE;  */
     }
     else
     {
@@ -248,6 +315,76 @@ bool HDD_GetDeviceNode(const char *Path, char *const OutDeviceNode)  // max. 20 
   TRACEEXIT();
   return TRUE;
 }
+
+bool HDD_GetMountPointFromDevice(const char *DeviceNode, char *const OutMountPoint)  // max. MAX_FILE_NAME_SIZE+1 Zeichen (inkl. Nullchar) in OutMountPoint
+{
+  static char           LastDeviceNode[20], LastMountPoint[MAX_FILE_NAME_SIZE + 1];
+  static bool           LastDeviceSet = FALSE;
+  char                  Zeile[512];
+//  char                 *p = NULL;
+  FILE                 *fMntStream;
+
+  TRACEENTER();
+  TAP_PrintNet("DeviceNode: '%s'", DeviceNode);
+
+  // Abkürzung
+  if (LastDeviceSet && (strcmp(DeviceNode, LastDeviceNode) == 0))
+    TAP_SPrint(OutMountPoint, MAX_FILE_NAME_SIZE + 1, LastMountPoint);
+  else
+  {
+    // Rückgabewert initialisieren, falls es fehlschlägt
+    TAP_SPrint(OutMountPoint, MAX_FILE_NAME_SIZE + 1, "/mnt/hd");
+
+    // MountPoint aus der Mount-Tabelle auslesen
+    fMntStream = fopen("/proc/mounts", "r");
+    if(fMntStream)
+    {
+      char rdDeviceNode[20], rdMountPoint[512];
+      while (fgets(Zeile, sizeof(Zeile), fMntStream))
+      {
+        if (sscanf(Zeile, "%s19 %s511", rdDeviceNode, rdMountPoint) == 2)
+        {
+          if (strncmp(rdDeviceNode, DeviceNode, strlen(DeviceNode)) == 0)
+          {
+            TAP_SPrint(OutMountPoint, MAX_FILE_NAME_SIZE+1, rdMountPoint);
+            TAP_SPrint(LastDeviceNode, sizeof(LastDeviceNode), DeviceNode);
+            TAP_SPrint(LastMountPoint, sizeof(LastMountPoint), rdMountPoint);
+            LastDeviceSet = TRUE;
+            break;
+          }
+        }
+      }
+/*      p = NULL;
+      while (fgets(Zeile, sizeof(Zeile), fMntStream))
+      {
+        p = strtok(Zeile, " ");
+        if ((p) && (strncmp(p, DeviceNode, 20) == 0))
+        {
+          p = strtok(NULL, " \n");
+          break;
+        }
+        p = NULL;
+      }
+      fclose(fMntStream);
+
+      if (p)
+        TAP_SPrint(OutMountPoint, MAX_FILE_NAME_SIZE + 1, p);
+      TAP_SPrint(LastDeviceNode, sizeof(LastDeviceNode), DeviceNode);
+      TAP_SPrint(LastMountPoint, sizeof(LastMountPoint), OutMountPoint);
+      LastDeviceSet = TRUE;  */
+    }
+    else
+    {
+      TRACEEXIT();
+      return FALSE;
+    }
+  }
+  TAP_PrintNet(" -> MountPoint: '%s'\n", OutMountPoint);
+
+  TRACEEXIT();
+  return TRUE;
+}
+
 
 char* RemoveEndLineBreak (char *const Text)
 {

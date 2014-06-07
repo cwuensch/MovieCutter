@@ -8,7 +8,6 @@
 #include                <stdlib.h>
 #include                <string.h>
 #include                <unistd.h>
-#include                <utime.h>
 #include                <stdarg.h>
 #include                <tap.h>
 #include                <libFireBird.h>
@@ -27,6 +26,7 @@ bool        PatchInfFiles(char const *SourceFileName, char const *CutFileName, c
 bool        PatchNavFiles(char const *SourceFileName, char const *CutFileName, char const *Directory, off_t CutStartPos, off_t BehindCutPos, bool isHD, dword *const OutCutStartTime, dword *const OutBehindCutTime, dword *const OutSourcePlayTime);
 
 static int              PACKETSIZE = 192;
+static int              SYNCBYTEPOS = 4;
 static int              CUTPOINTSEARCHRADIUS = 9024;
 static int              CUTPOINTSECTORRADIUS = 2;
 static char             LogString[512];
@@ -314,9 +314,9 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *Directory
     {
       GuessedCutStartPos = ((ReqCutStartPos >> 12) << 12) - (i * 4096);
 //      if (GuessedCutStartPos % 192 == 0) break;
-      if (CutPointArea1[(int)(GuessedCutStartPos - ReqCutStartPos) + CUTPOINTSEARCHRADIUS + 4] == 'G') break;
+      if (CutPointArea1[(int)(GuessedCutStartPos - ReqCutStartPos) + CUTPOINTSEARCHRADIUS + SYNCBYTEPOS] == 'G') break;
       GuessedCutStartPos = ((ReqCutStartPos >> 12) << 12) + ((i+1) * 4096);
-      if (CutPointArea1[(int)(GuessedCutStartPos - ReqCutStartPos) + CUTPOINTSEARCHRADIUS + 4] == 'G')
+      if (CutPointArea1[(int)(GuessedCutStartPos - ReqCutStartPos) + CUTPOINTSEARCHRADIUS + SYNCBYTEPOS] == 'G')
         break;
       else
         GuessedCutStartPos = 0;
@@ -324,9 +324,9 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *Directory
     for (i = 0; i < CUTPOINTSECTORRADIUS; i++)
     {
       GuessedBehindCutPos = ((ReqBehindCutPos >> 12) << 12) - (i * 4096);
-      if (CutPointArea2[(int)(GuessedBehindCutPos - ReqBehindCutPos) + CUTPOINTSEARCHRADIUS + 4] == 'G') break;
+      if (CutPointArea2[(int)(GuessedBehindCutPos - ReqBehindCutPos) + CUTPOINTSEARCHRADIUS + SYNCBYTEPOS] == 'G') break;
       GuessedBehindCutPos = ((ReqBehindCutPos >> 12) << 12) + ((i+1) * 4096);
-      if (CutPointArea2[(int)(GuessedBehindCutPos - ReqBehindCutPos) + CUTPOINTSEARCHRADIUS + 4] == 'G')
+      if (CutPointArea2[(int)(GuessedBehindCutPos - ReqBehindCutPos) + CUTPOINTSEARCHRADIUS + SYNCBYTEPOS] == 'G')
         break;
       else
         GuessedBehindCutPos = 0;
@@ -389,19 +389,31 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *Directory
   // Fix the date info of all involved files
   if (GetRecDateFromInf(SourceFileName, Directory, &RecDate)) {
     //Source
-    HDD_SetFileDateTime(SourceFileName, Directory, RecDate);
+    LogString[0] = '\0';
+    if (!HDD_SetFileDateTime(SourceFileName, Directory, RecDate))
+      TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "HDD_SetFileDateTime(%s) failed. ", SourceFileName);
     TAP_SPrint(FileName, sizeof(FileName), "%s.inf", SourceFileName);
-    HDD_SetFileDateTime(FileName, Directory, RecDate);
+    if (!HDD_SetFileDateTime(FileName, Directory, RecDate))
+      TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "HDD_SetFileDateTime(%s) failed. ", FileName);
     TAP_SPrint(FileName, sizeof(FileName), "%s.nav", SourceFileName);
-    HDD_SetFileDateTime(FileName, Directory, RecDate);
+    if (!HDD_SetFileDateTime(FileName, Directory, RecDate))
+      TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "HDD_SetFileDateTime(%s) failed. ", FileName);
+    if(LogString[0])
+      WriteLogMC("MovieCutterLib", LogString);
   }
   if (GetRecDateFromInf(CutFileName, Directory, &RecDate)) {
     //Cut
-    HDD_SetFileDateTime(CutFileName, Directory, RecDate);
+    LogString[0] = '\0';
+    if (!HDD_SetFileDateTime(CutFileName, Directory, RecDate))
+      TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "HDD_SetFileDateTime(%s) failed. ", CutFileName);
     TAP_SPrint(FileName, sizeof(FileName), "%s.inf", CutFileName);
-    HDD_SetFileDateTime(FileName, Directory, RecDate);
+    if (!HDD_SetFileDateTime(FileName, Directory, RecDate))
+      TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "HDD_SetFileDateTime(%s) failed. ", FileName);
     TAP_SPrint(FileName, sizeof(FileName), "%s.nav", CutFileName);
-    HDD_SetFileDateTime(FileName, Directory, RecDate);
+    if (!HDD_SetFileDateTime(FileName, Directory, RecDate))
+      TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "HDD_SetFileDateTime(%s) failed. ", FileName);
+    if(LogString[0])
+      WriteLogMC("MovieCutterLib", LogString);
   }
 //  if(!KeepSource) HDD_Delete2(SourceFileName, Directory, TRUE);
   if(!KeepCut)
@@ -494,66 +506,6 @@ bool FileCut(char *SourceFileName, char *CutFileName, char const *Directory, dwo
 
 
 // ----------------------------------------------------------------------------
-//                         Dateisystem-Funktionen
-// ----------------------------------------------------------------------------
-long64 HDD_GetFileSize(char const *FileName)
-{
-  TYPE_File            *f = NULL;
-  long64                FileSize;
-
-  TRACEENTER();
-
-  f = TAP_Hdd_Fopen(FileName);
-  if(!f)
-  {
-    WriteLogMC("MovieCutterLib", "HDD_GetFileSize(): E0d01");
-    TRACEEXIT();
-    return -1;
-  }
-  FileSize = f->size;
-  TAP_Hdd_Fclose(f);
-
-  TRACEEXIT();
-  return FileSize;
-}
-
-bool HDD_SetFileDateTime(char const *FileName, char const *Directory, dword NewDateTime)
-{
-  char                  AbsFileName[FBLIB_DIR_SIZE];
-  tstat64               statbuf;
-  int                   status;
-  struct utimbuf        utimebuf;
-
-  TRACEENTER();
-
-  TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s%s/%s", TAPFSROOT, Directory, FileName);
-  if((status = lstat64(AbsFileName, &statbuf)))
-  {
-    TAP_SPrint(LogString, sizeof(LogString), "HDD_SetFileDateTime(%s) E0a01.", AbsFileName);
-    WriteLogMC("MovieCutterLib", LogString);
-    TRACEEXIT();
-    return FALSE;
-  }
-
-  if(NewDateTime > 0xd0790000)
-  {
-    utimebuf.actime = statbuf.st_atime;
-    utimebuf.modtime = TF2UnixTime(NewDateTime);
-    utime(AbsFileName, &utimebuf);
-
-    TRACEEXIT();
-    return TRUE;
-  }
-
-  TAP_SPrint(LogString, sizeof(LogString), "HDD_SetFileDateTime(%s) E0a02.", AbsFileName);
-  WriteLogMC("MovieCutterLib", LogString);
-
-  TRACEEXIT();
-  return FALSE;
-}
-
-
-// ----------------------------------------------------------------------------
 //                         Analyse von REC-Files
 // ----------------------------------------------------------------------------
 int DetectPacketSize(char const *SourceFileName)
@@ -563,12 +515,14 @@ int DetectPacketSize(char const *SourceFileName)
   if (strncmp(&SourceFileName[strlen(SourceFileName) - 4], ".mpg", 4) == 0)
   {
     PACKETSIZE = 188;
+    SYNCBYTEPOS = 4;   // komisch, aber ist tatsächlich so!!!
     CUTPOINTSEARCHRADIUS = 99264;
     CUTPOINTSECTORRADIUS = CUTPOINTSEARCHRADIUS/4096;  // 24
   }
   else
   {
     PACKETSIZE = 192;
+    SYNCBYTEPOS = 4;
     CUTPOINTSEARCHRADIUS = 9024;
     CUTPOINTSECTORRADIUS = CUTPOINTSEARCHRADIUS/4096;  // 2
   }
@@ -755,15 +709,15 @@ bool PatchRecFile(char const *SourceFileName, char const *Directory, off_t Reque
     ArrayPos = (int)(pos-RequestedCutPosition);
 
     // Check, if the current position is a sync-byte
-    if ((MidArray[ArrayPos+4] == 'G'))
+    if ((MidArray[ArrayPos+SYNCBYTEPOS] == 'G'))
     {
       // Check, if the current position is a packet start (192 bytes per packet)
       isPacketStart = TRUE;
       for (j = 0; j < 10; j++)
       {
-        if (ArrayPos+4 + (j * PACKETSIZE) >= CUTPOINTSEARCHRADIUS)
+        if (ArrayPos+SYNCBYTEPOS + (j * PACKETSIZE) >= CUTPOINTSEARCHRADIUS)
           break;
-        if (MidArray[ArrayPos+4 + (j * PACKETSIZE)] != 'G')
+        if (MidArray[ArrayPos+SYNCBYTEPOS + (j * PACKETSIZE)] != 'G')
         {
           isPacketStart = FALSE;
           break;
@@ -773,11 +727,11 @@ bool PatchRecFile(char const *SourceFileName, char const *Directory, off_t Reque
       // If there IS a sync-Byte, but NOT a packet start, then patch this byte
       if (!isPacketStart)
       {
-        if (WriteByteToFile(SourceFileName, Directory, pos+4, 'G', 'F'))
+        if (WriteByteToFile(SourceFileName, Directory, pos+SYNCBYTEPOS, 'G', 'F'))
         {
-          OutPatchedBytes[i + (CUTPOINTSECTORRADIUS-1)] = pos+4;
-          MidArray[ArrayPos+4] = 'F';       // ACHTUNG! Nötig, damit die neue Schätzung der CutPosition korrekt funktioniert.
-        }                                   // Könnte aber ein Problem geben bei der (alten) CutPoint-Identifikation (denn hier wird der noch ungepatchte Wert aus dem Cache gelesen)!
+          OutPatchedBytes[i + (CUTPOINTSECTORRADIUS-1)] = pos+SYNCBYTEPOS;
+          MidArray[ArrayPos+SYNCBYTEPOS] = 'F';   // ACHTUNG! Nötig, damit die neue Schätzung der CutPosition korrekt funktioniert.
+        }                                         // Könnte aber ein Problem geben bei der (alten) CutPoint-Identifikation (denn hier wird der noch ungepatchte Wert aus dem Cache gelesen)!
         else
           ret = FALSE;
       }
