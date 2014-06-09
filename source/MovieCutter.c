@@ -3367,7 +3367,7 @@ void OSDInfoDrawRecName(void)
     // Dateiname in neuen String kopieren und .rec entfernen
     strncpy(TitleStr, PlaybackName, sizeof(TitleStr));
     #ifdef Calibri_10_FontDataUC
-      StrToISO(PlaybackName, TitleStr);
+      if(isUTFToppy()) StrToISO(PlaybackName, TitleStr);
     #endif
     TitleStr[MAX_FILE_NAME_SIZE] = '\0';
 //    NameStr[strlen(NameStr) - 4] = '\0';

@@ -654,6 +654,13 @@ bool WriteByteToFile(char const *FileName, char const *Directory, off_t BytePosi
 
   // Check, if the old value is correct
   char old = (char)fgetc(f);
+#ifdef FULLDEBUG
+  if (NewValue == 'G')
+  {
+    TAP_SPrint(LogString, sizeof(LogString), "UnpatchRecFile(): value read from cache: '%c' (expected 'F').", old);
+    WriteLogMC("MovieCutterLib", LogString);
+  }
+#endif
   if ((old != OldValue) && (old != 'G'))
   {
     fclose(f);
