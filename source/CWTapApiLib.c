@@ -270,10 +270,10 @@ bool HDD_GetDeviceNode(const char *Path, char *const OutDeviceNode)  // max. 20 
     fMntStream = fopen("/proc/mounts", "r");
     if(fMntStream)
     {
-      char rdDeviceNode[20], rdMountPoint[128];
+      char rdDeviceNode[20], rdMountPoint[512];
       while (fgets(Zeile, sizeof(Zeile), fMntStream))
       {
-        if (sscanf(Zeile, "%s19 %s127", rdDeviceNode, rdMountPoint) == 2)
+        if (sscanf(Zeile, "%s19 %[^\n]511", rdDeviceNode, rdMountPoint) == 2)
         {
           if (strncmp(rdMountPoint, MountPoint, strlen(MountPoint)) == 0)
           {
@@ -339,10 +339,10 @@ bool HDD_GetMountPointFromDevice(const char *DeviceNode, char *const OutMountPoi
     fMntStream = fopen("/proc/mounts", "r");
     if(fMntStream)
     {
-      char rdDeviceNode[20], rdMountPoint[512];
+      char rdDeviceNode[20], rdMountPoint[MAX_FILE_NAME_SIZE + 1];
       while (fgets(Zeile, sizeof(Zeile), fMntStream))
       {
-        if (sscanf(Zeile, "%s19 %s511", rdDeviceNode, rdMountPoint) == 2)
+        if (sscanf(Zeile, "%s19 %s127", rdDeviceNode, rdMountPoint) == 2)
         {
           if (strncmp(rdDeviceNode, DeviceNode, strlen(DeviceNode)) == 0)
           {
