@@ -523,10 +523,13 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   {
     if (OSDMenuMessageBoxIsVisible()) OSDMenuMessageBoxDestroy();
 
-    FixInodeList(TRUE);    
+    DumpInodeFixingList("/mnt/hd/FixInodes.lst");
+    DumpInodeFixingList("/tmp/FixInodes.tmp");
+    DumpInodeFixingList("/tmp/FixInodes.new");
+//    HDD_FixInodeList(((PlaybackDir && PlaybackDir[0]) ? PlaybackDir : TAPFSROOT), TRUE);    
     
-////    TAP_EnterNormal();
-//    State = ST_Exit;
+//    TAP_EnterNormal();
+    State = ST_Exit;
     param1 = 0;
   }
 
@@ -561,7 +564,7 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
 
       // Fix list of defect inodes
       if (HDD_Exist2("jfs_fsck", "/ProgramFiles")) system("chmod a+x /mnt/hd/ProgramFiles/jfs_fsck &");
-      HDD_FixInodeList("/dev/sda2", TRUE);  // Problem: NUR für die interne HDD wird die Liste jemals zurückgesetzt!
+      HDD_FixInodeList(TAPFSROOT, TRUE);  // Problem: NUR für die interne HDD wird die Liste jemals zurückgesetzt!
 
       CleanupCut();
 
@@ -845,7 +848,7 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
       if (!isPlaybackRunning() || (LastTotalBlocks == 0) || (LastTotalBlocks != PlayInfo.totalBlock))
       {
         Cleanup(FALSE);
-        FixInodeList(FALSE);
+        HDD_FixInodeList(PlaybackDir, FALSE);
         State = (AutoOSDPolicy) ? ST_WaitForPlayback : ST_InactiveMode;
         break;
       }
@@ -911,7 +914,7 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
           CutFileSave();
         }
         Cleanup(TRUE);
-        FixInodeList(FALSE);
+        HDD_FixInodeList(PlaybackDir, FALSE);
         State = AutoOSDPolicy ? ST_WaitForPlayback : ST_InactiveMode;
         break;
       }
@@ -1513,7 +1516,7 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
       }
       PlaybackRepeatSet(OldRepeatMode);
       Cleanup(TRUE);
-      FixInodeList(TRUE);
+      HDD_FixInodeList(((PlaybackDir && PlaybackDir[0]) ? PlaybackDir : TAPFSROOT), TRUE);    
       TAP_MemFree(UndoStack);
       TAP_MemFree(Bookmarks);
       TAP_MemFree(SegmentMarker);
@@ -4730,7 +4733,7 @@ void MovieCutterProcess(bool KeepCut)
   CurPlayPosition = PlayInfo.currentBlock;
 
 // Aufnahmenfresser-Test und Ausgabe
-HDD_GetDeviceNode(PlaybackDir, DeviceNode);
+HDD_FindMountPointDev2(PlaybackDir, NULL, DeviceNode);
 //TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,rw,integrity %s", DeviceNode);
 //system(CommandLine);
 WriteDebugLog("======================\n");
@@ -5167,25 +5170,10 @@ void CheckLastSeconds(void)
 // ----------------------------------------------------------------------------
 //                           System-Funktionen
 // ----------------------------------------------------------------------------
-bool FixInodeList(bool DeleteOldEntries)
-{
-  char DeviceNode[20];
-  bool ret;
-  TRACEENTER();
-
-  if (PlaybackDir && PlaybackDir[0])
-    HDD_GetDeviceNode(PlaybackDir, DeviceNode);
-  else
-    TAP_SPrint(DeviceNode, sizeof(DeviceNode), "/dev/sda2");
-  ret = HDD_FixInodeList(DeviceNode, DeleteOldEntries);
-
-  TRACEEXIT();
-  return ret;
-}
-   
 bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, bool DoFix, bool Quick, int SuspectFiles)
 {
-  char                  ErrorStrFmt[512], DeviceNode[20];
+  char                  ErrorStrFmt[512];
+  char                 *MountPath = NULL;
   dword                 OldSysState, OldSysSubState;
   bool                  ret = FALSE;
   
@@ -5196,19 +5184,14 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
   OSDMenuSaveMyRegion(rgnSegmentList);
   HDDCheck_InitProgBar(ProgressStart, ProgressEnd, ProgressMax, rgnSegmentList, LangGetString(LS_Warning), LangGetString(LS_MoreErrorsFound), LangGetString(LS_CheckingFileSystem));
 
-  // DeviceNode ermitteln
-  if (PlaybackDir && PlaybackDir[0])
-    HDD_GetDeviceNode(PlaybackDir, DeviceNode);
-  else
-    TAP_SPrint(DeviceNode, sizeof(DeviceNode), "/dev/sda2");
-
   // Suspekte Dateien in den ErrorString einsetzen
 //  TAP_SPrint(ErrorStrFmt, sizeof(ErrorStrFmt), "Suspekt: %d", SuspectFiles);
 //  strncat(ErrorStrFmt, LangGetString(LS_CheckFSFailed), sizeof(ErrorStrFmt) - strlen(ErrorStrFmt) - 1);
 //  ErrorStrFmt[sizeof(ErrorStrFmt) - 1] = '\0';
   TAP_SPrint(ErrorStrFmt, sizeof(ErrorStrFmt), LangGetString(LS_CheckFSFailed), SuspectFiles);
 
-  ret = HDD_CheckFileSystem(DeviceNode, NULL, &ShowErrorMessage, TRUE, Quick, LangGetString(LS_CheckFSSuccess), ErrorStrFmt, LangGetString(LS_CheckFSAborted));
+  MountPath = (PlaybackDir && PlaybackDir[0]) ? PlaybackDir : TAPFSROOT;
+  ret = HDD_CheckFileSystem(MountPath, NULL, &ShowErrorMessage, TRUE, Quick, LangGetString(LS_CheckFSSuccess), ErrorStrFmt, LangGetString(LS_CheckFSAborted));
 
   // Prüfen, ob das Playback wieder gestartet wurde
   if (DoFix && (OldSysSubState == 0) && (LastTotalBlocks > 0) && (RecFileSize > 0))

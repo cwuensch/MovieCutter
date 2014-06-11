@@ -18,11 +18,9 @@ void   HDD_Rename2(const char *FileName, const char *NewFileName, const char *Di
 void   HDD_Delete2(const char *FileName, const char *Directory, bool DeleteInfNav);
 bool   HDD_Exist2(char *FileName, const char *Directory);
 bool   HDD_GetFileSizeAndInode2(const char *FileName, const char *Directory, __ino64_t *OutCInode, __off64_t *OutFileSize);
-long64 HDD_GetFileSize_ALT(char const *FileName);
 bool   HDD_SetFileDateTime(char const *FileName, char const *Directory, dword NewDateTime);
 bool   HDD_StartPlayback2(char *FileName, const char *Directory);
-bool   HDD_GetDeviceNode(const char *Path, char *const OutDeviceNode);
-bool   HDD_GetMountPointFromDevice(const char *DeviceNode, char *const OutMountPoint);
+bool   HDD_FindMountPointDev2(const char *Path, char *const OutMountPoint, char *const OutDeviceNode);  // OutDeviceNode: max. 20 Zeichen, OutMountPoint: max. FILE_NAME_SIZE+1 (inkl. Nullchar)
 //TYPE_RepeatMode PlaybackRepeatMode(bool ChangeMode, TYPE_RepeatMode RepeatMode, dword RepeatStartBlock, dword RepeatEndBlock);
 bool   PlaybackRepeatSet(bool EnableRepeatAll);
 bool   PlaybackRepeatGet();

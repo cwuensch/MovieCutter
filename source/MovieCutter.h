@@ -46,7 +46,6 @@ void  DeleteAllSegmentMarkers(void);
 void  ExportSegmentsToBookmarks(void);
 int   FindNearestBookmark(dword curBlock);
 int   FindNearestSegmentMarker(dword curBlock);
-bool  FixInodeList(bool DeleteOldEntries);
 void  ImportBookmarksToSegments(void);
 bool  isPlaybackRunning(void);
 void  LoadINI(void);

@@ -9,6 +9,7 @@
 #include                <string.h>
 #include                <unistd.h>
 #include                <utime.h>
+#include                <mntent.h>
 #include                <tap.h>
 #include                <libFireBird.h>
 #include                "CWTapApiLib.h"
@@ -86,25 +87,6 @@ bool HDD_GetFileSizeAndInode2(const char *FileName, const char *Directory, __ino
   return ret;
 }
 
-long64 HDD_GetFileSize_ALT(char const *FileName)
-{
-  TYPE_File            *f = NULL;
-  long64                FileSize;
-
-  TRACEENTER();
-
-  f = TAP_Hdd_Fopen(FileName);
-  if(!f)
-  {
-    TRACEEXIT();
-    return -1;
-  }
-  FileSize = f->size;
-  TAP_Hdd_Fclose(f);
-
-  TRACEEXIT();
-  return FileSize;
-}
 
 bool HDD_SetFileDateTime(char const *FileName, char const *Directory, dword NewDateTime)
 {
@@ -214,175 +196,55 @@ bool PlaybackRepeatGet()
 }
 
 
-bool HDD_GetDeviceNode(const char *Path, char *const OutDeviceNode)  // max. 20 Zeichen (inkl. Nullchar) in OutDeviceNode
+bool HDD_FindMountPointDev2(const char *Path, char *const OutMountPoint, char *const OutDeviceNode)  // OutDeviceNode: max. 20 Zeichen, OutMountPoint: max. FILE_NAME_SIZE+1 (inkl. Nullchar)
 {
-  static char           LastMountPoint[MAX_FILE_NAME_SIZE+1], LastDeviceNode[20];
-  static bool           LastMountSet = FALSE;
-  char                  MountPoint[MAX_FILE_NAME_SIZE+1], Zeile[512];
-  char                 *p = NULL, *p2 = NULL;
-  FILE                 *fMntStream;
-  int                   i;
+  char                  AbsPath[FBLIB_DIR_SIZE], MountPoint[MAX_FILE_NAME_SIZE+1], DeviceNode[20];
+  FILE                 *aFile;
+  struct mntent        *ent;
 
   TRACEENTER();
 
   // Falls Pfad mit '/..' beginnt, Rückschritt entfernen und durch '/mnt' ersetzen
   if (strncmp(Path, "/../", 4) == 0)
-  {
-    TAP_SPrint(MountPoint, sizeof(MountPoint), "/mnt%s/", &Path[3]);
-    // wähle die ersten 2 Pfadebenen (/mnt/sdb2)
-    i = 2;
-  }
+    TAP_SPrint(AbsPath, sizeof(AbsPath), "/mnt%s", &Path[3]);
   else
   {
     // Falls Pfad nicht absolut ist, /mnt/hd davorsetzen und Slash anhängen
     if (strncmp(Path, "/mnt/", 5) == 0)
-      TAP_SPrint(MountPoint, sizeof(MountPoint), "%s/", Path);
+      TAP_SPrint(AbsPath, sizeof(AbsPath), "%s", Path);
     else
-      TAP_SPrint(MountPoint, sizeof(MountPoint), "%s%s/", TAPFSROOT, Path);
-    // wähle die ersten 4 Pfadebenen (/mnt/hd/DataFiles/WD)
-    i = 4;
+      TAP_SPrint(AbsPath, sizeof(AbsPath), "%s%s", TAPFSROOT, Path);
   }
 
-  // Mount-Point aus dem Pfad extrahieren
-  p = MountPoint;
-  p2 = NULL;
-  while ((p) && (i > 0))
+  MountPoint[0] = '\0';
+  DeviceNode[0] = '\0';
+  aFile = setmntent("/proc/mounts", "r");
+  if(aFile != NULL)
   {
-    p = strchr((p+1), '/');
-    if (i == 3) p2 = p;  // (nur) beim zweiten Durchlauf p2 festlegen
-    i--;
-  }
-  if(p)
-    MountPoint[p - MountPoint] = '\0';
-  else if(p2)
-    MountPoint[p2 - MountPoint] = '\0';
-  TAP_PrintNet("MountPoint: '%s'", MountPoint);
-
-  // Abkürzung
-  if (LastMountSet && (strcmp(MountPoint, LastMountPoint) == 0))
-    TAP_SPrint(OutDeviceNode, 20, LastDeviceNode);
-  else
-  {
-    // Rückgabewert initialisieren, falls es fehlschlägt
-    TAP_SPrint(OutDeviceNode, 20, "/dev/sda2");
-
-    // Device-Node aus der Mount-Tabelle auslesen
-    fMntStream = fopen("/proc/mounts", "r");
-    if(fMntStream)
+    while((ent = getmntent(aFile)) != NULL)
     {
-      char rdDeviceNode[20], rdMountPoint[512];
-      while (fgets(Zeile, sizeof(Zeile), fMntStream))
+      if(strncmp(AbsPath, ent->mnt_dir, strlen(ent->mnt_dir)) == 0)
       {
-        if (sscanf(Zeile, "%s19 %[^\n]511", rdDeviceNode, rdMountPoint) == 2)
+        if(strlen(ent->mnt_dir) > strlen(MountPoint))
         {
-          if (strncmp(rdMountPoint, MountPoint, strlen(MountPoint)) == 0)
-          {
-            TAP_SPrint(OutDeviceNode, 20, rdDeviceNode);
-            TAP_SPrint(LastMountPoint, sizeof(LastMountPoint), MountPoint);
-            TAP_SPrint(LastDeviceNode, sizeof(LastDeviceNode), rdDeviceNode);
-            LastMountSet = TRUE;
-            break;
-          }
+          strncpy(MountPoint, ent->mnt_dir, sizeof(MountPoint));
+          MountPoint[sizeof(MountPoint) - 1] = '\0';
+          strncpy(DeviceNode, ent->mnt_fsname, sizeof(DeviceNode));
+          DeviceNode[sizeof(DeviceNode) - 1] = '\0';
         }
       }
-/*      p = NULL;
-      while (fgets(Zeile, sizeof(Zeile), fMntStream))
-      {
-        p = strchr(Zeile, ' ');
-        if (p && *(p+1))
-          if (strncmp((p+1), MountPoint, strlen(MountPoint)) == 0) break;
-        p = NULL;
-      }
-      fclose(fMntStream);
-
-      if (p)
-      {
-        *p = '\0';
-        TAP_SPrint(OutDeviceNode, 20, Zeile);
-      }
-      TAP_SPrint(LastMountPoint, sizeof(LastMountPoint), MountPoint);
-      TAP_SPrint(LastDeviceNode, sizeof(LastDeviceNode), OutDeviceNode);
-      LastMountSet = TRUE;  */
     }
-    else
-    {
-      TRACEEXIT();
-      return FALSE;
-    }
+    endmntent(aFile);
   }
-  TAP_PrintNet(" -> DeviceNode: '%s'\n", OutDeviceNode);
+
+  if(MountPoint[0] && (MountPoint[strlen(MountPoint) - 1] == '/')) MountPoint[strlen(MountPoint) - 1] = '\0';
+  if(DeviceNode[0] && (DeviceNode[strlen(DeviceNode) - 1] == '/')) DeviceNode[strlen(DeviceNode) - 1] = '\0';
+
+  if(OutMountPoint) strcpy(OutMountPoint, MountPoint);
+  if(OutDeviceNode) strcpy(OutDeviceNode, DeviceNode);
 
   TRACEEXIT();
-  return TRUE;
-}
-
-bool HDD_GetMountPointFromDevice(const char *DeviceNode, char *const OutMountPoint)  // max. MAX_FILE_NAME_SIZE+1 Zeichen (inkl. Nullchar) in OutMountPoint
-{
-  static char           LastDeviceNode[20], LastMountPoint[MAX_FILE_NAME_SIZE + 1];
-  static bool           LastDeviceSet = FALSE;
-  char                  Zeile[512];
-//  char                 *p = NULL;
-  FILE                 *fMntStream;
-
-  TRACEENTER();
-  TAP_PrintNet("DeviceNode: '%s'", DeviceNode);
-
-  // Abkürzung
-  if (LastDeviceSet && (strcmp(DeviceNode, LastDeviceNode) == 0))
-    TAP_SPrint(OutMountPoint, MAX_FILE_NAME_SIZE + 1, LastMountPoint);
-  else
-  {
-    // Rückgabewert initialisieren, falls es fehlschlägt
-    TAP_SPrint(OutMountPoint, MAX_FILE_NAME_SIZE + 1, "/mnt/hd");
-
-    // MountPoint aus der Mount-Tabelle auslesen
-    fMntStream = fopen("/proc/mounts", "r");
-    if(fMntStream)
-    {
-      char rdDeviceNode[20], rdMountPoint[MAX_FILE_NAME_SIZE + 1];
-      while (fgets(Zeile, sizeof(Zeile), fMntStream))
-      {
-        if (sscanf(Zeile, "%s19 %s127", rdDeviceNode, rdMountPoint) == 2)
-        {
-          if (strncmp(rdDeviceNode, DeviceNode, strlen(DeviceNode)) == 0)
-          {
-            TAP_SPrint(OutMountPoint, MAX_FILE_NAME_SIZE+1, rdMountPoint);
-            TAP_SPrint(LastDeviceNode, sizeof(LastDeviceNode), DeviceNode);
-            TAP_SPrint(LastMountPoint, sizeof(LastMountPoint), rdMountPoint);
-            LastDeviceSet = TRUE;
-            break;
-          }
-        }
-      }
-/*      p = NULL;
-      while (fgets(Zeile, sizeof(Zeile), fMntStream))
-      {
-        p = strtok(Zeile, " ");
-        if ((p) && (strncmp(p, DeviceNode, 20) == 0))
-        {
-          p = strtok(NULL, " \n");
-          break;
-        }
-        p = NULL;
-      }
-      fclose(fMntStream);
-
-      if (p)
-        TAP_SPrint(OutMountPoint, MAX_FILE_NAME_SIZE + 1, p);
-      TAP_SPrint(LastDeviceNode, sizeof(LastDeviceNode), DeviceNode);
-      TAP_SPrint(LastMountPoint, sizeof(LastMountPoint), OutMountPoint);
-      LastDeviceSet = TRUE;  */
-    }
-    else
-    {
-      TRACEEXIT();
-      return FALSE;
-    }
-  }
-  TAP_PrintNet(" -> MountPoint: '%s'\n", OutMountPoint);
-
-  TRACEEXIT();
-  return TRUE;
+  return (MountPoint[0] != '\0');
 }
 
 
