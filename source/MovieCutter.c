@@ -536,7 +536,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 // **** LÖSCHEN ****
 if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==ST_InactiveModePlaying || State==ST_InactiveMode || State==ST_WaitForPlayback || State==ST_UnacceptedFile) && !DisableSleepKey)
 {
-  CheckFileSystem(0, 1, 1, TRUE, TRUE, 0);
+  CheckFileSystem(0, 1, 1, TRUE, TRUE, FALSE, 0, NULL);
 }
 #endif
 
@@ -1453,7 +1453,7 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
                 case MI_DeleteFile:
                 {
                   if (!BookmarkMode)
-                    CheckFileSystem(0, 1, 1, TRUE, FALSE, 0);
+                    CheckFileSystem(0, 1, 1, TRUE, FALSE, FALSE, 0, NULL);
                   else
                     MovieCutterDeleteFile();
                   break;
@@ -4685,8 +4685,9 @@ void MovieCutterProcess(bool KeepCut)
   tTimeStamp            CutStartPoint, BehindCutPoint;
   dword                 DeltaBlock; //, DeltaTime;
   dword                 CurPlayPosition;
-  char                  DeviceNode[20], CommandLine[512];
-  int                   icheckErrors;
+  char                  DeviceNode[20], CommandLine[512], InodeNrs[768];
+  __ino64_t             InodeNr = 0;
+  unsigned int          icheckErrors = 0;
   int                   i, j;
   tResultCode           ret = RC_Error;
 
@@ -4750,8 +4751,9 @@ if(MountState)
 if (!HDD_CheckInode(PlaybackName, PlaybackDir, DeviceNode, FALSE, "Original")) icheckErrors++;
 WriteDebugLog("%d Schnittoperation(en) vorgesehen.", NrSelectedSegments);
 WriteDebugLog("---------------");
-icheckErrors = 0;
 
+  if (HDD_GetFileSizeAndInode2(PlaybackName, PlaybackDir, &InodeNr, NULL))
+    TAP_SPrint(InodeNrs, sizeof(InodeNrs), "%llu", InodeNr);
 
   for(i = NrSegmentMarker - 2; i >= 0 /*-1*/; i--)
   {
@@ -4842,16 +4844,19 @@ HDD_GetFileSizeAndInode2(InfFileName, PlaybackDir, &OldInodeNr, NULL);
       // Schnittoperation
       ret = MovieCutter(PlaybackName, ((CutEnding) ? TempFileName : CutFileName), PlaybackDir, &CutStartPoint, &BehindCutPoint, (TRUE || KeepCut || CutEnding), HDVideo);
 
+      if (HDD_GetFileSizeAndInode2(((CutEnding) ? TempFileName : CutFileName), PlaybackDir, &InodeNr, NULL))
+        TAP_SPrint(&InodeNrs[strlen(InodeNrs)], sizeof(InodeNrs)-strlen(InodeNrs), " %llu", InodeNr);
+
 // Aufnahmenfresser-Test und Ausgabe
 if (!HDD_CheckInode(((CutEnding) ? TempFileName : CutFileName), PlaybackDir, DeviceNode, DoiCheckFix, "CutFile"))
 {
   icheckErrors++;
-  HDD_CheckInode(((CutEnding) ? TempFileName : CutFileName), PlaybackDir, DeviceNode, DoiCheckFix, "CutFile");
+  HDD_CheckInode(((CutEnding) ? TempFileName : CutFileName), PlaybackDir, DeviceNode, FALSE, "CutFile");
 }
 if (!HDD_CheckInode(PlaybackName, PlaybackDir, DeviceNode, DoiCheckFix, "RestFile"))
 {
   icheckErrors++;
-  HDD_CheckInode(PlaybackName, PlaybackDir, DeviceNode, DoiCheckFix, "RestFile");
+  HDD_CheckInode(PlaybackName, PlaybackDir, DeviceNode, FALSE, "RestFile");
 }
 if (!KeepCut && !CutEnding)
   HDD_Delete2(CutFileName, PlaybackDir, TRUE);  // beim Löschen im MovieCutter-Aufruf das TRUE wieder rausnehmen
@@ -5060,10 +5065,11 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
       OSDMenuSaveMyRegion(rgnSegmentList);
       OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), maxProgress - 1, maxProgress, NULL);
     }  */
+TAP_PrintNet("Inodes checken: %s\n", InodeNrs);
     if (CheckFSAfterCut == 1)
-      CheckFileSystem(maxProgress-1, maxProgress, maxProgress, TRUE, TRUE, icheckErrors);
+      CheckFileSystem(maxProgress-1, maxProgress, maxProgress, TRUE, TRUE, TRUE, icheckErrors, InodeNrs);
     else
-      CheckFileSystem(0, 1, 1, TRUE, TRUE, icheckErrors);
+      CheckFileSystem(maxProgress, maxProgress, maxProgress, TRUE, TRUE, TRUE, icheckErrors, InodeNrs);
     if (CurPlayPosition > 0)
       TAP_Hdd_ChangePlaybackPos(CurPlayPosition);
   }
@@ -5170,7 +5176,7 @@ void CheckLastSeconds(void)
 // ----------------------------------------------------------------------------
 //                           System-Funktionen
 // ----------------------------------------------------------------------------
-bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, bool DoFix, bool Quick, int SuspectFiles)
+bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, bool DoFix, bool Quick, bool NoOkInfo, unsigned int SuspectFiles, char *InodeNrs)
 {
   char                  ErrorStrFmt[512];
   char                 *MountPath = NULL;
@@ -5191,7 +5197,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
   TAP_SPrint(ErrorStrFmt, sizeof(ErrorStrFmt), LangGetString(LS_CheckFSFailed), SuspectFiles);
 
   MountPath = (PlaybackDir && PlaybackDir[0]) ? PlaybackDir : TAPFSROOT;
-  ret = HDD_CheckFileSystem(MountPath, NULL, &ShowErrorMessage, TRUE, Quick, LangGetString(LS_CheckFSSuccess), ErrorStrFmt, LangGetString(LS_CheckFSAborted));
+  ret = HDD_CheckFileSystem(MountPath, NULL, &ShowErrorMessage, TRUE, Quick, NoOkInfo, InodeNrs, LangGetString(LS_CheckFSSuccess), ErrorStrFmt, LangGetString(LS_CheckFSAborted));
 
   // Prüfen, ob das Playback wieder gestartet wurde
   if (DoFix && (OldSysSubState == 0) && (LastTotalBlocks > 0) && (RecFileSize > 0))

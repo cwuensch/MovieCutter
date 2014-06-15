@@ -29,7 +29,7 @@ typedef enum
   RC_Error,
   RC_Warning,
   RC_Ok
-}tResultCode;
+} tResultCode;
 
 typedef struct
 {
