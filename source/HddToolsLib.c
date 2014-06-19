@@ -603,7 +603,7 @@ bool HDD_FixInodeList(const char *MountPath, bool DeleteOldEntries)
     WriteDebugLog(LastLine);
   }
   // Write result state to Logfile
-  if (!(ret == 0 || ret == 1 || ret == 2))  // NICHT: keine gefunden, alle ok oder alle gefixt
+  if (!(ret == rc_NOFILEFOUND || ret == rc_ALLFILESOKAY || ret == rc_ALLFILESFIXED))  // NICHT: keine gefunden, alle ok oder alle gefixt
   {
     TAP_SPrint(LogString, sizeof(LogString), "Error! jfs_icheck returned %d.", ret);
     WriteLogMC("HddToolsLib", LogString);
@@ -612,7 +612,7 @@ bool HDD_FixInodeList(const char *MountPath, bool DeleteOldEntries)
 DumpInodeFixingList(ListFile);
 
   TRACEEXIT();
-  return (ret == 0 || ret == 1 || ret == 2);  // keine gefunden, alle okay oder alle gefixt
+  return (ret == rc_NOFILEFOUND || ret == rc_ALLFILESOKAY || ret == rc_ALLFILESFIXED);  // keine gefunden, alle okay oder alle gefixt
 }
 
 // ----------------------------------------------------------------------------------------------------------
@@ -663,7 +663,7 @@ bool HDD_CheckInode(const char *FileName, const char *Directory, const char *Dev
     WriteDebugLog("%s:\t%s", Comment, LogString);
   }
   // Write result state to Logfile
-  if (!(ret == 1 || ret == 2 || (!DoFix && ret == 3)))  // NICHT: Datei ist ok, oder gefixt, oder sollte nicht gefixt werden
+  if (!(ret == rc_ALLFILESOKAY || ret == rc_ALLFILESFIXED || (!DoFix && ret == rc_SOMENOTFIXED)))  // NICHT: Datei ist ok, oder gefixt, oder sollte nicht gefixt werden
   {
     TAP_SPrint(LogString, sizeof(LogString), "Error! jfs_icheck returned %d.", ret);
     WriteLogMC("HddToolsLib", LogString);
@@ -671,5 +671,5 @@ bool HDD_CheckInode(const char *FileName, const char *Directory, const char *Dev
   }
 
   TRACEEXIT();
-  return (ret == 1);  // Datei ist okay
+  return (ret == rc_ALLFILESOKAY);  // Datei ist okay
 }
