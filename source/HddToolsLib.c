@@ -18,7 +18,7 @@ bool                    fsck_Cancelled;
 word                    RegionToSave;
 char                    LogString[512];
 char*                   LS_Dummy = "< Dummy >";
-char                   *LS_Warning, *LS_MoreErrors, *LS_CheckingFileSystem;
+char                   *LS_Warning, *LS_CheckingFileSystem;
 
 
 void HDDCheck_ProgBarHandler(bool ShowProgBar, dword CurrentValue, dword pProgressStart, dword pProgressEnd, dword pProgressMax, dword pRegionToSave)
@@ -40,11 +40,10 @@ void HDDCheck_ProgBarHandler(bool ShowProgBar, dword CurrentValue, dword pProgre
   if (ShowProgBar)
     OSDMenuProgressBarShow("CheckFileSystem", LS_CheckingFileSystem, 100*ProgressStart + CurrentValue*(ProgressEnd-ProgressStart), 100*ProgressMax, NULL);
 }
-void  HDDCheck_InitProgBar(dword pProgressStart, dword pProgressEnd, dword pProgressMax, word pRegionToSave, char *pWarningStr, char *pMoreErrorsStr, char *pCheckingStr)
+void  HDDCheck_InitProgBar(dword pProgressStart, dword pProgressEnd, dword pProgressMax, word pRegionToSave, char *pWarningStr, char *pCheckingStr)
 {
   OSDMenuSaveMyRegion(pRegionToSave);
   if (pWarningStr)    LS_Warning            = pWarningStr;      else LS_Warning            = LS_Dummy;
-  if (pMoreErrorsStr) LS_MoreErrors         = pMoreErrorsStr;   else LS_MoreErrors         = LS_Dummy;
   if (pCheckingStr)   LS_CheckingFileSystem = pCheckingStr;     else LS_CheckingFileSystem = LS_Dummy;
   HDDCheck_ProgBarHandler(FALSE, 0, pProgressStart, pProgressEnd, pProgressMax, pRegionToSave);
 }
@@ -58,7 +57,7 @@ void ShowInfoBox(char *MessageStr, char *TitleStr)
   OSDMenuSaveMyRegion(RegionToSave);
   OSDMenuInfoBoxShow(TitleStr, MessageStr, 0);
   TAP_SystemProc();
-  TAP_Delay(200);
+  TAP_Delay(300);
   OSDMenuInfoBoxDestroyNoOSDUpdate();
 }
 
@@ -81,14 +80,13 @@ bool  HDD_CheckFileSystem(const char *MountPath, TProgBarHandler pRefreshProgBar
   FILE                 *fPidFile = NULL, *fLogFileIn = NULL, *fLogFileOut = NULL;
   char                  DeviceNode[20], MountPoint[FBLIB_DIR_SIZE];
   char                  CommandLine[1024], Buffer[512]; //, PidStr[13];
-  char                  FirstErrorFile[80], *p = NULL, *p2 = NULL;
+  char                  FirstErrorFile[50], *p = NULL;
   dword                 fsck_Pid = 0;
   dword                 StartTime;
-  unsigned int          DefectFiles = 0, RepairedFiles = 0, MarkedFiles = 0;
   tInodeData            curInode, *InodeList;
+  unsigned int          NrDefectFiles = 0, NrRepairedFiles = 0, NrMarkedFiles = 0, NrNewMarkedFiles = 0, ActivePhase = 0;
+  bool                  fsck_Errors = FALSE;
   unsigned int          i;
-  bool                  StartProcessing = FALSE, Phase1Active = FALSE, Phase1Counter = 0, Phase4Active = FALSE, Phase10Active;
-  bool                  fsck_Errors, fsck_FixErrors;
 
   TRACEENTER();
   HDD_TAP_PushDir();
@@ -127,7 +125,7 @@ bool  HDD_CheckFileSystem(const char *MountPath, TProgBarHandler pRefreshProgBar
   // --- 4.) Run fsck and create a log file ---
   StartTime = time(NULL);
   TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/jfs_fsck -n -v %s %s %s -L /tmp/FixInodes.tmp %s %s &> /tmp/fsck.log & echo $!", TAPFSROOT, ((DoFix) ? "-r" : ""), ((Quick) ? "-q" : ""), ((Quick && InodeNrs) ? "-i" : ""), DeviceNode, ((InodeNrs) ? InodeNrs : ""));  // > /tmp/fsck.pid
-  system(CommandLine);
+//-  system(CommandLine);
 
   //Get the PID of the fsck-Process
 //  fPidFile = fopen("/tmp/fsck.pid", "r");
@@ -191,7 +189,6 @@ bool  HDD_CheckFileSystem(const char *MountPath, TProgBarHandler pRefreshProgBar
       HDD_GetAbsolutePathByTypeFile(PlayInfo.file, AbsPlaybackDir);
       AbsPlaybackDir[FBLIB_DIR_SIZE - 1] = '\0';
 
-      char *p;
       p = strstr(AbsPlaybackDir, PlaybackName);
       if(p) *(p-1) = '\0';
 
@@ -221,8 +218,6 @@ bool  HDD_CheckFileSystem(const char *MountPath, TProgBarHandler pRefreshProgBar
 
   // --- 7.) Open and analyse the generated log file ---
   fsck_Cancelled = TRUE;
-  fsck_Errors = FALSE;
-  fsck_FixErrors = FALSE;
   TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/Settings/MovieCutter/fsck.log", TAPFSROOT);
   fLogFileOut = fopen(CommandLine, "a");
 
@@ -240,113 +235,99 @@ bool  HDD_CheckFileSystem(const char *MountPath, TProgBarHandler pRefreshProgBar
     {
       if(fLogFileOut) fputs(Buffer, fLogFileOut);
 
-      if (strncmp(Buffer, "**Phase 1 ", 9) == 0)
+      if (strncmp(Buffer, "**Phase", 7) == 0)
       {
-        StartProcessing = TRUE;
-        Phase1Active = TRUE;
-        Phase1Counter++;
-        continue;
-      }
-      else if (StartProcessing == FALSE)
-      {
-        continue;
-      }
-      else if (strncmp(Buffer, "**Phase 2", 9) == 0)
-      {
-        Phase1Active = FALSE;
-      }
-      else if (strncmp(Buffer, "**Phase 4", 9) == 0)
-      {
-        Phase4Active = TRUE;
-      }
-      else if ((strncmp(Buffer, "**Phase 5", 9) == 0) || (strncmp(Buffer, "**Finished", 10) == 0))
-      {
-        StartProcessing = FALSE;
-        Phase1Active = FALSE;
-        Phase4Active = FALSE;
-        fsck_Cancelled = FALSE;
-      }
-      else if (strncmp(Buffer, "[MC1]", 5) == 0)  // [MC1] 1234: inode has incorrect nblocks value (nblocks=123, real=456, size=789).
-      {                                           
-        if (Phase1Counter == 1) DefectFiles++;                            
-        RemoveEndLineBreak(Buffer); WriteLogMC("CheckFS", Buffer);
-
-        // Parse the line to get inode values and add them to fixing-list
-        curInode.LastFixTime = time(NULL);
-//        if (sscanf(Buffer, "[MC1] %ld: inode has incorrect nblocks value (nblocks=%lld, real=%lld, size=%lld)", &curInode.InodeNr, &curInode.nblocks_wrong, &curInode.nblocks_real, &curInode.di_size) == 4)
-          
-/*        strtok(Buffer, " ");
-        curInode.InodeNr        = strtoul(strtok(NULL, ": "),   NULL, 10);
-        strtok(NULL, "=");
-        curInode.nblocks_wrong  = strtoll(strtok(NULL, ", )."), NULL, 10);
-        strtok(NULL, "=");
-        curInode.nblocks_real   = strtoll(strtok(NULL, ", )."), NULL, 10);
-        strtok(NULL, "=");
-        curInode.di_size        = strtoll(strtok(NULL, ", )."), NULL, 10);
-        curInode.LastFixTime    = time(NULL);
-        AddInodeToFixingList(curInode, DeviceNode);  */
-      }
-      else if (strncmp(Buffer, "[MC2]", 5) == 0)  // [MC2] 1234: inode has been successfully fixed.
-      {
-        fsck_Errors = TRUE;
-        RepairedFiles++;
-      }
-      else if (strncmp(Buffer, "[MC3]", 5) == 0)  // [MC3] 1234: Error fixing nblocks value (return code x).
-      {
-        fsck_Errors = TRUE;
-        fsck_FixErrors = TRUE;
-      }
-      else if (strncmp(Buffer, "[MC4]", 5) == 0)  // [MC4] x of y files successfully fixed.
-      {
-        fsck_Errors = TRUE;
-      }
-      else if ((p = strstr(Buffer, "is linked as: ")) && !FirstErrorFile[0])
-      {
-        p = strstr(Buffer, "is linked as: ");
-        if(p && (p+14))
+        switch (Buffer[8])
         {
-          p += 14;
-          p2 = strrchr(p, '/');
-          if (p2 && (p2+1))
-            TAP_SPrint(FirstErrorFile, sizeof(FirstErrorFile), "\"%s\"", p2+1);
-          else
-            TAP_SPrint(FirstErrorFile, sizeof(FirstErrorFile), "\"%s\"", p);
-          FirstErrorFile[sizeof(FirstErrorFile)-1] = '\0';
+          case '1':  ActivePhase =  1; break;
+          case '4':  ActivePhase =  4; break;
+          case 'i':  ActivePhase = 10; break;
+          default:   ActivePhase =  0;
         }
       }
-      else if (Phase1Active)
+      else if (strncmp(Buffer, "**Finished", 10) == 0)
       {
-        if (Phase1Counter > 1) fsck_FixErrors = TRUE;
-      }
-      else if (Phase4Active)
-      {
-        fsck_Errors = TRUE;
-//        if (!FirstErrorFile[0])
-          TAP_SPrint(FirstErrorFile, sizeof(FirstErrorFile), LS_MoreErrors);
+        ActivePhase = 0;
+        if(!DoFix || (strncmp(Buffer, "**Finished all.", 15) == 0))
+          fsck_Cancelled = FALSE;
       }
 
-      if(Phase1Active)
+      if (ActivePhase == 1)
+      {
+        if (strncmp(Buffer, "[MC1]", 5) == 0)       // [MC1] %lu: inode is incorrect (nblocks=%lld, real=%lld, size=%lld).
+        {
+          NrDefectFiles++;                            
+/*          // Parse the line to get inode values and add them to fixing-list
+          curInode.LastFixTime = time(NULL);
+          if (sscanf(Buffer, "[MC1] %ld: inode is incorrect (nblocks=%lld, real=%lld, size=%lld).", &curInode.InodeNr, &curInode.nblocks_wrong, &curInode.nblocks_real, &curInode.di_size) == 4)
+            AddInodeToFixingList(curInode, DeviceNode);  */
+        }
+        else if (strncmp(Buffer, "[MC2]", 5) == 0)  // [MC2] %lu: Error marking the inode for correction.
+        {
+          fsck_Errors = TRUE;
+        }
+        else if (strncmp(Buffer, "[MC3]", 5) == 0)  // [MC3] %d incorrect inodes found, %d marked for correction.
+        {
+          unsigned int Temp1, Temp2;
+          if (sscanf(Buffer, "[MC3] %d incorrect inodes found, %d marked for correction.", &Temp1, &Temp2) == 2)
+          {
+            NrDefectFiles = Temp1;
+            if (Temp2 != Temp1 || Temp1 != NrDefectFiles)
+              fsck_Errors = TRUE;
+          }
+        }
+      }
+        
+      else if (ActivePhase == 4)
+      {
+        if (!FirstErrorFile[0] && (strncmp(Buffer, "[MC4]", 5) == 0))  // [MC4] File system object %s%s%u is linked as: %s
+          if (sscanf(Buffer, "[MC4] File system object FF%*d is linked as: %511[^\n]", LogString) == 1)
+          {
+            if (NrDefectFiles == 0)
+              fsck_Errors = TRUE;
+	        p = NULL;
+	        if (strlen(LogString) >= sizeof(FirstErrorFile) - 8)
+		      p = strrchr(LogString, '/');
+            TAP_SPrint(FirstErrorFile, sizeof(FirstErrorFile) - 8, "\n'%s'", ((p && p[1]) ? (p+1) : LogString));
+          }
+      }
+        
+      else if (ActivePhase == 10)
+      {
+        if (strncmp(Buffer, "[MC5]", 5) == 0)       // [MC5] %d marked files successfully fixed. (%d)
+        {
+          sscanf(Buffer, "[MC5] %d marked files successfully fixed.", &NrRepairedFiles);
+          if (NrRepairedFiles != NrDefectFiles)
+            fsck_Errors = TRUE;
+        }
+        else if (strncmp(Buffer, "[MC6]", 5) == 0)  // [MC6] Error! Correction with icheck returned %d.
+          fsck_Errors = TRUE;
+        else if (strncmp(Buffer, "[MC9]", 5) == 0)  // [MC9] Error! Cannot write to list file '%s'.
+          fsck_Errors = TRUE;
+      }
+
+      if(ActivePhase != 0)
       {
         RemoveEndLineBreak(Buffer);
         WriteLogMC("CheckFS", Buffer);
       }
     }
     fclose(fLogFileIn);
-    if(fLogFileOut) fclose(fLogFileOut);
   }
   else
     WriteLogMC("HddToolsLib", "CheckFileSystem() E1c01.");
+  if(fLogFileOut) fclose(fLogFileOut);
 
   // Copy the log to MovieCutter folder
   TAP_SPrint(CommandLine, sizeof(CommandLine), "cp /tmp/fsck.log %s/ProgramFiles/Settings/MovieCutter/Lastfsck.log", TAPFSROOT);
   system(CommandLine);
 
   // --- 8.) Copy the FixInodes list to root of drive ---
-  strcat(MountPoint, "/FixInodes.lst");
+  TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/FixInodes.lst", MountPoint);
   
   // Dateigröße bestimmen um Puffer zu allozieren
   int64_t fs1 = 0, fs2 = 0;
-  HDD_GetFileSizeAndInode2(MountPoint, "/../..", NULL, &fs1);
+  HDD_GetFileSizeAndInode2(CommandLine, "/../..", NULL, &fs1);
   HDD_GetFileSizeAndInode2("/tmp/FixInodes.tmp", "/../..", NULL, &fs2);
 
   if (fs2 > 0)
@@ -356,14 +337,14 @@ TAP_PrintNet("Puffer allozieren: %llu\n", (fs1 + fs2) / sizeof(tInodeData) * siz
     if(InodeList)
     {
       // bisherige FixInodes.lst einlesen
-      fLogFileOut = fopen(MountPoint, "rb");
+      fLogFileOut = fopen(CommandLine, "rb");
       if(fLogFileOut)
       {
-        MarkedFiles = fread(&InodeList, sizeof(tInodeData), (fs1 / sizeof(tInodeData)), fLogFileOut);
+        NrMarkedFiles = fread(InodeList, sizeof(tInodeData), (fs1 / sizeof(tInodeData)), fLogFileOut);
         fclose(fLogFileOut);
 
-        if (MarkedFiles != fs1 / sizeof(tInodeData))
-          WriteLogMC("HDDToolsLib", "CheckFileSysem() W1c02.");
+        if (NrMarkedFiles != fs1 / sizeof(tInodeData))
+          WriteLogMC("HddToolsLib", "CheckFileSysem() W1c02.");
       }
 
       // neue Inodes hinzufügen
@@ -374,36 +355,40 @@ TAP_PrintNet("Puffer allozieren: %llu\n", (fs1 + fs2) / sizeof(tInodeData) * siz
         {
           if (fread(&curInode, sizeof(tInodeData), 1, fLogFileIn))
           {
-            for (i = 0; i < MarkedFiles; i++)
+            for (i = 0; i < NrMarkedFiles; i++)
             {
               if (InodeList[i].InodeNr == curInode.InodeNr) break;
             }
             InodeList[i] = curInode;
-            if (i == MarkedFiles) MarkedFiles++;
+            if (i == NrMarkedFiles) NrMarkedFiles++;
+            NrNewMarkedFiles++;
           }
         }
         fclose(fLogFileIn);
       }
 
       // aktualisierte Liste speichern
-      if (MarkedFiles > 0)
+      if (NrMarkedFiles > 0)
       {
-        fLogFileOut = fopen(MountPoint, "wb");
+        fLogFileOut = fopen(CommandLine, "wb");
         if(fLogFileOut)
         {
-          if(fwrite(InodeList, sizeof(tInodeData), MarkedFiles, fLogFileOut) != MarkedFiles)
-            WriteLogMC("HDDToolsLib", "CheckFileSysem() W1c03.");
+          if(fwrite(InodeList, sizeof(tInodeData), NrMarkedFiles, fLogFileOut) != NrMarkedFiles)
+            WriteLogMC("HddToolsLib", "CheckFileSysem() W1c03.");
           fclose(fLogFileOut);
         }
         else
-          WriteLogMC("HDDToolsLib", "CheckFileSysem() W1c02.");
+          WriteLogMC("HddToolsLib", "CheckFileSysem() W1c02.");
       }
+      if (NrNewMarkedFiles != NrRepairedFiles)
+        fsck_Errors = TRUE;
     }
     else
-      WriteLogMC("HDDToolsLib", "CheckFileSysem() E1c01.");
+      WriteLogMC("HddToolsLib", "CheckFileSysem() E1c01.");
   }
   else
-    MarkedFiles = fs1 / sizeof(tInodeData);
+    NrMarkedFiles = fs1 / sizeof(tInodeData);
+DumpInodeFixingList(CommandLine);
 
   // --- 9.) Output after completion or abortion of process ---
   if (!fsck_Cancelled)
@@ -414,13 +399,13 @@ TAP_PrintNet("Puffer allozieren: %llu\n", (fs1 + fs2) / sizeof(tInodeData) * siz
     RefreshProgBar(FALSE, 100);
 
     // Display information message box
-    if(!fsck_Errors)
+    if(!fsck_Errors && (NrDefectFiles == 0))
     {
-      TAP_SPrint(LogString, sizeof(LogString), "CheckFileSystem: File system seems valid. Monitored files: %u", MarkedFiles);
+      TAP_SPrint(LogString, sizeof(LogString), "CheckFileSystem: File system seems valid. Monitored files: %u", NrMarkedFiles);
       WriteLogMC("HddToolsLib", LogString);
       if (!NoOkInfo)
       {
-        TAP_SPrint(LogString, sizeof(LogString), SuccessString, MarkedFiles);
+        TAP_SPrint(LogString, sizeof(LogString), SuccessString, NrMarkedFiles);
         ShowInfoBox(LogString, "FileSystemCheck");
       }
 //      TAP_Osd_Sync();
@@ -430,10 +415,10 @@ TAP_PrintNet("Puffer allozieren: %llu\n", (fs1 + fs2) / sizeof(tInodeData) * siz
       WriteLogMC("HddToolsLib", "CheckFileSystem: WARNING! File system is inconsistent...");
 
       // Detaillierten Fehler-String in die Message schreiben
-      if (DefectFiles > 1)
-        TAP_SPrint(&FirstErrorFile[strlen(FirstErrorFile)], sizeof(FirstErrorFile)-strlen(FirstErrorFile), ", + %u", DefectFiles-1);
+      if (NrDefectFiles > 1)
+        TAP_SPrint(&FirstErrorFile[strlen(FirstErrorFile)], sizeof(FirstErrorFile)-strlen(FirstErrorFile), ", + %u", NrDefectFiles-1);
 //      StrMkISO(FirstErrorFile);
-      TAP_SPrint(LogString, sizeof(LogString), ErrorStrFmt, RepairedFiles, DefectFiles, ((fsck_FixErrors) ? "??" : "ok"), ((FirstErrorFile[0]) ? FirstErrorFile : ""));
+      TAP_SPrint(LogString, sizeof(LogString), ErrorStrFmt, min(NrNewMarkedFiles, NrRepairedFiles), NrDefectFiles, ((fsck_Errors) ? "??" : "ok"), ((FirstErrorFile[0]) ? FirstErrorFile : ""), NrMarkedFiles);
       //#ifdef Calibri_10_FontDataUC
         if (isUTFToppy()) StrMkISO(LogString);
       //#endif
@@ -453,7 +438,7 @@ TAP_PrintNet("Puffer allozieren: %llu\n", (fs1 + fs2) / sizeof(tInodeData) * siz
     PlaybackRepeatSet(OldRepeatMode);
   HDD_TAP_PopDir();
   TRACEEXIT();
-  return (!fsck_Cancelled && !fsck_Errors);
+  return (!fsck_Cancelled && !fsck_Errors && NrDefectFiles == 0);
 }
 
 // ----------------------------------------------------------------------------------------------------------
@@ -505,13 +490,16 @@ void DumpInodeFixingList(const char *AbsListFile)
 
   TRACEENTER();
 
-  TAP_PrintNet("DUMPING inode fixing list %s:\n", AbsListFile);
-  TAP_PrintNet("-----------------------------\n");
+  TAP_SPrint(LogString, sizeof(LogString), "DUMPING inode fixing list %s:", AbsListFile);
+  WriteLogMC("HddToolsLib", LogString);
   fListFile = fopen(AbsListFile, "rb");
   if(fListFile)
   {
     while(fread(&curInode, sizeof(tInodeData), 1, fListFile))
-      TAP_PrintNet("  %d: InodeNr=%lu, LastFixed=%lu, di_size=%lld, wrong=%lld,\n      nblocks_real=%lld, FileName=%s.\n", ++i, curInode.InodeNr, curInode.LastFixTime, curInode.di_size, curInode.nblocks_wrong, curInode.nblocks_real, curInode.FileName);
+    {
+      TAP_SPrint(LogString, sizeof(LogString), "  %d: InodeNr=%lu, LastFixed=%lu, di_size=%lld, wrong=%lld, nblocks_real=%lld, FileName=%s.", ++i, curInode.InodeNr, curInode.LastFixTime, curInode.di_size, curInode.nblocks_wrong, curInode.nblocks_real, curInode.FileName);
+      WriteLogMC("HddToolsLib", LogString);
+    }
     fclose(fListFile);
   }
 
@@ -579,6 +567,7 @@ bool HDD_FixInodeList(const char *MountPath, bool DeleteOldEntries)
     WriteLogMC("HddToolsLib", LogString);
     WriteDebugLog(LogString);
   }
+DumpInodeFixingList(ListFile);
 
   TRACEEXIT();
   return (ret == 0 || ret == 1 || ret == 2);  // keine gefunden, alle okay oder alle gefixt
