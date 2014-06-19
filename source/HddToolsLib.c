@@ -13,6 +13,7 @@
 #include                "CWTapApiLib.h"
 #include                "MovieCutterLib.h"
 #include                "HddToolsLib.h"
+#include                "../jfsutils/icheck/jfs_icheck.h"
 
 bool                    fsck_Cancelled;
 word                    RegionToSave;
@@ -286,9 +287,11 @@ bool  HDD_CheckFileSystem(const char *MountPath, TProgBarHandler pRefreshProgBar
             if (NrDefectFiles == 0)
               fsck_Errors = TRUE;
 	        p = NULL;
-	        if (strlen(LogString) >= sizeof(FirstErrorFile) - 8)
+	        if (strlen(LogString) > sizeof(FirstErrorFile) - 10)
 		      p = strrchr(LogString, '/');
-            TAP_SPrint(FirstErrorFile, sizeof(FirstErrorFile) - 8, "\n'%s'", ((p && p[1]) ? (p+1) : LogString));
+            p = (p && p[1]) ? (p+1) : LogString;
+            p[sizeof(FirstErrorFile) - 10] = '\0';
+            TAP_SPrint(FirstErrorFile, sizeof(FirstErrorFile) - 6, "\n'%s'", p);
           }
       }
         
@@ -326,44 +329,65 @@ bool  HDD_CheckFileSystem(const char *MountPath, TProgBarHandler pRefreshProgBar
   TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/FixInodes.lst", MountPoint);
   
   // Dateigröße bestimmen um Puffer zu allozieren
-  int64_t fs1 = 0, fs2 = 0;
-  HDD_GetFileSizeAndInode2(CommandLine, "/../..", NULL, &fs1);
-  HDD_GetFileSizeAndInode2("/tmp/FixInodes.tmp", "/../..", NULL, &fs2);
+  int64_t fsOut = 0, fsIn = 0;
+  HDD_GetFileSizeAndInode2(CommandLine, "/../..", NULL, &fsOut);
+  HDD_GetFileSizeAndInode2("/tmp/FixInodes.tmp", "/../..", NULL, &fsIn);
 
-  if (fs2 > 0)
+  if (fsIn > sizeof(tInodeListHeader))
   {
-TAP_PrintNet("Puffer allozieren: %llu\n", (fs1 + fs2) / sizeof(tInodeData) * sizeof(tInodeData));
-    InodeList = (tInodeData*) malloc((fs1 + fs2) / sizeof(tInodeData) * sizeof(tInodeData));
+    tInodeListHeader InListHeader, OutListHeader;
+
+TAP_PrintNet("Puffer alloz. %llu\n", (fsOut - min(sizeof(tInodeListHeader), fsOut) + fsIn - min(sizeof(tInodeListHeader), fsIn)) / sizeof(tInodeData) * sizeof(tInodeData));
+    InodeList = (tInodeData*) malloc((fsOut - min(sizeof(tInodeListHeader), fsOut) + fsIn - min(sizeof(tInodeListHeader), fsIn)) / sizeof(tInodeData) * sizeof(tInodeData));
     if(InodeList)
     {
       // bisherige FixInodes.lst einlesen
       fLogFileOut = fopen(CommandLine, "rb");
       if(fLogFileOut)
       {
-        NrMarkedFiles = fread(InodeList, sizeof(tInodeData), (fs1 / sizeof(tInodeData)), fLogFileOut);
+        // Header prüfen
+        if ( (fread(&OutListHeader, sizeof(tInodeListHeader), 1, fLogFileOut))
+          && (strncmp(OutListHeader.Magic, "TFinos", 6) == 0)
+          && (OutListHeader.Version == 1)
+          && (OutListHeader.FileSize == fsOut)
+          && (OutListHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == fsOut))
+        {
+          NrMarkedFiles = fread(InodeList, sizeof(tInodeData), OutListHeader.NrEntries, fLogFileOut);
+          if (NrMarkedFiles != OutListHeader.NrEntries)
+            WriteLogMC("HddToolsLib", "CheckFileSysem() W1c02.");
+        }
+        else
+          WriteLogMC("HddToolsLib", "CheckFileSysem() W1c01.");
         fclose(fLogFileOut);
-
-        if (NrMarkedFiles != fs1 / sizeof(tInodeData))
-          WriteLogMC("HddToolsLib", "CheckFileSysem() W1c02.");
       }
 
       // neue Inodes hinzufügen
       fLogFileIn = fopen("/tmp/FixInodes.tmp", "rb");
       if(fLogFileIn)
       {
-        while (!feof(fLogFileIn))
+        // Header prüfen
+        if ( (fread(&InListHeader, sizeof(tInodeListHeader), 1, fLogFileIn))
+          && (strncmp(InListHeader.Magic, "TFinos", 6) == 0)
+          && (InListHeader.Version == 1)
+          && (InListHeader.FileSize == fsIn)
+          && (InListHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == fsIn))
         {
-          if (fread(&curInode, sizeof(tInodeData), 1, fLogFileIn))
+          while (!feof(fLogFileIn))
           {
-            for (i = 0; i < NrMarkedFiles; i++)
+            if (fread(&curInode, sizeof(tInodeData), 1, fLogFileIn))
             {
-              if (InodeList[i].InodeNr == curInode.InodeNr) break;
+              for (i = 0; i < NrMarkedFiles; i++)
+              {
+                if (InodeList[i].InodeNr == curInode.InodeNr) break;
+              }
+              InodeList[i] = curInode;
+              if (i == NrMarkedFiles) NrMarkedFiles++;
+              NrNewMarkedFiles++;
             }
-            InodeList[i] = curInode;
-            if (i == NrMarkedFiles) NrMarkedFiles++;
-            NrNewMarkedFiles++;
           }
         }
+        else
+          WriteLogMC("HddToolsLib", "CheckFileSysem() W1c03.");
         fclose(fLogFileIn);
       }
 
@@ -373,12 +397,19 @@ TAP_PrintNet("Puffer allozieren: %llu\n", (fs1 + fs2) / sizeof(tInodeData) * siz
         fLogFileOut = fopen(CommandLine, "wb");
         if(fLogFileOut)
         {
+          strcpy(OutListHeader.Magic, "TFinos");
+          OutListHeader.Version = 1;
+          OutListHeader.NrEntries = NrMarkedFiles;
+          OutListHeader.FileSize  = (NrMarkedFiles * sizeof(tInodeData)) + sizeof(tInodeListHeader);
+          if(!fwrite(&OutListHeader, sizeof(tInodeListHeader), 1, fLogFileOut))
+            WriteLogMC("HddToolsLib", "CheckFileSysem() W1c05.");
+
           if(fwrite(InodeList, sizeof(tInodeData), NrMarkedFiles, fLogFileOut) != NrMarkedFiles)
-            WriteLogMC("HddToolsLib", "CheckFileSysem() W1c03.");
+            WriteLogMC("HddToolsLib", "CheckFileSysem() W1c06.");
           fclose(fLogFileOut);
         }
         else
-          WriteLogMC("HddToolsLib", "CheckFileSysem() W1c02.");
+          WriteLogMC("HddToolsLib", "CheckFileSysem() W1c04.");
       }
       if (NrNewMarkedFiles != NrRepairedFiles)
         fsck_Errors = TRUE;
@@ -387,7 +418,7 @@ TAP_PrintNet("Puffer allozieren: %llu\n", (fs1 + fs2) / sizeof(tInodeData) * siz
       WriteLogMC("HddToolsLib", "CheckFileSysem() E1c01.");
   }
   else
-    NrMarkedFiles = fs1 / sizeof(tInodeData);
+    NrMarkedFiles = (fsOut - min(sizeof(tInodeListHeader), fsOut)) / sizeof(tInodeData);
 DumpInodeFixingList(CommandLine);
 
   // --- 9.) Output after completion or abortion of process ---
@@ -495,11 +526,22 @@ void DumpInodeFixingList(const char *AbsListFile)
   fListFile = fopen(AbsListFile, "rb");
   if(fListFile)
   {
-    while(fread(&curInode, sizeof(tInodeData), 1, fListFile))
+    // Header prüfen
+    tInodeListHeader ListFileHeader;
+    if ( (fread(&ListFileHeader, sizeof(tInodeListHeader), 1, fListFile))
+      && (strncmp(ListFileHeader.Magic, "TFinos", 6) == 0)
+      && (ListFileHeader.Version == 1)
+//      && (ListFileHeader.FileSize == fs)
+      && (ListFileHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == ListFileHeader.FileSize))
     {
-      TAP_SPrint(LogString, sizeof(LogString), "  %d: InodeNr=%lu, LastFixed=%lu, di_size=%lld, wrong=%lld, nblocks_real=%lld, FileName=%s.", ++i, curInode.InodeNr, curInode.LastFixTime, curInode.di_size, curInode.nblocks_wrong, curInode.nblocks_real, curInode.FileName);
-      WriteLogMC("HddToolsLib", LogString);
+      while(fread(&curInode, sizeof(tInodeData), 1, fListFile))
+      {
+        TAP_SPrint(LogString, sizeof(LogString), "  %d: InodeNr=%lu, LastFixed=%lu, di_size=%lld, wrong=%lld, nblocks_real=%lld, FileName=%s.", ++i, curInode.InodeNr, curInode.LastFixTime, curInode.di_size, curInode.nblocks_wrong, curInode.nblocks_real, curInode.FileName);
+        WriteLogMC("HddToolsLib", LogString);
+      }
     }
+    else
+      WriteLogMC("HddToolsLib", "Invalid list file header!");
     fclose(fListFile);
   }
 

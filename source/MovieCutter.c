@@ -846,7 +846,7 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
       if (!isPlaybackRunning() || (LastTotalBlocks == 0) || (LastTotalBlocks != PlayInfo.totalBlock))
       {
         Cleanup(FALSE);
-        HDD_FixInodeList(PlaybackDir, FALSE);
+        HDD_FixInodeList(PlaybackDir, TRUE);
         State = (AutoOSDPolicy) ? ST_WaitForPlayback : ST_InactiveMode;
         break;
       }
@@ -912,7 +912,7 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
           CutFileSave();
         }
         Cleanup(TRUE);
-        HDD_FixInodeList(PlaybackDir, FALSE);
+        HDD_FixInodeList(PlaybackDir, TRUE);
         State = AutoOSDPolicy ? ST_WaitForPlayback : ST_InactiveMode;
         break;
       }

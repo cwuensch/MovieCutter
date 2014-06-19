@@ -1,16 +1,6 @@
 #ifndef __HDDTOOLSLIB__
 #define __HDDTOOLSLIB__
 
-typedef struct
-{
-  dword                 InodeNr;
-  dword                 LastFixTime;
-  int64_t               di_size;
-  int64_t               nblocks_real;
-  int64_t               nblocks_wrong;
-  char                  FileName[64];
-} tInodeData;
-
 typedef void (*TProgBarHandler)(bool, dword);  // 0 - 100
 typedef void (*TMessageHandler)(char*, char*);
 
