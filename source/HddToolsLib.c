@@ -286,9 +286,9 @@ bool  HDD_CheckFileSystem(const char *MountPath, TProgBarHandler pRefreshProgBar
           {
             if (NrDefectFiles == 0)
               fsck_Errors = TRUE;
-	        p = NULL;
-	        if (strlen(LogString) > sizeof(FirstErrorFile) - 10)
-		      p = strrchr(LogString, '/');
+            p = NULL;
+            if (strlen(LogString) > sizeof(FirstErrorFile) - 10)
+              p = strrchr(LogString, '/');
             p = (p && p[1]) ? (p+1) : LogString;
             p[sizeof(FirstErrorFile) - 10] = '\0';
             TAP_SPrint(FirstErrorFile, sizeof(FirstErrorFile) - 6, "\n'%s'", p);
@@ -446,7 +446,7 @@ DumpInodeFixingList(CommandLine);
       WriteLogMC("HddToolsLib", "CheckFileSystem: WARNING! File system is inconsistent...");
 
       // Detaillierten Fehler-String in die Message schreiben
-      if (NrDefectFiles > 1)
+      if (FirstErrorFile[0] && (NrDefectFiles > 1))
         TAP_SPrint(&FirstErrorFile[strlen(FirstErrorFile)], sizeof(FirstErrorFile)-strlen(FirstErrorFile), ", + %u", NrDefectFiles-1);
 //      StrMkISO(FirstErrorFile);
       TAP_SPrint(LogString, sizeof(LogString), ErrorStrFmt, min(NrNewMarkedFiles, NrRepairedFiles), NrDefectFiles, ((fsck_Errors) ? "??" : "ok"), ((FirstErrorFile[0]) ? FirstErrorFile : ""), NrMarkedFiles);
