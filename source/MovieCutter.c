@@ -124,10 +124,11 @@ typedef enum
 
 typedef enum
 {
-  RC_SRP2410,
   RC_SRP2401,
+  RC_SRP2410,
   RC_CRP,
-  RC_TF5000
+  RC_TF5000,
+  RC_NoVolKeys
 } tRCUModes;
 
 typedef enum
@@ -266,7 +267,7 @@ dword                   Overscan_X         = 50;
 dword                   Overscan_Y         = 25;
 dword                   SegmentList_X      = 50;
 dword                   SegmentList_Y      = 82;
-dword                   RCUMode            = RC_SRP2410;
+dword                   RCUMode            = RC_SRP2401;
 bool                    DirectSegmentsCut  = FALSE;
 bool                    DisableSleepKey    = FALSE;
 
@@ -1019,15 +1020,15 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
           case RKEY_ChUp:
           {
             // Navigation nach links
-            if ((RCUMode==RC_SRP2410 && param1==RKEY_ChUp) || (RCUMode==RC_SRP2401 && param1==RKEY_ChDown) || (RCUMode!=RC_SRP2410 && RCUMode!=RC_SRP2401 && param1==RKEY_VolDown))
+            if (   ((RCUMode==RC_SRP2401 || RCUMode==RC_NoVolKeys) && param1==RKEY_ChDown) || (RCUMode==RC_SRP2410 && param1==RKEY_ChUp)   || (param1==RKEY_VolDown && RCUMode!=RC_SRP2410 && RCUMode!=RC_SRP2401 && RCUMode!=RC_NoVolKeys))
               Playback_SetJumpNavigate(FALSE, TRUE, TRUE);
 
             // Navigation nach rechts
-            else if ((RCUMode==RC_SRP2410 && param1==RKEY_ChDown) || (RCUMode==RC_SRP2401 && param1==RKEY_ChUp) || (RCUMode!=RC_SRP2410 && RCUMode!=RC_SRP2401 && param1==RKEY_VolUp))
+            else if( ((RCUMode==RC_SRP2401 || RCUMode==RC_NoVolKeys) && param1==RKEY_ChUp) || (RCUMode==RC_SRP2410 && param1==RKEY_ChDown) || (param1==RKEY_VolUp   && RCUMode!=RC_SRP2410 && RCUMode!=RC_SRP2401 && RCUMode!=RC_NoVolKeys))
               Playback_SetJumpNavigate(FALSE, TRUE, FALSE);
 
             // MultiJump nach links
-            else if ((param1==RKEY_Prev) || (RCUMode==RC_SRP2410 && param1==RKEY_VolUp) || (RCUMode==RC_SRP2401 && param1==RKEY_VolDown))
+            else if ( (param1==RKEY_Prev) || (RCUMode==RC_SRP2401 && param1==RKEY_VolDown) || (RCUMode==RC_SRP2410 && param1==RKEY_VolUp))
             {
               if(MinuteJump)
                 Playback_JumpBackward();
@@ -1038,7 +1039,7 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
             }
 
             // MultiJump nach rechts
-            else if ((param1==RKEY_Next) || (RCUMode==RC_SRP2410 && param1==RKEY_VolDown) || (RCUMode==RC_SRP2401 && param1==RKEY_VolUp))
+            else if ( (param1==RKEY_Next) || (RCUMode==RC_SRP2401 && param1==RKEY_VolUp)   || (RCUMode==RC_SRP2410 && param1==RKEY_VolDown))
             {
               if(MinuteJump)
                 Playback_JumpForward();
@@ -1049,8 +1050,9 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
             }
 
             // bei anderen Fernbedienungen (ohne Up/Down) steuert ChUp/ChDown die Up/Down-Tase
-            else if (RCUMode != RC_SRP2410 && RCUMode != RC_SRP2401)
+            else if (RCUMode != RC_SRP2410 && RCUMode != RC_SRP2401 && RCUMode != RC_NoVolKeys)
             {
+WriteLogMC("DEBUG-Ausgabe", "ChUp/ChDown-Event empfangen, das nicht durch Up/Down gehandelt wurde!");
               if (param1 == RKEY_ChUp)          Playback_SetJumpNavigate(TRUE, FALSE, TRUE);
               else if (param1 == RKEY_ChDown)   Playback_SetJumpNavigate(TRUE, FALSE, FALSE);
             }
@@ -1816,7 +1818,7 @@ void LoadINI(void)
     SegmentList_X     =            INIGetInt("SegmentList_X",             50,   0,  ScreenWidth - _SegmentList_Background_Gd.width);
     SegmentList_Y     =            INIGetInt("SegmentList_Y",             82,   0,  ScreenHeight - _SegmentList_Background_Gd.height);
 
-    RCUMode           =            INIGetInt("RCUMode",           RC_SRP2410,   0,    4);
+    RCUMode           =            INIGetInt("RCUMode",           RC_SRP2401,   0,    4);
     DirectSegmentsCut =            INIGetInt("DirectSegmentsCut",          0,   0,    1)   ==   1;
     DisableSleepKey   =            INIGetInt("DisableSleepKey",            0,   0,    1)   ==   1;
   }

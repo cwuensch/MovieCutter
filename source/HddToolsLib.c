@@ -168,6 +168,7 @@ bool  HDD_CheckFileSystem(const char *MountPath, TProgBarHandler pRefreshProgBar
     }
   }
   fsck_Pid = 0;
+WriteLogMC("DEBUG-Ausgabe", "fsck beendet oder abgebrochen.");
 
   // --- 5.) Make HDD writable again ---
   if (DoFix)
@@ -175,12 +176,14 @@ bool  HDD_CheckFileSystem(const char *MountPath, TProgBarHandler pRefreshProgBar
     TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,rw %s", DeviceNode);
     system(CommandLine);
   }
+WriteLogMC("DEBUG-Ausgabe", "HDD wieder writable.");
 
   // --- 6.) Restart the playback again ---
   if (DoFix)
   {
     if (PlayInfo.playMode == PLAYMODE_Playing)
     {
+WriteLogMC("DEBUG-Ausgabe", "Playback soll neu gestartet werden.");
       // Get infos about the playback file
       strncpy(PlaybackName, PlayInfo.file->name, sizeof(PlaybackName));
       PlaybackName[MAX_FILE_NAME_SIZE] = '\0';
@@ -200,6 +203,8 @@ bool  HDD_CheckFileSystem(const char *MountPath, TProgBarHandler pRefreshProgBar
         TAP_SPrint(AbsPlaybackDir, sizeof(AbsPlaybackDir), "%s/..%s", TAPFSROOT, &TempStr[4]);
       }
       LastPlaybackPos = PlayInfo.currentBlock;
+TAP_SPrint(LogString, sizeof(LogString), "HDD_StartPlayback2(%s, %s, %s)", PlaybackName, AbsPlaybackDir, &AbsPlaybackDir[strlen(TAPFSROOT)]);
+WriteLogMC("DEBUG-Ausgabe", LogString);
 
       HDD_StartPlayback2(PlaybackName, &AbsPlaybackDir[strlen(TAPFSROOT)]);
 
@@ -210,6 +215,8 @@ bool  HDD_CheckFileSystem(const char *MountPath, TProgBarHandler pRefreshProgBar
         TAP_Hdd_GetPlayInfo(&PlayInfo);
         i++;
       } while ((i < 2000) && (PlayInfo.playMode != PLAYMODE_Playing || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0));
+TAP_SPrint(LogString, sizeof(LogString), "Playback wurde neu gestartet. i=%d, PlayMode=%d, totalBlock=%lu, currentBlock=%lu, LastPlaybackPos=%lu", i, PlayInfo.playMode, PlayInfo.totalBlock, PlayInfo.currentBlock, LastPlaybackPos);
+WriteLogMC("DEBUG-Ausgabe", LogString);
   
       PlaybackRepeatSet(TRUE);
       if(LastPlaybackPos > 500)
@@ -218,16 +225,19 @@ bool  HDD_CheckFileSystem(const char *MountPath, TProgBarHandler pRefreshProgBar
   }
 
   // --- 7.) Open and analyse the generated log file ---
+WriteLogMC("DEBUG-Ausgabe", "Öffne OutLogFile.");
   fsck_Cancelled = TRUE;
   TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/Settings/MovieCutter/fsck.log", TAPFSROOT);
   fLogFileOut = fopen(CommandLine, "a");
 
   if(fLogFileOut)
   {
+WriteLogMC("DEBUG-Ausgabe", "OutLogFile geöffnet.");
     fprintf(fLogFileOut, "\n=========================================================\n");
     fprintf(fLogFileOut, "*** File system check started %s\n", asctime(localtime(&StartTime)));
   }
 
+WriteLogMC("DEBUG-Ausgabe", "Öffne InLogFile");
   fLogFileIn = fopen("/tmp/fsck.log", "r");
   if(fLogFileIn)
   {
@@ -320,6 +330,7 @@ bool  HDD_CheckFileSystem(const char *MountPath, TProgBarHandler pRefreshProgBar
   else
     WriteLogMC("HddToolsLib", "CheckFileSystem() E1c01.");
   if(fLogFileOut) fclose(fLogFileOut);
+WriteLogMC("DEBUG-Ausgabe", "Log-Auswertung beendet.");
 
   // Copy the log to MovieCutter folder
   TAP_SPrint(CommandLine, sizeof(CommandLine), "cp /tmp/fsck.log %s/ProgramFiles/Settings/MovieCutter/Lastfsck.log", TAPFSROOT);
