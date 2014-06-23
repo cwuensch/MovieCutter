@@ -1,7 +1,8 @@
 #ifndef __ALTEFBLIB__
   #define __ALTEFBLIB__
 
-  #include "../../../../FireBirdLib/ALTElibFireBird.h"
+  #include "../../../../../Topfield/FireBirdLib/ALTElibFireBird.h"
+//  #include "../../../../FireBirdLib/ALTElibFireBird.h"
 //  #include "/cygdrive/d/Topfield/FireBirdLib/ALTElibFireBird.h"
 
 

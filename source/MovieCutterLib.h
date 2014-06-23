@@ -76,19 +76,20 @@ typedef struct
 } tnavHD;
 
 void        WriteLogMC(char *ProgramName, char *s);
-void        WriteDebugLog(char *format, ...);
-tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *Directory, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepCut, bool isHD);
-void        GetNextFreeCutName(char const *SourceFileName, char *CutFileName, char const *Directory, word LeaveNamesOut);
+void        WriteLogMCf(char *ProgramName, const char *format, ...);
+void        WriteDebugLog(const char *format, ...);
+tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirectory, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepCut, bool isHD);
+void        GetNextFreeCutName(const char *SourceFileName, char *const OutCutFileName, const char *AbsDirectory, int LeaveNamesOut);
 void        SecToTimeString(dword Time, char *const TimeString);     // needs max. 4 + 1 + 2 + 1 + 2 + 1 = 11 chars
 void        MSecToTimeString(dword Timems, char *const TimeString);  // needs max. 4 + 1 + 2 + 1 + 2 + 1 + 3 + 1 = 15 chars
 void        Print64BitLong(long64 Number, char *const OutString);    // needs max. 2 + 2*9 + 1 = 19 chars
-int         DetectPacketSize(char const *SourceFileName);
-bool        isCrypted(char const *SourceFileName, char const *Directory);
-bool        isHDVideo(char const *SourceFileName, char const *Directory, bool *const isHD);
-bool        isNavAvailable(char const *SourceFileName, char *Directory);
-bool        GetRecDateFromInf(char const *FileName, char const *Directory, dword *const DateTime);
-bool        SaveBookmarksToInf(char const *SourceFileName, char const *Directory, const dword Bookmarks[], int NrBookmarks);
-tTimeStamp* NavLoad(char const *SourceFileName, char const *Directory, dword *const NrTimeStamps, bool isHD);
+int         GetPacketSize(const char *RecFileName);
+bool        isCrypted(const char *RecFileName, const char *AbsDirectory);
+bool        isHDVideo(const char *RecFileName, const char *AbsDirectory, bool *const isHD);
+bool        isNavAvailable(const char *RecFileName, const char *AbsDirectory);
+bool        GetRecDateFromInf(const char *RecFileName, const char *AbsDirectory, dword *const DateTime);
+bool        SaveBookmarksToInf(const char *RecFileName, const char *AbsDirectory, const dword Bookmarks[], int NrBookmarks);
+tTimeStamp* NavLoad(const char *RecFileName, const char *AbsDirectory, int *const OutNrTimeStamps, bool isHD);
 
 
 int fseeko64 (FILE *__stream, __off64_t __off, int __whence);

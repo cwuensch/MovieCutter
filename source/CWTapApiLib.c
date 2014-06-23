@@ -10,6 +10,7 @@
 #include                <unistd.h>
 #include                <utime.h>
 #include                <mntent.h>
+#include                <sys/stat.h>
 #include                <tap.h>
 #include                <libFireBird.h>
 #include                "CWTapApiLib.h"
@@ -18,77 +19,132 @@
 // ============================================================================
 //                               TAP-API-Lib
 // ============================================================================
-void HDD_Rename2(const char *FileName, const char *NewFileName, const char *Directory, bool RenameInfNav)
+void HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNav)
 {
   char AbsFileName[FBLIB_DIR_SIZE], AbsNewFileName[FBLIB_DIR_SIZE];
   TRACEENTER();
 
-  TAP_SPrint  (AbsFileName, sizeof(AbsFileName), "%s%s/%s",     TAPFSROOT, Directory, FileName);  TAP_SPrint(AbsNewFileName, sizeof(AbsNewFileName), "%s%s/%s",     TAPFSROOT, Directory, NewFileName);  rename(AbsFileName, AbsNewFileName);
+  TAP_SPrint  (AbsFileName, sizeof(AbsFileName), "%s/%s",     AbsDirectory, FileName);  TAP_SPrint(AbsNewFileName, sizeof(AbsNewFileName), "%s/%s",     AbsDirectory, NewFileName);  rename(AbsFileName, AbsNewFileName);
   if(RenameInfNav)
   {
-    TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s%s/%s.inf", TAPFSROOT, Directory, FileName);  TAP_SPrint(AbsNewFileName, sizeof(AbsNewFileName), "%s%s/%s.inf", TAPFSROOT, Directory, NewFileName);  rename(AbsFileName, AbsNewFileName);
-    TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s%s/%s.nav", TAPFSROOT, Directory, FileName);  TAP_SPrint(AbsNewFileName, sizeof(AbsNewFileName), "%s%s/%s.nav", TAPFSROOT, Directory, NewFileName);  rename(AbsFileName, AbsNewFileName);
+    TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.inf", AbsDirectory, FileName);  TAP_SPrint(AbsNewFileName, sizeof(AbsNewFileName), "%s/%s.inf", AbsDirectory, NewFileName);  rename(AbsFileName, AbsNewFileName);
+    TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.nav", AbsDirectory, FileName);  TAP_SPrint(AbsNewFileName, sizeof(AbsNewFileName), "%s/%s.nav", AbsDirectory, NewFileName);  rename(AbsFileName, AbsNewFileName);
   }
 
   TRACEEXIT();
 }
 
-void HDD_Delete2(const char *FileName, const char *Directory, bool DeleteInfNav)
+void HDD_Delete2(const char *FileName, const char *AbsDirectory, bool DeleteInfNav)
 {
   char AbsFileName[FBLIB_DIR_SIZE];
   TRACEENTER();
 
-  TAP_SPrint  (AbsFileName, sizeof(AbsFileName), "%s%s/%s",     TAPFSROOT, Directory, FileName);  remove(AbsFileName);
+  TAP_SPrint  (AbsFileName, sizeof(AbsFileName), "%s/%s",     AbsDirectory, FileName);  remove(AbsFileName);
   if(DeleteInfNav)
   {
-    TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s%s/%s.inf", TAPFSROOT, Directory, FileName);  remove(AbsFileName);
-    TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s%s/%s.nav", TAPFSROOT, Directory, FileName);  remove(AbsFileName);
+    TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.inf", AbsDirectory, FileName);  remove(AbsFileName);
+    TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.nav", AbsDirectory, FileName);  remove(AbsFileName);
   }
 
   TRACEEXIT();
 }
 
-bool HDD_Exist2(char *FileName, const char *Directory)
+bool HDD_Exist2(char *FileName, const char *AbsDirectory)
 {
-  char AbsFileName[FBLIB_DIR_SIZE];
-  bool ret;
+  char                  AbsFileName[FBLIB_DIR_SIZE];
+  bool                  ret;
 
   TRACEENTER();
-  TAP_SPrint  (AbsFileName, sizeof(AbsFileName), "%s%s/%s",     TAPFSROOT, Directory, FileName);
+  TAP_SPrint  (AbsFileName, sizeof(AbsFileName), "%s/%s",     AbsDirectory, FileName);
   ret = (access(AbsFileName, F_OK) == 0);
   TRACEEXIT();
   return ret;
 }
 
 
-bool HDD_GetFileSizeAndInode2(const char *FileName, const char *Directory, __ino64_t *OutCInode, __off64_t *OutFileSize)
+bool HDD_GetAbsolutePathByTypeFile2(TYPE_File *File, char *OutAbsFileName)
 {
-  char                  AbsFileName[FBLIB_DIR_SIZE];
-  bool                  ret;
+  dword                *d;
+  bool                  ret = FALSE;
 
   TRACEENTER();
+  if(OutAbsFileName) OutAbsFileName[0] = '\0';
 
-  if (strncmp(__FBLIB_RELEASEDATE__, "2014-03-20", 10) >= 0)
+  if(File && OutAbsFileName)
   {
-    bool                (*__HDD_GetFileSizeAndInode)(char*, __ino64_t*, __off64_t*);
-    __HDD_GetFileSizeAndInode = (bool(*)(char*, __ino64_t*, __off64_t*)) HDD_GetFileSizeAndInode;
-
-    TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s%s/%s", TAPFSROOT, Directory, FileName);
-    ret = __HDD_GetFileSizeAndInode(AbsFileName, OutCInode, OutFileSize);
-  }
-  else
-  {
-    bool                (*__HDD_GetFileSizeAndInode)(char*, char*, __ino64_t*, __off64_t*);
-    __HDD_GetFileSizeAndInode = (bool(*)(char*, char*, __ino64_t*, __off64_t*)) HDD_GetFileSizeAndInode;
-    ret = __HDD_GetFileSizeAndInode(Directory, FileName, OutCInode, OutFileSize);
+    //TYPE_File->handle points to a structure with 4 dwords. The third one points to the absolute path
+    d = (dword*) File->handle;
+    if(d && d[2])
+    {
+      strncpy(OutAbsFileName, (char*)d[2], FBLIB_DIR_SIZE - 1);
+      OutAbsFileName[FBLIB_DIR_SIZE - 1] = '\0';
+      ret = TRUE;
+    }
   }
 
   TRACEEXIT();
   return ret;
 }
 
+bool HDD_GetFileSizeAndInode2(const char *FileName, const char *AbsDirectory, __ino64_t *OutCInode, __off64_t *OutFileSize)
+{
+  char                  AbsFileName[FBLIB_DIR_SIZE];
+  tstat64               statbuf;
+  bool                  ret = FALSE;
 
-bool HDD_SetFileDateTime(char const *FileName, char const *Directory, dword NewDateTime)
+  TRACEENTER();
+
+  if(AbsDirectory && FileName)
+  {
+    TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s", AbsDirectory, FileName);
+    if(!lstat64(AbsFileName, &statbuf))
+    {
+      if(OutCInode)   *OutCInode = statbuf.st_ino;
+      if(OutFileSize) *OutFileSize = statbuf.st_size;
+      ret = TRUE;
+    }
+  }
+  TRACEEXIT();
+  return ret;
+}
+/* bool HDD_GetFileSizeAndInode2(char *FileName, const char *AbsDirectory, __ino64_t *OutCInode, __off64_t *OutFileSize)
+{
+  bool                  ret = FALSE;
+
+  TRACEENTER();
+
+  if (strncmp(__FBLIB_RELEASEDATE__, "2014-03-20", 10) >= 0)
+  {
+    char                AbsFileName[FBLIB_DIR_SIZE];
+    bool                (*__HDD_GetFileSizeAndInode)(char*, __ino64_t*, __off64_t*);
+    __HDD_GetFileSizeAndInode = (bool(*)(char*, __ino64_t*, __off64_t*)) HDD_GetFileSizeAndInode;
+
+    TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s", AbsDirectory, FileName);
+    ret = __HDD_GetFileSizeAndInode(AbsFileName, OutCInode, OutFileSize);
+  }
+  else
+  {
+    char                Directory[FBLIB_DIR_SIZE];
+    bool                (*__HDD_GetFileSizeAndInode)(char*, char*, __ino64_t*, __off64_t*);
+    __HDD_GetFileSizeAndInode = (bool(*)(char*, char*, __ino64_t*, __off64_t*)) HDD_GetFileSizeAndInode;
+
+    // Extract the relative path from the absolute path (for old FBLib-version)
+    if (strncmp(AbsDirectory, TAPFSROOT, strlen(TAPFSROOT)) == 0)
+      TAP_SPrint(Directory, sizeof(Directory), &AbsDirectory[strlen(TAPFSROOT)]);
+    else if (strncmp(AbsDirectory, "/mnt", 4) == 0)
+      TAP_SPrint(Directory, sizeof(Directory), "/..%s", &AbsDirectory[4]);
+    else
+      TAP_SPrint(Directory, sizeof(Directory), "/../..%s", AbsDirectory);
+
+    ret = __HDD_GetFileSizeAndInode(Directory, FileName, OutCInode, OutFileSize);
+  }
+
+  TRACEEXIT();
+  return ret;
+} */
+
+
+bool HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, dword NewDateTime)
 {
   char                  AbsFileName[FBLIB_DIR_SIZE];
   tstat64               statbuf;
@@ -97,7 +153,7 @@ bool HDD_SetFileDateTime(char const *FileName, char const *Directory, dword NewD
 
   TRACEENTER();
 
-  TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s%s/%s", TAPFSROOT, Directory, FileName);
+  TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s", AbsDirectory, FileName);
   if((status = lstat64(AbsFileName, &statbuf)))
   {
     TRACEEXIT();
@@ -119,10 +175,9 @@ bool HDD_SetFileDateTime(char const *FileName, char const *Directory, dword NewD
 }
 
 
-bool HDD_StartPlayback2(char *FileName, const char *Directory)
+bool HDD_StartPlayback2(char *FileName, char *AbsDirectory)
 {
   tDirEntry             FolderStruct;
-  char                  AbsDirectory[FBLIB_DIR_SIZE];
   bool                  ret = FALSE;
 
   TRACEENTER();
@@ -134,8 +189,7 @@ bool HDD_StartPlayback2(char *FileName, const char *Directory)
 
   //Save the current directory resources and change into our directory (current directory of the TAP)
   ApplHdd_SaveWorkFolder();
-  TAP_SPrint(AbsDirectory, sizeof(AbsDirectory), "%s%s", &TAPFSROOT[1], Directory);  //do not include the leading slash
-  if (!ApplHdd_SelectFolder(&FolderStruct, AbsDirectory))
+  if (!ApplHdd_SelectFolder(&FolderStruct, &AbsDirectory[1]))   //do not include the leading slash
   {
     ApplHdd_SetWorkFolder(&FolderStruct);
 
@@ -196,25 +250,82 @@ bool PlaybackRepeatGet()
 }
 
 
-bool HDD_FindMountPointDev2(const char *Path, char *const OutMountPoint, char *const OutDeviceNode)  // OutDeviceNode: max. 20 Zeichen, OutMountPoint: max. FILE_NAME_SIZE+1 (inkl. Nullchar)
+bool ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks)
 {
-  char                  AbsPath[FBLIB_DIR_SIZE], MountPoint[MAX_FILE_NAME_SIZE+1], DeviceNode[20];
+  dword                *PlayInfoBookmarkStruct;
+  byte                 *TempRecSlot;
+  bool                  ret = FALSE;
+
+  TRACEENTER();
+
+  PlayInfoBookmarkStruct = NULL;
+  TempRecSlot = (byte*)FIS_vTempRecSlot();
+  if(TempRecSlot)
+    PlayInfoBookmarkStruct = (dword*)HDD_GetPvrRecTsPlayInfoPointer(*TempRecSlot);
+
+  if(Bookmarks && NrBookmarks && PlayInfoBookmarkStruct)
+  {
+    *NrBookmarks = PlayInfoBookmarkStruct[0];
+    memset(Bookmarks, 0, NRBOOKMARKS * sizeof(dword));
+    memcpy(Bookmarks, &PlayInfoBookmarkStruct[1], *NrBookmarks * sizeof(dword));
+    ret = TRUE;
+  }
+  else
+  {
+    if(NrBookmarks) *NrBookmarks = 0;
+//    WriteLogMC(PROGRAM_NAME, "ReadBookmarks: Fatal error - inf cache entry point not found!");
+
+    char s[128];
+    TAP_SPrint(s, sizeof(s), "TempRecSlot=%p", TempRecSlot);
+    if(TempRecSlot)
+      TAP_SPrint(&s[strlen(s)], sizeof(s)-strlen(s), ", *TempRecSlot=%d, HDD_NumberOfRECSlots()=%lu", *TempRecSlot, HDD_NumberOfRECSlots());
+//    WriteLogMC(PROGRAM_NAME, s);
+    ret = FALSE;
+  }
+
+  TRACEEXIT();
+  return ret;
+}
+
+//Experimentelle Methode, um Bookmarks direkt in der Firmware abzuspeichern.
+bool SaveBookmarks(const dword Bookmarks[], int NrBookmarks)
+{
+  dword                *PlayInfoBookmarkStruct;
+  byte                 *TempRecSlot;
+  bool                  ret = FALSE;
+
+  TRACEENTER();
+
+  PlayInfoBookmarkStruct = NULL;
+  TempRecSlot = (byte*)FIS_vTempRecSlot();
+  if(TempRecSlot)
+    PlayInfoBookmarkStruct = (dword*)HDD_GetPvrRecTsPlayInfoPointer(*TempRecSlot);
+
+  if(Bookmarks && NrBookmarks && PlayInfoBookmarkStruct)
+  {
+    PlayInfoBookmarkStruct[0] = NrBookmarks;
+    memset(&PlayInfoBookmarkStruct[1], 0, NRBOOKMARKS * sizeof(dword));
+    memcpy(&PlayInfoBookmarkStruct[1], Bookmarks, NrBookmarks * sizeof(dword));
+    ret = TRUE;
+  }
+  else
+  {
+//    WriteLogMC(PROGRAM_NAME, "SaveBookmarks: Fatal error - inf cache entry point not found!");
+    ret = FALSE;
+  }
+
+  TRACEEXIT();
+  return ret;
+}
+
+
+bool HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint, char *const OutDeviceNode)  // OutDeviceNode: max. 20 Zeichen, OutMountPoint: max. FILE_NAME_SIZE+1 (inkl. Nullchar)
+{
+  char                  MountPoint[MAX_FILE_NAME_SIZE+1], DeviceNode[20];
   FILE                 *aFile;
   struct mntent        *ent;
 
   TRACEENTER();
-
-  // Falls Pfad mit '/..' beginnt, Rückschritt entfernen und durch '/mnt' ersetzen
-  if (strncmp(Path, "/../", 4) == 0)
-    TAP_SPrint(AbsPath, sizeof(AbsPath), "/mnt%s", &Path[3]);
-  else
-  {
-    // Falls Pfad nicht absolut ist, /mnt/hd davorsetzen und Slash anhängen
-    if (strncmp(Path, "/mnt/", 5) == 0)
-      TAP_SPrint(AbsPath, sizeof(AbsPath), "%s", Path);
-    else
-      TAP_SPrint(AbsPath, sizeof(AbsPath), "%s%s", TAPFSROOT, Path);
-  }
 
   MountPoint[0] = '\0';
   DeviceNode[0] = '\0';

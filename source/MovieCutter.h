@@ -2,19 +2,20 @@
 #define __MOVIECUTTERH__
 
 #define PROGRAM_NAME          "MovieCutter"
-#define VERSION               "V3.0 RC2"  // alpha = α,  beta = β, � = ü
+#define VERSION               "V3.0 RC3"  // alpha = α,  beta = β, � = ü
 #define TAPID                 0x8E0A4247
 //#define AUTHOR                "FireBird / Christian W�nsch"
 #define AUTHOR                "FireBird / C. Wünsch"
 #define DESCRIPTION           "MovieCutter"
 
 #define NRSEGMENTMARKER       101            // max. number of file markers +1 (marker for the end of file)
-#define NRBOOKMARKS           144
+//#define NRBOOKMARKS           144
 #define NRUNDOEVENTS          100
 #define CUTFILEVERSION        2
 #define LOGDIR                "/ProgramFiles/Settings/MovieCutter"
 #define LNGFILENAME           PROGRAM_NAME ".lng"
 #define INIFILENAME           PROGRAM_NAME ".ini"
+#define FSCKPATH              TAPFSROOT "/ProgramFiles"
 
 int fseeko64 (FILE *__stream, __off64_t __off, int __whence);
 
@@ -40,7 +41,7 @@ void  CutFileDelete(void);
 bool  CutFileLoad(void);
 void  CutFileSave(void);
 bool  DeleteBookmark(int BookmarkIndex);
-void  DeleteAllBookmarks(void);
+bool  DeleteAllBookmarks(void);
 bool  DeleteSegmentMarker(int MarkerIndex);
 void  DeleteAllSegmentMarkers(void);
 void  ExportSegmentsToBookmarks(void);
@@ -84,9 +85,9 @@ void  Playback_Pause(void);
 void  Playback_RWD(void);
 void  Playback_Slow(void);
 void  Playback_Slower(void);
-bool  ReadBookmarks(void);
+//bool  ReadBookmarks(void);
 char* RemoveEndLineBreak (char *const Text);
-bool  SaveBookmarks(void);
+//bool  SaveBookmarks(void);
 void  SaveINI(void);
 bool  SelectSegmentMarker(void);
 void  SetCurrentSegment(void);
@@ -96,7 +97,7 @@ dword TMSCommander_handler(dword param1);
 void  UndoAddEvent(bool Bookmark, dword PreviousBlock, dword NewBlock, bool SegmentWasSelected);
 bool  UndoLastAction(void);
 void  UndoResetStack(void);
-bool  PatchOldNavFile(char *SourceFileName, bool isHD);
+bool  PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isHD);
 extern void OSDMenuFreeStdFonts(void);
 
 #endif

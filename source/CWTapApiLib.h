@@ -14,16 +14,21 @@
 //#define TAP_MemSet    memset
 #define TAP_SPrint    snprintf
 
-void   HDD_Rename2(const char *FileName, const char *NewFileName, const char *Directory, bool RenameInfNav);
-void   HDD_Delete2(const char *FileName, const char *Directory, bool DeleteInfNav);
-bool   HDD_Exist2(char *FileName, const char *Directory);
-bool   HDD_GetFileSizeAndInode2(const char *FileName, const char *Directory, __ino64_t *OutCInode, __off64_t *OutFileSize);
-bool   HDD_SetFileDateTime(char const *FileName, char const *Directory, dword NewDateTime);
-bool   HDD_StartPlayback2(char *FileName, const char *Directory);
-bool   HDD_FindMountPointDev2(const char *Path, char *const OutMountPoint, char *const OutDeviceNode);  // OutDeviceNode: max. 20 Zeichen, OutMountPoint: max. FILE_NAME_SIZE+1 (inkl. Nullchar)
+#define NRBOOKMARKS           144
+
+void   HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNav);
+void   HDD_Delete2(const char *FileName, const char *AbsDirectory, bool DeleteInfNav);
+bool   HDD_Exist2(char *FileName, const char *AbsDirectory);
+bool   HDD_GetAbsolutePathByTypeFile2(TYPE_File *File, char *OutAbsFileName);    // OutAbsFileName: mind. FBLIB_DIR_SIZE Zeichen (inkl. Nullchar)
+bool   HDD_GetFileSizeAndInode2(const char *FileName, const char *AbsDirectory, __ino64_t *OutCInode, __off64_t *OutFileSize);
+bool   HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, dword NewDateTime);
+bool   HDD_StartPlayback2(char *FileName, char *AbsDirectory);
+bool   ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks);
+bool   SaveBookmarks(const dword Bookmarks[], int NrBookmarks);
 //TYPE_RepeatMode PlaybackRepeatMode(bool ChangeMode, TYPE_RepeatMode RepeatMode, dword RepeatStartBlock, dword RepeatEndBlock);
 bool   PlaybackRepeatSet(bool EnableRepeatAll);
 bool   PlaybackRepeatGet();
+bool   HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint, char *const OutDeviceNode);  // OutDeviceNode: max. 20 Zeichen, OutMountPoint: max. FILE_NAME_SIZE+1 (inkl. Nullchar)
 char*  RemoveEndLineBreak (char *const Text);
 
 
