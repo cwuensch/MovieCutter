@@ -1,6 +1,9 @@
 #ifndef __HDDTOOLSLIB__
 #define __HDDTOOLSLIB__
 
+#define FSCKPATH              TAPFSROOT "/ProgramFiles"
+#define LOGDIR                "/ProgramFiles/Settings/MovieCutter"
+
 typedef void (*TProgBarHandler)(bool, dword);  // 0 - 100
 typedef void (*TMessageHandler)(char*, char*);
 

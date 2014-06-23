@@ -29,7 +29,6 @@ static int              PACKETSIZE = 192;
 static int              SYNCBYTEPOS = 4;
 static int              CUTPOINTSEARCHRADIUS = 9024;
 static int              CUTPOINTSECTORRADIUS = 2;
-static char             LogString[512];
 
 
 // ----------------------------------------------------------------------------
@@ -391,6 +390,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
   // Fix the date info of all involved files
   if (GetRecDateFromInf(SourceFileName, AbsDirectory, &RecDate)) {
     //Source
+    char LogString[512];
     LogString[0] = '\0';
     if (!HDD_SetFileDateTime(SourceFileName, AbsDirectory, RecDate))
       TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "HDD_SetFileDateTime(%s) failed. ", SourceFileName);
@@ -405,6 +405,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
   }
   if (GetRecDateFromInf(CutFileName, AbsDirectory, &RecDate)) {
     //Cut
+    char LogString[512];
     LogString[0] = '\0';
     if (!HDD_SetFileDateTime(CutFileName, AbsDirectory, RecDate))
       TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "HDD_SetFileDateTime(%s) failed. ", CutFileName);
@@ -748,6 +749,7 @@ bool PatchRecFile(const char *SourceFileName, const char *AbsDirectory, off_t Re
 // Restores the patched Sync-Bytes in the rec-File
 bool UnpatchRecFile(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, off_t CutStartPos, off_t BehindCutPos, const off_t PatchedBytes[], int NrPatchedBytes)
 {
+  char                  LogString[512];
   word                  i;
   int                   ret = 0;
 
@@ -1046,6 +1048,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
 {
   char                  AbsSourceInfName[FBLIB_DIR_SIZE], AbsCutInfName[FBLIB_DIR_SIZE];
   char                  T1[12], T2[12], T3[12];
+  char                  LogString[512];
   FILE                 *fSourceInf = NULL, *fCutInf = NULL;
   byte                 *Buffer = NULL;
   tRECHeaderInfo        RECHeaderInfo;

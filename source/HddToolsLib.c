@@ -17,7 +17,6 @@
 
 bool                    fsck_Cancelled;
 word                    RegionToSave;
-char                    LogString[512];
 char*                   LS_Dummy = "< Dummy >";
 char                   *LS_Warning, *LS_CheckingFileSystem;
 
@@ -76,6 +75,7 @@ bool  HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProg
   bool                  OldRepeatMode = FALSE;
   char                  PlaybackName[MAX_FILE_NAME_SIZE + 1];
   char                  AbsPlaybackDir[FBLIB_DIR_SIZE];
+  char                  MessageString[512];
   dword                 LastPlaybackPos;
 
   FILE                 *fPidFile = NULL, *fLogFileIn = NULL, *fLogFileOut = NULL;
@@ -124,7 +124,7 @@ bool  HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProg
 
   // --- 4.) Run fsck and create a log file ---
   StartTime = time(NULL);
-  TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/jfs_fsck -n -v %s %s %s -L /tmp/FixInodes.tmp %s %s &> /tmp/fsck.log & echo $!", TAPFSROOT, ((DoFix) ? "-r" : ""), ((Quick) ? "-q" : ""), ((Quick && InodeNrs) ? "-i" : ""), DeviceNode, ((InodeNrs) ? InodeNrs : ""));  // > /tmp/fsck.pid
+  TAP_SPrint(CommandLine, sizeof(CommandLine), FSCKPATH "/jfs_fsck -n -v %s %s %s -L /tmp/FixInodes.tmp %s %s &> /tmp/fsck.log & echo $!", ((DoFix) ? "-r" : ""), ((Quick) ? "-q" : ""), ((Quick && InodeNrs) ? "-i" : ""), DeviceNode, ((InodeNrs) ? InodeNrs : ""));  // > /tmp/fsck.pid
 //-  system(CommandLine);
 
   //Get the PID of the fsck-Process
@@ -196,8 +196,7 @@ WriteLogMC("DEBUG-Ausgabe", "Playback soll neu gestartet werden.");
       if(p) *(p-1) = '\0';
 
       LastPlaybackPos = PlayInfo.currentBlock;
-TAP_SPrint(LogString, sizeof(LogString), "HDD_StartPlayback2(%s, %s, %s)", PlaybackName, AbsPlaybackDir, &AbsPlaybackDir[strlen(TAPFSROOT)]);
-WriteLogMC("DEBUG-Ausgabe", LogString);
+WriteLogMCf("DEBUG-Ausgabe", "HDD_StartPlayback2(%s, %s, %s)", PlaybackName, AbsPlaybackDir, &AbsPlaybackDir[strlen(TAPFSROOT)]);
 
       HDD_StartPlayback2(PlaybackName, AbsPlaybackDir);
 
@@ -208,8 +207,7 @@ WriteLogMC("DEBUG-Ausgabe", LogString);
         TAP_Hdd_GetPlayInfo(&PlayInfo);
         i++;
       } while ((i < 2000) && (PlayInfo.playMode != PLAYMODE_Playing || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0));
-TAP_SPrint(LogString, sizeof(LogString), "Playback wurde neu gestartet. i=%d, PlayMode=%d, totalBlock=%lu, currentBlock=%lu, LastPlaybackPos=%lu", i, PlayInfo.playMode, PlayInfo.totalBlock, PlayInfo.currentBlock, LastPlaybackPos);
-WriteLogMC("DEBUG-Ausgabe", LogString);
+WriteLogMCf("DEBUG-Ausgabe", "Playback wurde neu gestartet. i=%d, PlayMode=%d, totalBlock=%lu, currentBlock=%lu, LastPlaybackPos=%lu", i, PlayInfo.playMode, PlayInfo.totalBlock, PlayInfo.currentBlock, LastPlaybackPos);
   
       PlaybackRepeatSet(TRUE);
       if(LastPlaybackPos > 500)
@@ -220,8 +218,7 @@ WriteLogMC("DEBUG-Ausgabe", LogString);
   // --- 7.) Open and analyse the generated log file ---
 WriteLogMC("DEBUG-Ausgabe", "Öffne OutLogFile.");
   fsck_Cancelled = TRUE;
-  TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/Settings/MovieCutter/fsck.log", TAPFSROOT);
-  fLogFileOut = fopen(CommandLine, "a");
+  fLogFileOut = fopen(LOGDIR "/fsck.log", "a");
 
   if(fLogFileOut)
   {
@@ -237,7 +234,15 @@ WriteLogMC("DEBUG-Ausgabe", "Öffne InLogFile");
     FirstErrorFile[0] = '\0';
     while (fgets(Buffer, sizeof(Buffer), fLogFileIn))
     {
-      if(fLogFileOut) fputs(Buffer, fLogFileOut);
+      if(fLogFileOut)
+      {
+        dword p = strlen(Buffer);
+        if (p)
+        {
+          fwrite(Buffer, p-1, 1, fLogFileOut);
+          fwrite("\r\n", 2, 1, fLogFileOut);
+        }
+      }
 
       if (strncmp(Buffer, "**Phase", 7) == 0)
       {
@@ -285,14 +290,14 @@ WriteLogMC("DEBUG-Ausgabe", "Öffne InLogFile");
       else if (ActivePhase == 4)
       {
         if (!FirstErrorFile[0] && (strncmp(Buffer, "[MC4]", 5) == 0))  // [MC4] File system object %s%s%u is linked as: %s
-          if (sscanf(Buffer, "[MC4] File system object FF%*d is linked as: %511[^\n]", LogString) == 1)
+          if (sscanf(Buffer, "[MC4] File system object FF%*d is linked as: %511[^\n]", MessageString) == 1)
           {
             if (NrDefectFiles == 0)
               fsck_Errors = TRUE;
             p = NULL;
-            if (strlen(LogString) > sizeof(FirstErrorFile) - 10)
-              p = strrchr(LogString, '/');
-            p = (p && p[1]) ? (p+1) : LogString;
+            if (strlen(MessageString) > sizeof(FirstErrorFile) - 10)
+              p = strrchr(MessageString, '/');
+            p = (p && p[1]) ? (p+1) : MessageString;
             p[sizeof(FirstErrorFile) - 10] = '\0';
             TAP_SPrint(FirstErrorFile, sizeof(FirstErrorFile) - 6, "\n'%s'", p);
           }
@@ -326,8 +331,7 @@ WriteLogMC("DEBUG-Ausgabe", "Öffne InLogFile");
 WriteLogMC("DEBUG-Ausgabe", "Log-Auswertung beendet.");
 
   // Copy the log to MovieCutter folder
-  TAP_SPrint(CommandLine, sizeof(CommandLine), "cp /tmp/fsck.log %s/ProgramFiles/Settings/MovieCutter/Lastfsck.log", TAPFSROOT);
-  system(CommandLine);
+  system("cp /tmp/fsck.log " LOGDIR "/Lastfsck.log");
 
   // --- 8.) Copy the FixInodes list to root of drive ---
   // Dateigröße bestimmen um Puffer zu allozieren
@@ -438,8 +442,8 @@ DumpInodeFixingList(CommandLine);
       WriteLogMCf("HddToolsLib", "CheckFileSystem: File system seems valid. Monitored files: %u", NrMarkedFiles);
       if (!NoOkInfo)
       {
-        TAP_SPrint(LogString, sizeof(LogString), SuccessString, NrMarkedFiles);
-        ShowInfoBox(LogString, "FileSystemCheck");
+        TAP_SPrint(MessageString, sizeof(MessageString), SuccessString, NrMarkedFiles);
+        ShowInfoBox(MessageString, "FileSystemCheck");
       }
 //      TAP_Osd_Sync();
     }
@@ -451,12 +455,12 @@ DumpInodeFixingList(CommandLine);
       if (FirstErrorFile[0] && (NrDefectFiles > 1))
         TAP_SPrint(&FirstErrorFile[strlen(FirstErrorFile)], sizeof(FirstErrorFile)-strlen(FirstErrorFile), ", + %u", NrDefectFiles-1);
 //      StrMkISO(FirstErrorFile);
-      TAP_SPrint(LogString, sizeof(LogString), ErrorStrFmt, min(NrNewMarkedFiles, NrRepairedFiles), NrDefectFiles, ((fsck_Errors) ? "??" : "ok"), ((FirstErrorFile[0]) ? FirstErrorFile : ""), NrMarkedFiles);
+      TAP_SPrint(MessageString, sizeof(MessageString), ErrorStrFmt, min(NrNewMarkedFiles, NrRepairedFiles), NrDefectFiles, ((fsck_Errors) ? "??" : "ok"), ((FirstErrorFile[0]) ? FirstErrorFile : ""), NrMarkedFiles);
       //#ifdef Calibri_10_FontDataUC
-        if (isUTFToppy()) StrMkISO(LogString);
+        if (isUTFToppy()) StrMkISO(MessageString);
       //#endif
-      WriteLogMC("HddToolsLib", LogString);
-      ShowErrorMessage(LogString, LS_Warning);
+      WriteLogMC("HddToolsLib", MessageString);
+      ShowErrorMessage(MessageString, LS_Warning);
     }
   }
   
@@ -551,7 +555,7 @@ void DumpInodeFixingList(const char *AbsListFile)
 bool HDD_FixInodeList(const char *AbsMountPath, bool DeleteOldEntries)
 {
   char                  DeviceNode[20], ListFile[MAX_FILE_NAME_SIZE + 1];
-  char                  CommandLine[512], LastLine[512];
+  char                  CommandLine[512], FullLog[512], LastLine[512];
   FILE                 *LogStream;
   int                   ret = -1;
 
@@ -574,31 +578,38 @@ bool HDD_FixInodeList(const char *AbsMountPath, bool DeleteOldEntries)
   }
 
   // Execute jfs_icheck and read its output (last line separately)
-  LogString[0] = '\0';
-  TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/jfs_fsck icheck -f %s \"%s\" %s 2>&1", TAPFSROOT, ((DeleteOldEntries) ? "-L" : "-l"), ListFile, DeviceNode);
+  FullLog[0] = '\0';
+  TAP_SPrint(CommandLine, sizeof(CommandLine), FSCKPATH "/jfs_fsck icheck -f %s \"%s\" %s 2>&1", ((DeleteOldEntries) ? "-L" : "-l"), ListFile, DeviceNode);
   LogStream = popen(CommandLine, "r");
   if(LogStream)
   {
-    fgets(LogString, sizeof(LogString), LogStream);
-    LogString[0] = '\0';
+    fgets(FullLog, sizeof(FullLog), LogStream);
+    FullLog[0] = '\0';
     while (fgets(LastLine, sizeof(LastLine), LogStream))
     {
+      RemoveEndLineBreak(LastLine);
       if(!feof(LogStream))
       {
-        strncpy(&LogString[strlen(LogString)], LastLine, sizeof(LogString)-strlen(LogString)-1);
-        LogString[sizeof(LogString)-1] = '\0';
+        dword p = strlen(FullLog);
+        if(FullLog[0] && p < sizeof(FullLog)-2)
+        {
+          FullLog[p] = '\r';
+          FullLog[p+1] = '\n';
+          FullLog[p+2] = '\0';
+        }
+        strncpy(&FullLog[strlen(FullLog)], LastLine, sizeof(FullLog)-strlen(FullLog)-1);
+        FullLog[sizeof(FullLog)-1] = '\0';
       }
     }
     ret = pclose(LogStream) / 256;
   }
 
   // Write output of jfs_icheck to Logfile
-  if (LogString[0])
+  if (FullLog[0])
   {
-    RemoveEndLineBreak(LogString);
-    WriteLogMC("HddToolsLib", LogString);
+    WriteLogMC("HddToolsLib", FullLog);
     WriteLogMC("HddToolsLib", LastLine);
-    WriteDebugLog(LogString);
+    WriteDebugLog(FullLog);
     WriteDebugLog(LastLine);
   }
   // Write result state to Logfile
@@ -618,6 +629,7 @@ DumpInodeFixingList(ListFile);
 bool HDD_CheckInode(const char *FileName, const char *AbsDirectory, const char *DeviceNode, bool DoFix, const char *Comment)
 {
   char                  CommandLine[1024];
+  char                  LogString[512];
   FILE                 *LogStream;
   int                   ret = -1;
 
@@ -633,7 +645,7 @@ bool HDD_CheckInode(const char *FileName, const char *AbsDirectory, const char *
 
   // Execute jfs_icheck and read its output
   LogString[0] = '\0';
-  TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/ProgramFiles/jfs_fsck icheck %s %s \"%s/%s\" 2>&1", TAPFSROOT, ((DoFix) ? "-f" : ""), DeviceNode, AbsDirectory, FileName);
+  TAP_SPrint(CommandLine, sizeof(CommandLine), FSCKPATH "/jfs_fsck icheck %s %s \"%s/%s\" 2>&1", ((DoFix) ? "-f" : ""), DeviceNode, AbsDirectory, FileName);
   LogStream = popen(CommandLine, "r");
   if(LogStream)
   {

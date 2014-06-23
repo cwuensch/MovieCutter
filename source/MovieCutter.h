@@ -15,7 +15,6 @@
 #define LOGDIR                "/ProgramFiles/Settings/MovieCutter"
 #define LNGFILENAME           PROGRAM_NAME ".lng"
 #define INIFILENAME           PROGRAM_NAME ".ini"
-#define FSCKPATH              TAPFSROOT "/ProgramFiles"
 
 int fseeko64 (FILE *__stream, __off64_t __off, int __whence);
 

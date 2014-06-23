@@ -331,8 +331,6 @@ word                    rgnActionMenu = 0;
 int                     ActionMenuItem;
 dword                   LastPlayStateChange = 0;
 
-char                    LogString[512];
-
 
 static inline dword currentVisibleBlock()
 {
@@ -389,7 +387,9 @@ int TAP_Main(void)
   // Load Language Strings
   if(!LangLoadStrings(LNGFILENAME, LS_NrStrings, LAN_English, PROGRAM_NAME))
   {
-    WriteLogMCf(PROGRAM_NAME, "Language file '%s' not found!", LNGFILENAME);
+    char LogString[512];
+    TAP_SPrint(LogString, sizeof(LogString), "Language file '%s' not found!", LNGFILENAME);
+    WriteLogMCf(PROGRAM_NAME, LogString);
     OSDMenuInfoBoxShow(PROGRAM_NAME " " VERSION, LogString, 500);
     do
     {
@@ -1856,6 +1856,7 @@ void SaveINI(void)
 // ----------------------------------------------------------------------------
 void ImportBookmarksToSegments(void)
 {
+  char LogString[512];
   int i;
 
   TRACEENTER();
@@ -2479,6 +2480,7 @@ void UndoResetStack(void)
 bool CutFileLoad(void)
 {
   char                  AbsCutName[FBLIB_DIR_SIZE];
+  char                  LogString[512];
   word                  Version = 0;
   word                  Padding;
   FILE                 *fCut = NULL;
@@ -4616,6 +4618,7 @@ void MovieCutterProcess(bool KeepCut)
   int                   maxProgress; 
   char                  CutFileName[MAX_FILE_NAME_SIZE + 1];
   char                  TempFileName[MAX_FILE_NAME_SIZE + 1];
+  char                  MessageString[512];
   tTimeStamp            CutStartPoint, BehindCutPoint;
   dword                 DeltaBlock; //, DeltaTime;
   dword                 CurPlayPosition;
@@ -4668,8 +4671,8 @@ void MovieCutterProcess(bool KeepCut)
 
   maxProgress = NrSelectedSegments;
   OSDMenuSaveMyRegion(rgnSegmentList);
-  TAP_SPrint(LogString, sizeof(LogString), LangGetString(LS_Cutting), 0, maxProgress);
-  OSDMenuProgressBarShow(PROGRAM_NAME, LogString, 0, maxProgress + ((CheckFSAfterCut==1) ? 1 : 0), NULL);
+  TAP_SPrint(MessageString, sizeof(MessageString), LangGetString(LS_Cutting), 0, maxProgress);
+  OSDMenuProgressBarShow(PROGRAM_NAME, MessageString, 0, maxProgress + ((CheckFSAfterCut==1) ? 1 : 0), NULL);
   CurPlayPosition = PlayInfo.currentBlock;
 
 // Aufnahmenfresser-Test und Ausgabe
@@ -4969,8 +4972,8 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
       if (OSDMenuProgressBarIsVisible())
       {
         OSDMenuSaveMyRegion(rgnSegmentList);
-        TAP_SPrint(LogString, sizeof(LogString), LangGetString(LS_Cutting), maxProgress - NrSelectedSegments, maxProgress);
-        OSDMenuProgressBarShow(PROGRAM_NAME, LogString, maxProgress - NrSelectedSegments, maxProgress + ((CheckFSAfterCut==1) ? 1 : 0), NULL);
+        TAP_SPrint(MessageString, sizeof(MessageString), LangGetString(LS_Cutting), maxProgress - NrSelectedSegments, maxProgress);
+        OSDMenuProgressBarShow(PROGRAM_NAME, MessageString, maxProgress - NrSelectedSegments, maxProgress + ((CheckFSAfterCut==1) ? 1 : 0), NULL);
       }
     }
     if ((NrSelectedSegments <= 0 /* && !SegmentMarker[NrSegmentMarker-2].Selected*/) || (NrSegmentMarker <= 2))
@@ -5010,15 +5013,15 @@ TAP_PrintNet("Inodes checken: %s\n", InodeNrs);
   else if (icheckErrors)
   {
     if(OSDMenuProgressBarIsVisible()) OSDMenuProgressBarDestroyNoOSDUpdate();
-    TAP_SPrint(LogString, sizeof(LogString), LangGetString(LS_SuspectFilesFound), icheckErrors);
-    ShowErrorMessage(LogString, LangGetString(LS_Warning));
+    TAP_SPrint(MessageString, sizeof(MessageString), LangGetString(LS_SuspectFilesFound), icheckErrors);
+    ShowErrorMessage(MessageString, LangGetString(LS_Warning));
   }
 //  HDD_ChangeDir(PlaybackDir);
 
   if (OSDMenuProgressBarIsVisible())
   {
-    TAP_SPrint(LogString, sizeof(LogString), LangGetString(LS_Cutting), maxProgress - NrSelectedSegments, maxProgress);
-    OSDMenuProgressBarShow(PROGRAM_NAME, LogString, maxProgress, maxProgress, NULL);
+    TAP_SPrint(MessageString, sizeof(MessageString), LangGetString(LS_Cutting), maxProgress - NrSelectedSegments, maxProgress);
+    OSDMenuProgressBarShow(PROGRAM_NAME, MessageString, maxProgress, maxProgress, NULL);
     OSDMenuProgressBarDestroyNoOSDUpdate();
 //    TAP_Osd_Sync();
   }
