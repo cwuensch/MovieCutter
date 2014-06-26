@@ -46,6 +46,7 @@
 #include                "Graphics/Button_Recall.gd"
 #include                "Graphics/Button_VF.gd"
 #include                "Graphics/Button_Menu.gd"
+#include                "Graphics/Button_ProgPlusMinus.gd"
 #include                "Graphics/Button_Exit.gd"
 #include                "Graphics/Button_Ok.gd"
 #include                "Graphics/BookmarkMarker.gd"
@@ -213,10 +214,12 @@ typedef enum
   LS_CheckFSAborted,
   LS_CheckFSSuccess,
   LS_SuspectFilesFound,
+  LS_FilesNotVerified,
   LS_FileNameTooLong,
   LS_Warning,
   LS_Undo,
   LS_ChangeMode,
+  LS_FastNav,
   LS_OSD,
   LS_BM,
   LS_B,
@@ -261,12 +264,13 @@ bool                    ShowRebootMessage  = TRUE;
 bool                    AskBeforeEdit      = TRUE;
 bool                    SaveCutBak         = TRUE;
 bool                    DisableSpecialEnd  = FALSE;
-bool                    DoiCheckFix        = FALSE;
+byte                    DoiCheckTest       = 0;   // 0 - nein, 1 - nur Test, 2 - Test und Fix
 byte                    CheckFSAfterCut    = 0;   // 0 - auto, 1 - always, 2 - never
+bool                    InodeMonitoring    = FALSE;
 dword                   Overscan_X         = 50;
 dword                   Overscan_Y         = 25;
-dword                   SegmentList_X      = 50;
-dword                   SegmentList_Y      = 82;
+dword                   SegmentList_X      = 55;
+dword                   SegmentList_Y      = 78;
 tRCUMode                RCUMode            = RC_SRP2401;
 bool                    DirectSegmentsCut  = FALSE;
 bool                    DisableSleepKey    = FALSE;
@@ -555,7 +559,7 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
 
       // Fix list of defect inodes
       if (HDD_Exist2("jfs_fsck", FSCKPATH)) system("chmod a+x " FSCKPATH "/jfs_fsck &");
-      HDD_FixInodeList(TAPFSROOT, TRUE);  // Problem: NUR für die interne HDD wird die Liste jemals zurückgesetzt!
+      if(InodeMonitoring) HDD_FixInodeList(TAPFSROOT, TRUE);  // Problem: NUR für die interne HDD wird die Liste jemals zurückgesetzt!
 
       CleanupCut();
 
@@ -620,12 +624,14 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
         p = strstr(AbsPlaybackDir, PlaybackName);
         if(p) *(p-1) = '\0';
 
+//        HDD_ChangeDir(PlaybackDir);
+        if (strncmp(AbsPlaybackDir, TAPFSROOT, strlen(TAPFSROOT)) == 0)
+          HDD_ChangeDir(&AbsPlaybackDir[strlen(TAPFSROOT)]);
 #ifdef FULLDEBUG
   char CurDir[FBLIB_DIR_SIZE];
   HDD_TAP_GetCurrentDir(CurDir);
   WriteLogMCf(PROGRAM_NAME, "ST_WaitForPlayback: CurrentDir='%s'", CurDir);
 #endif
-//        HDD_ChangeDir(PlaybackDir);
 
         WriteLogMCf(PROGRAM_NAME, "Attaching to %s/%s", AbsPlaybackDir, PlaybackName);
         WriteLogMC ("MovieCutterLib", "----------------------------------------");
@@ -831,7 +837,7 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
       if (!isPlaybackRunning() || (LastTotalBlocks == 0) || (LastTotalBlocks != PlayInfo.totalBlock))
       {
         Cleanup(FALSE);
-        HDD_FixInodeList(AbsPlaybackDir, TRUE);
+        if(InodeMonitoring) HDD_FixInodeList(AbsPlaybackDir, TRUE);
         State = (AutoOSDPolicy) ? ST_WaitForPlayback : ST_InactiveMode;
         break;
       }
@@ -898,7 +904,7 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
           CutFileSave();
         }
         Cleanup(TRUE);
-        HDD_FixInodeList(AbsPlaybackDir, TRUE);
+        if(InodeMonitoring) HDD_FixInodeList(AbsPlaybackDir, TRUE);
         State = AutoOSDPolicy ? ST_WaitForPlayback : ST_InactiveMode;
         break;
       }
@@ -1503,7 +1509,8 @@ WriteLogMC("DEBUG-Ausgabe", "ChUp/ChDown-Event empfangen, das nicht durch Up/Dow
       }
       PlaybackRepeatSet(OldRepeatMode);
       Cleanup(TRUE);
-      HDD_FixInodeList(((AbsPlaybackDir[0]) ? AbsPlaybackDir : TAPFSROOT), TRUE);
+      if(InodeMonitoring)
+        HDD_FixInodeList(((AbsPlaybackDir[0]) ? AbsPlaybackDir : TAPFSROOT), TRUE);
       TAP_MemFree(UndoStack);
       TAP_MemFree(Bookmarks);
       TAP_MemFree(SegmentMarker);
@@ -1797,8 +1804,9 @@ void LoadINI(void)
     AskBeforeEdit     =            INIGetInt("AskBeforeEdit",              1,   0,    1)   !=   0;
     SaveCutBak        =            INIGetInt("SaveCutBak",                 1,   0,    1)   !=   0;
     DisableSpecialEnd =            INIGetInt("DisableSpecialEnd",          0,   0,    1)   ==   1;
-    DoiCheckFix       =            INIGetInt("DoiCheckFix",                0,   0,    1)   ==   1;
+    DoiCheckTest      =            INIGetInt("DoiCheckTest",               0,   0,    2);
     CheckFSAfterCut   =            INIGetInt("CheckFSAfterCut",            0,   0,    2);
+    InodeMonitoring   =            INIGetInt("InodeMonitoring",            0,   0,    1)   ==   1;
 
     Overscan_X        =            INIGetInt("Overscan_X",                50,   0,  100);
     Overscan_Y        =            INIGetInt("Overscan_Y",                25,   0,  100);
@@ -1834,8 +1842,9 @@ void SaveINI(void)
   INISetInt ("AskBeforeEdit",       AskBeforeEdit       ?  1  :  0);
   INISetInt ("SaveCutBak",          SaveCutBak          ?  1  :  0);
   INISetInt ("DisableSpecialEnd",   DisableSpecialEnd   ?  1  :  0);
-  INISetInt ("DoiCheckFix",         DoiCheckFix         ?  1  :  0);
+  INISetInt ("DoiCheckTest",        DoiCheckTest);
   INISetInt ("CheckFSAfterCut",     CheckFSAfterCut);
+  INISetInt ("InodeMonitoring",     InodeMonitoring     ?  1  :  0);
   INISetInt ("Overscan_X",          Overscan_X);
   INISetInt ("Overscan_Y",          Overscan_Y);
   INISetInt ("SegmentList_X",       SegmentList_X);
@@ -2704,7 +2713,7 @@ void CutFileSave(void)
 #ifdef FULLDEBUG
   char CurDir[FBLIB_DIR_SIZE];
   HDD_TAP_GetCurrentDir(CurDir);
-  WriteLogMCf(PROGRAM_NAME, "CutFileSave()! CurrentDir: %s, PlaybackName: %s, CutFileName: %s", CurDir, PlaybackName, CutName);
+  WriteLogMCf(PROGRAM_NAME, "CutFileSave()! CurrentDir: '%s', PlaybackName: '%s', CutFileName: '%s'", CurDir, PlaybackName, CutName);
 #endif
 //  HDD_ChangeDir(PlaybackDir);
 
@@ -3194,9 +3203,9 @@ void OSDInfoDrawBackground(void)
   TYPE_GrData*          ColorButtons[]       = {&_Button_Red_Gd,          &_Button_Green_Gd,     &_Button_Yellow_Gd,     &_Button_Blue_Gd};
   char*                 ColorButtonStrings[] = {LangGetString(LS_Delete), LangGetString(LS_Add), LangGetString(LS_Move), LangGetString(LS_Select)};
   int                   ColorButtonLengths[4];
-  TYPE_GrData*          BelowButtons[]       = {&_Button_Recall_Gd,     &_Button_VF_Gd,               &_Button_Menu_Gd,            &_Button_Exit_Gd,       &_Button_White_Gd};
-  char*                 BelowButtonStrings[] = {LangGetString(LS_Undo), LangGetString(LS_ChangeMode), LangGetString(LS_PauseMenu), LangGetString(LS_Exit), LangGetString(LS_OSD)};
-  int                   BelowButtonLengths[5];
+  TYPE_GrData*          BelowButtons[]       = {&_Button_Recall_Gd,     &_Button_VF_Gd,               &_Button_ProgPlusMinus_Gd,  &_Button_Menu_Gd,            &_Button_Exit_Gd,       &_Button_White_Gd};
+  char*                 BelowButtonStrings[] = {LangGetString(LS_Undo), LangGetString(LS_ChangeMode), LangGetString(LS_FastNav),  LangGetString(LS_PauseMenu), LangGetString(LS_Exit), LangGetString(LS_OSD)};
+  int                   BelowButtonLengths[6];
 
   int                   PosX, PosY, ButtonDist;
   int                   i;
@@ -3246,22 +3255,22 @@ void OSDInfoDrawBackground(void)
 
     // Draw the button usage info
     ButtonDist = 6;
-    for (i = 0; i < 5; i++)
+    for (i = 0; i < 6; i++)
     {
       BelowButtonLengths[i] = FMUC_GetStringWidth(BelowButtonStrings[i], &Calibri_10_FontDataUC);
       ButtonDist += BelowButtons[i]->width + 2 + BelowButtonLengths[i];
     }
-    ButtonDist = (ScreenWidth - (int)(2*Overscan_X) - ButtonDist - 1 - 80) / 5;
+    ButtonDist = (ScreenWidth - (int)(2*Overscan_X) - ButtonDist - 74) / 6;
     ButtonDist = min(ButtonDist, 20);
 
     PosY = InfoBarLine3_Y;
     PosX = Overscan_X + 6;
-    for (i = 0; i < 4  /*5*/; i++)
+    for (i = 0; i < 5 /*6*/; i++)
     {
       TAP_Osd_PutGd(rgnInfoBar, PosX, PosY, BelowButtons[i], TRUE);
-      if (BelowButtons[i] == &_Button_Exit_Gd)
-        PosX += BelowButtons[i]->width + 3;
-      else
+//      if (BelowButtons[i] == &_Button_Exit_Gd)
+//        PosX += BelowButtons[i]->width + 3;
+//      else
         PosX += BelowButtons[i]->width + 2;
       FMUC_PutString(rgnInfoBar, PosX, PosY + 1, PosX + max(BelowButtonLengths[i] + ButtonDist, 0), BelowButtonStrings[i], COLOR_White, ColorDarkBackground, &Calibri_10_FontDataUC, TRUE, ALIGN_LEFT);
       PosX += BelowButtonLengths[i] + ButtonDist;
@@ -3780,8 +3789,19 @@ void ActionMenuDraw(void)
     switch(i)
     {
       case MI_SelectFunction:
+      {
         DisplayStr = LangGetString(LS_SelectFunction);
+        #ifdef Calibri_10_FontDataUC
+          char *p;
+          do
+          {
+            p = strchr(DisplayStr, 'â');  if(p) p[0] = '-';
+            p = strchr(DisplayStr, '€');  if(p) p[0] = '-';
+            p = strchr(DisplayStr, '•');  if(p) p[0] = '-';
+          } while (p);
+        #endif
         break;
+      }
       case MI_SaveSegments:
       {
         if (NrSelectedSegments == 0)
@@ -4262,7 +4282,7 @@ void Playback_SetJumpNavigate(bool pJumpRequest, bool pNavRequest, bool pBackwar
     if (JumpRequestedBlock == (dword) -1)
       JumpRequestedBlock = PlayInfo.currentBlock;
 
-    if (labs(TAP_GetTick() - LastNavTime) >= 250)
+    if (labs(TAP_GetTick() - LastNavTime) >= 500)
       LastDirection = 0;
 
     if (pBackwards)
@@ -4293,7 +4313,7 @@ void Playback_SetJumpNavigate(bool pJumpRequest, bool pNavRequest, bool pBackwar
     }
     LastNavTime = TAP_GetTick();
   }
-  
+
   // Zeit der Aktion erfassen
   if (pJumpRequest || JumpRequestedBlock != (dword) -1)
   {
@@ -4624,7 +4644,7 @@ void MovieCutterProcess(bool KeepCut)
   dword                 CurPlayPosition;
   char                  DeviceNode[20], CommandLine[512], InodeNrs[768];
   __ino64_t             InodeNr = 0;
-  unsigned int          icheckErrors = 0;
+  int                   icheckErrors = -1;
   int                   i, j;
   tResultCode           ret = RC_Error;
 
@@ -4690,7 +4710,12 @@ if(MountState)
   fgets(CommandLine, sizeof(CommandLine), MountState);
   WriteDebugLog("Device: %s, gemountet als: %s. (%s)", DeviceNode, ((CommandLine[0] && !strstr(CommandLine, "nointegrity")) ? "integrity" : ((CommandLine[0]) ? "nointegrity" : "unbekannt")), RemoveEndLineBreak(CommandLine));
 }
-if (!HDD_CheckInode(PlaybackName, AbsPlaybackDir, DeviceNode, FALSE, "Original")) icheckErrors++;
+if (DoiCheckTest)
+{
+  icheckErrors = 0;
+  if (!HDD_CheckInode(PlaybackName, AbsPlaybackDir, DeviceNode, FALSE, "Original"))
+    icheckErrors++;
+}
 WriteDebugLog("%d Schnittoperation(en) vorgesehen.", NrSelectedSegments);
 WriteDebugLog("---------------");
 
@@ -4775,13 +4800,6 @@ WriteDebugLog("---------------");
       TAP_Sleep(1);
 //      HDD_ChangeDir(PlaybackDir);
 
-// INFplus
-__ino64_t OldInodeNr, NewInodeNr;
-char InfFileName[MAX_FILE_NAME_SIZE + 1];
-TAP_SPrint(InfFileName, sizeof(InfFileName), "%s.inf", PlaybackName);
-HDD_GetFileSizeAndInode2(InfFileName, AbsPlaybackDir, &OldInodeNr, NULL);
-
-
       // Schnittoperation
       ret = MovieCutter(PlaybackName, ((CutEnding) ? TempFileName : CutFileName), AbsPlaybackDir, &CutStartPoint, &BehindCutPoint, (TRUE || KeepCut || CutEnding), HDVideo);
 
@@ -4789,19 +4807,33 @@ HDD_GetFileSizeAndInode2(InfFileName, AbsPlaybackDir, &OldInodeNr, NULL);
         TAP_SPrint(&InodeNrs[strlen(InodeNrs)], sizeof(InodeNrs)-strlen(InodeNrs), " %llu", InodeNr);
 
 // Aufnahmenfresser-Test und Ausgabe
-if (!HDD_CheckInode(((CutEnding) ? TempFileName : CutFileName), AbsPlaybackDir, DeviceNode, DoiCheckFix, "CutFile"))
+if (DoiCheckTest)
 {
-  icheckErrors++;
-  HDD_CheckInode(((CutEnding) ? TempFileName : CutFileName), AbsPlaybackDir, DeviceNode, FALSE, "CutFile");
-}
-if (!HDD_CheckInode(PlaybackName, AbsPlaybackDir, DeviceNode, DoiCheckFix, "RestFile"))
-{
-  icheckErrors++;
-  HDD_CheckInode(PlaybackName, AbsPlaybackDir, DeviceNode, FALSE, "RestFile");
+  if (!HDD_CheckInode(((CutEnding) ? TempFileName : CutFileName), AbsPlaybackDir, DeviceNode, (DoiCheckTest==2), "CutFile"))
+    icheckErrors++;
+  if (!HDD_CheckInode(PlaybackName, AbsPlaybackDir, DeviceNode, (DoiCheckTest==2), "RestFile"))
+    icheckErrors++;
 }
 if (!KeepCut && !CutEnding)
   HDD_Delete2(CutFileName, AbsPlaybackDir, TRUE);  // wenn diese Zeile gelöscht wird, stattdessen das TRUE im MovieCutter-Aufruf wieder rausnehmen
 
+// INFplus
+if (CutEnding || KeepCut)
+{
+  __ino64_t OldInodeNr, NewInodeNr;
+  char InfFileName[MAX_FILE_NAME_SIZE + 1];
+  TAP_SPrint(InfFileName, sizeof(InfFileName), "%s.inf", PlaybackName);
+  HDD_GetFileSizeAndInode2(InfFileName, AbsPlaybackDir, &OldInodeNr, NULL);
+
+  TAP_SPrint(InfFileName, sizeof(InfFileName), "%010llu.INF+", OldInodeNr);
+  if (HDD_Exist2(InfFileName, TAPFSROOT "/ProgramFiles/Settings/INFplus"))
+  {
+    TAP_SPrint(InfFileName, sizeof(InfFileName), "%s.inf", (CutEnding) ? TempFileName : CutFileName);
+    HDD_GetFileSizeAndInode2(InfFileName, AbsPlaybackDir, &NewInodeNr, NULL);
+    TAP_SPrint(CommandLine, sizeof(CommandLine), "%s %s/ProgramFiles/Settings/INFplus/%010llu.INF+ %s/ProgramFiles/Settings/INFplus/%010llu.INF+", (KeepCut) ? "cp" : "mv", TAPFSROOT, OldInodeNr, TAPFSROOT, NewInodeNr);
+    system(CommandLine);
+  }
+}
 
       // Das erzeugte CutFile wird zum neuen SourceFile
       if (CutEnding)
@@ -4832,20 +4864,6 @@ if (!KeepCut && !CutEnding)
       if(HDD_Exist2(PlaybackName, AbsPlaybackDir))
         HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, NULL, &RecFileSize);
       WriteLogMCf(PROGRAM_NAME, "Size of the new playback file (after cut): %llu", RecFileSize);
-
-
-// INFplus
-if (CutEnding || KeepCut)
-{
-  TAP_SPrint(InfFileName, sizeof(InfFileName), "%010llu.INF+", OldInodeNr);
-  if (HDD_Exist2(InfFileName, "/ProgramFiles/Settings/INFplus"))
-  {
-    TAP_SPrint(InfFileName, sizeof(InfFileName), "%s.inf", (CutEnding) ? PlaybackName : CutFileName);
-    HDD_GetFileSizeAndInode2(InfFileName, AbsPlaybackDir, &NewInodeNr, NULL);
-    TAP_SPrint(CommandLine, sizeof(CommandLine), "%s %s/ProgramFiles/Settings/INFplus/%010llu.INF+ %s/ProgramFiles/Settings/INFplus/%010llu.INF+", (KeepCut) ? "cp" : "mv", TAPFSROOT, OldInodeNr, TAPFSROOT, NewInodeNr);
-    system(CommandLine);
-  }
-}
 
       // Wiedergabe wird neu gestartet
       if (RecFileSize > 0)
@@ -5013,8 +5031,13 @@ TAP_PrintNet("Inodes checken: %s\n", InodeNrs);
   else if (icheckErrors)
   {
     if(OSDMenuProgressBarIsVisible()) OSDMenuProgressBarDestroyNoOSDUpdate();
-    TAP_SPrint(MessageString, sizeof(MessageString), LangGetString(LS_SuspectFilesFound), icheckErrors);
-    ShowErrorMessage(MessageString, LangGetString(LS_Warning));
+    if (icheckErrors > 0)
+    {
+      TAP_SPrint(MessageString, sizeof(MessageString), LangGetString(LS_SuspectFilesFound), icheckErrors);
+      ShowErrorMessage(MessageString, LangGetString(LS_Warning));
+    }
+    else
+      ShowErrorMessage(LangGetString(LS_FilesNotVerified), LangGetString(LS_Warning));
   }
 //  HDD_ChangeDir(PlaybackDir);
 
@@ -5271,9 +5294,9 @@ bool PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isH
 // ----------------------------------------------------------------------------
 //                           System-Funktionen
 // ----------------------------------------------------------------------------
-bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, bool DoFix, bool Quick, bool NoOkInfo, unsigned int SuspectFiles, char *InodeNrs)
+bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, bool DoFix, bool Quick, bool NoOkInfo, int SuspectFiles, char *InodeNrs)
 {
-  char                  ErrorStrFmt[512];
+  char                  ErrorStrFmt[512], SuspectFilesStr[12];
   char                 *MountPath = NULL;
   dword                 OldSysState, OldSysSubState;
   bool                  ret = FALSE;
@@ -5290,10 +5313,14 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
 //  TAP_SPrint(ErrorStrFmt, sizeof(ErrorStrFmt), "Suspekt: %d", SuspectFiles);
 //  strncat(ErrorStrFmt, LangGetString(LS_CheckFSFailed), sizeof(ErrorStrFmt) - strlen(ErrorStrFmt) - 1);
 //  ErrorStrFmt[sizeof(ErrorStrFmt) - 1] = '\0';
-  TAP_SPrint(ErrorStrFmt, sizeof(ErrorStrFmt), LangGetString(LS_CheckFSFailed), SuspectFiles);
+  if (SuspectFiles >= 0)
+    TAP_SPrint(SuspectFilesStr, sizeof(SuspectFilesStr), "%d", SuspectFiles);
+  else
+    TAP_SPrint(SuspectFilesStr, sizeof(SuspectFilesStr), "?");
+  TAP_SPrint(ErrorStrFmt, sizeof(ErrorStrFmt), LangGetString(LS_CheckFSFailed), SuspectFilesStr);
 
   MountPath = (AbsPlaybackDir[0]) ? AbsPlaybackDir : TAPFSROOT;
-  ret = HDD_CheckFileSystem(MountPath, NULL, &ShowErrorMessage, TRUE, Quick, NoOkInfo, InodeNrs, LangGetString(LS_CheckFSSuccess), ErrorStrFmt, LangGetString(LS_CheckFSAborted));
+  ret = HDD_CheckFileSystem(MountPath, NULL, &ShowErrorMessage, TRUE, Quick, InodeMonitoring, NoOkInfo, InodeNrs, LangGetString(LS_CheckFSSuccess), ErrorStrFmt, LangGetString(LS_CheckFSAborted));
 
   // Prüfen, ob das Playback wieder gestartet wurde
   if (DoFix && (State==ST_ActiveOSD || State==ST_ActionMenu) && (LastTotalBlocks > 0) && (RecFileSize > 0))

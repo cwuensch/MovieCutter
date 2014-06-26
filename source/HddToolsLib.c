@@ -66,17 +66,17 @@ void HDD_CancelCheckFS()
   fsck_Cancelled = TRUE;
 }
 
-bool  HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgBar, TMessageHandler pShowErrorMessage, bool DoFix, bool Quick, bool NoOkInfo, char *InodeNrs, char *SuccessString, char *ErrorStrFmt, char *AbortedString)
+bool  HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgBar, TMessageHandler pShowErrorMessage, bool DoFix, bool Quick, bool InodeMonitoring, bool NoOkInfo, char *InodeNrs, char *SuccessString, char *ErrorStrFmt, char *AbortedString)
 {
   TProgBarHandler       RefreshProgBar = pRefreshProgBar;
   TMessageHandler       ShowErrorMessage = pShowErrorMessage;
 
   TYPE_PlayInfo         PlayInfo;
-  bool                  OldRepeatMode = FALSE;
+  bool                  PlaybackWasRunning = FALSE, OldRepeatMode = FALSE;
   char                  PlaybackName[MAX_FILE_NAME_SIZE + 1];
   char                  AbsPlaybackDir[FBLIB_DIR_SIZE];
   char                  MessageString[512];
-  dword                 LastPlaybackPos;
+  dword                 LastPlaybackPos = 0;
 
   FILE                 *fPidFile = NULL, *fLogFileIn = NULL, *fLogFileOut = NULL;
   char                  DeviceNode[20], MountPoint[FBLIB_DIR_SIZE];
@@ -102,8 +102,23 @@ bool  HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProg
   TAP_Hdd_GetPlayInfo(&PlayInfo);
   if (PlayInfo.playMode == PLAYMODE_Playing)
   {
+    // Get infos about the playback file
+    strncpy(PlaybackName, PlayInfo.file->name, sizeof(PlaybackName));
+    PlaybackName[MAX_FILE_NAME_SIZE] = '\0';
+    PlaybackName[strlen(PlaybackName) - 4] = '\0';
+
+    //Extract the absolute path to the rec file and change into that dir
+    HDD_GetAbsolutePathByTypeFile2(PlayInfo.file, AbsPlaybackDir);
+//    AbsPlaybackDir[FBLIB_DIR_SIZE - 1] = '\0';
+
+    p = strstr(AbsPlaybackDir, PlaybackName);
+    if(p) *(p-1) = '\0';
+
+    LastPlaybackPos = PlayInfo.currentBlock;
     OldRepeatMode = PlaybackRepeatGet();
     PlaybackRepeatSet(TRUE);
+    PlaybackWasRunning = TRUE;
+
     if (DoFix)
       TAP_Hdd_StopTs();
   }
@@ -167,7 +182,6 @@ bool  HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProg
     }
   }
   fsck_Pid = 0;
-WriteLogMC("DEBUG-Ausgabe", "fsck beendet oder abgebrochen.");
 
   // --- 5.) Make HDD writable again ---
   if (DoFix)
@@ -175,59 +189,35 @@ WriteLogMC("DEBUG-Ausgabe", "fsck beendet oder abgebrochen.");
     TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,rw %s", DeviceNode);
     system(CommandLine);
   }
-WriteLogMC("DEBUG-Ausgabe", "HDD wieder writable.");
 
   // --- 6.) Restart the playback again ---
-  if (DoFix)
+  if (DoFix && PlaybackWasRunning)
   {
-    if (PlayInfo.playMode == PLAYMODE_Playing)
-    {
-WriteLogMC("DEBUG-Ausgabe", "Playback soll neu gestartet werden.");
-      // Get infos about the playback file
-      strncpy(PlaybackName, PlayInfo.file->name, sizeof(PlaybackName));
-      PlaybackName[MAX_FILE_NAME_SIZE] = '\0';
-      PlaybackName[strlen(PlaybackName) - 4] = '\0';
+    HDD_StartPlayback2(PlaybackName, AbsPlaybackDir);
 
-      //Extract the absolute path to the rec file and change into that dir
-      HDD_GetAbsolutePathByTypeFile2(PlayInfo.file, AbsPlaybackDir);
-//      AbsPlaybackDir[FBLIB_DIR_SIZE - 1] = '\0';
+    // auf das Starten des Playbacks warten
+    i = 0;
+    do {
+      TAP_SystemProc();
+      TAP_Hdd_GetPlayInfo(&PlayInfo);
+      i++;
+    } while ((i < 2000) && (PlayInfo.playMode != PLAYMODE_Playing || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0));
 
-      p = strstr(AbsPlaybackDir, PlaybackName);
-      if(p) *(p-1) = '\0';
-
-      LastPlaybackPos = PlayInfo.currentBlock;
-WriteLogMCf("DEBUG-Ausgabe", "HDD_StartPlayback2(%s, %s, %s)", PlaybackName, AbsPlaybackDir, &AbsPlaybackDir[strlen(TAPFSROOT)]);
-
-      HDD_StartPlayback2(PlaybackName, AbsPlaybackDir);
-
-      // auf das Starten des Playbacks warten
-      i = 0;
-      do {
-        TAP_SystemProc();
-        TAP_Hdd_GetPlayInfo(&PlayInfo);
-        i++;
-      } while ((i < 2000) && (PlayInfo.playMode != PLAYMODE_Playing || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0));
-WriteLogMCf("DEBUG-Ausgabe", "Playback wurde neu gestartet. i=%d, PlayMode=%d, totalBlock=%lu, currentBlock=%lu, LastPlaybackPos=%lu", i, PlayInfo.playMode, PlayInfo.totalBlock, PlayInfo.currentBlock, LastPlaybackPos);
-  
-      PlaybackRepeatSet(TRUE);
-      if(LastPlaybackPos > 500)
-        TAP_Hdd_ChangePlaybackPos(LastPlaybackPos);
-    }
+    PlaybackRepeatSet(TRUE);
+    if(LastPlaybackPos >= 1000)
+      TAP_Hdd_ChangePlaybackPos(LastPlaybackPos);
   }
 
   // --- 7.) Open and analyse the generated log file ---
-WriteLogMC("DEBUG-Ausgabe", "Öffne OutLogFile.");
   fsck_Cancelled = TRUE;
-  fLogFileOut = fopen(LOGDIR "/fsck.log", "a");
+  fLogFileOut = fopen(ABSLOGDIR "/fsck.log", "a");
 
   if(fLogFileOut)
   {
-WriteLogMC("DEBUG-Ausgabe", "OutLogFile geöffnet.");
-    fprintf(fLogFileOut, "\n=========================================================\n");
-    fprintf(fLogFileOut, "*** File system check started %s\n", asctime(localtime(&StartTime)));
+    fprintf(fLogFileOut, "\r\n=========================================================\r\n");
+    fprintf(fLogFileOut, "*** File system check started %s\r\n", asctime(localtime(&StartTime)));
   }
 
-WriteLogMC("DEBUG-Ausgabe", "Öffne InLogFile");
   fLogFileIn = fopen("/tmp/fsck.log", "r");
   if(fLogFileIn)
   {
@@ -328,105 +318,113 @@ WriteLogMC("DEBUG-Ausgabe", "Öffne InLogFile");
   else
     WriteLogMC("HddToolsLib", "CheckFileSystem() E1c01.");
   if(fLogFileOut) fclose(fLogFileOut);
-WriteLogMC("DEBUG-Ausgabe", "Log-Auswertung beendet.");
 
   // Copy the log to MovieCutter folder
-  system("cp /tmp/fsck.log " LOGDIR "/Lastfsck.log");
+  system("cp /tmp/fsck.log " ABSLOGDIR "/Lastfsck.log");
 
   // --- 8.) Copy the FixInodes list to root of drive ---
-  // Dateigröße bestimmen um Puffer zu allozieren
-  int64_t fsOut = 0, fsIn = 0;
-  HDD_GetFileSizeAndInode2("FixInodes.lst", MountPoint, NULL, &fsOut);
-  HDD_GetFileSizeAndInode2("FixInodes.tmp", "/tmp", NULL, &fsIn);
-
-  if (fsIn > sizeof(tInodeListHeader))
+  if(InodeMonitoring)
   {
-    tInodeListHeader InListHeader, OutListHeader;
+    TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/FixInodes.lst", MountPoint);
+
+    // Dateigröße bestimmen um Puffer zu allozieren
+    int64_t fsOut = 0, fsIn = 0;
+    HDD_GetFileSizeAndInode2("FixInodes.lst", MountPoint, NULL, &fsOut);
+    HDD_GetFileSizeAndInode2("FixInodes.tmp", "/tmp", NULL, &fsIn);
+
+    if (fsIn > sizeof(tInodeListHeader))
+    {
+      tInodeListHeader InListHeader, OutListHeader;
 
 TAP_PrintNet("Puffer alloz. %llu\n", (fsOut - min(sizeof(tInodeListHeader), fsOut) + fsIn - min(sizeof(tInodeListHeader), fsIn)) / sizeof(tInodeData) * sizeof(tInodeData));
-    InodeList = (tInodeData*) malloc((fsOut - min(sizeof(tInodeListHeader), fsOut) + fsIn - min(sizeof(tInodeListHeader), fsIn)) / sizeof(tInodeData) * sizeof(tInodeData));
-    if(InodeList)
-    {
-      // bisherige FixInodes.lst einlesen
-      TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/FixInodes.lst", MountPoint);
-      fLogFileOut = fopen(CommandLine, "rb");
-      if(fLogFileOut)
+      InodeList = (tInodeData*) malloc((fsOut - min(sizeof(tInodeListHeader), fsOut) + fsIn - min(sizeof(tInodeListHeader), fsIn)) / sizeof(tInodeData) * sizeof(tInodeData));
+      if(InodeList)
       {
-        // Header prüfen
-        if ( (fread(&OutListHeader, sizeof(tInodeListHeader), 1, fLogFileOut))
-          && (strncmp(OutListHeader.Magic, "TFinos", 6) == 0)
-          && (OutListHeader.Version == 1)
-          && (OutListHeader.FileSize == fsOut)
-          && (OutListHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == fsOut))
-        {
-          NrMarkedFiles = fread(InodeList, sizeof(tInodeData), OutListHeader.NrEntries, fLogFileOut);
-          if (NrMarkedFiles != OutListHeader.NrEntries)
-            WriteLogMC("HddToolsLib", "CheckFileSysem() W1c02.");
-        }
-        else
-          WriteLogMC("HddToolsLib", "CheckFileSysem() W1c01.");
-        fclose(fLogFileOut);
-      }
-
-      // neue Inodes hinzufügen
-      fLogFileIn = fopen("/tmp/FixInodes.tmp", "rb");
-      if(fLogFileIn)
-      {
-        // Header prüfen
-        if ( (fread(&InListHeader, sizeof(tInodeListHeader), 1, fLogFileIn))
-          && (strncmp(InListHeader.Magic, "TFinos", 6) == 0)
-          && (InListHeader.Version == 1)
-          && (InListHeader.FileSize == fsIn)
-          && (InListHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == fsIn))
-        {
-          while (!feof(fLogFileIn))
-          {
-            if (fread(&curInode, sizeof(tInodeData), 1, fLogFileIn))
-            {
-              for (i = 0; i < NrMarkedFiles; i++)
-              {
-                if (InodeList[i].InodeNr == curInode.InodeNr) break;
-              }
-              InodeList[i] = curInode;
-              if (i == NrMarkedFiles) NrMarkedFiles++;
-              NrNewMarkedFiles++;
-            }
-          }
-        }
-        else
-          WriteLogMC("HddToolsLib", "CheckFileSysem() W1c03.");
-        fclose(fLogFileIn);
-      }
-
-      // aktualisierte Liste speichern
-      if (NrMarkedFiles > 0)
-      {
-        fLogFileOut = fopen(CommandLine, "wb");
+        // bisherige FixInodes.lst einlesen
+        fLogFileOut = fopen(CommandLine, "rb");
         if(fLogFileOut)
         {
-          strcpy(OutListHeader.Magic, "TFinos");
-          OutListHeader.Version = 1;
-          OutListHeader.NrEntries = NrMarkedFiles;
-          OutListHeader.FileSize  = (NrMarkedFiles * sizeof(tInodeData)) + sizeof(tInodeListHeader);
-          if(!fwrite(&OutListHeader, sizeof(tInodeListHeader), 1, fLogFileOut))
-            WriteLogMC("HddToolsLib", "CheckFileSysem() W1c05.");
-
-          if(fwrite(InodeList, sizeof(tInodeData), NrMarkedFiles, fLogFileOut) != NrMarkedFiles)
-            WriteLogMC("HddToolsLib", "CheckFileSysem() W1c06.");
+          // Header prüfen
+          if ( (fread(&OutListHeader, sizeof(tInodeListHeader), 1, fLogFileOut))
+            && (strncmp(OutListHeader.Magic, "TFinos", 6) == 0)
+            && (OutListHeader.Version == 1)
+            && (OutListHeader.FileSize == fsOut)
+            && (OutListHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == fsOut))
+          {
+            NrMarkedFiles = fread(InodeList, sizeof(tInodeData), OutListHeader.NrEntries, fLogFileOut);
+            if (NrMarkedFiles != OutListHeader.NrEntries)
+              WriteLogMC("HddToolsLib", "CheckFileSysem() W1c02.");
+          }
+          else
+            WriteLogMC("HddToolsLib", "CheckFileSysem() W1c01.");
           fclose(fLogFileOut);
         }
-        else
-          WriteLogMC("HddToolsLib", "CheckFileSysem() W1c04.");
+
+        // neue Inodes hinzufügen
+        fLogFileIn = fopen("/tmp/FixInodes.tmp", "rb");
+        if(fLogFileIn)
+        {
+          // Header prüfen
+          if ( (fread(&InListHeader, sizeof(tInodeListHeader), 1, fLogFileIn))
+            && (strncmp(InListHeader.Magic, "TFinos", 6) == 0)
+            && (InListHeader.Version == 1)
+            && (InListHeader.FileSize == fsIn)
+            && (InListHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == fsIn))
+          {
+            while (!feof(fLogFileIn))
+            {
+              if (fread(&curInode, sizeof(tInodeData), 1, fLogFileIn))
+              {
+                for (i = 0; i < NrMarkedFiles; i++)
+                {
+                  if (InodeList[i].InodeNr == curInode.InodeNr)
+                  {
+                    if (!curInode.FileName[0] && (curInode.di_size == InodeList[i].di_size))
+                      strcpy(curInode.FileName, InodeList[i].FileName);
+                    break;
+                  }
+                }
+                InodeList[i] = curInode;
+                if (i == NrMarkedFiles) NrMarkedFiles++;
+                NrNewMarkedFiles++;
+              }
+            }
+          }
+          else
+            WriteLogMC("HddToolsLib", "CheckFileSysem() W1c03.");
+          fclose(fLogFileIn);
+        }
+
+        // aktualisierte Liste speichern
+        if (NrMarkedFiles > 0)
+        {
+          fLogFileOut = fopen(CommandLine, "wb");
+          if(fLogFileOut)
+          {
+            strcpy(OutListHeader.Magic, "TFinos");
+            OutListHeader.Version = 1;
+            OutListHeader.NrEntries = NrMarkedFiles;
+            OutListHeader.FileSize  = (NrMarkedFiles * sizeof(tInodeData)) + sizeof(tInodeListHeader);
+            if(!fwrite(&OutListHeader, sizeof(tInodeListHeader), 1, fLogFileOut))
+              WriteLogMC("HddToolsLib", "CheckFileSysem() W1c05.");
+
+            if(fwrite(InodeList, sizeof(tInodeData), NrMarkedFiles, fLogFileOut) != NrMarkedFiles)
+              WriteLogMC("HddToolsLib", "CheckFileSysem() W1c06.");
+            fclose(fLogFileOut);
+          }
+          else
+            WriteLogMC("HddToolsLib", "CheckFileSysem() W1c04.");
+        }
+        if (NrNewMarkedFiles != NrRepairedFiles)
+          fsck_Errors = TRUE;
       }
-      if (NrNewMarkedFiles != NrRepairedFiles)
-        fsck_Errors = TRUE;
+      else
+        WriteLogMC("HddToolsLib", "CheckFileSysem() E1c01.");
     }
     else
-      WriteLogMC("HddToolsLib", "CheckFileSysem() E1c01.");
-  }
-  else
-    NrMarkedFiles = (fsOut - min(sizeof(tInodeListHeader), fsOut)) / sizeof(tInodeData);
+      NrMarkedFiles = (fsOut - min(sizeof(tInodeListHeader), fsOut)) / sizeof(tInodeData);
 DumpInodeFixingList(CommandLine);
+  }
 
   // --- 9.) Output after completion or abortion of process ---
   if (!fsck_Cancelled)
@@ -455,7 +453,7 @@ DumpInodeFixingList(CommandLine);
       if (FirstErrorFile[0] && (NrDefectFiles > 1))
         TAP_SPrint(&FirstErrorFile[strlen(FirstErrorFile)], sizeof(FirstErrorFile)-strlen(FirstErrorFile), ", + %u", NrDefectFiles-1);
 //      StrMkISO(FirstErrorFile);
-      TAP_SPrint(MessageString, sizeof(MessageString), ErrorStrFmt, min(NrNewMarkedFiles, NrRepairedFiles), NrDefectFiles, ((fsck_Errors) ? "??" : "ok"), ((FirstErrorFile[0]) ? FirstErrorFile : ""), NrMarkedFiles);
+      TAP_SPrint(MessageString, sizeof(MessageString), ErrorStrFmt, ((InodeMonitoring) ? min(NrNewMarkedFiles, NrRepairedFiles) : NrRepairedFiles), NrDefectFiles, ((fsck_Errors) ? "??" : "ok"), ((FirstErrorFile[0]) ? FirstErrorFile : ""), NrMarkedFiles);
       //#ifdef Calibri_10_FontDataUC
         if (isUTFToppy()) StrMkISO(MessageString);
       //#endif
@@ -597,8 +595,8 @@ bool HDD_FixInodeList(const char *AbsMountPath, bool DeleteOldEntries)
           FullLog[p+1] = '\n';
           FullLog[p+2] = '\0';
         }
-        strncpy(&FullLog[strlen(FullLog)], LastLine, sizeof(FullLog)-strlen(FullLog)-1);
-        FullLog[sizeof(FullLog)-1] = '\0';
+        strncpy(&FullLog[strlen(FullLog)], LastLine, sizeof(FullLog) - strlen(FullLog) - 1);
+        FullLog[sizeof(FullLog) - 1] = '\0';
       }
     }
     ret = pclose(LogStream) / 256;

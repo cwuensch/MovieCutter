@@ -160,6 +160,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
   char                  FileName[MAX_FILE_NAME_SIZE + 1];
   byte                 *CutPointArea1=NULL, *CutPointArea2=NULL;
   off_t                 SourceFileSize, CutFileSize;
+  __ino64_t             InodeNr;
   dword                 MaxBehindCutBlock;
   off_t                 CutStartPos, BehindCutPos;
   long                  CutStartPosOffset, BehindCutPosOffset;
@@ -181,13 +182,14 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
   WriteLogMCf("MovieCutterLib", "Source        = '%s'", SourceFileName);
   WriteLogMCf("MovieCutterLib", "Cut name      = '%s'", CutFileName);
 
-  if(!HDD_GetFileSizeAndInode2(SourceFileName, AbsDirectory, NULL, &SourceFileSize))
+  if(!HDD_GetFileSizeAndInode2(SourceFileName, AbsDirectory, &InodeNr, &SourceFileSize))
   {
     WriteLogMC("MovieCutterLib", "MovieCutter() E0001: cut file not created.");
     TRACEEXIT();
     return RC_Error;
   }
 
+  WriteLogMCf("MovieCutterLib", "Inode Nr.     = %llu", InodeNr);
   WriteLogMCf("MovieCutterLib", "File size     = %llu Bytes (%lu blocks)", SourceFileSize, CalcBlockSize(SourceFileSize));
   WriteLogMCf("MovieCutterLib", "AbsDir        = '%s'", AbsDirectory);
   WriteLogMCf("MovieCutterLib", "PacketSize    = %d", PACKETSIZE);
@@ -256,12 +258,12 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
   }
 
   // Detect the size of the cut file
-  if(!HDD_GetFileSizeAndInode2(CutFileName, AbsDirectory, NULL, &CutFileSize))
+  if(!HDD_GetFileSizeAndInode2(CutFileName, AbsDirectory, &InodeNr, &CutFileSize))
   {
     WriteLogMC("MovieCutterLib", "MovieCutter() W0004: error detecting size of cut file.");
     SuppressNavGeneration = TRUE;
   }
-  WriteLogMCf("MovieCutterLib", "Cut file size: %llu Bytes (=%lu blocks)", CutFileSize, CalcBlockSize(CutFileSize));
+  WriteLogMCf("MovieCutterLib", "Cut file: inode=%llu, size=%llu Bytes (=%lu blocks)", InodeNr, CutFileSize, CalcBlockSize(CutFileSize));
 
   // Read the beginning and the ending from the cut file
   if(!ReadFirstAndLastCutPacket(CutFileName, AbsDirectory, FirstCutPacket, LastCutPacket))
