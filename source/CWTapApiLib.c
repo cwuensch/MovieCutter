@@ -288,7 +288,7 @@ bool ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks)
 }
 
 //Experimentelle Methode, um Bookmarks direkt in der Firmware abzuspeichern.
-bool SaveBookmarks(const dword Bookmarks[], int NrBookmarks)
+bool SaveBookmarks(dword Bookmarks[], int NrBookmarks)
 {
   dword                *PlayInfoBookmarkStruct;
   byte                 *TempRecSlot;

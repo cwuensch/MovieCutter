@@ -476,7 +476,8 @@ bool FileCut(char *SourceFileName, char *CutFileName, char *AbsDirectory, dword 
       ret = ApplHdd_FileCutPaste(SourceFileName, StartBlock, NrBlocks, CutFileName);
 
       //Restore all resources
-      DevHdd_DeviceClose(pFolderStruct);
+      dword ret2 = DevHdd_DeviceClose(pFolderStruct);
+TAP_PrintNet("DevHdd_DeviceClose() returned: %lu.\n", ret2);
     }
   }
   ApplHdd_RestoreWorkFolder();
@@ -633,7 +634,7 @@ bool WriteByteToFile(const char *FileName, const char *AbsDirectory, off_t ByteP
 
   TRACEENTER();
   #ifdef FULLDEBUG
-    WriteLogMCf("MovieCutterLib", "WriteByteToFile(file=%s, position=%llu, old=%c, new=%c.", FileName, BytePosition, OldValue, NewValue);
+    WriteLogMCf("MovieCutterLib", "WriteByteToFile(file=%s, position=%llu, old=%c, new=%c).", FileName, BytePosition, OldValue, NewValue);
   #endif
 
   // Open the file for write access

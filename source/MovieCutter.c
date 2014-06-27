@@ -365,7 +365,7 @@ int TAP_Main(void)
   CreateSettingsDir();
   KeyTranslate(TRUE, &TAP_EventHandler);
 
-  WriteLogMCf(PROGRAM_NAME, "***  MovieCutter %s started! (FBLib %s) ***", VERSION, __FBLIB_VERSION__);
+  WriteLogMC(PROGRAM_NAME, "***  MovieCutter " VERSION " started! (FBLib " __FBLIB_VERSION__ ") ***");
   WriteLogMC (PROGRAM_NAME, "=======================================================");
   WriteLogMCf(PROGRAM_NAME, "Receiver Model: %s (%u)", GetToppyString(GetSysID()), GetSysID());
   WriteLogMCf(PROGRAM_NAME, "Firmware: %s", GetApplVer());
@@ -393,7 +393,7 @@ int TAP_Main(void)
   {
     char LogString[512];
     TAP_SPrint(LogString, sizeof(LogString), "Language file '%s' not found!", LNGFILENAME);
-    WriteLogMCf(PROGRAM_NAME, LogString);
+    WriteLogMC(PROGRAM_NAME, LogString);
     OSDMenuInfoBoxShow(PROGRAM_NAME " " VERSION, LogString, 500);
     do
     {
@@ -557,6 +557,9 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
       LoadINI();
       OSDMode = DefaultOSDMode;
 
+      // Set the system time to current time
+      /*if (InodeMonitoring)*/ SetSystemTimeToCurrent();
+
       // Fix list of defect inodes
       if (HDD_Exist2("jfs_fsck", FSCKPATH)) system("chmod a+x " FSCKPATH "/jfs_fsck &");
       if(InodeMonitoring) HDD_FixInodeList(TAPFSROOT, TRUE);  // Problem: NUR für die interne HDD wird die Liste jemals zurückgesetzt!
@@ -627,17 +630,22 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
 //        HDD_ChangeDir(PlaybackDir);
         if (strncmp(AbsPlaybackDir, TAPFSROOT, strlen(TAPFSROOT)) == 0)
           HDD_ChangeDir(&AbsPlaybackDir[strlen(TAPFSROOT)]);
-#ifdef FULLDEBUG
-  char CurDir[FBLIB_DIR_SIZE];
-  HDD_TAP_GetCurrentDir(CurDir);
-  WriteLogMCf(PROGRAM_NAME, "ST_WaitForPlayback: CurrentDir='%s'", CurDir);
-#endif
 
         WriteLogMCf(PROGRAM_NAME, "Attaching to %s/%s", AbsPlaybackDir, PlaybackName);
         WriteLogMC ("MovieCutterLib", "----------------------------------------");
 
+        //Free the old timing array, so that it is empty (NULL pointer) if something goes wrong
+        if(TimeStamps)
+        {
+          TAP_MemFree(TimeStamps);
+          TimeStamps = NULL;
+        }
+        NrTimeStamps = 0;
+        LastTimeStamp = NULL;
+
         // Detect size of rec file
-        if(!HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, NULL, &RecFileSize) || !RecFileSize)
+        __ino64_t InodeNr = 0;
+        if(!HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, &InodeNr, &RecFileSize) || !RecFileSize)
         {
           State = ST_UnacceptedFile;
           WriteLogMC(PROGRAM_NAME, ".rec size could not be detected!");
@@ -647,6 +655,7 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
           break;
         }
 
+        WriteLogMCf(PROGRAM_NAME, "Inode Nr  = %llu", InodeNr);
         WriteLogMCf(PROGRAM_NAME, "File size = %llu Bytes (%lu blocks)", RecFileSize, (dword)(RecFileSize / BLOCKSIZE));
         WriteLogMCf(PROGRAM_NAME, "Reported total blocks: %lu", PlayInfo.totalBlock);
 
@@ -698,15 +707,6 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
         }
         WriteLogMCf(PROGRAM_NAME, "Type of recording: %s", (HDVideo) ? "HD" : "SD");
 
-        //Free the old timing array, so that it is empty (NULL pointer) if something goes wrong
-        if(TimeStamps)
-        {
-          TAP_MemFree(TimeStamps);
-          TimeStamps = NULL;
-        }
-        NrTimeStamps = 0;
-        LastTimeStamp = NULL;
-
         // Try to load the nav
         if (!LinearTimeMode)
         {
@@ -744,7 +744,7 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
           #ifdef FULLDEBUG
             if (RecDateTime > 0xd0790000)
               RecDateTime = TF2UnixTime(RecDateTime);
-            TAP_PrintNet("Reboot-Check (%s): TimeSinceRec=%lu, UpTime=%lu, RecDateTime=%s", (TimeSinceRec <= UpTime + 1) ? "TRUE" : "FALSE", TimeSinceRec, UpTime, asctime(localtime((time_t*) &RecDateTime)));
+            TAP_PrintNet("Reboot-Check (%s): TimeSinceRec=%lu, UpTime=%lu, RecDateTime=%s", (TimeSinceRec <= UpTime + 1) ? "TRUE" : "FALSE", TimeSinceRec, UpTime, ctime((time_t*) &RecDateTime));
           #endif
 
           if (TimeSinceRec <= UpTime + 1)
@@ -1075,6 +1075,7 @@ WriteLogMC("DEBUG-Ausgabe", "ChUp/ChDown-Event empfangen, das nicht durch Up/Dow
             break;
           }
 
+          case RKEY_F1:
           case RKEY_Red:
           {
             if (BookmarkMode)
@@ -1520,6 +1521,7 @@ WriteLogMC("DEBUG-Ausgabe", "ChUp/ChDown-Event empfangen, das nicht durch Up/Dow
       FMUC_FreeFontFile(&Calibri_14_FontDataUC);
       FMUC_FreeFontFile(&Courier_New_13_FontDataUC);
       OSDMenuFreeStdFonts();
+      WriteLogMC(PROGRAM_NAME, "MovieCutter Exit.");
       TAP_Exit();
       break;
     }
@@ -3792,13 +3794,12 @@ void ActionMenuDraw(void)
       {
         DisplayStr = LangGetString(LS_SelectFunction);
         #ifdef Calibri_10_FontDataUC
-          char *p;
-          do
+          char *p = DisplayStr;
+          while (p && *p)
           {
-            p = strchr(DisplayStr, 'â');  if(p) p[0] = '-';
-            p = strchr(DisplayStr, '€');  if(p) p[0] = '-';
-            p = strchr(DisplayStr, '•');  if(p) p[0] = '-';
-          } while (p);
+            if (p[0] == 'â' || p[0] == '€' || p[0] == '•')  p[0] = '-';
+            p++;
+          }
         #endif
         break;
       }
@@ -4872,7 +4873,7 @@ if (CutEnding || KeepCut)
         HDD_StartPlayback2(PlaybackName, AbsPlaybackDir);
         PlayInfo.totalBlock = 0;
         j = 0;
-        while ((j < 2000) && (!isPlaybackRunning() || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0))
+        while ((j < 2000) && (!isPlaybackRunning() || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0))  // 2000 ~ 30 sek. (750 ~ 10 sek.)
         {
           TAP_SystemProc();
           j++;
@@ -5020,7 +5021,7 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
       OSDMenuSaveMyRegion(rgnSegmentList);
       OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), maxProgress - 1, maxProgress, NULL);
     }  */
-TAP_PrintNet("Inodes checken: %s\n", InodeNrs);
+    WriteLogMCf(PROGRAM_NAME, "Inodes checken: %s", InodeNrs);
     if (CheckFSAfterCut == 1)
       CheckFileSystem(maxProgress, maxProgress + 1, maxProgress + 1, TRUE, TRUE, TRUE, icheckErrors, InodeNrs);
     else

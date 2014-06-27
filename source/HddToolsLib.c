@@ -83,7 +83,7 @@ bool  HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProg
   char                  CommandLine[1024], Buffer[512]; //, PidStr[13];
   char                  FirstErrorFile[50], *p = NULL;
   dword                 fsck_Pid = 0;
-  dword                 StartTime;
+  unsigned long         StartTime;  byte sec = 0;
   tInodeData            curInode, *InodeList;
   unsigned int          NrDefectFiles = 0, NrRepairedFiles = 0, NrMarkedFiles = 0, NrNewMarkedFiles = 0, ActivePhase = 0;
   bool                  fsck_Errors = FALSE;
@@ -138,7 +138,9 @@ bool  HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProg
   }
 
   // --- 4.) Run fsck and create a log file ---
-  StartTime = time(NULL);
+  if(DoFix) SetSystemTimeToCurrent();
+  StartTime = TF2UnixTime(Now(&sec)) + sec;
+
   TAP_SPrint(CommandLine, sizeof(CommandLine), FSCKPATH "/jfs_fsck -n -v %s %s %s -L /tmp/FixInodes.tmp %s %s &> /tmp/fsck.log & echo $!", ((DoFix) ? "-r" : ""), ((Quick) ? "-q" : ""), ((Quick && InodeNrs) ? "-i" : ""), DeviceNode, ((InodeNrs) ? InodeNrs : ""));  // > /tmp/fsck.pid
 //-  system(CommandLine);
 
@@ -215,7 +217,7 @@ bool  HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProg
   if(fLogFileOut)
   {
     fprintf(fLogFileOut, "\r\n=========================================================\r\n");
-    fprintf(fLogFileOut, "*** File system check started %s\r\n", asctime(localtime(&StartTime)));
+    fprintf(fLogFileOut, "*** File system check started %s\r\n", ctime(&StartTime));
   }
 
   fLogFileIn = fopen("/tmp/fsck.log", "r");
@@ -541,27 +543,22 @@ void DumpInodeFixingList(const char *AbsListFile)
         WriteLogMCf("HddToolsLib", "  %d: InodeNr=%lu, LastFixed=%lu, di_size=%lld, wrong=%lld, nblocks_real=%lld, FileName=%s.", ++i, curInode.InodeNr, curInode.LastFixTime, curInode.di_size, curInode.nblocks_wrong, curInode.nblocks_real, curInode.FileName);
     }
     else
-      WriteLogMC("HddToolsLib", "--> Invalid list file header!");
+      WriteLogMC("HddToolsLib", "-> Invalid list file header!");
     fclose(fListFile);
   }
   else
-    WriteLogMC("HddToolsLib", "--> List file not existing.");
+    WriteLogMC("HddToolsLib", "-> List file not existing.");
 
   TRACEEXIT();
 }
 
-bool HDD_FixInodeList(const char *AbsMountPath, bool DeleteOldEntries)
+bool HDD_FixInodeList2(const char *ListFile, const char *DeviceNode, bool DeleteOldEntries)
 {
-  char                  DeviceNode[20], ListFile[MAX_FILE_NAME_SIZE + 1];
-  char                  CommandLine[512], FullLog[512], LastLine[512];
+  char                  CommandLine[512], FullLog[512], LastLine[512], CurLine[512];
   FILE                 *LogStream;
   int                   ret = -1;
 
   TRACEENTER();
-
-  // Get the list filename
-  HDD_FindMountPointDev2(AbsMountPath, ListFile, DeviceNode);
-  strcat(ListFile, "/FixInodes.lst");
 
   WriteLogMCf("HddToolsLib", "Checking list of suspect inodes (Device=%s, ListFile=%s):", DeviceNode, ListFile);
   WriteDebugLog(             "Checking list of suspect inodes (Device=%s, ListFile=%s):", DeviceNode, ListFile);
@@ -575,29 +572,30 @@ bool HDD_FixInodeList(const char *AbsMountPath, bool DeleteOldEntries)
     return TRUE;
   }
 
+  // Set the system time to current time
+  SetSystemTimeToCurrent();
+
   // Execute jfs_icheck and read its output (last line separately)
-  FullLog[0] = '\0';
+  FullLog[0] = '\0'; LastLine[0] = '\0'; CurLine[0] = '\0';
   TAP_SPrint(CommandLine, sizeof(CommandLine), FSCKPATH "/jfs_fsck icheck -f %s \"%s\" %s 2>&1", ((DeleteOldEntries) ? "-L" : "-l"), ListFile, DeviceNode);
   LogStream = popen(CommandLine, "r");
   if(LogStream)
   {
-    fgets(FullLog, sizeof(FullLog), LogStream);
-    FullLog[0] = '\0';
-    while (fgets(LastLine, sizeof(LastLine), LogStream))
+    fgets(CurLine, sizeof(CurLine), LogStream);
+    CurLine[0] = '\0';
+    while (fgets(CurLine, sizeof(CurLine), LogStream))
     {
-      RemoveEndLineBreak(LastLine);
-      if(!feof(LogStream))
+      dword len = strlen(FullLog);
+      if(FullLog[0] && (len < sizeof(FullLog) - 2))
       {
-        dword p = strlen(FullLog);
-        if(FullLog[0] && p < sizeof(FullLog)-2)
-        {
-          FullLog[p] = '\r';
-          FullLog[p+1] = '\n';
-          FullLog[p+2] = '\0';
-        }
-        strncpy(&FullLog[strlen(FullLog)], LastLine, sizeof(FullLog) - strlen(FullLog) - 1);
-        FullLog[sizeof(FullLog) - 1] = '\0';
+        FullLog[len] = '\r';
+        FullLog[len+1] = '\n';
+        FullLog[len+2] = '\0';
       }
+      strncpy(&FullLog[strlen(FullLog)], LastLine, sizeof(FullLog) - strlen(FullLog) - 1);
+      FullLog[sizeof(FullLog) - 1] = '\0';
+      RemoveEndLineBreak(CurLine);
+      strcpy(LastLine, CurLine);
     }
     ret = pclose(LogStream) / 256;
   }
@@ -606,8 +604,11 @@ bool HDD_FixInodeList(const char *AbsMountPath, bool DeleteOldEntries)
   if (FullLog[0])
   {
     WriteLogMC("HddToolsLib", FullLog);
-    WriteLogMC("HddToolsLib", LastLine);
     WriteDebugLog(FullLog);
+  }
+  if (LastLine[0])
+  {
+    WriteLogMC("HddToolsLib", LastLine);
     WriteDebugLog(LastLine);
   }
   // Write result state to Logfile
@@ -620,6 +621,22 @@ DumpInodeFixingList(ListFile);
 
   TRACEEXIT();
   return (ret == rc_NOFILEFOUND || ret == rc_ALLFILESOKAY || ret == rc_ALLFILESFIXED);  // keine gefunden, alle okay oder alle gefixt
+}
+
+bool HDD_FixInodeList(const char *AbsMountPath, bool DeleteOldEntries)
+{
+  char                  DeviceNode[20], ListFile[MAX_FILE_NAME_SIZE + 1];
+  bool                  ret;
+
+  TRACEENTER();
+
+  // Get the list filename and check it
+  HDD_FindMountPointDev2(AbsMountPath, ListFile, DeviceNode);
+  strcat(ListFile, "/FixInodes.lst");
+  ret = HDD_FixInodeList2(ListFile, DeviceNode, DeleteOldEntries);
+
+  TRACEEXIT();
+  return ret;
 }
 
 // ----------------------------------------------------------------------------------------------------------
@@ -678,4 +695,22 @@ bool HDD_CheckInode(const char *FileName, const char *AbsDirectory, const char *
 
   TRACEEXIT();
   return (ret == rc_ALLFILESOKAY);  // Datei ist okay
+}
+
+bool SetSystemTimeToCurrent()
+{
+  unsigned long         CurTime, RealTime;
+  byte                  sec = 0;
+  int                   ret = 0;
+
+  TRACEENTER();
+  time(&CurTime);
+  if (CurTime <= UNIXTIME2010)
+  {
+    RealTime = TF2UnixTime(Now(&sec)) + sec;
+    ret = stime(&RealTime);
+  }
+
+  TRACEEXIT();
+  return (ret == 0);
 }
