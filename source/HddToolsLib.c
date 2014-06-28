@@ -167,8 +167,8 @@ bool  HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProg
     i++;
     if(Quick)
     {
-      if ((i < 120) && !(i % 10))  // 12 Schritte á 1 sek
-        RefreshProgBar(TRUE, 100 * i / 120);
+      if ((i < 240) && !(i % 20))  // 12 Schritte á 2 sek
+        RefreshProgBar(TRUE, 100 * i / 240);
     }
     else
     {
@@ -592,7 +592,8 @@ bool HDD_FixInodeList2(const char *ListFile, const char *DeviceNode, bool Delete
         FullLog[len+1] = '\n';
         FullLog[len+2] = '\0';
       }
-      strncpy(&FullLog[strlen(FullLog)], LastLine, sizeof(FullLog) - strlen(FullLog) - 1);
+//      if (strlen(FullLog) < sizeof(FullLog) - 1)
+        strncpy(&FullLog[strlen(FullLog)], LastLine, sizeof(FullLog) - strlen(FullLog) - 1);
       FullLog[sizeof(FullLog) - 1] = '\0';
       RemoveEndLineBreak(CurLine);
       strcpy(LastLine, CurLine);
