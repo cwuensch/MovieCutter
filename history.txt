@@ -1,3 +1,20 @@
+2014-06-28 v3.0  NEU:
+        (final)   *** automatische Überwachung und Reparatur beim Schneiden beschädigter Inodes
+                      (dazu muss MC im AutoStart sein und permanent laufen!)
+                   ** direktes Schneiden auf externen Festplatten (inkl. Überwachung)
+
+                 BEDIENUNG:
+                    - Schnelles Navigieren mit variabler Sprungweite (ähnlich FastSkip) mit P+ / P-.
+
+                 INI-File:
+                    - CheckFSAfterCut:   0: Automatische Dateisystemprüfung (nur wenn nötig). - 1: Immer nach dem Schneiden prüfen. - 2: Niemals prüfen (nicht empfohlen!)
+                    - DoiCheckTest:      0: Kein Inode-Test zwischen den Schnitten. - 1: Testen aber nicht fixen. - 2: Test und fix.
+                    - InodeMonitoring:   1: Überwachung der beim Schneiden beschädigten Inodes. - 0: keine Überwachung.
+                    - RCUMode:           0: SRP-2401 - 1: SRP-2410 - 2: CRP-2401 - 3: TF5000 (identisch mit 2) - 4: VolKeys nicht belegen
+
+                 INTERNALS:
+                   ** vollständige Umstellung auf absolute Pfade
+
 2014-05-02 v3.0  NEU:
         (beta!)   *** vollständige Überarbeitung des OSD (s.u.)
                    ** OSD-Synchronisation beim Neuzeichnen reduziert (-> verhindert Flackern)

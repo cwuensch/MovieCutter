@@ -55,7 +55,7 @@ Keys
 ====
 - Play, Pause, Forward, Rewind, Slow have the normal functions.
 - Stop:		Stops the playback. Since the MovieCutter only works with playback, the OSD is hidden.
-- Exit:		Hides the OSD. The TAP will continue to run in the background.
+- Exit:		Hides the OSD. The TAP will continue to run in the background and react to all keys. Press again to deactivate MovieCutter.
 - Up / Down:	Go to the next or previous segment. The jump is executed with an at about 1 sec. delay to allow you to select another segment.
 - Green:	Add a new segment marker at the current playback position. Since the beginning and end of the file already contain an invisible marker, the first segment marker divides the file in two parts.
 - Red:		Deletes the closest segment marker.
@@ -65,9 +65,12 @@ Keys
 - 1 to 9, 0:	Enables the minute jump mode and changed the jump distance (1 - 99 min). You can enter the number of minutes in two digits. With the 0 minute jump mode is disabled. (V. 2.0)
 - Left, Right:	Change the playback speed. Only. (V. 2.0.)
 - Skip-Keys:	- normal: direct segment jump. - in minute jump mode: Jump the selected number of minutes forwards or backwards. - in the Bookmark mode: Jump to the next or previous bookmark. (V. 2.0)
+- Vol-Up/Down:  "
+- P+ / P-:      Fast navigation with adaptive jump width (like FastSkip)
 - Ok:		during playback: Pause playback. - During pause or seeking: Play.
 - Menu:		Pauses the playback and opens the action menu.
-- Info:		Switch between 3 display modes (full OSD , hiding the segment list, minimal mode). (V. 2.1)
+- White:	Switches between 3 display modes (full OSD , hiding the segment list, minimal mode). (V. 2.1)
+- Info:		Deactivates MovieCutter and shows EPG information. (V. 2.1)
 
 
 Actions in the action menu
@@ -91,11 +94,18 @@ Options in the MovieCutter.ini
 (supported in V. 2.0i and higher)
 - SaveCutBak			1: Creates a backup of the cut file. - 0: Create no .cut.bak files.
 - ShowRebootMessage		1: Reminds the user to reboot the system before doing a cut. - 0: No reboot warning.
-- CheckFSAfterCut		0: No automatic file system check after performing a cut.  - 1: Automatic check active.
-(shall be supported in V. 2.1 and higher)
+- CheckFSAfterCut		0: Automatic file system check (only when required).  - 1: Always check after cutting. - 2: Never check (not recommended!)
+(supported in V. 2.1 and higher)
 - DefaultOSDMode:		0: Show full OSD. - 1: Hide the segment list. - 2: Display OSD in minimal mode.
 - MinuteJump:			0: Minute jump mode is disabled at startup. - 1-99: Default value for the minute jump mode.
 - AskBeforeEdit:		1: Ask before performing an irreversible cutting operation . - 0: Do not ask.
-- OverScanMode: 		1: No important messages are placed to the screen margins (overscan area). - 0: Use the complete screen.
+- Overscan_X:                   Distance of the OSD from left/right screen border. Possible values: 0-100 (recommended: 30-60)
+- Overscan_Y:                   Distance of the OSD from upper/lower screen border. Possible values: 0-100 (recommended: 25)
 - SegmentList_X:		Display position of the segment list (x-coordinate, possible values: 0-719)
 - SegmentList_Y:		Display position of the segment list (y-coordinate, possible values: 0-575)
+- DisableSleepKey:              1: Disables Exit of MovieCutter by pressing the Sleep key.
+- DisableSpecialEnd:            Debugging-Option (Standard: 0).
+(supported in V. 3.0 and higher)
+- DoiCheckTest:                 0: No Inode-Test between the cuts. - 1: Do test but not fix. - 2: Test and fix.
+- InodeMonitoring:              1: Monitoring of the Inodes corrupted while cutting. - 0: No Monitoring.
+- RCUMode:                      0: SRP-2401 - 1: SRP-2410 - 2: CRP-2401 - 3: TF5000 (identical with 2) - 4: No use of the VolKeys

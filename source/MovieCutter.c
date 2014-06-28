@@ -519,8 +519,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   {
     if (OSDMenuMessageBoxIsVisible()) OSDMenuMessageBoxDestroy();
 
-    DumpInodeFixingList("/mnt/hd/FixInodes.lst");
-    DumpInodeFixingList("/tmp/FixInodes.tmp");
+//    DumpInodeFixingList("/mnt/hd/FixInodes.lst");
+//    DumpInodeFixingList("/tmp/FixInodes.tmp");
 //    HDD_FixInodeList(((AbsPlaybackDir[0]) ? AbsPlaybackDir : TAPFSROOT), TRUE);
     
 //    TAP_EnterNormal();
@@ -528,11 +528,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     param1 = 0;
   }
 
-// **** LÖSCHEN ****
+/* // **** LÖSCHEN ****
 if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==ST_InactiveModePlaying || State==ST_InactiveMode || State==ST_WaitForPlayback || State==ST_UnacceptedFile) && !DisableSleepKey)
 {
   CheckFileSystem(0, 1, 1, TRUE, TRUE, FALSE, 0, NULL);
-}
+} */
 #endif
 
 

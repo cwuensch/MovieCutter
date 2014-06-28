@@ -71,6 +71,8 @@ Tasten
 - 1 bis 9, 0:	Aktiviert den Minutensprung-Modus und stellt die gewünschte Sprungweite ein (1 - 99 min). Die Eingabe der Minutenzahl erfolgt zweistellig. Mit der 0 wird der Minutensprung-Modus wieder beendet. (ab V. 2.0)
 - Links,Rechts:	Ändern der Wiedergabe-Geschwindigkeit. Nur noch. (ab V. 2.0)
 - Skip-Tasten:	- normal: direkter Segmentsprung. - im Minutensprung-Modus: Sprung um die gewählte Minutenzahl. - im Bookmark-Modus: Sprung zum nächsten bzw. vorherigen Bookmark. (ab V. 2.0)
+- Vol-Up/Down:	"
+- P+ / P-:	Schnelle Navigation mit sich anpassender Sprungweite (ähnlich FastSkip)
 - Ok:		während der Wiedergabe: Wiedergabe wird angehalten (Pause). - während Pause oder Spulen: Play.
 - Menu:		Pausiert die Wiedergabe und blendet das Schnittmenü ein.
 - Weiß:		Wechselt zwischen 3 Darstellungs-Modi (vollständiges OSD, Ausblenden der Segmentliste, Minimal-Modus). (ab V. 2.1)
@@ -98,7 +100,7 @@ Optionen in der MovieCutter.ini
 (ab V. 2.0i unterstützt)
 - SaveCutBak			1: Beim Schneiden wird ein Backup des CutFiles angelegt. - 0: Keine .cut.bak Dateien.
 - ShowRebootMessage		1: Vor dem Schnitt wird zum Neustart aufgefordert. - 0: Keine Neustart-Meldung.
-- CheckFSAfterCut		0: Nach dem Schneiden erfolgt keine automatische Dateisystem-Prüfung. - 1: Automatische Prüfung aktivieren.
+- CheckFSAfterCut		0: Automatische Dateisystemprüfung (nur wenn nötig). - 1: Immer nach dem Schneiden prüfen. - 2: Niemals prüfen (nicht empfohlen!)
 (ab V. 2.1 unterstützt)
 - DefaultOSDMode:		0: MC arbeitet im Hintergrund. - 1: Vollständiges OSD. - 2: OSD ohne Segmentliste. - 3: OSD im Minimal-Modus.
 - DefaultMinuteJump:		0: Minutensprung-Modus ist beim Starten deaktiviert. - 1-99: Voreingestellter Wert für den Minutensprung-Modus.
@@ -109,3 +111,7 @@ Optionen in der MovieCutter.ini
 - SegmentList_Y:		Anzeigeposition der Segmentliste (y-Koordinate der oberen linken Ecke, mögliche Werte: 0-246)
 - DisableSleepKey:		1: Deaktiviert die Beendigung des MovieCutters durch Drücken der Sleep-Taste.
 - DisableSpecialEnd:		Debugging-Einstellung (Standard: 0).
+(ab V. 3.0 unterstützt)
+- DoiCheckTest:			0: Kein Inode-Test zwischen den Schnitten. - 1: Testen aber nicht fixen. - 2: Test und fix.
+- InodeMonitoring:		1: Überwachung der beim Schneiden beschädigten Inodes. - 0: keine Überwachung.
+- RCUMode:			0: SRP-2401 - 1: SRP-2410 - 2: CRP-2401 - 3: TF5000 (identisch mit 2) - 4: VolKeys nicht belegen
