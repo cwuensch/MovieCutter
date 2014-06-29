@@ -9,17 +9,21 @@ The easiest way to install the TAP is using TAPtoDate.
 IMPORTANT!!! To run the MovieCutters you must have installed the packets "SmartEPG FontPack" and "FirmwareTMS.dat" by Firebird. They can easily be obtained via TAPtoDate.
 
 Alternative:
-- To install the TAP manually, just copy "MovieCutter.tap" into the folder "/ProgramFiles" and "MovieCutter.lng" and "MovieCutter.ini" into "/ProgramFiles/Settings/MovieCutter".
+- To install the TAP manually, just copy "MovieCutter.tap" and "jfs_fsck" into the folder "/ProgramFiles" and "MovieCutter.lng" and "MovieCutter.ini" into "/ProgramFiles/Settings/MovieCutter".
+- Make sure the fonts "Calibri_10.ufnt", "Calibri_12.ufnt", "Calibri_14.ufnt" and "Courier_New_13.ufnt" are present in the folder "/ProgramFiles/Settings/Fonts".
+- And the file "FirmwareTMS.dat" has to be in "/ProgramFiles".
 
 Starting / Stopping
 ===================
 After starting the TAPs it runs discreetly in the background until a recording is played back.
-* Enable the MovieCutter: Press (during playback of a recording) the PLAY button [>] so that the progressbar is displayed. Then press the cut button [>|<] to show the OSD.
-* Disable the MovieCutter: Press the EXIT button to hide the OSD again. The TAP then continues to run in the background until the next use.
-* To stop the TAP completely, select "Exit MovieCutter" in the action menu, or stop it using the TAP Overview.
+* Enable the MovieCutter: Press (during playback of a recording) the cut button [>|<] or the WHITE key to show the OSD.
+* Hide the MovieCutter: Press the EXIT key once to hide the OSD. The TAP then continues to run in the background and reacts to all keys.
+* Disable the MovieCutter: Press the EXIT button again to deactivate the MovieCutter. The TAP still runs in the background but will not react to keys anymore.
+* To stop the TAP completely, select "Exit MovieCutter" in the action menu, or just press the SLEEP key.
 
 Alternatives:
 - If the option "AutoOSDPolicy=1" is set in the file MovieCutter.ini, then the MovieCutter is always displayed automatically, when a playback starts.
+- In this case the activation is done in the OSD-mode which is configured under "DefaultOSDMode".
 - Activating/Deactivating the MovieCutter OSD is also possible via the TMS Commander.
 
 Usage
@@ -46,6 +50,7 @@ Use Case Examples
 Notes
 =====
 - When cutting a file the firmware may sometimes corrupt the ending of the original file. Observation showed that rebooting the receiver between recording and cutting might fix this problem.
+    -> With newer versions of MovieCutter this problem should not occur anymore. 
 - Since the .inf and .nav files are recalculated from the original, the edited files are immediately seekable.
 - Even if it gives the impression through the exact seeking functions, it is not possible to cut frame-accurately. This is due to the fact that the receiver internally works with blocks (about 9 kB), but the filesystem then cuts on sector boundaries. In the first tests, this difference was up to half a second, but we will only get more accurate data by further testing.
 - If the playback point is within the last 10 seconds of the recording, the fast forward or backward function is automatically disabled and later the playback is paused. This is to prevent that the playback exits.
@@ -109,3 +114,6 @@ Options in the MovieCutter.ini
 - DoiCheckTest:                 0: No Inode-Test between the cuts. - 1: Do test but not fix. - 2: Test and fix.
 - InodeMonitoring:              1: Monitoring of the Inodes corrupted while cutting. - 0: No Monitoring.
 - RCUMode:                      0: SRP-2401 - 1: SRP-2410 - 2: CRP-2401 - 3: TF5000 (identical with 2) - 4: No use of the VolKeys
+(in V. 3.1 and higher)
+- CheckFSAfterCut (changed):	1: Automatic file system check (only when required).  - 1: Always check after cutting. - 0: Never check (not recommended!)
+- DoiCheckTest (changed):	1: Cumulated test in the end (ro). - 2: Cummulated Test and Fix. - 3: Test between the cuts (ro). - 0: No icheck Test.

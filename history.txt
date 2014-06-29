@@ -1,3 +1,9 @@
+2014-06-?? v3.1  NEU:
+                   ** verbesserte Variante der icheck-Überprüfung
+                 INI-File:
+                    - CheckFSAfterCut:   1: Automatische Dateisystemprüfung (nur wenn nötig). - 2: Immer nach dem Schneiden prüfen. - 0: Niemals prüfen (nicht empfohlen!)
+                    - DoiCheckTest:      1: gesammelter Test am Ende (ro). - 2: gesammelter Test und Fix. - 3: Test zwischen den Schnitten (ro). - 0: Kein icheck-Test.
+
 2014-06-28 v3.0  NEU:
         (final)   *** automatische Überwachung und Reparatur beim Schneiden beschädigter Inodes
                       (dazu muss MC im AutoStart sein und permanent laufen!)

@@ -40,7 +40,7 @@ void HDDCheck_ProgBarHandler(bool ShowProgBar, dword CurrentValue, dword pProgre
   if (ShowProgBar)
     OSDMenuProgressBarShow("CheckFileSystem", LS_CheckingFileSystem, 100*ProgressStart + CurrentValue*(ProgressEnd-ProgressStart), 100*ProgressMax, NULL);
 }
-void  HDDCheck_InitProgBar(dword pProgressStart, dword pProgressEnd, dword pProgressMax, word pRegionToSave, char *pWarningStr, char *pCheckingStr)
+void HDDCheck_InitProgBar(dword pProgressStart, dword pProgressEnd, dword pProgressMax, word pRegionToSave, char *pWarningStr, char *pCheckingStr)
 {
   OSDMenuSaveMyRegion(pRegionToSave);
   if (pWarningStr)    LS_Warning            = pWarningStr;      else LS_Warning            = LS_Dummy;
@@ -66,7 +66,127 @@ void HDD_CancelCheckFS()
   fsck_Cancelled = TRUE;
 }
 
-bool  HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgBar, TMessageHandler pShowErrorMessage, bool DoFix, bool Quick, bool InodeMonitoring, bool NoOkInfo, char *InodeNrs, char *SuccessString, char *ErrorStrFmt, char *AbortedString)
+// ----------------------------------------------------------------------------------------------------------
+
+bool AddTempListToDevice(const char *AbsDeviceList, const char *AbsTempList, int *const OutMarkedFiles, int *const OutNewMarkedFiles)
+{
+  FILE                 *fListFileOut = NULL, *fListFileIn = NULL;
+  tInodeData            curInode, *InodeList;
+  int                   NrMarkedFiles = 0, NrNewMarkedFiles = 0;
+  int                   i;
+
+  TRACEENTER();
+
+  // Dateigröße bestimmen um Puffer zu allozieren
+  int64_t fsOut = 0, fsIn = 0;
+  HDD_GetFileSizeAndInode2(&AbsDeviceList[1], "", NULL, &fsOut);
+  HDD_GetFileSizeAndInode2(&AbsTempList[1], "", NULL, &fsIn);
+
+  if (fsIn > sizeof(tInodeListHeader))
+  {
+    tInodeListHeader InListHeader, OutListHeader;
+
+TAP_PrintNet("Puffer alloz. %llu\n", (fsOut - min(sizeof(tInodeListHeader), fsOut) + fsIn - min(sizeof(tInodeListHeader), fsIn)) / sizeof(tInodeData) * sizeof(tInodeData));
+    InodeList = (tInodeData*) malloc((fsOut - min(sizeof(tInodeListHeader), fsOut) + fsIn - min(sizeof(tInodeListHeader), fsIn)) / sizeof(tInodeData) * sizeof(tInodeData));
+    if(InodeList)
+    {
+      // bisherige FixInodes.lst einlesen
+      fListFileOut = fopen(AbsDeviceList, "rb");
+      if(fListFileOut)
+      {
+        // Header prüfen
+        if ( (fread(&OutListHeader, sizeof(tInodeListHeader), 1, fListFileOut))
+          && (strncmp(OutListHeader.Magic, "TFinos", 6) == 0)
+          && (OutListHeader.Version == 1)
+          && (OutListHeader.FileSize == fsOut)
+          && (OutListHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == fsOut))
+        {
+          NrMarkedFiles = fread(InodeList, sizeof(tInodeData), OutListHeader.NrEntries, fListFileOut);
+          if (NrMarkedFiles != OutListHeader.NrEntries)
+            WriteLogMC("HddToolsLib", "AddTempListToDevice() W1d02.");
+        }
+        else
+          WriteLogMC("HddToolsLib", "AddTempListToDevice() W1d01.");
+        fclose(fListFileOut);
+      }
+
+      // neue Inodes hinzufügen
+      fListFileIn = fopen("/tmp/FixInodes.tmp", "rb");
+      if(fListFileIn)
+      {
+        // Header prüfen
+        if ( (fread(&InListHeader, sizeof(tInodeListHeader), 1, fListFileIn))
+          && (strncmp(InListHeader.Magic, "TFinos", 6) == 0)
+          && (InListHeader.Version == 1)
+          && (InListHeader.FileSize == fsIn)
+          && (InListHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == fsIn))
+        {
+          while (!feof(fListFileIn))
+          {
+            if (fread(&curInode, sizeof(tInodeData), 1, fListFileIn))
+            {
+              for (i = 0; i < NrMarkedFiles; i++)
+              {
+                if (InodeList[i].InodeNr == curInode.InodeNr)
+                {
+                  if (!curInode.FileName[0] && (curInode.di_size == InodeList[i].di_size))
+                    strcpy(curInode.FileName, InodeList[i].FileName);
+                  break;
+                }
+              }
+              InodeList[i] = curInode;
+              if (i == NrMarkedFiles) NrMarkedFiles++;
+              NrNewMarkedFiles++;
+            }
+          }
+        }
+        else
+          WriteLogMC("HddToolsLib", "AddTempListToDevice() W1d03.");
+        fclose(fListFileIn);
+      }
+
+      // aktualisierte Liste speichern
+      if (NrMarkedFiles > 0)
+      {
+        fListFileOut = fopen(AbsDeviceList, "wb");
+        if(fListFileOut)
+        {
+          strcpy(OutListHeader.Magic, "TFinos");
+          OutListHeader.Version = 1;
+          OutListHeader.NrEntries = NrMarkedFiles;
+          OutListHeader.FileSize  = (NrMarkedFiles * sizeof(tInodeData)) + sizeof(tInodeListHeader);
+          if(!fwrite(&OutListHeader, sizeof(tInodeListHeader), 1, fListFileOut))
+            WriteLogMC("HddToolsLib", "AddTempListToDevice() W1d05.");
+
+          if(fwrite(InodeList, sizeof(tInodeData), NrMarkedFiles, fListFileOut) != (unsigned int)NrMarkedFiles)
+            WriteLogMC("HddToolsLib", "AddTempListToDevice() W1d06.");
+          fclose(fListFileOut);
+        }
+        else
+          WriteLogMC("HddToolsLib", "AddTempListToDevice() W1d04.");
+      }
+    }
+    else
+    {
+      WriteLogMC("HddToolsLib", "AddTempListToDevice() E1d01.");
+      TRACEEXIT();
+      return FALSE;
+    }
+  }
+  else
+    NrMarkedFiles = (fsOut - min(sizeof(tInodeListHeader), fsOut)) / sizeof(tInodeData);
+
+  if(OutMarkedFiles) *OutMarkedFiles = NrMarkedFiles;
+  if(OutNewMarkedFiles) *OutNewMarkedFiles = NrNewMarkedFiles;
+
+  TRACEEXIT();
+  return TRUE;
+}
+
+
+// ----------------------------------------------------------------------------------------------------------
+
+bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgBar, TMessageHandler pShowErrorMessage, bool DoFix, bool Quick, bool InodeMonitoring, bool NoOkInfo, char *InodeNrs, char *SuccessString, char *ErrorStrFmt, char *AbortedString)
 {
   TProgBarHandler       RefreshProgBar = pRefreshProgBar;
   TMessageHandler       ShowErrorMessage = pShowErrorMessage;
@@ -84,10 +204,9 @@ bool  HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProg
   char                  FirstErrorFile[50], *p = NULL;
   dword                 fsck_Pid = 0;
   unsigned long         StartTime;  byte sec = 0;
-  tInodeData            curInode, *InodeList;
-  unsigned int          NrDefectFiles = 0, NrRepairedFiles = 0, NrMarkedFiles = 0, NrNewMarkedFiles = 0, ActivePhase = 0;
+  int                   NrDefectFiles = 0, NrRepairedFiles = 0, NrMarkedFiles = 0, NrNewMarkedFiles = 0, ActivePhase = 0;
   bool                  fsck_Errors = FALSE;
-  unsigned int          i;
+  int                   i;
 
   TRACEENTER();
   HDD_TAP_PushDir();
@@ -269,7 +388,7 @@ bool  HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProg
         }
         else if (strncmp(Buffer, "[MC3]", 5) == 0)  // [MC3] %d incorrect inodes found, %d marked for correction.
         {
-          unsigned int Temp1, Temp2;
+          int Temp1, Temp2;
           if (sscanf(Buffer, "[MC3] %d incorrect inodes found, %d marked for correction.", &Temp1, &Temp2) == 2)
           {
             NrDefectFiles = Temp1;
@@ -328,103 +447,9 @@ bool  HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProg
   if(InodeMonitoring)
   {
     TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/FixInodes.lst", MountPoint);
-
-    // Dateigröße bestimmen um Puffer zu allozieren
-    int64_t fsOut = 0, fsIn = 0;
-    HDD_GetFileSizeAndInode2("FixInodes.lst", MountPoint, NULL, &fsOut);
-    HDD_GetFileSizeAndInode2("FixInodes.tmp", "/tmp", NULL, &fsIn);
-
-    if (fsIn > sizeof(tInodeListHeader))
-    {
-      tInodeListHeader InListHeader, OutListHeader;
-
-TAP_PrintNet("Puffer alloz. %llu\n", (fsOut - min(sizeof(tInodeListHeader), fsOut) + fsIn - min(sizeof(tInodeListHeader), fsIn)) / sizeof(tInodeData) * sizeof(tInodeData));
-      InodeList = (tInodeData*) malloc((fsOut - min(sizeof(tInodeListHeader), fsOut) + fsIn - min(sizeof(tInodeListHeader), fsIn)) / sizeof(tInodeData) * sizeof(tInodeData));
-      if(InodeList)
-      {
-        // bisherige FixInodes.lst einlesen
-        fLogFileOut = fopen(CommandLine, "rb");
-        if(fLogFileOut)
-        {
-          // Header prüfen
-          if ( (fread(&OutListHeader, sizeof(tInodeListHeader), 1, fLogFileOut))
-            && (strncmp(OutListHeader.Magic, "TFinos", 6) == 0)
-            && (OutListHeader.Version == 1)
-            && (OutListHeader.FileSize == fsOut)
-            && (OutListHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == fsOut))
-          {
-            NrMarkedFiles = fread(InodeList, sizeof(tInodeData), OutListHeader.NrEntries, fLogFileOut);
-            if (NrMarkedFiles != OutListHeader.NrEntries)
-              WriteLogMC("HddToolsLib", "CheckFileSysem() W1c02.");
-          }
-          else
-            WriteLogMC("HddToolsLib", "CheckFileSysem() W1c01.");
-          fclose(fLogFileOut);
-        }
-
-        // neue Inodes hinzufügen
-        fLogFileIn = fopen("/tmp/FixInodes.tmp", "rb");
-        if(fLogFileIn)
-        {
-          // Header prüfen
-          if ( (fread(&InListHeader, sizeof(tInodeListHeader), 1, fLogFileIn))
-            && (strncmp(InListHeader.Magic, "TFinos", 6) == 0)
-            && (InListHeader.Version == 1)
-            && (InListHeader.FileSize == fsIn)
-            && (InListHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == fsIn))
-          {
-            while (!feof(fLogFileIn))
-            {
-              if (fread(&curInode, sizeof(tInodeData), 1, fLogFileIn))
-              {
-                for (i = 0; i < NrMarkedFiles; i++)
-                {
-                  if (InodeList[i].InodeNr == curInode.InodeNr)
-                  {
-                    if (!curInode.FileName[0] && (curInode.di_size == InodeList[i].di_size))
-                      strcpy(curInode.FileName, InodeList[i].FileName);
-                    break;
-                  }
-                }
-                InodeList[i] = curInode;
-                if (i == NrMarkedFiles) NrMarkedFiles++;
-                NrNewMarkedFiles++;
-              }
-            }
-          }
-          else
-            WriteLogMC("HddToolsLib", "CheckFileSysem() W1c03.");
-          fclose(fLogFileIn);
-        }
-
-        // aktualisierte Liste speichern
-        if (NrMarkedFiles > 0)
-        {
-          fLogFileOut = fopen(CommandLine, "wb");
-          if(fLogFileOut)
-          {
-            strcpy(OutListHeader.Magic, "TFinos");
-            OutListHeader.Version = 1;
-            OutListHeader.NrEntries = NrMarkedFiles;
-            OutListHeader.FileSize  = (NrMarkedFiles * sizeof(tInodeData)) + sizeof(tInodeListHeader);
-            if(!fwrite(&OutListHeader, sizeof(tInodeListHeader), 1, fLogFileOut))
-              WriteLogMC("HddToolsLib", "CheckFileSysem() W1c05.");
-
-            if(fwrite(InodeList, sizeof(tInodeData), NrMarkedFiles, fLogFileOut) != NrMarkedFiles)
-              WriteLogMC("HddToolsLib", "CheckFileSysem() W1c06.");
-            fclose(fLogFileOut);
-          }
-          else
-            WriteLogMC("HddToolsLib", "CheckFileSysem() W1c04.");
-        }
-        if (NrNewMarkedFiles != NrRepairedFiles)
-          fsck_Errors = TRUE;
-      }
-      else
-        WriteLogMC("HddToolsLib", "CheckFileSysem() E1c01.");
-    }
-    else
-      NrMarkedFiles = (fsOut - min(sizeof(tInodeListHeader), fsOut)) / sizeof(tInodeData);
+    AddTempListToDevice(CommandLine, "/tmp/FixInodes.lst", &NrMarkedFiles, &NrNewMarkedFiles);
+    if (NrNewMarkedFiles != NrRepairedFiles)
+      fsck_Errors = TRUE;
 DumpInodeFixingList(CommandLine);
   }
 
@@ -477,6 +502,7 @@ DumpInodeFixingList(CommandLine);
   TRACEEXIT();
   return (!fsck_Cancelled && !fsck_Errors && NrDefectFiles == 0);
 }
+
 
 // ----------------------------------------------------------------------------------------------------------
 
@@ -552,32 +578,27 @@ void DumpInodeFixingList(const char *AbsListFile)
   TRACEEXIT();
 }
 
-bool HDD_FixInodeList2(const char *ListFile, const char *DeviceNode, bool DeleteOldEntries)
-{
-  char                  CommandLine[512], FullLog[512], LastLine[512], CurLine[512];
-  FILE                 *LogStream;
-  int                   ret = -1;
 
+// ----------------------------------------------------------------------------------------------------------
+
+tReturnCode RunIcheckWithLog(const char *DeviceNode, const char *ParamString, char *const OutLastLine)
+{
+  FILE                 *LogStream;
+  char                  CommandLine[1024], FullLog[512], LastLine[512], CurLine[512];
+  int                   ret = -1;
   TRACEENTER();
 
-  WriteLogMCf("HddToolsLib", "Checking list of suspect inodes (Device=%s, ListFile=%s):", DeviceNode, ListFile);
-  WriteDebugLog(             "Checking list of suspect inodes (Device=%s, ListFile=%s):", DeviceNode, ListFile);
-
-  // Check if ListFile exists on the drive
-  if (access(ListFile, F_OK) != 0)
+/*  if(DoFix)
   {
-    WriteLogMC("HddToolsLib", "-> No ListFile present.");
-    WriteDebugLog("-> No ListFile present.");
-    TRACEEXIT();
-    return TRUE;
-  }
-
-  // Set the system time to current time
-  SetSystemTimeToCurrent();
+    TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,ro %s", DeviceNode);
+    if (system(CommandLine) != 0)
+      WriteDebugLog("Schreibgeschützter Remount nicht erfolgreich!");
+  }  */
 
   // Execute jfs_icheck and read its output (last line separately)
   FullLog[0] = '\0'; LastLine[0] = '\0'; CurLine[0] = '\0';
-  TAP_SPrint(CommandLine, sizeof(CommandLine), FSCKPATH "/jfs_fsck icheck -f %s \"%s\" %s 2>&1", ((DeleteOldEntries) ? "-L" : "-l"), ListFile, DeviceNode);
+  TAP_SPrint(CommandLine, sizeof(CommandLine), FSCKPATH "/jfs_fsck icheck %s %s 2>&1", DeviceNode, ParamString);
+
   LogStream = popen(CommandLine, "r");
   if(LogStream)
   {
@@ -601,6 +622,14 @@ bool HDD_FixInodeList2(const char *ListFile, const char *DeviceNode, bool Delete
     ret = pclose(LogStream) / 256;
   }
 
+/*  if (DoFix)
+  {
+    TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,rw %s", DeviceNode);
+    system(CommandLine);
+    sync();
+    TAP_Sleep(1);
+  }  */
+
   // Write output of jfs_icheck to Logfile
   if (FullLog[0])
   {
@@ -612,6 +641,125 @@ bool HDD_FixInodeList2(const char *ListFile, const char *DeviceNode, bool Delete
     WriteLogMC("HddToolsLib", LastLine);
     WriteDebugLog(LastLine);
   }
+  if (OutLastLine)
+  {
+    OutLastLine[0] = '\0';
+    strncpy(OutLastLine, LastLine, 511);
+    OutLastLine[511] = '\0';
+  }
+
+  TRACEEXIT();
+  return (tReturnCode) ret;
+}
+
+
+bool HDD_CheckInode(const char *FileName, const char *AbsDirectory, bool DoFix)
+{
+  char                  DeviceNode[20], ListFile[MAX_FILE_NAME_SIZE + 1];
+  char                  ParamString[1024];
+  tReturnCode           ret = rc_UNKNOWN;
+
+  TRACEENTER();
+  WriteLogMCf("HddToolsLib", "Checking file inodes for wrong di_nblocks (Device=%s):", DeviceNode);
+
+  // Get the device and list file name
+  HDD_FindMountPointDev2(AbsDirectory, ListFile, DeviceNode);
+  strcat(ListFile, "/FixInodes.lst");
+
+  // Set the system time to current time
+  if(DoFix) SetSystemTimeToCurrent();
+
+  // Delete old list file (if present)
+  if(DoFix) remove("/tmp/FixInodes.tmp");
+
+  // Execute jfs_icheck and read its output
+  TAP_SPrint(ParamString, sizeof(ParamString), "%s \"%s/%s\"", ((DoFix) ? "-f -L /tmp/FixInodes.tmp" : ""), AbsDirectory, FileName);
+  ret = RunIcheckWithLog(DeviceNode, ParamString, NULL);
+
+  // Add the damaged inodes list to the device list
+  if(DoFix) AddTempListToDevice(ListFile, "/tmp/FixInodes.tmp", NULL, NULL);
+
+  // Write result state to Logfile
+  if (!(ret == rc_ALLFILESOKAY || ret == rc_ALLFILESFIXED || (!DoFix && ret == rc_SOMENOTFIXED)))  // NICHT: Datei ist ok, oder gefixt, oder sollte nicht gefixt werden
+  {
+    WriteLogMCf("HddToolsLib", "Error! jfs_icheck returned %d.", ret);
+    WriteDebugLog(             "Error! jfs_icheck returned %d.", ret);
+  }
+DumpInodeFixingList(ListFile);
+
+  TRACEEXIT();
+  return (ret == rc_ALLFILESOKAY);  // Datei ist okay
+}
+
+int HDD_CheckInodes(const char *InodeNrs, const char *AbsMountPath, bool DoFix)
+{
+  char                  DeviceNode[20], ListFile[MAX_FILE_NAME_SIZE + 1];
+  char                  ParamString[1024];
+  int                   NrDefectFiles = -1, ret = -1;
+
+  TRACEENTER();
+  WriteLogMCf("HddToolsLib", "Inodes-Check mit icheck: %s (Device=%s, ListFile=%s):", InodeNrs, DeviceNode, ListFile);
+  WriteDebugLog(             "Inodes-Check mit icheck: %s (Device=%s, ListFile=%s):", InodeNrs, DeviceNode, ListFile);
+
+  // Get the device and list file name
+  HDD_FindMountPointDev2(AbsMountPath, ListFile, DeviceNode);
+  strcat(ListFile, "/FixInodes.lst");
+
+  // Set the system time to current time
+  if(DoFix) SetSystemTimeToCurrent();
+
+  // Delete old list file (if present)
+  if(DoFix) remove("/tmp/FixInodes.tmp");
+
+  // Execute jfs_icheck and read its output (last line separately)
+  TAP_SPrint(ParamString, sizeof(ParamString), "%s %s", ((DoFix) ? "-i -f -L /tmp/FixInodes.tmp" : ""), InodeNrs);
+  ret = RunIcheckWithLog(DeviceNode, ParamString, NULL);
+
+  // Add the damaged inodes list to the device list
+  if(DoFix) AddTempListToDevice(ListFile, "/tmp/FixInodes.tmp", NULL, &NrDefectFiles);
+
+  // Write result state to Logfile
+  if (!(ret == rc_NOFILEFOUND || ret == rc_ALLFILESOKAY || ret == rc_ALLFILESFIXED || (!DoFix && ret == rc_SOMENOTFIXED)))  // NICHT: keine gefunden, alle ok, alle gefixt oder sollten nicht gefixt werden
+  {
+    WriteLogMCf("HddToolsLib", "Error! jfs_icheck returned %d.", ret);
+    WriteDebugLog(             "Error! jfs_icheck returned %d.", ret);
+  }
+DumpInodeFixingList(ListFile);
+
+  TRACEEXIT();
+  if (ret == rc_NOFILEFOUND || ret == rc_ALLFILESOKAY || ret == rc_ALLFILESFIXED || (!DoFix && ret == rc_SOMENOTFIXED))  // keine gefunden, alle okay, alle gefixt oder sollten nicht gefixt werden
+    return NrDefectFiles;
+  else
+    return -1;
+}
+
+
+bool HDD_FixInodeList2(const char *ListFile, const char *DeviceNode, bool DeleteOldEntries)
+{
+  char                  ParamString[512];
+  tReturnCode           ret = rc_UNKNOWN;
+
+  TRACEENTER();
+
+  WriteLogMCf("HddToolsLib", "Checking list of suspect inodes (Device=%s, ListFile=%s):", DeviceNode, ListFile);
+  WriteDebugLog(             "Checking list of suspect inodes (Device=%s, ListFile=%s):", DeviceNode, ListFile);
+
+  // Check if ListFile exists on the drive
+  if (access(ListFile, F_OK) != 0)
+  {
+    WriteLogMC("HddToolsLib", "-> No ListFile present.");
+    WriteDebugLog("-> No ListFile present.");
+    TRACEEXIT();
+    return TRUE;
+  }
+
+  // Set the system time to current time
+  SetSystemTimeToCurrent();
+
+  // Execute jfs_icheck and read its output (last line separately)
+  TAP_SPrint(ParamString, sizeof(ParamString), "-f %s \"%s\"", ((DeleteOldEntries) ? "-L" : "-l"), ListFile);
+  ret = RunIcheckWithLog(DeviceNode, ParamString, NULL);
+
   // Write result state to Logfile
   if (!(ret == rc_NOFILEFOUND || ret == rc_ALLFILESOKAY || ret == rc_ALLFILESFIXED))  // NICHT: keine gefunden, alle ok oder alle gefixt
   {
@@ -640,63 +788,8 @@ bool HDD_FixInodeList(const char *AbsMountPath, bool DeleteOldEntries)
   return ret;
 }
 
+
 // ----------------------------------------------------------------------------------------------------------
-
-bool HDD_CheckInode(const char *FileName, const char *AbsDirectory, const char *DeviceNode, bool DoFix, const char *Comment)
-{
-  char                  CommandLine[1024];
-  char                  LogString[512];
-  FILE                 *LogStream;
-  int                   ret = -1;
-
-  TRACEENTER();
-  WriteLogMCf("HddToolsLib", "Checking file inodes for wrong di_nblocks (Device=%s):", DeviceNode);
-
-/*  if(DoFix)
-  {
-    TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,ro %s", DeviceNode);
-    if (system(CommandLine) != 0)
-      WriteDebugLog("Schreibgeschützter Remount nicht erfolgreich!");
-  }  */
-
-  // Execute jfs_icheck and read its output
-  LogString[0] = '\0';
-  TAP_SPrint(CommandLine, sizeof(CommandLine), FSCKPATH "/jfs_fsck icheck %s %s \"%s/%s\" 2>&1", ((DoFix) ? "-f" : ""), DeviceNode, AbsDirectory, FileName);
-  LogStream = popen(CommandLine, "r");
-  if(LogStream)
-  {
-    fgets(LogString, sizeof(LogString), LogStream);
-    LogString[0] = '\0';
-    while (fgets(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), LogStream))
-    { /* nothing */ }
-    ret = pclose(LogStream) / 256;
-  }
-
-/*  if (DoFix)
-  {
-    TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,rw %s", DeviceNode);
-    system(CommandLine);
-    sync();
-    TAP_Sleep(1);
-  }  */
-
-  // Write output of jfs_icheck to Logfile
-  if (LogString[0])
-  {
-    RemoveEndLineBreak(LogString);
-    WriteLogMC("HddToolsLib", LogString);
-    WriteDebugLog("%s:\t%s", Comment, LogString);
-  }
-  // Write result state to Logfile
-  if (!(ret == rc_ALLFILESOKAY || ret == rc_ALLFILESFIXED || (!DoFix && ret == rc_SOMENOTFIXED)))  // NICHT: Datei ist ok, oder gefixt, oder sollte nicht gefixt werden
-  {
-    WriteLogMCf("HddToolsLib", "Error! jfs_icheck returned %d.", ret);
-    WriteDebugLog(             "Error! jfs_icheck returned %d.", ret);
-  }
-
-  TRACEEXIT();
-  return (ret == rc_ALLFILESOKAY);  // Datei ist okay
-}
 
 bool SetSystemTimeToCurrent()
 {

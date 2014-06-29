@@ -9,9 +9,9 @@ Am einfachsten erfolgt die Installation über TAPtoDate.
 WICHTIG!!! Zum Ausführen des MovieCutters müssen die Pakete "SmartEPG FontPack" und "FirmwareTMS.dat" von Firebird installiert sein. Bei Installation über TAPtoDate werden diese automatisch mit installiert.
 
 Alternative:
-- Zur manuellen Installation muss "MovieCutter.tap" ins Verzeichnis "/ProgramFiles" kopiert werden und "MovieCutter.lng" und "MovieCutter.ini" ins Verzeichnis "/ProgramFiles/Settings/MovieCutter".
+- Zur manuellen Installation müssen "MovieCutter.tap" und "jfs_fsck" ins Verzeichnis "/ProgramFiles" kopiert werden und "MovieCutter.lng" und "MovieCutter.ini" ins Verzeichnis "/ProgramFiles/Settings/MovieCutter".
 - Zusätzlich müssen die Schriftarten "Calibri_10.ufnt", "Calibri_12.ufnt", "Calibri_14.ufnt" und "Courier_New_13.ufnt" im Verzeichnis "/ProgramFiles/Settings/Fonts" liegen.
-- Und es werden unter "/ProgramFiles" die Dateien "FirmwareTMS.dat" und "jfs_fsck" benötigt.
+- Und es wird die Datei "FirmwareTMS.dat" unter "/ProgramFiles" benötigt.
 
 Starten / Beenden
 =================
@@ -115,3 +115,6 @@ Optionen in der MovieCutter.ini
 - DoiCheckTest:			0: Kein Inode-Test zwischen den Schnitten. - 1: Testen aber nicht fixen. - 2: Test und fix.
 - InodeMonitoring:		1: Überwachung der beim Schneiden beschädigten Inodes. - 0: keine Überwachung.
 - RCUMode:			0: SRP-2401 - 1: SRP-2410 - 2: CRP-2401 - 3: TF5000 (identisch mit 2) - 4: VolKeys nicht belegen
+(ab V. 3.1)
+- CheckFSAfterCut (geändert):	1: Automatische Dateisystemprüfung (nur wenn nötig). - 2: Immer nach dem Schneiden prüfen. - 0: Niemals prüfen (nicht empfohlen!)
+- DoiCheckTest (geändert):	1: gesammelter Test am Ende (ro). - 2: gesammelter Test und Fix. - 3: Test zwischen den Schnitten (ro). - 0: Kein icheck-Test.
