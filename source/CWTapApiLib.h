@@ -18,7 +18,7 @@
 
 void   HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNav);
 void   HDD_Delete2(const char *FileName, const char *AbsDirectory, bool DeleteInfNav);
-bool   HDD_Exist2(char *FileName, const char *AbsDirectory);
+bool   HDD_Exist2(const char *FileName, const char *AbsDirectory);
 bool   HDD_GetAbsolutePathByTypeFile2(TYPE_File *File, char *OutAbsFileName);    // OutAbsFileName: mind. FBLIB_DIR_SIZE Zeichen (inkl. Nullchar)
 bool   HDD_GetFileSizeAndInode2(const char *FileName, const char *AbsDirectory, __ino64_t *OutCInode, __off64_t *OutFileSize);
 bool   HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, dword NewDateTime);

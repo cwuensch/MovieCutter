@@ -54,6 +54,7 @@ Notes
 - Since the .inf and .nav files are recalculated from the original, the edited files are immediately seekable.
 - Even if it gives the impression through the exact seeking functions, it is not possible to cut frame-accurately. This is due to the fact that the receiver internally works with blocks (about 9 kB), but the filesystem then cuts on sector boundaries. In the first tests, this difference was up to half a second, but we will only get more accurate data by further testing.
 - If the playback point is within the last 10 seconds of the recording, the fast forward or backward function is automatically disabled and later the playback is paused. This is to prevent that the playback exits.
+- Kown Bug: If MovieCutter is started (for the first time), while TMS Remote is connected, the remote connection gets disconnected. That is due to a Timeout, resulting from MC's correction of the system time. After that the connection can immediately be reestablished.
 
 
 Keys

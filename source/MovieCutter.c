@@ -558,7 +558,7 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
       OSDMode = DefaultOSDMode;
 
       // Set the system time to current time
-      /*if (InodeMonitoring)*/ SetSystemTimeToCurrent();
+//      /*if (InodeMonitoring)*/ SetSystemTimeToCurrent();
 
       // Fix list of defect inodes
       if (HDD_Exist2("jfs_fsck", FSCKPATH)) system("chmod a+x " FSCKPATH "/jfs_fsck &");
@@ -1400,7 +1400,7 @@ WriteLogMC("DEBUG-Ausgabe", "ChUp/ChDown-Event empfangen, das nicht durch Up/Dow
             {
               // Deaktivierte Aktionen
 //              if ((ActionMenuItem==MI_SaveSegments || ActionMenuItem==MI_DeleteSegments || ActionMenuItem==MI_SelectOddSegments || ActionMenuItem==MI_SelectEvenSegments) && NrSegmentMarker<=2)
-              if ((ActionMenuItem<=4 && NrSegmentMarker<=2) || (ActionMenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && NrSegmentMarker>2))) || (ActionMenuItem==MI_ImportBookmarks && NrBookmarks<=0) || (ActionMenuItem==MI_ExportSegments && NrSegmentMarker<=2))
+              if ((ActionMenuItem<=4 && NrSegmentMarker<=2) || (ActionMenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && (NrSelectedSegments>0 || NrSegmentMarker>2)))) || (ActionMenuItem==MI_ImportBookmarks && NrBookmarks<=0) || (ActionMenuItem==MI_ExportSegments && NrSegmentMarker<=2))
                 break;
 
               // Aktionen mit Confirmation-Dialog
@@ -1434,7 +1434,10 @@ WriteLogMC("DEBUG-Ausgabe", "ChUp/ChDown-Event empfangen, das nicht durch Up/Dow
                   else
                   {
                     if(NrSelectedSegments > 0)
+                    {
                       MovieCutterUnselectAll();
+                      break;
+                    }
                     else
                       DeleteAllSegmentMarkers();
                   }
@@ -2086,7 +2089,7 @@ bool DeleteSegmentMarker(int MarkerIndex)
     NrSegmentMarker--;
 
     SegmentMarker[NrSegmentMarker - 1].Selected = FALSE;        // the very last marker (no segment)
-    if(NrSegmentMarker < 3) SegmentMarker[0].Selected = FALSE;  // there is only one segment (from start to end)
+//    if(NrSegmentMarker <= 2) SegmentMarker[0].Selected = FALSE;  // there is only one segment (from start to end)
     if(ActiveSegment >= MarkerIndex) ActiveSegment--;
     if(ActiveSegment >= NrSegmentMarker - 1) ActiveSegment = NrSegmentMarker - 2;
     JumpRequestedSegment = 0xFFFF;
@@ -2121,7 +2124,7 @@ bool SelectSegmentMarker(void)
   bool ret = FALSE;
   TRACEENTER();
 
-  if (NrSegmentMarker > 2)
+  if (NrSegmentMarker >= 2)
   {
     if (JumpRequestedSegment != 0xFFFF)
     {
@@ -2742,7 +2745,7 @@ void CutFileSave(void)
   }
 
   SegmentMarker[NrSegmentMarker - 1].Selected = FALSE;
-  if(NrSegmentMarker < 3)SegmentMarker[0].Selected = FALSE;
+  if(NrSegmentMarker <= 2) SegmentMarker[0].Selected = FALSE;
 
   fwrite(&Version, sizeof(word), 1, fCut);
   fwrite(&RecFileSize, sizeof(__off64_t), 1, fCut);
@@ -3806,10 +3809,7 @@ void ActionMenuDraw(void)
       case MI_SaveSegments:
       {
         if (NrSelectedSegments == 0)
-        {
           DisplayStr = LangGetString(LS_SaveCurSegment);
-          if (NrSegmentMarker <= 2) DisplayColor = Color_Inactive;
-        }
         else if (NrSelectedSegments == 1)
           DisplayStr = LangGetString(LS_Save1Segment);
         else
@@ -3817,15 +3817,13 @@ void ActionMenuDraw(void)
           TAP_SPrint(TempStr, sizeof(TempStr), LangGetString(LS_SaveNrSegments), NrSelectedSegments);
           DisplayStr = TempStr;
         }
+        if (NrSegmentMarker <= 2) DisplayColor = Color_Inactive;
         break;
       }
       case MI_DeleteSegments:
       {
         if (NrSelectedSegments == 0)
-        {
           DisplayStr = LangGetString(LS_DeleteCurSegment);
-          if (NrSegmentMarker <= 2) DisplayColor = Color_Inactive;
-        }
         else if (NrSelectedSegments == 1)
           DisplayStr = LangGetString(LS_Delete1Segment);
         else
@@ -3833,6 +3831,7 @@ void ActionMenuDraw(void)
           TAP_SPrint(TempStr, sizeof(TempStr), LangGetString(LS_DeleteNrSegments), NrSelectedSegments);
           DisplayStr = TempStr;
         }
+        if (NrSegmentMarker <= 2) DisplayColor = Color_Inactive;
         break;
       }
       case MI_SelectOddSegments:
@@ -3923,7 +3922,7 @@ void ActionMenuDown(void)
       ActionMenuItem = 1;
     else
       ActionMenuItem++;
-  } while ((ActionMenuItem<=4 && NrSegmentMarker<=2) || (ActionMenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && NrSegmentMarker>2))) || (ActionMenuItem==MI_ImportBookmarks && NrBookmarks<=0) || (ActionMenuItem==MI_ExportSegments && NrSegmentMarker<=2));
+  } while ((ActionMenuItem<=4 && NrSegmentMarker<=2) || (ActionMenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && (NrSelectedSegments>0 || NrSegmentMarker>2)))) || (ActionMenuItem==MI_ImportBookmarks && NrBookmarks<=0) || (ActionMenuItem==MI_ExportSegments && NrSegmentMarker<=2));
 
   ActionMenuDraw();
 
@@ -3940,7 +3939,7 @@ void ActionMenuUp(void)
       ActionMenuItem--;
     else
       ActionMenuItem = MI_NrMenuItems - 1;
-  } while ((ActionMenuItem<=4 && NrSegmentMarker<=2) || (ActionMenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && NrSegmentMarker>2))) || (ActionMenuItem==MI_ImportBookmarks && NrBookmarks<=0) || (ActionMenuItem==MI_ExportSegments && NrSegmentMarker<=2));
+  } while ((ActionMenuItem<=4 && NrSegmentMarker<=2) || (ActionMenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && (NrSelectedSegments>0 || NrSegmentMarker>2)))) || (ActionMenuItem==MI_ImportBookmarks && NrBookmarks<=0) || (ActionMenuItem==MI_ExportSegments && NrSegmentMarker<=2));
 
   ActionMenuDraw();
 
@@ -4283,7 +4282,7 @@ void Playback_SetJumpNavigate(bool pJumpRequest, bool pNavRequest, bool pBackwar
     if (JumpRequestedBlock == (dword) -1)
       JumpRequestedBlock = PlayInfo.currentBlock;
 
-    if (labs(TAP_GetTick() - LastNavTime) >= 500)
+    if (labs(TAP_GetTick() - LastNavTime) >= 1000)
       LastDirection = 0;
 
     if (pBackwards)
@@ -4604,8 +4603,11 @@ void MovieCutterUnselectAll(void)
   OSDInfoDrawProgressbar(TRUE, TRUE);
 //  OSDRedrawEverything();
 
-  State = ST_ActionMenu;
-  ActionMenuDraw();
+  if (NrSegmentMarker > 2)
+  {
+    State = ST_ActionMenu;
+    ActionMenuDraw();
+  }
   TRACEEXIT();
 }
 
@@ -4824,15 +4826,18 @@ if (CutEnding || KeepCut)
   __ino64_t OldInodeNr, NewInodeNr;
   char InfFileName[MAX_FILE_NAME_SIZE + 1];
   TAP_SPrint(InfFileName, sizeof(InfFileName), "%s.inf", PlaybackName);
-  HDD_GetFileSizeAndInode2(InfFileName, AbsPlaybackDir, &OldInodeNr, NULL);
-
-  TAP_SPrint(InfFileName, sizeof(InfFileName), "%010llu.INF+", OldInodeNr);
-  if (HDD_Exist2(InfFileName, TAPFSROOT "/ProgramFiles/Settings/INFplus"))
+  if (HDD_GetFileSizeAndInode2(InfFileName, AbsPlaybackDir, &OldInodeNr, NULL))
   {
-    TAP_SPrint(InfFileName, sizeof(InfFileName), "%s.inf", (CutEnding) ? TempFileName : CutFileName);
-    HDD_GetFileSizeAndInode2(InfFileName, AbsPlaybackDir, &NewInodeNr, NULL);
-    TAP_SPrint(CommandLine, sizeof(CommandLine), "%s %s/ProgramFiles/Settings/INFplus/%010llu.INF+ %s/ProgramFiles/Settings/INFplus/%010llu.INF+", (KeepCut) ? "cp" : "mv", TAPFSROOT, OldInodeNr, TAPFSROOT, NewInodeNr);
-    system(CommandLine);
+    TAP_SPrint(InfFileName, sizeof(InfFileName), "%010llu.INF+", OldInodeNr);
+    if (HDD_Exist2(InfFileName, TAPFSROOT "/ProgramFiles/Settings/INFplus"))
+    {
+      TAP_SPrint(InfFileName, sizeof(InfFileName), "%s.inf", (CutEnding) ? TempFileName : CutFileName);
+      if (HDD_GetFileSizeAndInode2(InfFileName, AbsPlaybackDir, &NewInodeNr, NULL))
+      {
+        TAP_SPrint(CommandLine, sizeof(CommandLine), "%s %s/ProgramFiles/Settings/INFplus/%010llu.INF+ %s/ProgramFiles/Settings/INFplus/%010llu.INF+", (KeepCut) ? "cp" : "mv", TAPFSROOT, OldInodeNr, TAPFSROOT, NewInodeNr);
+        system(CommandLine);
+      }
+    }
   }
 }
 
@@ -4841,7 +4846,8 @@ if (CutEnding || KeepCut)
       {
         RecFileSize = 0;
         if(HDD_Exist2(TempFileName, AbsPlaybackDir))
-          HDD_GetFileSizeAndInode2(TempFileName, AbsPlaybackDir, NULL, &RecFileSize);
+          if(!HDD_GetFileSizeAndInode2(TempFileName, AbsPlaybackDir, NULL, &RecFileSize))
+            RecFileSize = 0;
 
         if (ret && RecFileSize > 0)
         {
@@ -4863,7 +4869,8 @@ if (CutEnding || KeepCut)
       // Überprüfung von Existenz und Größe der geschnittenen Aufnahme
       RecFileSize = 0;
       if(HDD_Exist2(PlaybackName, AbsPlaybackDir))
-        HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, NULL, &RecFileSize);
+        if(!HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, NULL, &RecFileSize))
+          RecFileSize = 0;
       WriteLogMCf(PROGRAM_NAME, "Size of the new playback file (after cut): %llu", RecFileSize);
 
       // Wiedergabe wird neu gestartet

@@ -49,14 +49,14 @@ void HDD_Delete2(const char *FileName, const char *AbsDirectory, bool DeleteInfN
   TRACEEXIT();
 }
 
-bool HDD_Exist2(char *FileName, const char *AbsDirectory)
+bool HDD_Exist2(const char *FileName, const char *AbsDirectory)
 {
   char                  AbsFileName[FBLIB_DIR_SIZE];
   bool                  ret;
 
   TRACEENTER();
   TAP_SPrint  (AbsFileName, sizeof(AbsFileName), "%s/%s",     AbsDirectory, FileName);
-  ret = (access(AbsFileName, F_OK) == 0);
+  ret= (access(AbsFileName, F_OK) == 0);
   TRACEEXIT();
   return ret;
 }

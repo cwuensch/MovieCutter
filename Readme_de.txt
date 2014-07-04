@@ -55,6 +55,7 @@ Hinweise
 - Da die .inf- und .nav-Dateien aus dem Original neu berechnet werden, sind die geschnittenen Dateien sofort spulbar.
 - Auch wenn es durch das genaue Spulen den Anschein erweckt, lassen sich Aufnahmen nicht framegenau schneiden. Das liegt u.a. daran, dass intern mit Blöcken gearbeitet wird (ca. 9 kB), das Dateisystem danach aber auf Sektorgrenzen schneidet. Bei ersten Tests war diese Differenz bis zu einer halben Sekunde lang, genauere Daten werden wir aber erst durch weitere Tests bekommen.
 - Wenn sich der Wiedergabepunkt in den letzten 10 Sekunden der Aufnahme befindet, wird zuerst das Spulen eingestellt und später automatisch pausiert. Dies soll verhindern, dass sich die Wiedergabe beendet.
+- Kown Bug: Wird der MovieCutter (erstmalig) gestartet, während eine Verbindung mit TMS Remote besteht, so führt dies Unterbrechung der Remote-Verbindung. Grund dafür ist ein Timeout, der dadurch entsteht, dass MC die Systemzeit korrigiert. Die Verbindung kann anschließend sofort neu aufgebaut werden.
 
 
 Tasten

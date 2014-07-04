@@ -68,121 +68,157 @@ void HDD_CancelCheckFS()
 
 // ----------------------------------------------------------------------------------------------------------
 
-bool AddTempListToDevice(const char *AbsDeviceList, const char *AbsTempList, int *const OutMarkedFiles, int *const OutNewMarkedFiles)
+tInodeData* ReadListFileAlloc(const char *AbsListFileName, int *OutNrInodes, int AddEntries)
 {
-  FILE                 *fListFileOut = NULL, *fListFileIn = NULL;
-  tInodeData            curInode, *InodeList;
-  int                   NrMarkedFiles = 0, NrNewMarkedFiles = 0;
-  int                   i;
+  tInodeListHeader      InodeListHeader;
+  tInodeData           *InodeList  = NULL;
+  FILE                 *fInodeList = NULL;
+  int                   NrInodes = 0;
+  unsigned long         fs = 0;
+
+  TRACEENTER();
+  InodeListHeader.NrEntries = 0;
+TAP_PrintNet("ReadListFileAlloc: OutNrInodes: %d, HeaderNrEntries: %d\n", *OutNrInodes, InodeListHeader.NrEntries);
+  
+  fInodeList = fopen(AbsListFileName, "rb");
+  if(fInodeList)
+  {
+    // Dateigröße bestimmen um Puffer zu allozieren
+    fseek(fInodeList, 0, SEEK_END);
+    fs = ftell(fInodeList);
+    rewind(fInodeList);
+
+    // Header prüfen
+    if (!( (fread(&InodeListHeader, sizeof(tInodeListHeader), 1, fInodeList))
+        && (strncmp(InodeListHeader.Magic, "TFinos", 6) == 0)
+        && (InodeListHeader.Version == 1)
+        && (InodeListHeader.FileSize == fs)
+        && (InodeListHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == fs)))
+    {
+      fclose(fInodeList);
+      WriteLogMC("HddToolsLib", "ReadListFileAlloc: Invalid list file header!");
+      TRACEEXIT();
+      return NULL;
+    }
+  }
+else TAP_PrintNet("File could not be opened: %s\n", AbsListFileName);
+  if(OutNrInodes) *OutNrInodes = InodeListHeader.NrEntries;
+
+  // Puffer allozieren
+  InodeList = (tInodeData*) malloc((InodeListHeader.NrEntries + AddEntries) * sizeof(tInodeData));
+  if (InodeList && fInodeList)
+  {
+    NrInodes = fread(InodeList, sizeof(tInodeData), InodeListHeader.NrEntries, fInodeList);
+    if (NrInodes != InodeListHeader.NrEntries)
+    {
+      fclose(fInodeList);
+      free(InodeList);
+      WriteLogMC("HddToolsLib", "ReadListFileAlloc: Unexpected end of list file.");
+      TRACEEXIT();
+      return NULL;
+    }
+  }
+  if(fInodeList) fclose(fInodeList);
+
+  if (!InodeList)
+    WriteLogMC("HddToolsLib", "ReadListFileAlloc: Not enough memory to store the list file.");
+TAP_PrintNet("END ReadListFileAlloc: OutNrInodes: %d, HeaderNrEntries: %d\n", *OutNrInodes, InodeListHeader.NrEntries);
+  TRACEEXIT();
+  return InodeList;
+}
+
+bool WriteListFile(const char *AbsListFileName, const tInodeData InodeList[], const int NrInodes)
+{
+  tInodeListHeader      InodeListHeader;
+  FILE                 *fInodeList = NULL;
+  bool                  ret = FALSE;
 
   TRACEENTER();
 
-  // Dateigröße bestimmen um Puffer zu allozieren
-  int64_t fsOut = 0, fsIn = 0;
-  HDD_GetFileSizeAndInode2(&AbsDeviceList[1], "", NULL, &fsOut);
-  HDD_GetFileSizeAndInode2(&AbsTempList[1], "", NULL, &fsIn);
-
-  if (fsIn > sizeof(tInodeListHeader))
+  fInodeList = fopen(AbsListFileName, "wb");
+  if(fInodeList)
   {
-    tInodeListHeader InListHeader, OutListHeader;
+    strcpy(InodeListHeader.Magic, "TFinos");
+    InodeListHeader.Version   = 1;
+    InodeListHeader.NrEntries = NrInodes;
+    InodeListHeader.FileSize  = (NrInodes * sizeof(tInodeData)) + sizeof(tInodeListHeader);
 
-TAP_PrintNet("Puffer alloz. %llu\n", (fsOut - min(sizeof(tInodeListHeader), fsOut) + fsIn - min(sizeof(tInodeListHeader), fsIn)) / sizeof(tInodeData) * sizeof(tInodeData));
-    InodeList = (tInodeData*) malloc((fsOut - min(sizeof(tInodeListHeader), fsOut) + fsIn - min(sizeof(tInodeListHeader), fsIn)) / sizeof(tInodeData) * sizeof(tInodeData));
+    if (fwrite(&InodeListHeader, sizeof(tInodeListHeader), 1, fInodeList))
+    {
+      if (fwrite(InodeList, sizeof(tInodeData), NrInodes, fInodeList) == (size_t) NrInodes)
+        ret = TRUE;
+    }
+    fclose(fInodeList);
+  }
+  TRACEEXIT();
+  return ret;
+}
+
+bool AddTempListToDevice(const char *AbsDeviceList, const char *AbsTempList, int *const OutMarkedFiles, int *const OutNewMarkedFiles)
+{
+  tInodeData           *InodeList = NULL, *TempInodeList = NULL;
+  tInodeData           *curInode;
+  int                   NrMarkedFiles = 0, NrTempEntries = 0, NrNewMarkedFiles = 0;
+  int                   i, j;
+
+  TRACEENTER();
+TAP_PrintNet("AddTempListToDevice: NrMarkedFiles: %d, NrNewMarkedFiles: %d\n", *OutMarkedFiles, *OutNewMarkedFiles);
+
+  TempInodeList = ReadListFileAlloc(AbsTempList, &NrTempEntries, 0);
+  if(TempInodeList)
+  {  
+    InodeList = ReadListFileAlloc(AbsDeviceList, &NrMarkedFiles, NrTempEntries);
     if(InodeList)
     {
-      // bisherige FixInodes.lst einlesen
-      fListFileOut = fopen(AbsDeviceList, "rb");
-      if(fListFileOut)
+      for (i = 0; i < NrTempEntries; i++)
       {
-        // Header prüfen
-        if ( (fread(&OutListHeader, sizeof(tInodeListHeader), 1, fListFileOut))
-          && (strncmp(OutListHeader.Magic, "TFinos", 6) == 0)
-          && (OutListHeader.Version == 1)
-          && (OutListHeader.FileSize == fsOut)
-          && (OutListHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == fsOut))
+        curInode = &TempInodeList[i];
+        for (j = 0; j < NrMarkedFiles; j++)
         {
-          NrMarkedFiles = fread(InodeList, sizeof(tInodeData), OutListHeader.NrEntries, fListFileOut);
-          if (NrMarkedFiles != OutListHeader.NrEntries)
-            WriteLogMC("HddToolsLib", "AddTempListToDevice() W1d02.");
-        }
-        else
-          WriteLogMC("HddToolsLib", "AddTempListToDevice() W1d01.");
-        fclose(fListFileOut);
-      }
-
-      // neue Inodes hinzufügen
-      fListFileIn = fopen("/tmp/FixInodes.tmp", "rb");
-      if(fListFileIn)
-      {
-        // Header prüfen
-        if ( (fread(&InListHeader, sizeof(tInodeListHeader), 1, fListFileIn))
-          && (strncmp(InListHeader.Magic, "TFinos", 6) == 0)
-          && (InListHeader.Version == 1)
-          && (InListHeader.FileSize == fsIn)
-          && (InListHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == fsIn))
-        {
-          while (!feof(fListFileIn))
+          if (InodeList[j].InodeNr == curInode->InodeNr)
           {
-            if (fread(&curInode, sizeof(tInodeData), 1, fListFileIn))
-            {
-              for (i = 0; i < NrMarkedFiles; i++)
-              {
-                if (InodeList[i].InodeNr == curInode.InodeNr)
-                {
-                  if (!curInode.FileName[0] && (curInode.di_size == InodeList[i].di_size))
-                    strcpy(curInode.FileName, InodeList[i].FileName);
-                  break;
-                }
-              }
-              InodeList[i] = curInode;
-              if (i == NrMarkedFiles) NrMarkedFiles++;
-              NrNewMarkedFiles++;
-            }
+            if (!curInode->FileName[0] && (curInode->di_size == InodeList[j].di_size))
+              strcpy(curInode->FileName, InodeList[j].FileName);
+            break;
           }
         }
-        else
-          WriteLogMC("HddToolsLib", "AddTempListToDevice() W1d03.");
-        fclose(fListFileIn);
+        InodeList[j] = *curInode;
+        if (j == NrMarkedFiles) NrMarkedFiles++;
+        NrNewMarkedFiles++;
       }
 
-      // aktualisierte Liste speichern
       if (NrMarkedFiles > 0)
       {
-        fListFileOut = fopen(AbsDeviceList, "wb");
-        if(fListFileOut)
-        {
-          strcpy(OutListHeader.Magic, "TFinos");
-          OutListHeader.Version = 1;
-          OutListHeader.NrEntries = NrMarkedFiles;
-          OutListHeader.FileSize  = (NrMarkedFiles * sizeof(tInodeData)) + sizeof(tInodeListHeader);
-          if(!fwrite(&OutListHeader, sizeof(tInodeListHeader), 1, fListFileOut))
-            WriteLogMC("HddToolsLib", "AddTempListToDevice() W1d05.");
-
-          if(fwrite(InodeList, sizeof(tInodeData), NrMarkedFiles, fListFileOut) != (unsigned int)NrMarkedFiles)
-            WriteLogMC("HddToolsLib", "AddTempListToDevice() W1d06.");
-          fclose(fListFileOut);
-        }
-        else
-          WriteLogMC("HddToolsLib", "AddTempListToDevice() W1d04.");
+        if (!WriteListFile(AbsDeviceList, InodeList, NrMarkedFiles))
+          WriteLogMC("HddToolsLib", "AddTempListToDevice: Error writing the inode list to file!");
       }
+      free(TempInodeList);
+      free(InodeList);
     }
     else
     {
+      free(TempInodeList);
       WriteLogMC("HddToolsLib", "AddTempListToDevice() E1d01.");
       TRACEEXIT();
       return FALSE;
     }
   }
   else
-    NrMarkedFiles = (fsOut - min(sizeof(tInodeListHeader), fsOut)) / sizeof(tInodeData);
+  {
+    int64_t fs = 0;
+    if (HDD_GetFileSizeAndInode2(&AbsDeviceList[1], "", NULL, &fs))
+      NrMarkedFiles = (fs - min(sizeof(tInodeListHeader), fs)) / sizeof(tInodeData);
+TAP_PrintNet("fs: %lld, NrMarkedFiles: %d\n", fs, NrMarkedFiles);
+  }
+TAP_PrintNet("END AddTempListToDevice: NrMarkedFiles: %d, NrNewMarkedFiles: %d\n", NrMarkedFiles, NrNewMarkedFiles);
 
   if(OutMarkedFiles) *OutMarkedFiles = NrMarkedFiles;
   if(OutNewMarkedFiles) *OutNewMarkedFiles = NrNewMarkedFiles;
 
+TAP_PrintNet("END AddTempListToDevice: OutMarkedFiles: %d, OutNewMarkedFiles: %d\n", *OutMarkedFiles, *OutNewMarkedFiles);
   TRACEEXIT();
   return TRUE;
 }
-
 
 // ----------------------------------------------------------------------------------------------------------
 
@@ -257,7 +293,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
   }
 
   // --- 4.) Run fsck and create a log file ---
-  if(DoFix) SetSystemTimeToCurrent();
+//  if(DoFix) SetSystemTimeToCurrent();
   StartTime = TF2UnixTime(Now(&sec)) + sec;
 
   TAP_SPrint(CommandLine, sizeof(CommandLine), FSCKPATH "/jfs_fsck -n -v %s %s %s -L /tmp/FixInodes.tmp %s %s &> /tmp/fsck.log & echo $!", ((DoFix) ? "-r" : ""), ((Quick) ? "-q" : ""), ((Quick && InodeNrs) ? "-i" : ""), DeviceNode, ((InodeNrs) ? InodeNrs : ""));  // > /tmp/fsck.pid
@@ -447,7 +483,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
   if(InodeMonitoring)
   {
     TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/FixInodes.lst", MountPoint);
-    AddTempListToDevice(CommandLine, "/tmp/FixInodes.lst", &NrMarkedFiles, &NrNewMarkedFiles);
+    AddTempListToDevice(CommandLine, "/tmp/FixInodes.tmp", &NrMarkedFiles, &NrNewMarkedFiles);
     if (NrNewMarkedFiles != NrRepairedFiles)
       fsck_Errors = TRUE;
 DumpInodeFixingList(CommandLine);
@@ -547,30 +583,20 @@ DumpInodeFixingList(CommandLine);
 
 void DumpInodeFixingList(const char *AbsListFile)
 {
-  FILE                 *fListFile = NULL;
-  tInodeData            curInode;
-  int                   i = 0;
+  tInodeData           *InodeList = NULL;
+  int                   NrInodes = 0, i;
 
   TRACEENTER();
 
   WriteLogMCf("HddToolsLib", "DUMPING inode fixing list %s:", AbsListFile);
-  fListFile = fopen(AbsListFile, "rb");
-  if(fListFile)
+  if (HDD_Exist2(&AbsListFile[1], ""))
   {
-    // Header prüfen
-    tInodeListHeader ListFileHeader;
-    if ( (fread(&ListFileHeader, sizeof(tInodeListHeader), 1, fListFile))
-      && (strncmp(ListFileHeader.Magic, "TFinos", 6) == 0)
-      && (ListFileHeader.Version == 1)
-//      && (ListFileHeader.FileSize == fs)
-      && (ListFileHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == ListFileHeader.FileSize))
+    InodeList = ReadListFileAlloc(AbsListFile, &NrInodes, 0);
+    if(InodeList)
     {
-      while(fread(&curInode, sizeof(tInodeData), 1, fListFile))
-        WriteLogMCf("HddToolsLib", "  %d: InodeNr=%lu, LastFixed=%lu, di_size=%lld, wrong=%lld, nblocks_real=%lld, FileName=%s.", ++i, curInode.InodeNr, curInode.LastFixTime, curInode.di_size, curInode.nblocks_wrong, curInode.nblocks_real, curInode.FileName);
+      for (i = 0; i < NrInodes; i++)
+        WriteLogMCf("HddToolsLib", "  %d: InodeNr=%lu, LastFixed=%lu, di_size=%lld, wrong=%lld, nblocks_real=%lld, FileName=%s.", i+1, InodeList[i].InodeNr, InodeList[i].LastFixTime, InodeList[i].di_size, InodeList[i].nblocks_wrong, InodeList[i].nblocks_real, InodeList[i].FileName);
     }
-    else
-      WriteLogMC("HddToolsLib", "-> Invalid list file header!");
-    fclose(fListFile);
   }
   else
     WriteLogMC("HddToolsLib", "-> List file not existing.");
@@ -667,7 +693,7 @@ bool HDD_CheckInode(const char *FileName, const char *AbsDirectory, bool DoFix)
   strcat(ListFile, "/FixInodes.lst");
 
   // Set the system time to current time
-  if(DoFix) SetSystemTimeToCurrent();
+//  if(DoFix) SetSystemTimeToCurrent();
 
   // Delete old list file (if present)
   if(DoFix) remove("/tmp/FixInodes.tmp");
@@ -706,7 +732,7 @@ int HDD_CheckInodes(const char *InodeNrs, const char *AbsMountPath, bool DoFix)
   strcat(ListFile, "/FixInodes.lst");
 
   // Set the system time to current time
-  if(DoFix) SetSystemTimeToCurrent();
+//  if(DoFix) SetSystemTimeToCurrent();
 
   // Delete old list file (if present)
   if(DoFix) remove("/tmp/FixInodes.tmp");
@@ -754,7 +780,7 @@ bool HDD_FixInodeList2(const char *ListFile, const char *DeviceNode, bool Delete
   }
 
   // Set the system time to current time
-  SetSystemTimeToCurrent();
+//  SetSystemTimeToCurrent();
 
   // Execute jfs_icheck and read its output (last line separately)
   TAP_SPrint(ParamString, sizeof(ParamString), "-f %s \"%s\"", ((DeleteOldEntries) ? "-L" : "-l"), ListFile);
