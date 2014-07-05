@@ -817,7 +817,7 @@ bool HDD_FixInodeList(const char *AbsMountPath, bool DeleteOldEntries)
 
 // ----------------------------------------------------------------------------------------------------------
 
-bool SetSystemTimeToCurrent()
+/* bool SetSystemTimeToCurrent()
 {
   unsigned long         CurTime, RealTime;
   byte                  sec = 0;
@@ -833,4 +833,4 @@ bool SetSystemTimeToCurrent()
 
   TRACEEXIT();
   return (ret == 0);
-}
+} */

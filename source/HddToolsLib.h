@@ -7,7 +7,7 @@
 typedef void (*TProgBarHandler)(bool, dword);  // 0 - 100
 typedef void (*TMessageHandler)(char*, char*);
 
-bool  SetSystemTimeToCurrent();
+//bool  SetSystemTimeToCurrent();
 //bool  AddInodeToFixingList(tInodeData curInode, const char *AbsListFile);
 void  DumpInodeFixingList(const char *AbsListFile);
 void  HDDCheck_InitProgBar(dword pProgressStart, dword pProgressEnd, dword pProgressMax, word pRegionToSave, char *pWarningStr, char *pCheckingStr);
