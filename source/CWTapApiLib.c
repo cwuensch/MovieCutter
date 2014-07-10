@@ -301,7 +301,7 @@ bool SaveBookmarks(dword Bookmarks[], int NrBookmarks)
   if(TempRecSlot)
     PlayInfoBookmarkStruct = (dword*)HDD_GetPvrRecTsPlayInfoPointer(*TempRecSlot);
 
-  if(Bookmarks && NrBookmarks && PlayInfoBookmarkStruct)
+  if(Bookmarks && PlayInfoBookmarkStruct)
   {
     PlayInfoBookmarkStruct[0] = NrBookmarks;
     memset(&PlayInfoBookmarkStruct[1], 0, NRBOOKMARKS * sizeof(dword));

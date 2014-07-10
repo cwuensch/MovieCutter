@@ -1,8 +1,13 @@
-2014-06-?? v3.1  NEU:
+2014-07-?? v3.1  NEU:
                    ** verbesserte Variante der icheck-Überprüfung
+                 BUGFIX:
+                    - während der Wiedergabe einer Aufnahme blieb die System-Uhr stehen (!)
+                    - Korrektur der Wiedergabeposition nach dem Schnitt
+                    - auch der letzte Bookmark kann gelöscht werden
+                    - auch das (einzige) Segment von Anfang bis Ende kann markiert werden
                  INI-File:
                     - CheckFSAfterCut:   1: Automatische Dateisystemprüfung (nur wenn nötig). - 2: Immer nach dem Schneiden prüfen. - 0: Niemals prüfen (nicht empfohlen!)
-                    - DoiCheckTest:      1: gesammelter Test am Ende (ro). - 2: gesammelter Test und Fix. - 3: Test zwischen den Schnitten (ro). - 0: Kein icheck-Test.
+                    - DoiCheckTest:      1: gesammelter Test am Ende (ro). - 2: gesammelter Test und Fix. - 3: Test zwischen den Schnitten (ro). - 4: Test und Fix zwischen Schnitten. - 0: Kein icheck-Test.
 
 2014-06-28 v3.0  NEU:
         (final)   *** automatische Überwachung und Reparatur beim Schneiden beschädigter Inodes

@@ -118,4 +118,4 @@ Optionen in der MovieCutter.ini
 - RCUMode:			0: SRP-2401 - 1: SRP-2410 - 2: CRP-2401 - 3: TF5000 (identisch mit 2) - 4: VolKeys nicht belegen
 (ab V. 3.1)
 - CheckFSAfterCut (geändert):	1: Automatische Dateisystemprüfung (nur wenn nötig). - 2: Immer nach dem Schneiden prüfen. - 0: Niemals prüfen (nicht empfohlen!)
-- DoiCheckTest (geändert):	1: gesammelter Test am Ende (ro). - 2: gesammelter Test und Fix. - 3: Test zwischen den Schnitten (ro). - 0: Kein icheck-Test.
+- DoiCheckTest (geändert):	1: gesammelter Test am Ende (ro). - 2: gesammelter Test und Fix. - 3: Test zwischen den Schnitten (ro). - 4: Test und Fix zwischen Schnitten. 0: Kein icheck-Test.

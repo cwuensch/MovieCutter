@@ -256,6 +256,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
     TRACEEXIT();
     return RC_Error;
   }
+WriteLogMC("MovieCutterLib", "Debug: Firmware cutting routine finished.");
 
   // Detect the size of the cut file
   if(!HDD_GetFileSizeAndInode2(CutFileName, AbsDirectory, &InodeNr, &CutFileSize))
@@ -442,7 +443,7 @@ bool FileCut(char *SourceFileName, char *CutFileName, char *AbsDirectory, dword 
 
   TRACEENTER();
   #ifdef FULLDEBUG
-    WriteLogMC("MovieCutterLib", "FileCut()");
+    WriteLogMCf("MovieCutterLib", "FileCut('%s', '%s', '%s', %lu, %lu)", SourceFileName, CutFileName, AbsDirectory, StartBlock, NrBlocks);
   #endif
 
   //If a playback is running, stop it
@@ -473,7 +474,12 @@ bool FileCut(char *SourceFileName, char *CutFileName, char *AbsDirectory, dword 
       ApplHdd_SetWorkFolder(&FolderStruct);
 
       //Do the cutting
+WriteLogMCf("MovieCutterLib", "Debug: ApplHdd_FileCutPaste('%s', %lu, %lu, '%s')", SourceFileName, StartBlock, NrBlocks, CutFileName);
       ret = ApplHdd_FileCutPaste(SourceFileName, StartBlock, NrBlocks, CutFileName);
+/*char tmp[FBLIB_DIR_SIZE];
+TAP_SPrint(tmp, sizeof(tmp), "touch \"%s/%s\"", AbsDirectory, CutFileName);
+system(tmp);*/
+WriteLogMCf("MovieCutterLib", "Debug: ApplHdd_FileCutPaste() returned: %lu.", ret);
 
       //Restore all resources
       dword ret2 = DevHdd_DeviceClose(pFolderStruct);
@@ -504,6 +510,7 @@ TAP_PrintNet("DevHdd_DeviceClose() returned: %lu.\n", ret2);
     return FALSE;
   }
 
+WriteLogMC("MovieCutterLib", "Debug: ENDE FileCut().");
   TRACEEXIT();
   return TRUE;
 }
