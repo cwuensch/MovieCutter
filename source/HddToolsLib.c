@@ -368,9 +368,12 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
       i++;
     } while ((i < 2000) && (PlayInfo.playMode != PLAYMODE_Playing || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0));
 
-    PlaybackRepeatSet(TRUE);
-    if(LastPlaybackPos >= 1000)
-      TAP_Hdd_ChangePlaybackPos(LastPlaybackPos);
+    if (PlayInfo.playMode == PLAYMODE_Playing)
+    {
+      PlaybackRepeatSet(TRUE);
+      if(LastPlaybackPos >= 1000)
+        TAP_Hdd_ChangePlaybackPos(LastPlaybackPos);
+    }
   }
 
   // --- 7.) Open and analyse the generated log file ---

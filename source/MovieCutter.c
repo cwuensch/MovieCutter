@@ -1511,7 +1511,7 @@ WriteLogMC("DEBUG-Ausgabe", "ChUp/ChDown-Event empfangen, das nicht durch Up/Dow
 #endif
         CutFileSave();
       }
-      PlaybackRepeatSet(OldRepeatMode);
+      if(isPlaybackRunning()) PlaybackRepeatSet(OldRepeatMode);
       Cleanup(TRUE);
       if(InodeMonitoring)
         HDD_FixInodeList(((AbsPlaybackDir[0]) ? AbsPlaybackDir : TAPFSROOT), TRUE);
@@ -2896,14 +2896,14 @@ void OSDSegmentListDrawList(bool DoSync)
   const int             DashWidth   =  FMUC_GetStringWidth(" - ", &Calibri_12_FontDataUC);
   const int             TimeWidth   =  FMUC_GetStringWidth("99:99:99", &Calibri_12_FontDataUC);
 
-  word                  CurrentSegment;
-  word                  ScrollButtonHeight, ScrollButtonPos;
+  int                   CurrentSegment;
+  int                   ScrollButtonHeight, ScrollButtonPos;
   char                  StartTime[12], EndTime[12], OutStr[5];
   char                  PageNrStr[8], *PageStr;
   int                   p, NrPages;
   int                   Start;
   dword                 PosX, PosY, UseColor;
-  word                  i;
+  int                   i;
 
   TRACEENTER();
 
@@ -2912,7 +2912,7 @@ void OSDSegmentListDrawList(bool DoSync)
     if (JumpRequestedSegment != 0xFFFF)
       CurrentSegment = JumpRequestedSegment;
     else
-      CurrentSegment = (word)ActiveSegment;
+      CurrentSegment = ActiveSegment;
     if(CurrentSegment >= NrSegmentMarker - 1)
       CurrentSegment = NrSegmentMarker - 2;
 
@@ -2958,7 +2958,10 @@ void OSDSegmentListDrawList(bool DoSync)
         PosX = TextFieldStart_X;
         PosY = TextFieldStart_Y + i*(TextFieldHeight+TextFieldDist) + 3;
         UseColor = (SegmentMarker[Start + i].Selected) ? COLOR_Yellow : COLOR_White;
-
+        if( (SegmentMarker[Start+i + 1].Block - SegmentMarker[Start+i].Block + 22 > 475949)
+          || (!DisableSpecialEnd && (Start+i == NrSegmentMarker-2) && (SegmentMarker[Start+i].Block + 22 > 475949)))
+          if (SegmentMarker[Start + i].Selected)
+            UseColor = RGB(250, 139, 18);
         TAP_SPrint(OutStr, sizeof(OutStr), "%d.", Start + i + 1);
         if (Start + i + 1 >= 100) TAP_SPrint(OutStr, sizeof(OutStr), "00.");
         FMUC_PutString(rgnSegmentList, PosX, PosY, PosX + NrWidth,    OutStr,                                                               UseColor, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_RIGHT);
@@ -2991,6 +2994,7 @@ void OSDSegmentListDrawList(bool DoSync)
 // -----------------
 void SetCurrentSegment(void)
 {
+  bool                  DoDraw = FALSE;
   int                   i;
 
   TRACEENTER();
@@ -3012,8 +3016,10 @@ void SetCurrentSegment(void)
     TRACEEXIT();
     return;
   }
-  JumpRequestedSegment = 0xFFFF;
+
+  if (JumpPerformedTime) DoDraw = TRUE;
   JumpPerformedTime = 0;
+  JumpRequestedSegment = 0xFFFF;
 
   for(i = 1; i < NrSegmentMarker; i++)
   {
@@ -3022,13 +3028,17 @@ void SetCurrentSegment(void)
       if(ActiveSegment != (i - 1))
       {
         ActiveSegment = i - 1;
-        OSDSegmentListDrawList(FALSE);
-        OSDInfoDrawProgressbar(TRUE, FALSE);
+        DoDraw = TRUE;
       }
       break;
     }
   }
 
+  if(DoDraw)
+  {
+    OSDSegmentListDrawList(FALSE);
+    OSDInfoDrawProgressbar(TRUE, FALSE);
+  }
   TRACEEXIT();
 }
 
@@ -3036,11 +3046,14 @@ void SetCurrentSegment(void)
 // ------------------
 void OSDInfoDrawProgressbar(bool Force, bool DoSync)
 {
-  const dword           ColorProgressBar     = RGB(250, 139, 18);
-  const dword           ColorActiveSegment   = RGB(73, 206, 239);
-  const dword           ColorSelectedSegment = COLOR_Blue;
-  const dword           ColorCurrentPos      = RGB(157, 8, 13);
-  const dword           ColorCurrentPosMark  = RGB(255, 111, 114);
+  const dword           ColorProgressBar      = RGB(250, 139, 18);
+  const dword           ColorWarnedSegment    = RGB(255, 100, 60);
+  const dword           ColorActiveSegment    = RGB(73, 206, 239);
+  const dword           ColorSelectedSegment  = COLOR_Blue;
+  const dword           ColorSelectionWarning = COLOR_DarkMagenta;
+  const dword           ColorCurrentPos       = RGB(157, 8, 13);
+  const dword           ColorCurrentPosMark   = RGB(255, 111, 114);
+  dword                 UseSelectionColor;
 
   word                  OSDRegion = 0;
   int                   FrameWidth, FrameHeight, FrameLeft, FrameTop;
@@ -3104,7 +3117,7 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
       FMUC_PutString (OSDRegion, FrameLeft,     FrameTop + FrameHeight + 1 - FMUC_GetStringHeight(LangGetString(LS_B), &Calibri_10_FontDataUC), ProgBarLeft, LangGetString(LS_B), ((BookmarkMode) ? RGB(60,255,60) : COLOR_Gray),  COLOR_None, &Calibri_10_FontDataUC, FALSE, ALIGN_LEFT);
 
       // Fill the active segment
-      if ((NrSegmentMarker >= 3) && (ActiveSegment < NrSegmentMarker-1))
+      if ((NrSegmentMarker > 2) && (ActiveSegment < NrSegmentMarker-1))
       {
 //        if ((SegmentMarker[ActiveSegment].Block <= SegmentMarker[ActiveSegment+1].Block) && (SegmentMarker[ActiveSegment+1].Block <= PlayInfo.totalBlock))
 //        {
@@ -3119,6 +3132,23 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
       // For each Segment
       for(i = 0; i < NrSegmentMarker - 1; i++)
       {
+        // Fill too large segements with warning color
+        UseSelectionColor = ColorSelectedSegment;
+        if (NrSegmentMarker > 2)
+        {        
+          if( (SegmentMarker[i+1].Block - SegmentMarker[i].Block + 22 > 475949)
+           || (!DisableSpecialEnd && (i == NrSegmentMarker-2) && (SegmentMarker[i].Block + 22 > 475949)))
+          {
+            if ((i != ActiveSegment) /* && ((SegmentMarker[i].Block <= SegmentMarker[i+1].Block) && (SegmentMarker[i+1].Block <= PlayInfo.totalBlock)) */)
+            {
+              curPos   = min((dword)((float)SegmentMarker[i].Block                    * ProgBarWidth / PlayInfo.totalBlock), (dword)ProgBarWidth);
+              curWidth = min((dword)((float)SegmentMarker[i + 1].Block                * ProgBarWidth / PlayInfo.totalBlock) - curPos, (dword)ProgBarWidth + 1 - curPos);
+              TAP_Osd_FillBox(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, ColorWarnedSegment);
+            }
+            UseSelectionColor = ColorSelectionWarning;
+          }
+        }
+
         // Draw the selection
         if(SegmentMarker[i].Selected)
         {
@@ -3126,14 +3156,14 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
 //          {
             curPos   = min((dword)((float)SegmentMarker[i].Block                      * ProgBarWidth / PlayInfo.totalBlock), (dword)ProgBarWidth);
             curWidth = min((dword)((float)SegmentMarker[i+1].Block                    * ProgBarWidth / PlayInfo.totalBlock) - curPos, (dword)ProgBarWidth + 1 - curPos);
-            TAP_Osd_DrawRectangle(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, 2, ColorSelectedSegment);
+            TAP_Osd_DrawRectangle(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, 2, UseSelectionColor);
 //          }
         }
 
         // Draw the segment marker
         if((i >= 1) /* && (SegmentMarker[i].Block <= PlayInfo.totalBlock) */)
         {
-          curPos     = min((dword)((float)SegmentMarker[i].Block * ProgBarWidth / PlayInfo.totalBlock), (dword)ProgBarWidth + 1);
+          curPos     = min((dword)((float)SegmentMarker[i].Block                      * ProgBarWidth / PlayInfo.totalBlock), (dword)ProgBarWidth + 1);
           if (!BookmarkMode)
           {
             if (i == NearestMarker)
@@ -4637,7 +4667,7 @@ void MovieCutterProcess(bool KeepCut)
 {
 //  int                   NrSelectedSegments;
   bool                  isMultiSelect, CutEnding;
-  word                  WorkingSegment;
+  int                   WorkingSegment;
   int                   maxProgress; 
   char                  CutFileName[MAX_FILE_NAME_SIZE + 1];
   char                  TempFileName[MAX_FILE_NAME_SIZE + 1];
@@ -4760,7 +4790,7 @@ WriteDebugLog("---------------");
 //      NoPlaybackCheck = TRUE;
 //      HDD_ChangeDir(PlaybackDir);
 
-      WriteLogMCf(PROGRAM_NAME, "Processing segment %u", WorkingSegment);
+      WriteLogMCf(PROGRAM_NAME, "Processing segment %d", WorkingSegment);
 
       // Ermittlung der Schnittpositionen
       CutStartPoint.BlockNr = SegmentMarker[WorkingSegment].Block;
@@ -4894,7 +4924,8 @@ WriteLogMCf(PROGRAM_NAME, "Debug: HDD_StartPlayback2('%s', '%s')", PlaybackName,
           j++;
         }
 WriteLogMCf(PROGRAM_NAME, "Debug: Playback gestartet (j=%d, isPlaybackRunning=%s, TotalBlock=%lu, CurrentBlock=%lu)", j, ((isPlaybackRunning()) ? "true" : "false"), PlayInfo.totalBlock, PlayInfo.currentBlock);
-        PlaybackRepeatSet(TRUE);
+        if (PlayInfo.playMode == PLAYMODE_Playing)
+          PlaybackRepeatSet(TRUE);
 //        HDD_ChangeDir(PlaybackDir);
 
         WriteLogMCf(PROGRAM_NAME, "Reported new totalBlock = %lu", PlayInfo.totalBlock);
@@ -4968,7 +4999,7 @@ WriteLogMCf(PROGRAM_NAME, "Debug: Playback gestartet (j=%d, isPlaybackRunning=%s
         if (!CutEnding)
         {
           if (CurPlayPosition >= BehindCutPoint.BlockNr)
-            CurPlayPosition -= DeltaBlock;
+            CurPlayPosition -= min(DeltaBlock, CurPlayPosition);
           else if (CurPlayPosition >= CutStartPoint.BlockNr)
             CurPlayPosition = /*(WorkingSegment < NrSegmentMarker - 1) ?*/ CutStartPoint.BlockNr;
           CalcLastSeconds();
@@ -5083,11 +5114,15 @@ WriteLogMCf(PROGRAM_NAME, "Debug: DoiCheckTest=%d, CheckFSAfterCut=%d, InodeMoni
 //    TAP_Osd_Sync();
   }
 
-  if(TrickMode == TRICKMODE_Pause) Playback_Normal();
+  if (isPlaybackRunning())
+  {
+    if(TrickMode == TRICKMODE_Pause) Playback_Normal();
 WriteLogMCf(PROGRAM_NAME, "Debug: Springe jetzt zu CurPlayPosition = %lu", CurPlayPosition);
-  if (CurPlayPosition > 0)
-    TAP_Hdd_ChangePlaybackPos(CurPlayPosition);
-  PlaybackRepeatSet(OldRepeatMode);
+    if (CurPlayPosition > 0)
+      TAP_Hdd_ChangePlaybackPos(CurPlayPosition);
+    PlaybackRepeatSet(OldRepeatMode);
+  }
+
   if (State == ST_UnacceptedFile)
   {
     LastTotalBlocks = PlayInfo.totalBlock;
