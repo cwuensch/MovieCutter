@@ -522,7 +522,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 //    DumpInodeFixingList("/mnt/hd/FixInodes.lst");
 //    DumpInodeFixingList("/tmp/FixInodes.tmp");
 //    HDD_FixInodeList(((AbsPlaybackDir[0]) ? AbsPlaybackDir : TAPFSROOT), TRUE);
-    
+
 //    TAP_EnterNormal();
     State = ST_Exit;
     param1 = 0;
@@ -1049,6 +1049,10 @@ WriteLogMC("DEBUG-Ausgabe", "ChUp/ChDown-Event empfangen, das nicht durch Up/Dow
               if (param1 == RKEY_ChUp)          Playback_SetJumpNavigate(TRUE, FALSE, TRUE);
               else if (param1 == RKEY_ChDown)   Playback_SetJumpNavigate(TRUE, FALSE, FALSE);
             }
+
+            // bei RCUMode = RC_NoVolKeys die Volume-Tasten durchreichen
+            else if ((RCUMode == RC_NoVolKeys) && (param1 == RKEY_VolUp || param1 == RKEY_VolDown))
+              ReturnKey = TRUE;
             break;
           }
 
@@ -1325,18 +1329,22 @@ WriteLogMC("DEBUG-Ausgabe", "ChUp/ChDown-Event empfangen, das nicht durch Up/Dow
             ActiveSegment = JumpRequestedSegment;
             JumpPerformedTime = TAP_GetTick();    if(!JumpPerformedTime) JumpPerformedTime = 1;
             LastPlayStateChange = TAP_GetTick();  if(!LastPlayStateChange) LastPlayStateChange = 1;
+            JumpRequestedSegment = 0xFFFF;
             JumpRequestedBlock = (dword) -1;
+            JumpRequestedTime = 0;
           }
           else if (JumpRequestedBlock != (dword) -1)
           {
             if(TrickMode == TRICKMODE_Pause) Playback_Normal();
             TAP_Hdd_ChangePlaybackPos(JumpRequestedBlock);
-            LastPlayStateChange = TAP_GetTick();  if(!LastPlayStateChange) LastPlayStateChange = 1;
+            ActiveSegment = FindSegmentWithBlock(JumpRequestedBlock);
             JumpPerformedTime = TAP_GetTick();    if(!JumpPerformedTime) JumpPerformedTime = 1;
+            LastPlayStateChange = TAP_GetTick();  if(!LastPlayStateChange) LastPlayStateChange = 1;
+            JumpRequestedSegment = 0xFFFF;
+            JumpRequestedTime = 0;
+            OSDSegmentListDrawList(FALSE);
+            OSDInfoDrawProgressbar(TRUE, FALSE);
           }
-          JumpRequestedSegment = 0xFFFF;
-//          JumpRequestedBlock = (dword) -1;
-          JumpRequestedTime = 0;
         }
         if(LastPlayStateChange && (labs(TAP_GetTick() - LastPlayStateChange) > 300))
         {
@@ -2002,6 +2010,27 @@ int AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
   return ret;
 }
 
+int FindSegmentWithBlock(dword curBlock)
+{
+  int                   SegmentIndex;
+  int                   i;
+
+  TRACEENTER();
+  SegmentIndex = 0;
+  
+  if (NrSegmentMarker > 2)
+  {
+    for(i = 0; i < NrSegmentMarker - 1; i++)
+      if(SegmentMarker[i + 1].Block > curBlock)
+      {
+        SegmentIndex = i;
+        break;
+      }
+  }
+  TRACEEXIT();
+  return SegmentIndex;
+}
+
 int FindNearestSegmentMarker(dword curBlock)
 {
   int                   NearestMarkerIndex;
@@ -2120,32 +2149,21 @@ void DeleteAllSegmentMarkers(void)
 
 bool SelectSegmentMarker(void)
 {
-  int i;
-  bool ret = FALSE;
+  int                   VisibleSegment;
+  bool                  ret = FALSE;
   TRACEENTER();
 
   if (NrSegmentMarker >= 2)
   {
     if (JumpRequestedSegment != 0xFFFF)
-    {
-      SegmentMarker[JumpRequestedSegment].Selected = !SegmentMarker[JumpRequestedSegment].Selected;
-      ret = SegmentMarker[JumpRequestedSegment].Selected;
-    }
+      VisibleSegment = JumpRequestedSegment;
     else if (JumpRequestedBlock != (dword) -1)
-    {
-      for(i = NrSegmentMarker - 2; i >= 0; i--)
-        if (JumpRequestedBlock >= SegmentMarker[i].Block)
-        {
-          SegmentMarker[i].Selected = !SegmentMarker[i].Selected;
-          ret = SegmentMarker[i].Selected;
-          break;
-        }
-    }
+      VisibleSegment = FindSegmentWithBlock(JumpRequestedBlock);
     else
-    {
-      SegmentMarker[ActiveSegment].Selected = !SegmentMarker[ActiveSegment].Selected;
-      ret = SegmentMarker[ActiveSegment].Selected;
-    }
+      VisibleSegment = ActiveSegment;
+
+    SegmentMarker[VisibleSegment].Selected = !SegmentMarker[VisibleSegment].Selected;
+    ret = SegmentMarker[VisibleSegment].Selected;
   }
   TRACEEXIT();
   return ret;
@@ -2958,8 +2976,8 @@ void OSDSegmentListDrawList(bool DoSync)
         PosX = TextFieldStart_X;
         PosY = TextFieldStart_Y + i*(TextFieldHeight+TextFieldDist) + 3;
         UseColor = (SegmentMarker[Start + i].Selected) ? COLOR_Yellow : COLOR_White;
-        if( (SegmentMarker[Start+i + 1].Block - SegmentMarker[Start+i].Block + 22 > 475949)
-          || (!DisableSpecialEnd && (Start+i == NrSegmentMarker-2) && (SegmentMarker[Start+i].Block + 22 > 475949)))
+        if( ((Start+i < NrSegmentMarker-2 || DisableSpecialEnd)   && (SegmentMarker[Start+i + 1].Block - SegmentMarker[Start+i].Block + 22 > 475949))
+         || (!DisableSpecialEnd && (Start+i == NrSegmentMarker-2) && (SegmentMarker[Start+i].Block + 22 > 475949)) )
           if (SegmentMarker[Start + i].Selected)
             UseColor = RGB(250, 139, 18);
         TAP_SPrint(OutStr, sizeof(OutStr), "%d.", Start + i + 1);
@@ -2995,7 +3013,7 @@ void OSDSegmentListDrawList(bool DoSync)
 void SetCurrentSegment(void)
 {
   bool                  DoDraw = FALSE;
-  int                   i;
+  int                   VisibleSegment;
 
   TRACEENTER();
 
@@ -3005,34 +3023,23 @@ void SetCurrentSegment(void)
     return;
   }
 
-  if(NrSegmentMarker <= 2)
-  {
-    ActiveSegment = 0;
-    TRACEEXIT();
-    return;
-  }
   if ((JumpRequestedSegment != 0xFFFF) || (JumpPerformedTime && (labs(TAP_GetTick() - JumpPerformedTime) < 150)))
   {
     TRACEEXIT();
     return;
   }
-
-  if (JumpPerformedTime) DoDraw = TRUE;
+//  if (JumpPerformedTime) DoDraw = TRUE;
   JumpPerformedTime = 0;
   JumpRequestedSegment = 0xFFFF;
 
-  for(i = 1; i < NrSegmentMarker; i++)
+  if(NrSegmentMarker > 2)
   {
-    if(SegmentMarker[i].Block > PlayInfo.currentBlock)
-    {
-      if(ActiveSegment != (i - 1))
-      {
-        ActiveSegment = i - 1;
-        DoDraw = TRUE;
-      }
-      break;
-    }
+    VisibleSegment = FindSegmentWithBlock(PlayInfo.currentBlock);
+    if(ActiveSegment != VisibleSegment) DoDraw = TRUE;
+    ActiveSegment = VisibleSegment;
   }
+  else
+    ActiveSegment = 0;
 
   if(DoDraw)
   {
@@ -3046,12 +3053,13 @@ void SetCurrentSegment(void)
 // ------------------
 void OSDInfoDrawProgressbar(bool Force, bool DoSync)
 {
-  const dword           ColorProgressBar      = RGB(250, 139, 18);
-  const dword           ColorWarnedSegment    = RGB(255, 100, 60);
-  const dword           ColorActiveSegment    = RGB(73, 206, 239);
-  const dword           ColorSelectedSegment  = COLOR_Blue;
+  const dword           ColorProgressBar      = RGB(250, 139,  18);
+  const dword           ColorWarnedSegment    = RGB(255, 100,  60);
+  const dword           ColorActiveSegment    = RGB( 73, 206, 239);
+  const dword           ColorActiveSegWarning = RGB(180, 175, 235);
+  const dword           ColorSegmentSelection = COLOR_Blue;
   const dword           ColorSelectionWarning = COLOR_DarkMagenta;
-  const dword           ColorCurrentPos       = RGB(157, 8, 13);
+  const dword           ColorCurrentPos       = RGB(157,   8,  13);
   const dword           ColorCurrentPosMark   = RGB(255, 111, 114);
   dword                 UseSelectionColor;
 
@@ -3133,18 +3141,18 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
       for(i = 0; i < NrSegmentMarker - 1; i++)
       {
         // Fill too large segements with warning color
-        UseSelectionColor = ColorSelectedSegment;
+        UseSelectionColor = ColorSegmentSelection;
         if (NrSegmentMarker > 2)
-        {        
-          if( (SegmentMarker[i+1].Block - SegmentMarker[i].Block + 22 > 475949)
-           || (!DisableSpecialEnd && (i == NrSegmentMarker-2) && (SegmentMarker[i].Block + 22 > 475949)))
+        {
+          if( ((i < NrSegmentMarker-2 || DisableSpecialEnd)   && (SegmentMarker[i+1].Block - SegmentMarker[i].Block + 22 > 475949))
+           || (!DisableSpecialEnd && (i == NrSegmentMarker-2) && (SegmentMarker[i].Block + 22 > 475949)) )
           {
-            if ((i != ActiveSegment) /* && ((SegmentMarker[i].Block <= SegmentMarker[i+1].Block) && (SegmentMarker[i+1].Block <= PlayInfo.totalBlock)) */)
-            {
+//            if ((SegmentMarker[i].Block <= SegmentMarker[i+1].Block) && (SegmentMarker[i+1].Block <= PlayInfo.totalBlock))
+//            {
               curPos   = min((dword)((float)SegmentMarker[i].Block                    * ProgBarWidth / PlayInfo.totalBlock), (dword)ProgBarWidth);
               curWidth = min((dword)((float)SegmentMarker[i + 1].Block                * ProgBarWidth / PlayInfo.totalBlock) - curPos, (dword)ProgBarWidth + 1 - curPos);
-              TAP_Osd_FillBox(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, ColorWarnedSegment);
-            }
+              TAP_Osd_FillBox(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, ((i == ActiveSegment) ? ColorActiveSegWarning : ColorWarnedSegment));
+//            }
             UseSelectionColor = ColorSelectionWarning;
           }
         }
@@ -3186,10 +3194,12 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
           if (SegmentMarker[JumpRequestedSegment].Selected)
             TAP_Osd_DrawRectangle(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, 1, ColorActiveSegment);
           else
-            TAP_Osd_DrawRectangle(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, 2, ColorActiveSegment);
+          {
+            TAP_Osd_DrawRectangle(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, 2, ((JumpRequestedSegment!=ActiveSegment) ? ColorActiveSegment : RGB(50, 150, 190)));
+//            if ((JumpRequestedSegment == ActiveSegment) && (curWidth > 2))
+//              TAP_Osd_DrawRectangle(OSDRegion, ProgBarLeft + curPos + 1, ProgBarTop + 1, curWidth - 2, ProgBarHeight - 2, 1, COLOR_Gray);
+          }
 //        }
-          if ((JumpRequestedSegment == ActiveSegment) && (curWidth > 2))
-            TAP_Osd_DrawRectangle(OSDRegion, ProgBarLeft + curPos + 1, ProgBarTop + 1, curWidth - 2, ProgBarHeight - 2, 1, COLOR_Gray);
       }
 
       // Draw the Bookmarks
