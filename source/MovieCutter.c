@@ -1322,29 +1322,22 @@ WriteLogMC("DEBUG-Ausgabe", "ChUp/ChDown-Event empfangen, das nicht durch Up/Dow
       {
         if (JumpRequestedTime && (labs(TAP_GetTick() - JumpRequestedTime) >= 100))
         {
-          if (JumpRequestedSegment != 0xFFFF)
+          if ((JumpRequestedSegment != 0xFFFF) || (JumpRequestedBlock != (dword) -1))
           {
             if(TrickMode == TRICKMODE_Pause) Playback_Normal();
-            TAP_Hdd_ChangePlaybackPos(SegmentMarker[JumpRequestedSegment].Block);
-            ActiveSegment = JumpRequestedSegment;
+            if (JumpRequestedSegment != 0xFFFF)
+            {
+              TAP_Hdd_ChangePlaybackPos(SegmentMarker[JumpRequestedSegment].Block);
+              ActiveSegment = JumpRequestedSegment;
+              JumpRequestedBlock = (dword) -1;
+            }
+            else if (JumpRequestedBlock != (dword) -1)
+              TAP_Hdd_ChangePlaybackPos(JumpRequestedBlock);
             JumpPerformedTime = TAP_GetTick();    if(!JumpPerformedTime) JumpPerformedTime = 1;
             LastPlayStateChange = TAP_GetTick();  if(!LastPlayStateChange) LastPlayStateChange = 1;
             JumpRequestedSegment = 0xFFFF;
-            JumpRequestedBlock = (dword) -1;
-            JumpRequestedTime = 0;
           }
-          else if (JumpRequestedBlock != (dword) -1)
-          {
-            if(TrickMode == TRICKMODE_Pause) Playback_Normal();
-            TAP_Hdd_ChangePlaybackPos(JumpRequestedBlock);
-            ActiveSegment = FindSegmentWithBlock(JumpRequestedBlock);
-            JumpPerformedTime = TAP_GetTick();    if(!JumpPerformedTime) JumpPerformedTime = 1;
-            LastPlayStateChange = TAP_GetTick();  if(!LastPlayStateChange) LastPlayStateChange = 1;
-            JumpRequestedSegment = 0xFFFF;
-            JumpRequestedTime = 0;
-            OSDSegmentListDrawList(FALSE);
-            OSDInfoDrawProgressbar(TRUE, FALSE);
-          }
+          JumpRequestedTime = 0;
         }
         if(LastPlayStateChange && (labs(TAP_GetTick() - LastPlayStateChange) > 300))
         {
@@ -3013,7 +3006,7 @@ void OSDSegmentListDrawList(bool DoSync)
 void SetCurrentSegment(void)
 {
   bool                  DoDraw = FALSE;
-  int                   VisibleSegment;
+  int                   VisibleSegment = -1;
 
   TRACEENTER();
 
@@ -3023,23 +3016,38 @@ void SetCurrentSegment(void)
     return;
   }
 
-  if ((JumpRequestedSegment != 0xFFFF) || (JumpPerformedTime && (labs(TAP_GetTick() - JumpPerformedTime) < 150)))
+  if (((JumpRequestedBlock != (dword) -1)) && !JumpRequestedTime)
   {
-    TRACEEXIT();
-    return;
-  }
-//  if (JumpPerformedTime) DoDraw = TRUE;
-  JumpPerformedTime = 0;
-  JumpRequestedSegment = 0xFFFF;
-
-  if(NrSegmentMarker > 2)
-  {
-    VisibleSegment = FindSegmentWithBlock(PlayInfo.currentBlock);
-    if(ActiveSegment != VisibleSegment) DoDraw = TRUE;
+    VisibleSegment = FindSegmentWithBlock(JumpRequestedBlock);
+    if (ActiveSegment != VisibleSegment)
+      DoDraw = TRUE;
     ActiveSegment = VisibleSegment;
   }
-  else
-    ActiveSegment = 0;
+
+  if (!JumpPerformedTime || (labs(TAP_GetTick() - JumpPerformedTime) >= 150))
+  {
+    if (JumpPerformedTime) DoDraw = TRUE;
+    JumpPerformedTime = 0;
+
+    if (!JumpRequestedTime)
+    {
+      JumpRequestedBlock = (dword) -1;
+      JumpRequestedSegment = 0xFFFF;
+    }
+
+    if (VisibleSegment < 0)
+    {
+      if(NrSegmentMarker > 2)
+      {
+        VisibleSegment = FindSegmentWithBlock(PlayInfo.currentBlock);
+        if(ActiveSegment != VisibleSegment)
+          DoDraw = TRUE;
+        ActiveSegment = VisibleSegment;
+      }
+      else
+        ActiveSegment = 0;
+    }
+  }
 
   if(DoDraw)
   {
@@ -3107,8 +3115,8 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
       return;
     }
 
-    if (!JumpRequestedTime && !JumpPerformedTime)
-      JumpRequestedBlock = (dword) -1;
+//    if (!JumpRequestedTime && !JumpPerformedTime)
+//      JumpRequestedBlock = (dword) -1;
 
     pos = (dword)((float)currentVisibleBlock() * ProgBarWidth / PlayInfo.totalBlock);
     if(Force || (pos != LastPos))
