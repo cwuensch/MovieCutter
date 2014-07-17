@@ -1362,7 +1362,10 @@ WriteLogMC("DEBUG-Ausgabe", "ChUp/ChDown-Event empfangen, das nicht durch Up/Dow
         SetCurrentSegment();
         OSDInfoDrawProgressbar(FALSE, FALSE);
         OSDInfoDrawPlayIcons(FALSE, FALSE);
-        OSDInfoDrawCurrentPlayTime(FALSE);
+        if ((JumpRequestedBlock != (dword) -1) && !JumpRequestedTime)  // nach Sprung den grauen Balken aktualisieren
+          OSDInfoDrawCurrentPlayTime(TRUE);
+        else
+          OSDInfoDrawCurrentPlayTime(FALSE);
         OSDInfoDrawClock(FALSE);
         TAP_Osd_Sync();
         LastDraw = TAP_GetTick();
@@ -3576,7 +3579,7 @@ void OSDInfoDrawCurrentPlayTime(bool Force)
   // Experiment: Stabilisierung der vor- und zurückspringenden Zeit-Anzeige (noch linear)
   dword curBlock = currentVisibleBlock();
   if ((TrickMode != TRICKMODE_Normal) || (curBlock > maxBlock)) maxBlock = curBlock;
-    
+
   if ((TrickMode != TRICKMODE_Normal) || (labs(TAP_GetTick() - LastDraw) > 15) || Force)
   {
     dword             Time;
@@ -4695,6 +4698,7 @@ void MovieCutterProcess(bool KeepCut)
   dword                 CurPlayPosition;
   char                  DeviceNode[20], CommandLine[512], InodeNrs[768];
   __ino64_t             InodeNr = 0;
+  __off64_t             FileSize = 0;
   int                   icheckErrors = -2;
   int                   i, j;
   tResultCode           ret = RC_Error;
@@ -4753,8 +4757,7 @@ HDD_FindMountPointDev2(AbsPlaybackDir, NULL, DeviceNode);
 //TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,rw,integrity %s", DeviceNode);
 //system(CommandLine);
 WriteDebugLog("======================\n");
-WriteDebugLog("Starte Schnittprozess:");
-WriteDebugLog("MC-Version: %s, FBLib: %s, SpecialEnd %s, ", VERSION, __FBLIB_VERSION__, (DisableSpecialEnd) ? "nicht aktiv" : "aktiv");
+WriteDebugLog("MC-Version: %s, FBLib: %s, SpecialEnd %s, DoiCheckTest=%d, CheckFSAfterCut=%d, InodeMonitoring=%d", VERSION, __FBLIB_VERSION__, (DisableSpecialEnd) ? "nicht aktiv" : "aktiv", DoiCheckTest, CheckFSAfterCut, InodeMonitoring);
 FILE *MountState;
 TAP_SPrint(CommandLine, sizeof(CommandLine), "mount | grep '%s on'", DeviceNode);
 MountState = popen(CommandLine, "r");
@@ -4763,6 +4766,8 @@ if(MountState)
   fgets(CommandLine, sizeof(CommandLine), MountState);
   WriteDebugLog("Device: %s, gemountet als: %s. (%s)", DeviceNode, ((CommandLine[0] && !strstr(CommandLine, "nointegrity")) ? "integrity" : ((CommandLine[0]) ? "nointegrity" : "unbekannt")), RemoveEndLineBreak(CommandLine));
 }
+if (HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, &InodeNr, &FileSize))
+  WriteDebugLog("Source:   '%s/%s', inode=%llu, size=%llu", AbsPlaybackDir, PlaybackName, InodeNr, FileSize);
 if (DoiCheckTest >= 3)
 {
   icheckErrors = 0;
@@ -4862,6 +4867,10 @@ WriteLogMCf(PROGRAM_NAME, "Debug: MovieCutter() returned: %d", ret);
 
 // Aufnahmenfresser-Test und Ausgabe
 WriteLogMC(PROGRAM_NAME, "Debug: vor icheck-Test");
+if (HDD_GetFileSizeAndInode2(((CutEnding) ? TempFileName : CutFileName), AbsPlaybackDir, &InodeNr, &FileSize))
+  WriteDebugLog("Cut file: '%s/%s', inode=%llu, size=%llu", AbsPlaybackDir, ((CutEnding) ? TempFileName : CutFileName), InodeNr, FileSize);
+if (HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, &InodeNr, &FileSize))
+  WriteDebugLog("RestFile: '%s/%s', inode=%llu, size=%llu", AbsPlaybackDir, PlaybackName, InodeNr, FileSize);
 if (DoiCheckTest >= 3)
 {
   if (!HDD_CheckInode(((CutEnding) ? TempFileName : CutFileName), AbsPlaybackDir, (DoiCheckTest==4), InodeMonitoring /*, "CutFile" */))
@@ -5094,6 +5103,7 @@ WriteLogMCf(PROGRAM_NAME, "Debug: DoiCheckTest=%d, CheckFSAfterCut=%d, InodeMoni
   if ((CheckFSAfterCut == 2) || (CheckFSAfterCut != 0 && icheckErrors))
   {
     WriteLogMCf(PROGRAM_NAME, "Inodes-Check mit fsck: %s", InodeNrs);
+    WriteDebugLog(            "Inodes-Check mit fsck: %s", InodeNrs);
     if (CheckFSAfterCut == 2)
       CheckFileSystem(maxProgress, maxProgress + 1, maxProgress + 1, TRUE, TRUE, TRUE, icheckErrors, InodeNrs);
     else

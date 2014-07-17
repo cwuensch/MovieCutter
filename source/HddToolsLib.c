@@ -487,6 +487,8 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
       {
         RemoveEndLineBreak(Buffer);
         WriteLogMC("CheckFS", Buffer);
+        if(ActivePhase == 10)
+          WriteDebugLog(Buffer);
       }
     }
     fclose(fLogFileIn);
@@ -680,13 +682,11 @@ tReturnCode RunIcheckWithLog(const char *DeviceNode, const char *ParamString, ch
   if (FullLog[0])
   {
     WriteLogMC("HddToolsLib", FullLog);
-    WriteDebugLog(FullLog);
+    if ((ret != rc_NOFILEFOUND) && (ret != rc_ALLFILESOKAY))
+      WriteDebugLog(FullLog);
   }
   if (LastLine[0])
-  {
     WriteLogMC("HddToolsLib", LastLine);
-    WriteDebugLog(LastLine);
-  }
   if (OutLastLine)
   {
     OutLastLine[0] = '\0';
@@ -802,13 +802,11 @@ bool HDD_FixInodeList2(const char *ListFile, const char *DeviceNode, bool Delete
   TRACEENTER();
 
   WriteLogMCf("HddToolsLib", "Checking list of suspect inodes (Device=%s, ListFile=%s):", DeviceNode, ListFile);
-  WriteDebugLog(             "Checking list of suspect inodes (Device=%s, ListFile=%s):", DeviceNode, ListFile);
 
   // Check if ListFile exists on the drive
   if (access(ListFile, F_OK) != 0)
   {
     WriteLogMC("HddToolsLib", "-> No ListFile present.");
-    WriteDebugLog("-> No ListFile present.");
     TRACEEXIT();
     return TRUE;
   }
@@ -822,10 +820,7 @@ bool HDD_FixInodeList2(const char *ListFile, const char *DeviceNode, bool Delete
 
   // Write result state to Logfile
   if (!(ret == rc_NOFILEFOUND || ret == rc_ALLFILESOKAY || ret == rc_ALLFILESFIXED))  // NICHT: keine gefunden, alle ok oder alle gefixt
-  {
     WriteLogMCf("HddToolsLib", "Error! jfs_icheck returned %d.", ret);
-    WriteDebugLog(             "Error! jfs_icheck returned %d.", ret);
-  }
 DumpInodeFixingList(ListFile);
 
   TRACEEXIT();

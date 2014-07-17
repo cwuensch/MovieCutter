@@ -264,7 +264,7 @@ WriteLogMC("MovieCutterLib", "Debug: Firmware cutting routine finished.");
     WriteLogMC("MovieCutterLib", "MovieCutter() W0004: error detecting size of cut file.");
     SuppressNavGeneration = TRUE;
   }
-  WriteLogMCf("MovieCutterLib", "Cut file: inode=%llu, size=%llu Bytes (=%lu blocks)", InodeNr, CutFileSize, CalcBlockSize(CutFileSize));
+  WriteLogMCf("MovieCutterLib", "Cut file size: %llu Bytes (=%lu blocks) - inode=%llu", CutFileSize, CalcBlockSize(CutFileSize), InodeNr);
 
   // Read the beginning and the ending from the cut file
   if(!ReadFirstAndLastCutPacket(CutFileName, AbsDirectory, FirstCutPacket, LastCutPacket))
