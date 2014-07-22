@@ -1,3 +1,10 @@
+2014-07-22 v3.1a NEU:
+                    * HDDToolsLib und jfs_fsck angepasst für schreibendes fsck
+                    * jfs_icheck löscht den Cache nur mit Parameter -f
+
+                 BUGFIX:
+                    - Parameter DefaultMinuteJump funktionierte nicht
+
 2014-07-16 v3.1  NEU:
                    ** verbesserte Variante der icheck-Überprüfung
                     * farbliche Hervorhebung von sehr großen Segmenten (4 GB -> Gefahr Firmware-Bug)

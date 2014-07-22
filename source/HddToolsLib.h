@@ -14,7 +14,7 @@ void  HDDCheck_InitProgBar(dword pProgressStart, dword pProgressEnd, dword pProg
 bool  HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler RefreshProgBar, TMessageHandler ShowErrorMessage, bool DoFix, bool Quick, bool InodeMonitoring, bool NoOkInfo, char *InodeNrs, char *SuccessString, char *ErrorStrFmt, char *AbortedString);
 void  HDD_CancelCheckFS(void);
 bool  HDD_CheckInode(const char *FileName, const char *AbsDirectory, bool DoFix, bool InodeMonitoring);
-int   HDD_CheckInodes(const char *InodeNrs, const char *AbsMountPath, bool DoFix, bool InodeMonitoring);
+int   HDD_CheckInodes(const char *InodeNrs, const char *AbsMountPath, int DoFix, bool InodeMonitoring);
 bool  HDD_FixInodeList2(const char *ListFile, const char *DeviceNode, bool DeleteOldEntries);
 bool  HDD_FixInodeList(const char *AbsMountPath, bool DeleteOldEntries);
 

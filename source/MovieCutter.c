@@ -286,7 +286,6 @@ bool                    OldRepeatMode = FALSE;
 TYPE_TrickMode          TrickMode;
 byte                    TrickModeSpeed;
 int                     MinuteJump;                           //Seconds or 0 if deactivated
-dword                   MinuteJumpBlocks;                     //Number of blocks, which shall be added
 //bool                    NoPlaybackCheck = FALSE;              //Used to circumvent a race condition during the cutting process
 int                     NrSelectedSegments;
 word                    JumpRequestedSegment = 0xFFFF;        //Is set, when the user presses up/down to jump to another segment
@@ -588,7 +587,6 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
         NrSegmentMarker = 0;
         ActiveSegment = 0;
         MinuteJump = DefaultMinuteJump;
-//        MinuteJumpBlocks = 0;  // nicht unbedingt nötig
         JumpRequestedSegment = 0xFFFF;    // eigentlich unnötig
         JumpRequestedBlock = (dword) -1;  //   "
 //        JumpRequestedTime = 0;            //   "
@@ -856,12 +854,9 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
 //          NoPlaybackCheck = FALSE;
 //          BookmarkMode = FALSE;
 //          MinuteJump = DefaultMinuteJump;
-//          MinuteJumpBlocks = 0;
           JumpRequestedSegment = 0xFFFF;    // eigentlich unnötig
           JumpRequestedBlock = (dword) -1;  //   "
 //          JumpRequestedTime = 0;            //   "
-//          CreateOSD();
-//          Playback_Normal();
           if (!ReadBookmarks(Bookmarks, &NrBookmarks))
             WriteLogMC(PROGRAM_NAME, "Error: ReadBookmarks() failed!");
           OldRepeatMode = PlaybackRepeatGet();
@@ -1303,7 +1298,6 @@ WriteLogMC("DEBUG-Ausgabe", "ChUp/ChDown-Event empfangen, das nicht durch Up/Dow
                 MinuteJump = 10 * MinuteJump + (param1 & 0x0f);
               else
                 MinuteJump = (param1 & 0x0f);
-              MinuteJumpBlocks = (PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec)) * MinuteJump*60;
               LastMinuteKey = TAP_GetTick();
               OSDInfoDrawMinuteJump(TRUE);
               OSDTextStateWindow((MinuteJump) ? LS_MinuteJumpActive : LS_MinuteJumpDisabled);
@@ -4387,16 +4381,17 @@ void Playback_SetJumpNavigate(bool pJumpRequest, bool pNavRequest, bool pBackwar
 
 void Playback_JumpForward(void)
 {
-  dword                 JumpBlock;
+  dword                 NrJumpBlocks, JumpToBlock;
 
   TRACEENTER();
 //  if(PLAYINFOVALID())  // Prüfung von currentBlock nun restriktiver
   if (PlayInfo.currentBlock < BlockNrLastSecond)
   {
-    JumpBlock = min(PlayInfo.currentBlock + MinuteJumpBlocks, BlockNrLastSecond);
+    NrJumpBlocks = (PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec)) * MinuteJump*60;
+    JumpToBlock  = min(PlayInfo.currentBlock + NrJumpBlocks, BlockNrLastSecond);
 
     if(TrickMode == TRICKMODE_Pause) Playback_Normal();
-    TAP_Hdd_ChangePlaybackPos(JumpBlock);
+    TAP_Hdd_ChangePlaybackPos(JumpToBlock);
     JumpRequestedSegment = 0xFFFF;
     JumpRequestedBlock = (dword) -1;
   }
@@ -4405,16 +4400,17 @@ void Playback_JumpForward(void)
 
 void Playback_JumpBackward(void)
 {
-  dword                 JumpBlock;
+  dword                 NrJumpBlocks, JumpToBlock;
 
   TRACEENTER();
 //  if(PLAYINFOVALID())  // Prüfung von currentBlock nun restriktiver
-  if (((int)PlayInfo.currentBlock >= 0) && (PlayInfo.currentBlock >= MinuteJumpBlocks))
+  NrJumpBlocks = (PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec)) * MinuteJump*60;
+  if (((int)PlayInfo.currentBlock >= 0) && (PlayInfo.currentBlock >= NrJumpBlocks))
   {
-    JumpBlock = PlayInfo.currentBlock - MinuteJumpBlocks;
+    JumpToBlock = PlayInfo.currentBlock - NrJumpBlocks;
 
     if(TrickMode == TRICKMODE_Pause) Playback_Normal();
-    TAP_Hdd_ChangePlaybackPos(JumpBlock);
+    TAP_Hdd_ChangePlaybackPos(JumpToBlock);
     JumpRequestedSegment = 0xFFFF;
     JumpRequestedBlock = (dword) -1;
   }

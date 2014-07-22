@@ -166,8 +166,9 @@ bool AddTempListToDevice(const char *AbsDeviceList, const char *AbsTempList, int
 {
   tInodeData           *InodeList = NULL, *TempInodeList = NULL;
   tInodeData           *curInode;
-  int                   NrMarkedFiles = 0, NrTempEntries = 0, NrNewMarkedFiles = 0;
+  int                   OldNrMarkedFiles = 0, NrMarkedFiles = 0, NrTempEntries = 0, NrNewMarkedFiles = 0;
   int                   i, j;
+  bool                  ret = TRUE;
 
   TRACEENTER();
 TAP_PrintNet("AddTempListToDevice: NrMarkedFiles: %d, NrNewMarkedFiles: %d\n", (OutMarkedFiles) ? *OutMarkedFiles : 0, (OutNewMarkedFiles) ? *OutNewMarkedFiles : 0);
@@ -175,9 +176,10 @@ TAP_PrintNet("AddTempListToDevice: NrMarkedFiles: %d, NrNewMarkedFiles: %d\n", (
   TempInodeList = ReadListFileAlloc(AbsTempList, &NrTempEntries, 0);
   if(TempInodeList)
   {  
-    InodeList = ReadListFileAlloc(AbsDeviceList, &NrMarkedFiles, NrTempEntries);
+    InodeList = ReadListFileAlloc(AbsDeviceList, &OldNrMarkedFiles, NrTempEntries);
     if(InodeList)
     {
+      NrMarkedFiles = OldNrMarkedFiles;
       for (i = 0; i < NrTempEntries; i++)
       {
         curInode = &TempInodeList[i];
@@ -198,7 +200,10 @@ TAP_PrintNet("AddTempListToDevice: NrMarkedFiles: %d, NrNewMarkedFiles: %d\n", (
       if (NrMarkedFiles > 0)
       {
         if (!WriteListFile(AbsDeviceList, InodeList, NrMarkedFiles))
+        {
           WriteLogMC("HddToolsLib", "AddTempListToDevice: Error writing the inode list to file!");
+          ret = FALSE;
+        }
       }
       free(TempInodeList);
       free(InodeList);
@@ -207,8 +212,7 @@ TAP_PrintNet("AddTempListToDevice: NrMarkedFiles: %d, NrNewMarkedFiles: %d\n", (
     {
       free(TempInodeList);
       WriteLogMC("HddToolsLib", "AddTempListToDevice() E1d01.");
-      TRACEEXIT();
-      return FALSE;
+      ret = FALSE;
     }
   }
   else
@@ -220,17 +224,17 @@ TAP_PrintNet("fs: %lld, NrMarkedFiles: %d\n", fs, NrMarkedFiles);
   }
 TAP_PrintNet("END AddTempListToDevice: NrMarkedFiles: %d, NrNewMarkedFiles: %d\n", NrMarkedFiles, NrNewMarkedFiles);
 
-  if(OutMarkedFiles) *OutMarkedFiles = NrMarkedFiles;
-  if(OutNewMarkedFiles) *OutNewMarkedFiles = NrNewMarkedFiles;
+  if(OutMarkedFiles)    *OutMarkedFiles    = (ret) ? NrMarkedFiles    : OldNrMarkedFiles;
+  if(OutNewMarkedFiles) *OutNewMarkedFiles = (ret) ? NrNewMarkedFiles : 0;
 
 TAP_PrintNet("END AddTempListToDevice: OutMarkedFiles: %d, OutNewMarkedFiles: %d\n", (OutMarkedFiles) ? *OutMarkedFiles : 0, (OutNewMarkedFiles) ? *OutNewMarkedFiles : 0);
   TRACEEXIT();
-  return TRUE;
+  return ret;
 }
 
 // ----------------------------------------------------------------------------------------------------------
 
-bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgBar, TMessageHandler pShowErrorMessage, bool DoFix, bool Quick, bool InodeMonitoring, bool NoOkInfo, char *InodeNrs, char *SuccessString, char *ErrorStrFmt, char *AbortedString)
+bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgBar, TMessageHandler pShowErrorMessage, int DoFix, bool Quick, bool InodeMonitoring, bool NoOkInfo, char *InodeNrs, char *SuccessString, char *ErrorStrFmt, char *AbortedString)
 {
   TProgBarHandler       RefreshProgBar = pRefreshProgBar;
   TMessageHandler       ShowErrorMessage = pShowErrorMessage;
@@ -304,7 +308,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
 //  if(DoFix) SetSystemTimeToCurrent();
   StartTime = TF2UnixTime(Now(&sec)) + sec;
 
-  TAP_SPrint(CommandLine, sizeof(CommandLine), FSCKPATH "/jfs_fsck -n -v %s %s %s -L /tmp/FixInodes.tmp %s %s &> /tmp/fsck.log & echo $!", ((DoFix) ? "-r" : ""), ((Quick) ? "-q" : ""), ((Quick && InodeNrs) ? "-i" : ""), DeviceNode, ((InodeNrs) ? InodeNrs : ""));  // > /tmp/fsck.pid
+  TAP_SPrint(CommandLine, sizeof(CommandLine), FSCKPATH "/jfs_fsck -v %s %s %s -L /tmp/FixInodes.tmp %s %s &> /tmp/fsck.log & echo $!", ((DoFix) ? ((DoFix==2) ? "-f" : "-n -r") : "-n"), ((Quick && DoFix!=2) ? "-q" : ""), ((Quick && InodeNrs) ? "-i" : ""), DeviceNode, ((InodeNrs) ? InodeNrs : ""));  // > /tmp/fsck.pid
 //-  system(CommandLine);
 
   //Get the PID of the fsck-Process
@@ -328,7 +332,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
 //    TAP_PrintNet(LogBuffer);
     TAP_Sleep(100);
     i++;
-    if(Quick)
+    if (Quick && (DoFix != 2))
     {
       if ((i < 240) && !(i % 20))  // 12 Schritte á 2 sek
         RefreshProgBar(TRUE, 100 * i / 240);
@@ -339,7 +343,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
         RefreshProgBar(TRUE, 100 * i / 600);
     }
     TAP_SystemProc();
-    if(fsck_Cancelled && (!DoFix || !Quick || !InodeNrs))
+    if(fsck_Cancelled && !(DoFix || Quick || InodeNrs))
     {
       char KillCommand[16];
       TAP_SPrint(KillCommand, sizeof(KillCommand), "kill %lu", fsck_Pid);
@@ -467,6 +471,8 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
           else
             fsck_Errors = TRUE;
         }
+//        else if (strncmp(Buffer, "MC corrupted inodes have been found. Would be released. Check aborted!", 70) == 0)
+//          CheckAborted = TRUE;
       }
         
       else if (ActivePhase == 10)
@@ -504,7 +510,8 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
   if(InodeMonitoring)
   {
     TAP_SPrint(CommandLine, sizeof(CommandLine), "%s/FixInodes.lst", MountPoint);
-    AddTempListToDevice(CommandLine, "/tmp/FixInodes.tmp", &NrMarkedFiles, &NrNewMarkedFiles);
+    if (!AddTempListToDevice(CommandLine, "/tmp/FixInodes.tmp", &NrMarkedFiles, &NrNewMarkedFiles))
+      fsck_Errors = TRUE;
     if (NrNewMarkedFiles != NrRepairedFiles)
       fsck_Errors = TRUE;
 DumpInodeFixingList(CommandLine);
