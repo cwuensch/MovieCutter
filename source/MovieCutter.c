@@ -239,6 +239,7 @@ typedef enum
   LS_UndoLastAction,
   LS_MinuteJumpActive,
   LS_MinuteJumpDisabled,
+  LS_NotEnoughSpace,
   LS_NrStrings
 } tLngStrings;
 
@@ -733,36 +734,6 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
           }
         }
 
-        // Check if receiver has been rebooted since the recording
-        dword RecDateTime;
-        if (GetRecDateFromInf(PlaybackName, AbsPlaybackDir, &RecDateTime))
-        {
-          dword TimeSinceRec = TimeDiff(RecDateTime, Now(NULL));
-          dword UpTime = GetUptime() / 6000;
-          #ifdef FULLDEBUG
-            if (RecDateTime > 0xd0790000)
-              RecDateTime = TF2UnixTime(RecDateTime);
-            TAP_PrintNet("Reboot-Check (%s): TimeSinceRec=%lu, UpTime=%lu, RecDateTime=%s", (TimeSinceRec <= UpTime + 1) ? "TRUE" : "FALSE", TimeSinceRec, UpTime, ctime((time_t*) &RecDateTime));
-          #endif
-
-          if (TimeSinceRec <= UpTime + 1)
-          {
-            if (ShowRebootMessage && !ShowConfirmationDialog(LangGetString(LS_RebootMessage)))
-            {
-              PlaybackRepeatSet(OldRepeatMode);
-              ClearOSD(TRUE);
-              if (AutoOSDPolicy)
-                State = ST_UnacceptedFile;
-              else
-              {
-                Cleanup(FALSE);
-                State = ST_InactiveMode;
-              }
-              break;
-            }
-          }
-        }
-
         // Check if nav has correct length!
         if(TimeStamps && (labs(TimeStamps[NrTimeStamps-1].Timems - (1000 * (60*PlayInfo.duration + PlayInfo.durationSec))) > 5000))
         {
@@ -794,6 +765,57 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
               }
               break;
             }
+          }
+        }
+
+        // Check if receiver has been rebooted since the recording
+        dword RecDateTime;
+        if (GetRecDateFromInf(PlaybackName, AbsPlaybackDir, &RecDateTime))
+        {
+          dword TimeSinceRec = TimeDiff(RecDateTime, Now(NULL));
+          dword UpTime = GetUptime() / 6000;
+          #ifdef FULLDEBUG
+            if (RecDateTime > 0xd0790000)
+              RecDateTime = TF2UnixTime(RecDateTime);
+            TAP_PrintNet("Reboot-Check (%s): TimeSinceRec=%lu, UpTime=%lu, RecDateTime=%s", (TimeSinceRec <= UpTime + 1) ? "TRUE" : "FALSE", TimeSinceRec, UpTime, ctime((time_t*) &RecDateTime));
+          #endif
+
+          if (TimeSinceRec <= UpTime + 1)
+          {
+            if (ShowRebootMessage && !ShowConfirmationDialog(LangGetString(LS_RebootMessage)))
+            {
+              PlaybackRepeatSet(OldRepeatMode);
+              ClearOSD(TRUE);
+              if (AutoOSDPolicy)
+                State = ST_UnacceptedFile;
+              else
+              {
+                Cleanup(FALSE);
+                State = ST_InactiveMode;
+              }
+              break;
+            }
+          }
+        }
+
+        // Check if free disc space is greater than RecFileSize
+        __off64_t FreeDiscSpace = 0;
+        FreeDiscSpace = HDD_GetFreeDiscSpace(PlaybackName, AbsPlaybackDir);
+        WriteLogMCf(PROGRAM_NAME, "HDD free space = %llu Bytes", FreeDiscSpace);
+        if (FreeDiscSpace < RecFileSize)
+        {
+          if (!ShowConfirmationDialog(LangGetString(LS_NotEnoughSpace)))
+          {
+            PlaybackRepeatSet(OldRepeatMode);
+            ClearOSD(TRUE);
+            if (AutoOSDPolicy)
+              State = ST_UnacceptedFile;
+            else
+            {
+              Cleanup(FALSE);
+              State = ST_InactiveMode;
+            }
+            break;
           }
         }
 

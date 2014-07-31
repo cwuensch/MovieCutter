@@ -106,6 +106,7 @@ de_079=Selektion aufgehoben
 de_080=Letzte rückgängig
 de_081=Minutensprung an: %d'
 de_082=Minutensprung aus
+de_083=Wenig freier Festplattenspeicher!\nTrotzdem fortfahren?
 
 
 #English
@@ -192,6 +193,7 @@ en_079=Selection removed
 en_080=Undo last action
 en_081=Minute jump: %d'
 en_082=Minute jump off
+en_083=Free disc space is low!\nProceed anyways?
 
 
 #French
@@ -278,6 +280,7 @@ fr_079=Sélection annulée
 fr_080=Dernière action annulée
 fr_081=Saut de minutes : %d'
 fr_082=Saut désactivé
+fr_083=Free disc space is low!\nProceed anyways?
 
 
 #Dutch
@@ -364,3 +367,4 @@ nl_079=Selectie verwijderd
 nl_080=Laatste actie ongedaan maken
 nl_081=Minutensprong naar: %d'
 nl_082=Minutensprong uit
+nl_083=Free disc space is low!\nProceed anyways?

@@ -16,20 +16,21 @@
 
 #define NRBOOKMARKS           144
 
-void   HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNav);
-void   HDD_Delete2(const char *FileName, const char *AbsDirectory, bool DeleteInfNav);
-bool   HDD_Exist2(const char *FileName, const char *AbsDirectory);
-bool   HDD_GetAbsolutePathByTypeFile2(TYPE_File *File, char *OutAbsFileName);    // OutAbsFileName: mind. FBLIB_DIR_SIZE Zeichen (inkl. Nullchar)
-bool   HDD_GetFileSizeAndInode2(const char *FileName, const char *AbsDirectory, __ino64_t *OutCInode, __off64_t *OutFileSize);
-bool   HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, dword NewDateTime);
-bool   HDD_StartPlayback2(char *FileName, char *AbsDirectory);
-bool   ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks);
-bool   SaveBookmarks(dword Bookmarks[], int NrBookmarks);
+void       HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNav);
+void       HDD_Delete2(const char *FileName, const char *AbsDirectory, bool DeleteInfNav);
+bool       HDD_Exist2(const char *FileName, const char *AbsDirectory);
+bool       HDD_GetAbsolutePathByTypeFile2(TYPE_File *File, char *OutAbsFileName);    // OutAbsFileName: mind. FBLIB_DIR_SIZE Zeichen (inkl. Nullchar)
+bool       HDD_GetFileSizeAndInode2(const char *FileName, const char *AbsDirectory, __ino64_t *OutCInode, __off64_t *OutFileSize);
+bool       HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, dword NewDateTime);
+__off64_t  HDD_GetFreeDiscSpace(char *AnyFileName, char *AbsDirectory);
+bool       HDD_StartPlayback2(char *FileName, char *AbsDirectory);
+bool       ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks);
+bool       SaveBookmarks(dword Bookmarks[], int NrBookmarks);
 //TYPE_RepeatMode PlaybackRepeatMode(bool ChangeMode, TYPE_RepeatMode RepeatMode, dword RepeatStartBlock, dword RepeatEndBlock);
-bool   PlaybackRepeatSet(bool EnableRepeatAll);
-bool   PlaybackRepeatGet();
-bool   HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint, char *const OutDeviceNode);  // OutDeviceNode: max. 20 Zeichen, OutMountPoint: max. FILE_NAME_SIZE+1 (inkl. Nullchar)
-char*  RemoveEndLineBreak (char *const Text);
+bool       PlaybackRepeatSet(bool EnableRepeatAll);
+bool       PlaybackRepeatGet();
+bool       HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint, char *const OutDeviceNode);  // OutDeviceNode: max. 20 Zeichen, OutMountPoint: max. FILE_NAME_SIZE+1 (inkl. Nullchar)
+char*      RemoveEndLineBreak (char *const Text);
 
 
 //These will prevent the compiler from complaining
@@ -58,6 +59,24 @@ typedef struct
   long int              st_pad5[14];
 } tstat64;
 
+typedef struct
+{
+  unsigned long int     f_bsize;
+  unsigned long int     f_frsize;
+  __fsblkcnt64_t        f_blocks;
+  __fsblkcnt64_t        f_bfree;
+  __fsblkcnt64_t        f_bavail;
+  __fsfilcnt64_t        f_files;
+  __fsfilcnt64_t        f_ffree;
+  __fsfilcnt64_t        f_favail;
+  unsigned long int     f_fsid;
+  int                   __f_unused;
+  unsigned long int     f_flag;
+  unsigned long int     f_namemax;
+  int                   __f_spare[6];
+} tstatvfs64;
+
 extern int lstat64(__const char *__restrict __file, tstat64 *__restrict __buf) __THROW;
+extern int statvfs64 (__const char *__restrict __file, tstatvfs64 *__restrict __buf) __THROW;
 
 #endif

@@ -240,7 +240,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
   TMessageHandler       ShowErrorMessage = pShowErrorMessage;
 
   TYPE_PlayInfo         PlayInfo;
-  bool                  PlaybackWasRunning = FALSE, OldRepeatMode = FALSE;
+  bool                  PlaybackWasRunning = FALSE, OldRepeatMode = FALSE, DeviceUnmounted = FALSE;
   char                  PlaybackName[MAX_FILE_NAME_SIZE + 1];
   char                  AbsPlaybackDir[FBLIB_DIR_SIZE];
   char                  MessageString[512];
@@ -300,26 +300,30 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
   if (DoFix)
   {
     TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,ro %s", DeviceNode);
-    if (system(CommandLine) != 0)
+    if (system(CommandLine) == 0)
+      DeviceUnmounted = TRUE;
+    if (!DeviceUnmounted)
       WriteLogMC("HddToolsLib", "CheckFileSystem: Schreibgeschützter Remount nicht erfolgreich!");
   }
 
   // --- 4.) Run fsck and create a log file ---
 //  if(DoFix) SetSystemTimeToCurrent();
   StartTime = TF2UnixTime(Now(&sec)) + sec;
-
-  TAP_SPrint(CommandLine, sizeof(CommandLine), FSCKPATH "/jfs_fsck -v %s %s %s -L /tmp/FixInodes.tmp %s %s &> /tmp/fsck.log & echo $!", ((DoFix) ? ((DoFix==2) ? "-f" : "-n -r") : "-n"), ((Quick && DoFix!=2) ? "-q" : ""), ((Quick && InodeNrs) ? "-i" : ""), DeviceNode, ((InodeNrs) ? InodeNrs : ""));  // > /tmp/fsck.pid
-//-  system(CommandLine);
-
-  //Get the PID of the fsck-Process
-//  fPidFile = fopen("/tmp/fsck.pid", "r");
-  fPidFile = popen(CommandLine, "r");
-  if(fPidFile)
+  if (DeviceUnmounted || (DoFix != 2))
   {
-//    if (fgets(PidStr, 13, fPidFile))
-//      fsck_Pid = atoi(PidStr);
-    fscanf(fPidFile, "%ld", &fsck_Pid);
-    pclose(fPidFile);
+    TAP_SPrint(CommandLine, sizeof(CommandLine), FSCKPATH "/jfs_fsck -v %s %s %s -L /tmp/FixInodes.tmp %s %s &> /tmp/fsck.log & echo $!", ((DoFix) ? ((DoFix==2) ? "-f" : "-n -r") : "-n"), ((Quick && DoFix!=2) ? "-q" : ""), ((Quick && InodeNrs) ? "-i" : ""), DeviceNode, ((InodeNrs) ? InodeNrs : ""));  // > /tmp/fsck.pid
+//-    system(CommandLine);
+
+    //Get the PID of the fsck-Process
+//    fPidFile = fopen("/tmp/fsck.pid", "r");
+    fPidFile = popen(CommandLine, "r");
+    if(fPidFile)
+    {
+//      if (fgets(PidStr, 13, fPidFile))
+//        fsck_Pid = atoi(PidStr);
+      fscanf(fPidFile, "%ld", &fsck_Pid);
+      pclose(fPidFile);
+    }
   }
 
   //Wait for termination of fsck

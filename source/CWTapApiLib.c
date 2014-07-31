@@ -11,6 +11,7 @@
 #include                <utime.h>
 #include                <mntent.h>
 #include                <sys/stat.h>
+#include                <sys/statvfs.h>
 #include                <tap.h>
 #include                <libFireBird.h>
 #include                "CWTapApiLib.h"
@@ -148,13 +149,12 @@ bool HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, dword N
 {
   char                  AbsFileName[FBLIB_DIR_SIZE];
   tstat64               statbuf;
-  int                   status;
   struct utimbuf        utimebuf;
 
   TRACEENTER();
 
   TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s", AbsDirectory, FileName);
-  if((status = lstat64(AbsFileName, &statbuf)))
+  if(lstat64(AbsFileName, &statbuf))
   {
     TRACEEXIT();
     return FALSE;
@@ -172,6 +172,23 @@ bool HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, dword N
 
   TRACEEXIT();
   return FALSE;
+}
+
+__off64_t HDD_GetFreeDiscSpace(char *AnyFileName, char *AbsDirectory)
+{
+  char                  AbsFileName[FBLIB_DIR_SIZE];
+  tstatvfs64            statbuf;
+  __off64_t             ret = 0;
+
+  TRACEENTER();
+
+  TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s", AbsDirectory, AnyFileName);
+  if(statvfs64(AbsFileName, &statbuf) == 0)
+    ret = (statbuf.f_bavail * statbuf.f_bsize);
+//TAP_PrintNet("File System stat ('%s'): Block size=%lu, Fragment size=%lu, Total blocks=%llu, Free blocks=%llu, Avail blocks=%llu\n", AbsFileName, statbuf.f_bsize, statbuf.f_frsize, statbuf.f_blocks, statbuf.f_bfree, statbuf.f_bavail);
+
+  TRACEEXIT();
+  return ret;
 }
 
 
