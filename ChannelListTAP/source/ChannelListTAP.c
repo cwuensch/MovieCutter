@@ -4,7 +4,7 @@
 #include                <stdlib.h>
 #include                "tap.h"
 #include                "libFireBird.h"
-#include                "../../../../FireBirdLib/flash/FBLib_flash.h"
+#include                "../../../../../FireBirdLib/flash/FBLib_flash.h"
 
 #define PROGRAM_NAME    "ChannelListTAP"
 #define VERSION         "V0.1"
@@ -15,7 +15,7 @@ TAP_AUTHOR_NAME         ("chris86");
 TAP_DESCRIPTION         ("Import/Export of Sat, Transponder, Service, Favorites lists");
 TAP_ETCINFO             (__DATE__);
 
-#define EXPORTFILENAME   "Channels.dat"
+#define EXPORTFILENAME   "ProgramFiles/Channels.dat"
 
 void WriteFile(TYPE_File *f, char *Text)
 {
@@ -345,7 +345,7 @@ void DeleteTimers(void)
 
 typedef struct
 {
-  char Magic            [6];          // TFchan
+  char                  Magic[6];     // TFchan
   short                 FileVersion;  // 1
   SYSTEM_TYPE           SystemType;
   unsigned long         FileSize;
@@ -374,8 +374,6 @@ bool ExportSettings_TMSC()
 {
   tExportHeader         FileHeader;
   FILE                 *fExportFile = NULL;
-  int                   NrGroups=0, NrSvcsPerGroup=0;
-  dword                 Offset;
   int                   i;
   bool                  ret = FALSE;
 
@@ -426,63 +424,80 @@ bool ExportSettings_TMSC()
     {
       TYPE_SatInfo_TMSC *p;
       FileHeader.SatellitesOffset = ftell(fExportFile);
-      FileHeader.NrSatellites     = FlashSatTablesGetTotal();
       p = (TYPE_SatInfo_TMSC*)FIS_vFlashBlockSatInfo();
       if(p)
+      {
+        FileHeader.NrSatellites = FlashSatTablesGetTotal();
         ret = ret & fwrite(p, sizeof(TYPE_SatInfo_TMSC), FileHeader.NrSatellites, fExportFile);
+      }
     }
     {
       TYPE_TpInfo_TMSC *p;
       FileHeader.TranspondersOffset = ftell(fExportFile);
-      for(i = 0; i < FileHeader.NrSatellites; i++)
-        FileHeader.NrTransponders += FlashTransponderTablesGetTotal(i);
       p = (TYPE_TpInfo_TMSC*)(FIS_vFlashBlockTransponderInfo());
       if(p)
+      {
+        for(i = 0; i < FileHeader.NrSatellites; i++)
+          FileHeader.NrTransponders += FlashTransponderTablesGetTotal(i);
         ret = ret & fwrite(p, sizeof(TYPE_TpInfo_TMSC), FileHeader.NrTransponders, fExportFile);
+      }
     }
     {
       TYPE_Service_TMSC *p;
       FileHeader.TVServicesOffset = ftell(fExportFile);
-      TAP_Channel_GetTotalNum(&FileHeader.NrTVServices, &FileHeader.NrRadioServices);
       p = (TYPE_Service_TMSC*)(FIS_vFlashBlockTVServices());
       if(p)
+      {
+        int Muell;
+        TAP_Channel_GetTotalNum(&FileHeader.NrTVServices, &Muell);
+//        p[1].NameLock = 0;  // TEST des RoboChannel Flags (--> klappt!)
         ret = ret & fwrite(p, sizeof(TYPE_Service_TMSC), FileHeader.NrTVServices, fExportFile);
+      }
     }
     {
       TYPE_Service_TMSC *p;
       FileHeader.RadioServicesOffset = ftell(fExportFile);
       p = (TYPE_Service_TMSC*)(FIS_vFlashBlockRadioServices());
       if(p)
+      {
+        int Muell;
+        TAP_Channel_GetTotalNum(&Muell, &FileHeader.NrRadioServices);
         ret = ret & fwrite(p, sizeof(TYPE_Service_TMSC), FileHeader.NrRadioServices, fExportFile);
+      }
     }
     {
       tFavorites FavGroup;
-      FileHeader.FavoritesOffset  = ftell(fExportFile);
+      FileHeader.FavoritesOffset = ftell(fExportFile);
       FlashFavoritesGetParameters(&FileHeader.NrFavGroups, &FileHeader.NrSvcsPerFavGroup);
       for (i = 0; i < FileHeader.NrFavGroups; i++)
       {
+        memset(&FavGroup, 0, sizeof(tFavorites));
         FlashFavoritesGetInfo(i, &FavGroup);
         ret = ret & fwrite(&FavGroup, sizeof(tFavorites), 1, fExportFile);
       }
     }
     {
-      char *p;
+      char *p1, *p2;
       FileHeader.ServiceNamesOffset = ftell(fExportFile);
-      FileHeader.ServiceNamesLength = 65004;  // ***
-      p = (char*)(FIS_vFlashBlockServiceName());
-      if(p)
-        ret = ret & fwrite(p, 1, FileHeader.ServiceNamesLength, fExportFile);
-      
+      p1 = (char*)(FIS_vFlashBlockServiceName());
+      p2 = (char*)(FIS_vFlashBlockProviderInfo());
+      if(p1)
+      {
+        if(p2)
+          FileHeader.ServiceNamesLength = p2 - p1;  // 40000 / 39996 ***  ?
+        ret = ret & fwrite(p1, 1, FileHeader.ServiceNamesLength, fExportFile);
+      }
       FileHeader.ProviderNamesOffset = ftell(fExportFile);
-      FileHeader.ServiceNamesLength  = 5380;
-      p = (char*)(FIS_vFlashBlockProviderInfo());
-      if(p)
-        ret = ret & fwrite(p, 1, FileHeader.ProviderNamesLength, fExportFile);
+      if(p2)
+      {
+        FileHeader.ProviderNamesLength = 21 * 256;  // ***  5380 ?
+        ret = ret & fwrite(p2, 1, FileHeader.ProviderNamesLength, fExportFile);
+      }
     }
     FileHeader.FileSize = ftell(fExportFile);
     fclose(fExportFile);
 
-    fExportFile = fopen(TAPFSROOT "/" EXPORTFILENAME, "w+b");
+    fExportFile = fopen(TAPFSROOT "/" EXPORTFILENAME, "r+b");
     if(fExportFile)
     {
       ret = ret & fwrite(&FileHeader, sizeof(tExportHeader), 1, fExportFile);
