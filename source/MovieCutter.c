@@ -365,7 +365,7 @@ int TAP_Main(void)
   CreateSettingsDir();
   KeyTranslate(TRUE, &TAP_EventHandler);
 
-  WriteLogMC(PROGRAM_NAME, "***  MovieCutter " VERSION " started! (FBLib " __FBLIB_VERSION__ ") ***");
+  WriteLogMC (PROGRAM_NAME, "***  MovieCutter " VERSION " started! (FBLib " __FBLIB_VERSION__ ") ***");
   WriteLogMC (PROGRAM_NAME, "=======================================================");
   WriteLogMCf(PROGRAM_NAME, "Receiver Model: %s (%u)", GetToppyString(GetSysID()), GetSysID());
   WriteLogMCf(PROGRAM_NAME, "Firmware: %s", GetApplVer());
@@ -602,7 +602,7 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
         sync();
         TAP_Sleep(1);
 
-        WriteLogMC(PROGRAM_NAME, "========================================\n");
+        WriteLogMC(PROGRAM_NAME, "========================================\r\n");
 
         //Identify the file name (.rec or .mpg)
         strncpy(PlaybackName, PlayInfo.file->name, MAX_FILE_NAME_SIZE);

@@ -23,7 +23,7 @@ CPPFLAGS += -DLINUX  -MD -W -Wall  -O2 -mips32
 INCLUDE_DIRS = ${BASE}/include /opt/crosstool/include/
 TAP_INCLUDE_DIRS = $(addprefix -I, $(INCLUDE_DIRS))
 TAP_FLAGS += $(TAP_INCLUDE_DIRS)
-TAP_LIBS = ${BASE}/tapinit.o ${BASE}/libtap.so -lgcc -lFireBird -ldl -luuid -lc
+TAP_LIBS = ${BASE}/tapinit.o ${BASE}/libtap.so -lgcc_s -lFireBird -ldl -luuid -lc
 
 all: $(APP).tap clean
 

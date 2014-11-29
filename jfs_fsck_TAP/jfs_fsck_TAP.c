@@ -105,7 +105,9 @@ int TAP_Main(void)
   TAP_SPrint(LogString, "%s", PROGRAM_NAME "  " VERSION);
   WriteLogX(LogString);
 
-  DoCheck(442547, FALSE);
+  DoCheck(12346, FALSE);
+  DoCheck(114691, FALSE);
+  DoCheck(335873, FALSE);
 
   return 0;
 }
