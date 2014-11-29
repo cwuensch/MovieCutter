@@ -22,6 +22,11 @@ TAP_ETCINFO             (__DATE__);
 #define NRPROVIDERNAMES     256
 
 
+#define SIZE_SatInfo_TMSx  ((GetSystemType() == ST_TMSS) ? sizeof(TYPE_SatInfo_TMSS) : sizeof(TYPE_SatInfo_TMSC))
+#define SIZE_TpInfo_TMSx   ((GetSystemType() == ST_TMSS) ? sizeof(TYPE_TpInfo_TMSS)  : sizeof(TYPE_TpInfo_TMSC))
+#define SIZE_Service_TMSx  ((GetSystemType() == ST_TMSS) ? sizeof(TYPE_Service_TMSS) : sizeof(TYPE_Service_TMSC))
+
+
 void WriteFile(TYPE_File *f, char *Text)
 {
   if(f) TAP_Hdd_Fwrite(Text, strlen(Text), 1, f);
@@ -353,7 +358,7 @@ typedef struct
   char                  Magic[6];     // TFchan
   short                 FileVersion;  // 1
   SYSTEM_TYPE           SystemType;
-//  bool                  UTF8System;
+  bool                  UTF8System;
   unsigned long         FileSize;
 
   int                   SatellitesOffset;
@@ -361,16 +366,15 @@ typedef struct
   int                   TVServicesOffset;
   int                   RadioServicesOffset;
   int                   FavoritesOffset;
-  int                   ServiceNamesOffset;
   int                   ProviderNamesOffset;
-  int                   Padding;
+  int                   ServiceNamesOffset;
 
   int                   NrSatellites;
   int                   NrTransponders;
   int                   NrTVServices;
   int                   NrRadioServices;
-  int                   ServiceNamesLength;
   int                   ProviderNamesLength;
+  int                   ServiceNamesLength;
   int                   NrFavGroups;
   int                   NrSvcsPerFavGroup;
 } tExportHeader;
@@ -396,6 +400,7 @@ bool ExportSettings_TMSC()
     strncpy(FileHeader.Magic, "TFchan", 6);
     FileHeader.FileVersion = 1;
     FileHeader.SystemType = GetSystemType();
+//    FileHeader.UTF8System = isUTFToppy();
 
 /*    // Detect the size of the blocks
     Offset = sizeof(tExportHeader);
@@ -429,53 +434,53 @@ bool ExportSettings_TMSC()
     // Now write the data blocks to the file
     ret = ret && fwrite(&FileHeader, sizeof(tExportHeader), 1, fExportFile);
     {
-      TYPE_SatInfo_TMSC *p;
+      TYPE_SatInfo_TMSS *p;
       FileHeader.SatellitesOffset = ftell(fExportFile);
-      p = (TYPE_SatInfo_TMSC*)FIS_vFlashBlockSatInfo();
+      p = (TYPE_SatInfo_TMSS*)FIS_vFlashBlockSatInfo();
       if(p)
       {
         FileHeader.NrSatellites = FlashSatTablesGetTotal();
-        ret = ret && fwrite(p, sizeof(TYPE_SatInfo_TMSC), FileHeader.NrSatellites, fExportFile);
+        ret = ret && fwrite(p, SIZE_SatInfo_TMSx, FileHeader.NrSatellites, fExportFile);
       }
     }
     TAP_PrintNet((ret) ? "Satellites ok\n" : "Satellites Fehler\n");
 
     {
-      TYPE_TpInfo_TMSC *p;
+      TYPE_TpInfo_TMSS *p;
       FileHeader.TranspondersOffset = ftell(fExportFile);
-      p = (TYPE_TpInfo_TMSC*)(FIS_vFlashBlockTransponderInfo());
+      p = (TYPE_TpInfo_TMSS*)(FIS_vFlashBlockTransponderInfo());
       if(p)
       {
         for(i = 0; i < FileHeader.NrSatellites; i++)
           FileHeader.NrTransponders += FlashTransponderTablesGetTotal(i);
-        ret = ret && fwrite(p, sizeof(TYPE_TpInfo_TMSC), FileHeader.NrTransponders, fExportFile);
+        ret = ret && fwrite(p, SIZE_TpInfo_TMSx, FileHeader.NrTransponders, fExportFile);
       }
     }
     TAP_PrintNet((ret) ? "Transponders ok\n" : "Transponders Fehler\n");
 
     {
-      TYPE_Service_TMSC *p;
+      TYPE_Service_TMSS *p;
       FileHeader.TVServicesOffset = ftell(fExportFile);
-      p = (TYPE_Service_TMSC*)(FIS_vFlashBlockTVServices());
+      p = (TYPE_Service_TMSS*)(FIS_vFlashBlockTVServices());
       if(p)
       {
         int Muell;
         TAP_Channel_GetTotalNum(&FileHeader.NrTVServices, &Muell);
 //        p[1].NameLock = 0;  // TEST des RoboChannel Flags (--> klappt!)
-        ret = ret && fwrite(p, sizeof(TYPE_Service_TMSC), FileHeader.NrTVServices, fExportFile);
+        ret = ret && fwrite(p, SIZE_Service_TMSx, FileHeader.NrTVServices, fExportFile);
       }
     }
     TAP_PrintNet((ret) ? "TVServices ok\n" : "TVServices Fehler\n");
 
     {
-      TYPE_Service_TMSC *p;
+      TYPE_Service_TMSS *p;
       FileHeader.RadioServicesOffset = ftell(fExportFile);
-      p = (TYPE_Service_TMSC*)(FIS_vFlashBlockRadioServices());
+      p = (TYPE_Service_TMSS*)(FIS_vFlashBlockRadioServices());
       if(p)
       {
         int Muell;
         TAP_Channel_GetTotalNum(&Muell, &FileHeader.NrRadioServices);
-        ret = ret && fwrite(p, sizeof(TYPE_Service_TMSC), FileHeader.NrRadioServices, fExportFile);
+        ret = ret && fwrite(p, SIZE_Service_TMSx, FileHeader.NrRadioServices, fExportFile);
       }
     }
     TAP_PrintNet((ret) ? "RadioServices ok\n" : "RadioServices Fehler\n");
@@ -483,7 +488,7 @@ bool ExportSettings_TMSC()
     {
       tFavorites FavGroup;
       FileHeader.FavoritesOffset = ftell(fExportFile);
-      FlashFavoritesGetParameters(&FileHeader.NrFavGroups, &FileHeader.NrSvcsPerFavGroup);
+      FlashFavoritesGetParameters(&FileHeader.NrFavGroups, &FileHeader.NrSvcsPerFavGroup);      
       for (i = 0; i < FileHeader.NrFavGroups; i++)
       {
         memset(&FavGroup, 0, sizeof(tFavorites));
@@ -495,16 +500,8 @@ bool ExportSettings_TMSC()
 
     {
       char *p1, *p2;
-      FileHeader.ServiceNamesOffset = ftell(fExportFile);
       p1 = (char*)(FIS_vFlashBlockServiceName());
       p2 = (char*)(FIS_vFlashBlockProviderInfo());
-      if(p1)
-      {
-        if(p2)
-          FileHeader.ServiceNamesLength = p2 - p1;  // 40000 / 39996 ***  ?
-        ret = ret && fwrite(p1, 1, FileHeader.ServiceNamesLength, fExportFile);
-      }
-      TAP_PrintNet((ret) ? "ServiceNames ok\n" : "ServiceNames Fehler\n");
 
       FileHeader.ProviderNamesOffset = ftell(fExportFile);
       if(p2)
@@ -513,6 +510,16 @@ bool ExportSettings_TMSC()
         ret = ret && fwrite(p2, 1, FileHeader.ProviderNamesLength, fExportFile);
       }
       TAP_PrintNet((ret) ? "ProviderNames ok\n" : "ProviderNames Fehler\n");
+
+      FileHeader.ServiceNamesOffset = ftell(fExportFile);
+      if(p1)
+      {
+        FileHeader.ServiceNamesLength = 40004;   // 40000 / 39996 ***  ?
+        if(p2)
+          FileHeader.ServiceNamesLength = p2 - p1;
+        ret = ret && fwrite(p1, 1, FileHeader.ServiceNamesLength, fExportFile);
+      }
+      TAP_PrintNet((ret) ? "ServiceNames ok\n" : "ServiceNames Fehler\n");
     }
 
     FileHeader.FileSize = ftell(fExportFile);
@@ -569,15 +576,15 @@ bool ImportSettings_TMSC()
 
         // Now write the data blocks from the file to the RAM
         {
-          TYPE_SatInfo_TMSC *p;
+          TYPE_SatInfo_TMSS *p;
           dword             *NrSatellites;
 
-          p = (TYPE_SatInfo_TMSC*)FIS_vFlashBlockSatInfo();
+          p = (TYPE_SatInfo_TMSS*)FIS_vFlashBlockSatInfo();
           NrSatellites = (dword*)(p) - 1;
           fseek(fImportFile, FileHeader.SatellitesOffset, SEEK_SET);
-          if (ret && p && (fread(Buffer, sizeof(TYPE_SatInfo_TMSC), FileHeader.NrSatellites, fImportFile) == (size_t)FileHeader.NrSatellites))
+          if (ret && p && (fread(Buffer, SIZE_SatInfo_TMSx, FileHeader.NrSatellites, fImportFile) == (size_t)FileHeader.NrSatellites))
           {
-            memcpy(p, Buffer, FileHeader.NrSatellites * sizeof(TYPE_SatInfo_TMSC));
+            memcpy(p, Buffer, FileHeader.NrSatellites * SIZE_SatInfo_TMSx);
 //            *NrSatellites = FileHeader.NrSatellites;
             TAP_PrintNet("NrSatellites = %lu \n", *NrSatellites);
           }
@@ -587,15 +594,15 @@ bool ImportSettings_TMSC()
         TAP_PrintNet((ret) ? "Satellites ok\n" : "Satellites Fehler\n");
 
         {
-          TYPE_TpInfo_TMSC *p;
+          TYPE_TpInfo_TMSS *p;
           dword            *NrTransponders;
           
-          p = (TYPE_TpInfo_TMSC*)(FIS_vFlashBlockTransponderInfo());
+          p = (TYPE_TpInfo_TMSS*)(FIS_vFlashBlockTransponderInfo());
           NrTransponders = (dword*)(p) - 1;
           fseek(fImportFile, FileHeader.TranspondersOffset, SEEK_SET);
-          if (ret && p && (fread(Buffer, sizeof(TYPE_TpInfo_TMSC), FileHeader.NrTransponders, fImportFile) == (size_t)FileHeader.NrTransponders))
+          if (ret && p && (fread(Buffer, SIZE_TpInfo_TMSx, FileHeader.NrTransponders, fImportFile) == (size_t)FileHeader.NrTransponders))
           {
-            memcpy(p, Buffer, FileHeader.NrTransponders * sizeof(TYPE_TpInfo_TMSC));
+            memcpy(p, Buffer, FileHeader.NrTransponders * SIZE_TpInfo_TMSx);
             TAP_PrintNet("NrTransponders = %lu \n", *NrTransponders);
             *NrTransponders = FileHeader.NrTransponders;
           }
@@ -605,65 +612,123 @@ bool ImportSettings_TMSC()
         TAP_PrintNet((ret) ? "Transponders ok\n" : "Transponders Fehler\n");
 
         {
-          TYPE_Service_TMSC *p;
-          word              *nSvc;
-          p = (TYPE_Service_TMSC*)(FIS_vFlashBlockTVServices());
-          nSvc = (word*)FIS_vnTvSvc();
-          fseek(fImportFile, FileHeader.TVServicesOffset, SEEK_SET);
-          if (ret && p && nSvc && (fread(Buffer, sizeof(TYPE_Service_TMSC), FileHeader.NrTVServices, fImportFile) == (size_t)FileHeader.NrTVServices))
+          char*                 (*Appl_AddSvcName)(char const*);
+          word                  (*Appl_SetProviderName)(char const*);
+          TYPE_Service_TMSC      *p;
+          word                   *nSvc;
+
+          Appl_AddSvcName       = (void*)FIS_fwAppl_AddSvcName();
+          Appl_SetProviderName  = (void*)FIS_fwAppl_SetProviderName();
+
+
+          char* Buffer2 = (char*) TAP_MemAlloc(FileHeader.ServiceNamesLength * sizeof(char));
+          char* Buffer3 = (char*) TAP_MemAlloc(FileHeader.ProviderNamesLength * sizeof(char));
+          if (Buffer2 && Buffer3)
           {
-//            memcpy(p, Buffer, FileHeader.NrTVServices * sizeof(TYPE_Service_TMSC));
-//            *nSvc = FileHeader.NrTVServices;
-            TAP_PrintNet("NrTVServices = %lu \n", *nSvc);
-
-            char* Buffer2 = (char*) TAP_MemAlloc(fs * sizeof(char));
-            if (Buffer2)
+            fseek(fImportFile, FileHeader.ProviderNamesOffset, SEEK_SET);
+            if (ret && (fread(Buffer3, 1, FileHeader.ProviderNamesLength, fImportFile) == (size_t)FileHeader.ProviderNamesLength)
+                    && (fread(Buffer2, 1, FileHeader.ServiceNamesLength, fImportFile) == (size_t)FileHeader.ServiceNamesLength))
             {
-              char *(*Appl_AddSvcName)(char const*);
-              word  (*Appl_SetProviderName)(char const*);
-              Appl_AddSvcName      = (void*)FIS_fwAppl_AddSvcName();
-              Appl_SetProviderName = (void*)FIS_fwAppl_SetProviderName();
+              p    = (TYPE_Service_TMSC*)(FIS_vFlashBlockTVServices());
+              nSvc = (word*)FIS_vnTvSvc();
 
-              if (Appl_AddSvcName)
+              fseek(fImportFile, FileHeader.TVServicesOffset, SEEK_SET);
+              if (ret && p && nSvc && (fread(Buffer, SIZE_Service_TMSx, FileHeader.NrTVServices, fImportFile) == (size_t)FileHeader.NrTVServices))
               {
-                fseek(fImportFile, FileHeader.ServiceNamesOffset, SEEK_SET);
-                if (ret && (fread(Buffer2, 1, FileHeader.ServiceNamesLength, fImportFile) == (size_t)FileHeader.ServiceNamesLength))
+                memcpy(p, Buffer, FileHeader.NrTVServices * SIZE_Service_TMSx);
+                *nSvc = FileHeader.NrTVServices;
+                TAP_PrintNet("NrTVServices = %lu \n", *nSvc);
+
+                TYPE_Service_TMSC* pServices;
+                pServices = (TYPE_Service_TMSC*) Buffer;
+                for (i = 0; i < FileHeader.NrTVServices; i++)
                 {
-                  TYPE_Service_TMSC* pServices;
-                  pServices = (TYPE_Service_TMSC*) Buffer;
-                  for (i = 0; i < FileHeader.NrTVServices; i++)
+//                  *nSvc = (word)(i+1);
+                  if (Appl_AddSvcName)
                   {
-                    *nSvc = (word)(i+1);
-                    if (pServices[i].NameOffset < 40000)
+                    if (pServices[i].NameOffset < (dword)FileHeader.ServiceNamesLength)
                     {
                       TAP_PrintNet("%s\n", &Buffer2[pServices[i].NameOffset]);
-                      pServices[i].NameOffset = (dword)Appl_AddSvcName(&Buffer2[pServices[i].NameOffset]);
+                      p[i].NameOffset = (dword)Appl_AddSvcName(&Buffer2[pServices[i].NameOffset]);
                     }
                     else
-                      (pServices+i)->NameOffset = (dword)Appl_AddSvcName("***Dummy***");
-                    memcpy(&p[i], &pServices[i], sizeof(TYPE_Service_TMSC));
+                      p[i].NameOffset = (dword)Appl_AddSvcName("***Dummy***");
                   }
+                  else
+                    ret = FALSE;
+                  if (Appl_SetProviderName)
+                  {
+                    if (pServices[i].ProviderIdx * PROVIDERNAMELENGTH < FileHeader.ProviderNamesLength)
+                      p[i].ProviderIdx = Appl_SetProviderName(&Buffer3[pServices[i].ProviderIdx * PROVIDERNAMELENGTH]);
+                    else
+                      p[i].ProviderIdx = Appl_SetProviderName("***Dummy***");
+                  }
+                  else
+                    ret = FALSE;
+//                  memcpy(&p[i], &pServices[i], SIZE_Service_TMSx);
                 }
-                else
-                  ret = FALSE;
               }
               else
                 ret = FALSE;
-              TAP_MemFree(Buffer2);
+              TAP_PrintNet((ret) ? "TVServices ok\n" : "TVServices Fehler\n");
+
+              p    = (TYPE_Service_TMSC*)(FIS_vFlashBlockRadioServices());
+              nSvc = (word*)FIS_vnRadioSvc();
+
+              fseek(fImportFile, FileHeader.RadioServicesOffset, SEEK_SET);
+              if (ret && p && nSvc && (fread(Buffer, SIZE_Service_TMSx, FileHeader.NrRadioServices, fImportFile) == (size_t)FileHeader.NrRadioServices))
+              {
+                memcpy(p, Buffer, FileHeader.NrRadioServices * SIZE_Service_TMSx);
+                *nSvc = FileHeader.NrRadioServices;
+                TAP_PrintNet("NrRadioServices = %lu \n", *nSvc);
+
+                TYPE_Service_TMSC* pServices;
+                pServices = (TYPE_Service_TMSC*) Buffer;
+                for (i = 0; i < FileHeader.NrRadioServices; i++)
+                {
+//                  *nSvc = (word)(i+1);
+                  if (Appl_AddSvcName)
+                  {
+                    if (pServices[i].NameOffset < (dword)FileHeader.ServiceNamesLength)
+                    {
+                      TAP_PrintNet("%s\n", &Buffer2[pServices[i].NameOffset]);
+                      p[i].NameOffset = (dword)Appl_AddSvcName(&Buffer2[pServices[i].NameOffset]);
+                    }
+                    else
+                      p[i].NameOffset = (dword)Appl_AddSvcName("***Dummy***");
+                  }
+                  else
+                    ret = FALSE;
+                  if (Appl_SetProviderName)
+                  {
+                    if (pServices[i].ProviderIdx * PROVIDERNAMELENGTH < FileHeader.ProviderNamesLength)
+                      p[i].ProviderIdx = Appl_SetProviderName(&Buffer3[pServices[i].ProviderIdx * PROVIDERNAMELENGTH]);
+                    else
+                      p[i].ProviderIdx = Appl_SetProviderName("***Dummy***");
+                  }
+                  else
+                    ret = FALSE;
+//                  memcpy(&p[i], &pServices[i], SIZE_Service_TMSx);
+                }
+              }
+              else
+                ret = FALSE;
             }
             else
               ret = FALSE;
           }
           else
             ret = FALSE;
-          TAP_PrintNet((ret) ? "TVServices ok\n" : "TVServices Fehler\n");
+          TAP_MemFree(Buffer2);
+          TAP_MemFree(Buffer3);
+          TAP_PrintNet((ret) ? "RadioServices ok\n" : "RadioServices Fehler\n");
 
 /*          p = (TYPE_Service_TMSC*)(FIS_vFlashBlockRadioServices());
           nSvc = (word*)FIS_vnRadioSvc();
           fseek(fImportFile, FileHeader.RadioServicesOffset, SEEK_SET);
-          if (ret && p && nSvc && (fread(Buffer, sizeof(TYPE_Service_TMSC), FileHeader.NrRadioServices, fImportFile) == (size_t)FileHeader.NrRadioServices))
+          if (ret && p && nSvc && (fread(Buffer, SIZE_Service_TMSx, FileHeader.NrRadioServices, fImportFile) == (size_t)FileHeader.NrRadioServices))
           {
-            memcpy(p, Buffer, FileHeader.NrRadioServices * sizeof(TYPE_Service_TMSC));
+            memcpy(p, Buffer, FileHeader.NrRadioServices * SIZE_Service_TMSx);
             TAP_PrintNet("NrRadioServices = %lu \n", *nSvc);
             *nSvc = FileHeader.NrRadioServices;
           }
@@ -673,18 +738,31 @@ bool ImportSettings_TMSC()
 */        }
 
 
-/*        {
-          tFavorites FavGroup;
+        {
+          int                   NrGroups, NrSvcsPerGroup;
+          tFavorites            FavGroup;
+          char                 *p;
+
+          FlashFavoritesGetParameters(&NrGroups, &NrSvcsPerGroup);
+          p = (char*) FIS_vFlashBlockFavoriteGroup();
+
           fseek(fImportFile, FileHeader.FavoritesOffset, SEEK_SET);
           for (i = 0; i < FileHeader.NrFavGroups; i++)
           {
             memset(&FavGroup, 0, sizeof(tFavorites));
             if (ret && (fread(&FavGroup, sizeof(tFavorites), 1, fImportFile)))
-              FlashFavoritesSetInfo(i, &FavGroup);
+            {
+              if (FavGroup.GroupName[0])
+              {
+                // bescheuerter Workaround für zu strenge Prüfung in FlashFavoritesSetInfo()
+                (p + i * ((NrSvcsPerGroup == 50) ? sizeof(tFavorites1050) : sizeof(tFavorites)))[0] = '*';
+                TAP_PrintNet("FavGroup %d: Name = '%s', Entries = %d\n", i, FavGroup.GroupName, FavGroup.NrEntries);
+                ret = ret && FlashFavoritesSetInfo(i, &FavGroup);
+              }
+            }
           }
         }
         TAP_PrintNet((ret) ? "Favorites ok\n" : "Favorites Fehler\n");
-*/
 
 
 /*        {
@@ -789,17 +867,18 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 int TAP_Main(void)
 {
   TAP_Hdd_ChangeDir("/");
-//  if(!TAP_Hdd_Exist(EXPORTFILENAME))
+  if(TAP_Hdd_Exist(EXPORTFILENAME))
   {
     ImportSettings_TMSC();
   }
-//  else
+  else
   {
     //DeleteTimers();
     //DeleteFavourites();
     //DeleteServices();
     //DeleteTransponder(1);
     //ImportTransponder();
+    ExportSettings_TMSC();
   }
 
   return 0;
