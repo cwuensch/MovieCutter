@@ -779,7 +779,7 @@ bool ImportSettings()
           {
             char*                 (*Appl_AddSvcName)(char const*);
             word                  (*Appl_SetProviderName)(char const*);
-            TYPE_Service_TMSS      *p;
+            TYPE_Service_TMSx      *p;
             word                   *nSvc;
 
             Appl_AddSvcName       = (void*)FIS_fwAppl_AddSvcName();
@@ -794,7 +794,7 @@ bool ImportSettings()
             if (ret /*&& (fread(Buffer3, 1, FileHeader.ProviderNamesLength, fImportFile) == (size_t)FileHeader.ProviderNamesLength)
                     && (fread(Buffer2, 1, FileHeader.ServiceNamesLength, fImportFile) == (size_t)FileHeader.ServiceNamesLength)*/)
             {
-              p    = (TYPE_Service_TMSC*)(FIS_vFlashBlockTVServices());
+              p    = (TYPE_Service_TMSx*)(FIS_vFlashBlockTVServices());
               nSvc = (word*)FIS_vnTvSvc();
 //              DeleteServiceNames(TRUE);
 //              memset(p, 0, *nSvc * SIZE_Service_TMSx);
@@ -807,8 +807,8 @@ bool ImportSettings()
                 *nSvc = FileHeader.NrTVServices;
                 TAP_PrintNet("NrTVServices = %lu \n", *nSvc);
 
-                TYPE_Service_TMSC* pServices;
-                pServices = (TYPE_Service_TMSC*) (Buffer + FileHeader.TVServicesOffset);
+                TYPE_Service_TMSx* pServices;
+                pServices = (TYPE_Service_TMSx*) (Buffer + FileHeader.TVServicesOffset);
                 for (i = 0; i < FileHeader.NrTVServices; i++)
                 {
 //                  *nSvc = (word)(i+1);
@@ -841,7 +841,7 @@ bool ImportSettings()
                 ret = FALSE;
               TAP_PrintNet((ret) ? "TVServices ok\n" : "TVServices Fehler\n");
 
-              p    = (TYPE_Service_TMSC*)(FIS_vFlashBlockRadioServices());
+              p    = (TYPE_Service_TMSx*)(FIS_vFlashBlockRadioServices());
               nSvc = (word*)FIS_vnRadioSvc();
 //              DeleteServiceNames(FALSE);
 //              memset(p, 0, *nSvc * SIZE_Service_TMSx);
@@ -854,8 +854,8 @@ bool ImportSettings()
                 *nSvc = FileHeader.NrRadioServices;
                 TAP_PrintNet("NrRadioServices = %lu \n", *nSvc);
 
-                TYPE_Service_TMSC* pServices;
-                pServices = (TYPE_Service_TMSC*) (Buffer + FileHeader.RadioServicesOffset);
+                TYPE_Service_TMSx* pServices;
+                pServices = (TYPE_Service_TMSx*) (Buffer + FileHeader.RadioServicesOffset);
                 for (i = 0; i < FileHeader.NrRadioServices; i++)
                 {
 //                  *nSvc = (word)(i+1);
