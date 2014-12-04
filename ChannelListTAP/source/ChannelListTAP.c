@@ -408,7 +408,14 @@ bool DeleteAllSettings(void)
     else ret = FALSE;
   }
 
-  DeleteServiceNames(TRUE);
+  {
+    char                 *p;
+    p = (char*)(FIS_vFlashBlockServiceName());
+
+    DeleteServiceNames(TRUE);
+    if (p)
+      memset(p, 0, GetEndOfServiceNames());
+  }
 
   {
     TYPE_Service_TMSC      *p;
@@ -486,7 +493,7 @@ typedef struct
 } tExportHeader;
 
 
-bool ExportSettings_TMSC()
+bool ExportSettings()
 {
   tExportHeader         FileHeader;
   FILE                 *fExportFile = NULL;
@@ -635,7 +642,7 @@ bool ExportSettings_TMSC()
 
 
 
-bool ImportSettings_TMSC()
+bool ImportSettings()
 {
   tExportHeader         FileHeader;
   FILE                 *fImportFile = NULL;
@@ -897,7 +904,7 @@ int TAP_Main(void)
   TAP_Hdd_ChangeDir("/");
   if(TAP_Hdd_Exist(EXPORTFILENAME))
   {
-    ImportSettings_TMSC();
+    ImportSettings();
 //    Appl_ImportChData(TAPFSROOT "/" EXPORTFILENAME "2");
   }
   else
@@ -908,7 +915,7 @@ int TAP_Main(void)
 //    DeleteServices();
 //    DeleteTransponder(1);
 //    ImportTransponder();
-    ExportSettings_TMSC();
+    ExportSettings();
     Appl_ExportChData(TAPFSROOT "/" EXPORTFILENAME "2");
   }
 
