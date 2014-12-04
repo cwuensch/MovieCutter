@@ -21,10 +21,67 @@ TAP_ETCINFO             (__DATE__);
 #define PROVIDERNAMELENGTH  21
 #define NRPROVIDERNAMES     256
 
-
+/*
 #define SIZE_SatInfo_TMSx  ((GetSystemType() == ST_TMSS) ? sizeof(TYPE_SatInfo_TMSS) : sizeof(TYPE_SatInfo_TMSC))
 #define SIZE_TpInfo_TMSx   ((GetSystemType() == ST_TMSS) ? sizeof(TYPE_TpInfo_TMSS)  : sizeof(TYPE_TpInfo_TMSC))
 #define SIZE_Service_TMSx  ((GetSystemType() == ST_TMSS) ? sizeof(TYPE_Service_TMSS) : sizeof(TYPE_Service_TMSC))
+*/
+
+#define SYSTYPE ST_TMSC
+#if SYSTYPE == ST_TMSS
+  typedef TYPE_SatInfo_TMSS  TYPE_SatInfo_TMSx;
+  typedef TYPE_TpInfo_TMSS   TYPE_TpInfo_TMSx;
+  typedef TYPE_Service_TMSS  TYPE_Service_TMSx;
+#elif SYSTYPE == ST_TMSC
+  typedef TYPE_SatInfo_TMSC  TYPE_SatInfo_TMSx;
+  typedef TYPE_TpInfo_TMSC   TYPE_TpInfo_TMSx;
+  typedef TYPE_Service_TMSC  TYPE_Service_TMSx;
+#elif SYSTYPE == ST_TMST
+  typedef TYPE_SatInfo_TMST  TYPE_SatInfo_TMSx;
+  typedef TYPE_TpInfo_TMST   TYPE_TpInfo_TMSx;
+  typedef TYPE_Service_TMST  TYPE_Service_TMSx;
+#endif
+
+SYSTEM_TYPE                  CurSystemType;
+size_t                       SIZE_SatInfo_TMSx = 0;
+size_t                       SIZE_TpInfo_TMSx  = 0;
+size_t                       SIZE_Service_TMSx = 0;
+
+
+bool InitSystemType(void)
+{
+  bool ret = FALSE;
+
+  CurSystemType = GetSystemType();
+  switch (CurSystemType)
+  {
+    case ST_TMSS:
+      SIZE_SatInfo_TMSx = sizeof(TYPE_SatInfo_TMSS);
+      SIZE_TpInfo_TMSx  = sizeof(TYPE_TpInfo_TMSS);
+      SIZE_Service_TMSx = sizeof(TYPE_Service_TMSS);
+      ret = TRUE;
+      break;
+    
+    case ST_TMSC:
+      SIZE_SatInfo_TMSx = sizeof(TYPE_SatInfo_TMSC);
+      SIZE_TpInfo_TMSx  = sizeof(TYPE_TpInfo_TMSC);
+      SIZE_Service_TMSx = sizeof(TYPE_Service_TMSC);
+      ret = TRUE;
+      break;
+
+    case ST_TMST:
+      SIZE_SatInfo_TMSx = sizeof(TYPE_SatInfo_TMST);
+      SIZE_TpInfo_TMSx  = sizeof(TYPE_TpInfo_TMST);
+      SIZE_Service_TMSx = sizeof(TYPE_Service_TMST);
+      ret = TRUE;
+      break;
+
+    default:
+      TAP_PrintNet("Nicht unterstütztes System!");
+      break;
+  }
+  return ret;
+}
 
 
 void WriteFile(TYPE_File *f, char *Text)
@@ -418,10 +475,10 @@ bool DeleteAllSettings(void)
   }
 
   {
-    TYPE_Service_TMSC      *p;
+    TYPE_Service_TMSS      *p;
     word                   *nSvc;
 
-    p    = (TYPE_Service_TMSC*)(FIS_vFlashBlockTVServices());
+    p    = (TYPE_Service_TMSS*)(FIS_vFlashBlockTVServices());
     nSvc = (word*)FIS_vnTvSvc();
     if (p && nSvc)
     {
@@ -429,7 +486,7 @@ bool DeleteAllSettings(void)
       *nSvc = 0;
     }
 
-    p    = (TYPE_Service_TMSC*)(FIS_vFlashBlockRadioServices());
+    p    = (TYPE_Service_TMSS*)(FIS_vFlashBlockRadioServices());
     nSvc = (word*)FIS_vnRadioSvc();
     if (p && nSvc)
     {
@@ -668,7 +725,7 @@ bool ImportSettings()
        && (FileHeader.FileVersion == 1)
        && (FileHeader.FileSize == fs)
        && (FileHeader.SystemType == GetSystemType())
-       && ((FileHeader.SystemType == ST_TMSS) || (FileHeader.SystemType == ST_TMSC)))
+       && ((FileHeader.SystemType == ST_TMSS) || (FileHeader.SystemType == ST_TMSC) || (FileHeader.SystemType == ST_TMST)))
     {
       Buffer = (char*) TAP_MemAlloc(fs * sizeof(char));
       if (Buffer)
@@ -722,7 +779,7 @@ bool ImportSettings()
           {
             char*                 (*Appl_AddSvcName)(char const*);
             word                  (*Appl_SetProviderName)(char const*);
-            TYPE_Service_TMSC      *p;
+            TYPE_Service_TMSS      *p;
             word                   *nSvc;
 
             Appl_AddSvcName       = (void*)FIS_fwAppl_AddSvcName();
@@ -901,23 +958,25 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
 int TAP_Main(void)
 {
-  TAP_Hdd_ChangeDir("/");
-  if(TAP_Hdd_Exist(EXPORTFILENAME))
+  if (InitSystemType())
   {
-    ImportSettings();
-//    Appl_ImportChData(TAPFSROOT "/" EXPORTFILENAME "2");
+    TAP_Hdd_ChangeDir("/");
+    if(TAP_Hdd_Exist(EXPORTFILENAME))
+    {
+      ImportSettings();
+//      Appl_ImportChData(TAPFSROOT "/" EXPORTFILENAME "2");
+    }
+    else
+    {
+      DeleteTimers();
+	    DeleteAllSettings();
+//      DeleteFavourites();
+//      DeleteServices();
+//      DeleteTransponder(1);
+//      ImportTransponder();
+      ExportSettings();
+      Appl_ExportChData(TAPFSROOT "/" EXPORTFILENAME "2");
+    }
   }
-  else
-  {
-    DeleteTimers();
-	  DeleteAllSettings();
-//    DeleteFavourites();
-//    DeleteServices();
-//    DeleteTransponder(1);
-//    ImportTransponder();
-    ExportSettings();
-    Appl_ExportChData(TAPFSROOT "/" EXPORTFILENAME "2");
-  }
-
   return 0;
 }
