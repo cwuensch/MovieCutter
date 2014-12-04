@@ -352,9 +352,11 @@ void DeleteTimers(void)
 
 void DeleteServiceNames(bool isTV)
 {
+  char* (*Appl_AddSvcName)(char const*);
   void  (*Appl_DeleteTvSvcName)(unsigned short, bool);
   void  (*Appl_DeleteRadioSvcName)(unsigned short, bool);
-  Appl_DeleteTvSvcName = (void*)FIS_fwAppl_DeleteTvSvcName();
+  Appl_AddSvcName         = (void*)FIS_fwAppl_AddSvcName();
+  Appl_DeleteTvSvcName    = (void*)FIS_fwAppl_DeleteTvSvcName();
   Appl_DeleteRadioSvcName = (void*)FIS_fwAppl_DeleteRadioSvcName();
 
   int nTVServices, nRadioServices;
@@ -528,18 +530,19 @@ bool ExportSettings_TMSC()
       char *p1, *p2;
       p1 = (char*)(FIS_vFlashBlockServiceName());
       p2 = (char*)(FIS_vFlashBlockProviderInfo());
+      int NrProviderNames = NRPROVIDERNAMES;
 
-      ret = ret && fwrite(&NRPROVIDERNAMES, sizeof(NRPRROVIDERNAMES), 1, fExportFile);
+      ret = ret && fwrite(&NrProviderNames, sizeof(NrProviderNames), 1, fExportFile);
       FileHeader.ProviderNamesOffset = ftell(fExportFile);
       if(p2)
       {
         FileHeader.ProviderNamesLength = PROVIDERNAMELENGTH * NRPROVIDERNAMES;  // ***  5380 ?
-        FileHeader.TVServicesOffset = ftell(fExportFile);
         ret = ret && fwrite(p2, 1, FileHeader.ProviderNamesLength, fExportFile);
       }
       TAP_PrintNet((ret) ? "ProviderNames ok\n" : "ProviderNames Fehler\n");
 
-      ret = ret && fwrite(&(FileHeader.NrTVServices + FileHeader.NrRadioServices), sizeof(FileHeader.NrTVServices), 1, fExportFile);
+      int NrServices = FileHeader.NrTVServices + FileHeader.NrRadioServices;
+      ret = ret && fwrite(&NrServices, sizeof(FileHeader.NrTVServices), 1, fExportFile);
       FileHeader.ServiceNamesOffset = ftell(fExportFile);
       if(p1)
       {
@@ -595,8 +598,9 @@ bool ImportSettings_TMSC()
     if (  (fread(&FileHeader, sizeof(tExportHeader), 1, fImportFile))
        && (strncmp(FileHeader.Magic, "TFchan", 6) == 0)
        && (FileHeader.FileVersion == 1)
+       && (FileHeader.FileSize == fs)
        && (FileHeader.SystemType == GetSystemType())
-       && (FileHeader.FileSize == fs))
+       && ((FileHeader.SystemType == ST_TMSS) || (FileHeader.SystemType == ST_TMSC)))
     {
       Buffer = (char*) TAP_MemAlloc(fs * sizeof(char));
       if (Buffer)
@@ -688,10 +692,10 @@ bool ImportSettings_TMSC()
                     if (pServices[i].NameOffset < (dword)FileHeader.ServiceNamesLength)
                     {
                       TAP_PrintNet("%s\n", &Buffer2[pServices[i].NameOffset]);
-                      p[i].NameOffset = (dword)Appl_AddSvcName(&Buffer2[pServices[i].NameOffset]);
+//                      p[i].NameOffset = (dword)Appl_AddSvcName(&Buffer2[pServices[i].NameOffset]);
                     }
-                    else
-                      p[i].NameOffset = (dword)Appl_AddSvcName("***Dummy***");
+//                    else
+//                      p[i].NameOffset = (dword)Appl_AddSvcName("***Dummy***");
                   }
                   else
                     ret = FALSE;
@@ -704,6 +708,7 @@ bool ImportSettings_TMSC()
                   }
                   else
                     ret = FALSE;
+                  p[i].NameLock = 0;
 //                  memcpy(&p[i], &pServices[i], SIZE_Service_TMSx);
                 }
               }
@@ -725,7 +730,7 @@ bool ImportSettings_TMSC()
                 TAP_PrintNet("NrRadioServices = %lu \n", *nSvc);
 
                 TYPE_Service_TMSC* pServices;
-                pServices = (TYPE_Service_TMSC*) Buffer;
+                pServices = (TYPE_Service_TMSC*) (Buffer + FileHeader.RadioServicesOffset);
                 for (i = 0; i < FileHeader.NrRadioServices; i++)
                 {
 //                  *nSvc = (word)(i+1);
@@ -734,10 +739,10 @@ bool ImportSettings_TMSC()
                     if (pServices[i].NameOffset < (dword)FileHeader.ServiceNamesLength)
                     {
                       TAP_PrintNet("%s\n", &Buffer2[pServices[i].NameOffset]);
-                      p[i].NameOffset = (dword)Appl_AddSvcName(&Buffer2[pServices[i].NameOffset]);
+//                      p[i].NameOffset = (dword)Appl_AddSvcName(&Buffer2[pServices[i].NameOffset]);
                     }
-                    else
-                      p[i].NameOffset = (dword)Appl_AddSvcName("***Dummy***");
+//                    else
+//                      p[i].NameOffset = (dword)Appl_AddSvcName("***Dummy***");
                   }
                   else
                     ret = FALSE;
@@ -750,6 +755,7 @@ bool ImportSettings_TMSC()
                   }
                   else
                     ret = FALSE;
+                  p[i].NameLock = 0;
 //                  memcpy(&p[i], &pServices[i], SIZE_Service_TMSx);
                 }
               }
@@ -774,6 +780,9 @@ bool ImportSettings_TMSC()
             FlashFavoritesGetParameters(&NrGroups, &NrSvcsPerGroup);
             p = (char*) FIS_vFlashBlockFavoriteGroup();
             memset(p, 0, NrGroups * ((NrSvcsPerGroup == 50) ? sizeof(tFavorites1050) : sizeof(tFavorites)));
+
+            word *NrFavGroupsTest = (word*)(p) - 1;
+            TAP_PrintNet("NrFavGroups = %u \n", *NrFavGroupsTest);
 
             fseek(fImportFile, FileHeader.FavoritesOffset, SEEK_SET);
             for (i = 0; i < FileHeader.NrFavGroups; i++)
