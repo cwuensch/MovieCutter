@@ -350,26 +350,113 @@ void DeleteTimers(void)
   TAP_PrintNet("%d timer have been deleted.\n", Count);
 }
 
+int GetEndOfServiceNames(void)
+{
+  int Result = 0;
+  int i;
+  char *p1, *p2;
+  p1 = (char*)(FIS_vFlashBlockServiceName());
+  p2 = (char*)(FIS_vFlashBlockProviderInfo());
+
+  if(p1)
+  {
+    Result = 40004;    // 40000 / 39996 ***  ?
+    if((p2 - p1) < Result)
+      Result = p2 - p1;
+
+    for (i = 0; i < Result-1; i++)
+    {
+      if (!p1[i] && !p1[i+1])
+      {
+        Result = i;
+        break;
+      }
+    }
+  }
+}
+
 void DeleteServiceNames(bool isTV)
 {
-  char* (*Appl_AddSvcName)(char const*);
   void  (*Appl_DeleteTvSvcName)(unsigned short, bool);
   void  (*Appl_DeleteRadioSvcName)(unsigned short, bool);
-  Appl_AddSvcName         = (void*)FIS_fwAppl_AddSvcName();
   Appl_DeleteTvSvcName    = (void*)FIS_fwAppl_DeleteTvSvcName();
   Appl_DeleteRadioSvcName = (void*)FIS_fwAppl_DeleteRadioSvcName();
 
-  int nTVServices, nRadioServices;
+  int nTVServices, nRadioServices, i;
   TAP_Channel_GetTotalNum(&nTVServices, &nRadioServices);
 
-  int i;
-  if (isTV)
-    for (i = (nTVServices - 1); i >= 0; i--)
-      Appl_DeleteTvSvcName(i, FALSE);
-  else    
-    for (i = (nRadioServices - 1); i >= 0; i--)
-      Appl_DeleteRadioSvcName(i, FALSE);
+  for (i = (nRadioServices - 1); i >= 0; i--)
+    Appl_DeleteRadioSvcName(i, FALSE);
+  for (i = (nTVServices - 1); i >= 0; i--)
+    Appl_DeleteTvSvcName(i, FALSE);
 }
+
+bool DeleteAllSettings(void)
+{
+  bool ret = TRUE;
+
+  {
+    char                 *p;
+    p = (char*) FIS_vFlashBlockFavoriteGroup();
+
+    if (p)
+    {
+      int NrGroups, NrSvcsPerGroup;
+      FlashFavoritesGetParameters(&NrGroups, &NrSvcsPerGroup);
+      memset(p, 0, NrGroups * ((NrSvcsPerGroup == 50) ? sizeof(tFavorites1050) : sizeof(tFavorites)));
+    }
+    else ret = FALSE;
+  }
+
+  DeleteServiceNames(TRUE);
+
+  {
+    TYPE_Service_TMSC      *p;
+    word                   *nSvc;
+
+    p    = (TYPE_Service_TMSC*)(FIS_vFlashBlockTVServices());
+    nSvc = (word*)FIS_vnTvSvc();
+    if (p && nSvc)
+    {
+      memset(p, 0, *nSvc * SIZE_Service_TMSx);
+      *nSvc = 0;
+    }
+
+    p    = (TYPE_Service_TMSC*)(FIS_vFlashBlockRadioServices());
+    nSvc = (word*)FIS_vnRadioSvc();
+    if (p && nSvc)
+    {
+      memset(p, 0, *nSvc * SIZE_Service_TMSx);
+      *nSvc = 0;
+    }
+    else ret = FALSE;
+  }
+
+  {
+    TYPE_TpInfo_TMSS *p;
+    dword            *NrTransponders;
+          
+    p = (TYPE_TpInfo_TMSS*)(FIS_vFlashBlockTransponderInfo());
+    if (p)
+    {
+      NrTransponders = (dword*)(p) - 1;
+      memset(p, 0, *NrTransponders * SIZE_TpInfo_TMSx);
+      *NrTransponders = 0;
+    }
+    else ret = FALSE;
+  }
+
+  {
+    TYPE_SatInfo_TMSS *p;
+    p = (TYPE_SatInfo_TMSS*)FIS_vFlashBlockSatInfo();
+    if (p)
+      memset(p, 0, FlashSatTablesGetTotal() * SIZE_SatInfo_TMSx);
+    else ret = FALSE;
+  }
+
+  return ret;
+}
+
 
 
 typedef struct
@@ -420,35 +507,6 @@ bool ExportSettings_TMSC()
     FileHeader.FileVersion = 1;
     FileHeader.SystemType = GetSystemType();
 //    FileHeader.UTF8System = isUTFToppy();
-
-/*    // Detect the size of the blocks
-    Offset = sizeof(tExportHeader);
-
-    FileHeader.SatellitesOffset = Offset;
-    FileHeader.NrSatellites = FlashSatTablesGetTotal();
-    Offset += FileHeader.NrSatellites * sizeof(TYPE_SatInfo_TMSC);
-
-    FileHeader.TranspondersOffset = Offset;
-    for(i = 0; i < FileHeader.NrSatellites; i++)
-      FileHeader.NrTransponders += FlashTransponderTablesGetTotal(i);
-    Offset += FileHeader.NrTransponders * sizeof(TYPE_TpInfo_TMSC);
-
-    TAP_Channel_GetTotalNum(&FileHeader.NrTVServices, &FileHeader.NrRadioServices);
-    FileHeader.TVServicesOffset = Offset;
-    Offset += FileHeader.NrTVServices * sizeof(TYPE_Service_TMSC);
-    FileHeader.RadioServicesOffset = Offset;
-    Offset += FileHeader.NrRadioServices * sizeof(TYPE_Service_TMSC);
-
-    FileHeader.FavoritesOffset = Offset;
-    FlashFavoritesGetParameters(&NrGroups, &NrSvcsPerGroup);
-    Offset += ((NrSvcsPerGroup==100) ? sizeof(tFavorites) : sizeof(tFavorites1050));
-
-    FileHeader.ServiceNamesOffset = Offset;
-    Offset += 65004;
-
-    FileHeader.ProviderNamesOffset = Offset;
-    Offset += 5380;
-    FileHeader.FileSize = Offset;  */
 
     // Now write the data blocks to the file
     ret = ret && fwrite(&FileHeader, sizeof(tExportHeader), 1, fExportFile);
@@ -546,9 +604,10 @@ bool ExportSettings_TMSC()
       FileHeader.ServiceNamesOffset = ftell(fExportFile);
       if(p1)
       {
-        FileHeader.ServiceNamesLength = 40004;   // 40000 / 39996 ***  ?
-        if(p2)
-          FileHeader.ServiceNamesLength = p2 - p1;
+//        FileHeader.ServiceNamesLength = 40004;   // 40000 / 39996 ***  ?
+//        if(p2)
+//          FileHeader.ServiceNamesLength = p2 - p1;
+        FileHeader.ServiceNamesLength = GetEndOfServiceNames();
         ret = ret && fwrite(p1, 1, FileHeader.ServiceNamesLength, fExportFile);
       }
       TAP_PrintNet((ret) ? "ServiceNames ok\n" : "ServiceNames Fehler\n");
@@ -567,6 +626,8 @@ bool ExportSettings_TMSC()
   else
     TAP_PrintNet("Datei nicht gefunden\n");
 
+  if (!ret)
+    if(!TAP_Hdd_Exist(EXPORTFILENAME)) TAP_Hdd_Delete(EXPORTFILENAME);
   TAP_PrintNet((ret) ? "Export erfolgreich\n" : "Export fehlgeschlagen\n");
   TRACEEXIT();
   return ret;
@@ -621,8 +682,8 @@ bool ImportSettings_TMSC()
             if (ret && p /*&& (fread(Buffer, SIZE_SatInfo_TMSx, FileHeader.NrSatellites, fImportFile) == (size_t)FileHeader.NrSatellites)*/)
             {
               TAP_PrintNet("NrSatellites = %lu \n", *NrSatellitesTest);
-              NrSatellites = FlashSatTablesGetTotal();
-              memset(p, 0, NrSatellites * SIZE_SatInfo_TMSx);
+//              NrSatellites = FlashSatTablesGetTotal();
+//              memset(p, 0, NrSatellites * SIZE_SatInfo_TMSx);
               memcpy(p, Buffer + FileHeader.SatellitesOffset, FileHeader.NrSatellites * SIZE_SatInfo_TMSx);
 //              *NrSatellitesTest = FileHeader.NrSatellites;
             }
@@ -637,8 +698,8 @@ bool ImportSettings_TMSC()
           
             p = (TYPE_TpInfo_TMSS*)(FIS_vFlashBlockTransponderInfo());
             NrTransponders = (dword*)(p) - 1;
-            memset(p, 0, *NrTransponders * SIZE_TpInfo_TMSx);
-            *NrTransponders = 0;
+//            memset(p, 0, *NrTransponders * SIZE_TpInfo_TMSx);
+//            *NrTransponders = 0;
 //            fseek(fImportFile, FileHeader.TranspondersOffset, SEEK_SET);
             if (ret && p /*&& (fread(Buffer, SIZE_TpInfo_TMSx, FileHeader.NrTransponders, fImportFile) == (size_t)FileHeader.NrTransponders)*/)
             {
@@ -671,9 +732,9 @@ bool ImportSettings_TMSC()
             {
               p    = (TYPE_Service_TMSC*)(FIS_vFlashBlockTVServices());
               nSvc = (word*)FIS_vnTvSvc();
-              DeleteServiceNames(TRUE);
-              memset(p, 0, *nSvc * SIZE_Service_TMSx);
-              *nSvc = 0;
+//              DeleteServiceNames(TRUE);
+//              memset(p, 0, *nSvc * SIZE_Service_TMSx);
+//              *nSvc = 0;
 
 //              fseek(fImportFile, FileHeader.TVServicesOffset, SEEK_SET);
               if (ret && p && nSvc /*&& (fread(Buffer, SIZE_Service_TMSx, FileHeader.NrTVServices, fImportFile) == (size_t)FileHeader.NrTVServices)*/)
@@ -718,9 +779,9 @@ bool ImportSettings_TMSC()
 
               p    = (TYPE_Service_TMSC*)(FIS_vFlashBlockRadioServices());
               nSvc = (word*)FIS_vnRadioSvc();
-              DeleteServiceNames(FALSE);
-              memset(p, 0, *nSvc * SIZE_Service_TMSx);
-              *nSvc = 0;
+//              DeleteServiceNames(FALSE);
+//              memset(p, 0, *nSvc * SIZE_Service_TMSx);
+//              *nSvc = 0;
 
 //              fseek(fImportFile, FileHeader.RadioServicesOffset, SEEK_SET);
               if (ret && p && nSvc /*&& (fread(Buffer, SIZE_Service_TMSx, FileHeader.NrRadioServices, fImportFile) == (size_t)FileHeader.NrRadioServices)*/)
@@ -779,7 +840,7 @@ bool ImportSettings_TMSC()
 
             FlashFavoritesGetParameters(&NrGroups, &NrSvcsPerGroup);
             p = (char*) FIS_vFlashBlockFavoriteGroup();
-            memset(p, 0, NrGroups * ((NrSvcsPerGroup == 50) ? sizeof(tFavorites1050) : sizeof(tFavorites)));
+//            memset(p, 0, NrGroups * ((NrSvcsPerGroup == 50) ? sizeof(tFavorites1050) : sizeof(tFavorites)));
 
             word *NrFavGroupsTest = (word*)(p) - 1;
             TAP_PrintNet("NrFavGroups = %u \n", *NrFavGroupsTest);
@@ -814,6 +875,8 @@ bool ImportSettings_TMSC()
   }
   else
     TAP_PrintNet ("Datei nicht gefunden!\n");
+  if(ret)
+    FlashProgram();
   TAP_PrintNet((ret) ? "Import erfolgreich\n" : "Import fehlgeschlagen\n");
   TRACEEXIT();
   return ret;
@@ -835,15 +898,18 @@ int TAP_Main(void)
   if(TAP_Hdd_Exist(EXPORTFILENAME))
   {
     ImportSettings_TMSC();
+//    Appl_ImportChData(TAPFSROOT "/" EXPORTFILENAME "2");
   }
   else
   {
     DeleteTimers();
+	  DeleteAllSettings();
 //    DeleteFavourites();
 //    DeleteServices();
 //    DeleteTransponder(1);
 //    ImportTransponder();
     ExportSettings_TMSC();
+    Appl_ExportChData(TAPFSROOT "/" EXPORTFILENAME "2");
   }
 
   return 0;
