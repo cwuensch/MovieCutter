@@ -21,32 +21,27 @@ TAP_ETCINFO             (__DATE__);
 #define PROVIDERNAMELENGTH  21
 #define NRPROVIDERNAMES     256
 
-/*
-#define SIZE_SatInfo_TMSx  ((GetSystemType() == ST_TMSS) ? sizeof(TYPE_SatInfo_TMSS) : sizeof(TYPE_SatInfo_TMSC))
-#define SIZE_TpInfo_TMSx   ((GetSystemType() == ST_TMSS) ? sizeof(TYPE_TpInfo_TMSS)  : sizeof(TYPE_TpInfo_TMSC))
-#define SIZE_Service_TMSx  ((GetSystemType() == ST_TMSS) ? sizeof(TYPE_Service_TMSS) : sizeof(TYPE_Service_TMSC))
-*/
 
-#define SYSTYPE ST_TMSC
-#if SYSTYPE == ST_TMSS
-  typedef TYPE_SatInfo_TMSS  TYPE_SatInfo_TMSx;
-  typedef TYPE_TpInfo_TMSS   TYPE_TpInfo_TMSx;
-  typedef TYPE_Service_TMSS  TYPE_Service_TMSx;
-#elif SYSTYPE == ST_TMSC
-  typedef TYPE_SatInfo_TMSC  TYPE_SatInfo_TMSx;
-  typedef TYPE_TpInfo_TMSC   TYPE_TpInfo_TMSx;
-  typedef TYPE_Service_TMSC  TYPE_Service_TMSx;
-#elif SYSTYPE == ST_TMST
-  typedef TYPE_SatInfo_TMST  TYPE_SatInfo_TMSx;
-  typedef TYPE_TpInfo_TMST   TYPE_TpInfo_TMSx;
-  typedef TYPE_Service_TMST  TYPE_Service_TMSx;
+#define SYSTYPE 7
+#if (SYSTYPE == 5)    // ST_TMSS
+  typedef TYPE_SatInfo_TMSS             TYPE_SatInfo_TMSx;
+  typedef TYPE_TpInfo_TMSS              TYPE_TpInfo_TMSx;
+  typedef TYPE_Service_TMSS             TYPE_Service_TMSx;
+#elif (SYSTYPE == 7)  // ST_TMSC
+  typedef TYPE_SatInfo_TMSC             TYPE_SatInfo_TMSx;
+  typedef TYPE_TpInfo_TMSC              TYPE_TpInfo_TMSx;
+  typedef TYPE_Service_TMSC             TYPE_Service_TMSx;
+#elif (SYSTYPE == 6)  // ST_TMST
+  typedef TYPE_SatInfo_TMST             TYPE_SatInfo_TMSx;
+  typedef TYPE_TpInfo_TMST              TYPE_TpInfo_TMSx;
+  typedef TYPE_Service_TMST             TYPE_Service_TMSx;
 #endif
+
 
 SYSTEM_TYPE                  CurSystemType;
 size_t                       SIZE_SatInfo_TMSx = 0;
 size_t                       SIZE_TpInfo_TMSx  = 0;
 size_t                       SIZE_Service_TMSx = 0;
-
 
 bool InitSystemType(void)
 {
@@ -81,6 +76,74 @@ bool InitSystemType(void)
       break;
   }
   return ret;
+}
+
+bool FlashSatTablesDecode_ST_TMSx(void *Data, tFlashSatTable *SatTable)
+{
+  if(!Data || !SatTable)
+    return FALSE;
+
+  switch(CurSystemType)
+  {
+    case ST_TMSS: return FlashSatTablesDecode_ST_TMSS(Data, SatTable); break;
+    case ST_TMST: return FlashSatTablesDecode_ST_TMST(Data, SatTable); break;
+    case ST_TMSC: return FlashSatTablesDecode_ST_TMSC(Data, SatTable); break;
+    default:      return FALSE;
+  }
+}
+
+bool FlashTransponderTablesDecode_ST_TMSx(void *Data, tFlashTransponderTable *TransponderTable)
+{
+  if(!Data || !TransponderTable)
+    return FALSE;
+
+  switch(CurSystemType)
+  {
+    case ST_TMSS: return FlashTransponderTablesDecode_ST_TMSS(Data, TransponderTable); break;
+    case ST_TMST: return FlashTransponderTablesDecode_ST_TMST(Data, TransponderTable); break;
+    case ST_TMSC: return FlashTransponderTablesDecode_ST_TMSC(Data, TransponderTable); break;
+    default:      return FALSE;
+  }
+}
+bool FlashTransponderTablesEncode_ST_TMSx(void *Data, tFlashTransponderTable *TransponderTable)
+{
+  if(!Data || !TransponderTable)
+    return FALSE;
+
+  switch(CurSystemType)
+  {
+    case ST_TMSS: return FlashTransponderTablesEncode_ST_TMSS(Data, TransponderTable); break;
+    case ST_TMST: return FlashTransponderTablesEncode_ST_TMST(Data, TransponderTable); break;
+    case ST_TMSC: return FlashTransponderTablesEncode_ST_TMSC(Data, TransponderTable); break;
+    default:      return FALSE;
+  }
+}
+
+bool FlashServiceDecode_ST_TMSx(void *Data, tFlashService *Service)
+{
+  if(!Data || !Service)
+    return FALSE;
+
+  switch(CurSystemType)
+  {
+    case ST_TMSS: return FlashServiceEncode_ST_TMSS(Data, Service); break;
+    case ST_TMST: return FlashServiceEncode_ST_TMST(Data, Service); break;
+    case ST_TMSC: return FlashServiceEncode_ST_TMSC(Data, Service); break;
+    default:      return FALSE;
+  }
+}
+bool FlashServiceEncode_ST_TMSx(void *Data, tFlashService *Service)
+{
+  if(!Data || !Service)
+    return FALSE;
+
+  switch(CurSystemType)
+  {
+    case ST_TMSS: return FlashServiceEncode_ST_TMSS(Data, Service); break;
+    case ST_TMST: return FlashServiceEncode_ST_TMST(Data, Service); break;
+    case ST_TMSC: return FlashServiceEncode_ST_TMSC(Data, Service); break;
+    default:      return FALSE;
+  }
 }
 
 
@@ -407,7 +470,7 @@ void DeleteTimers(void)
   TAP_PrintNet("%d timer have been deleted.\n", Count);
 }
 
-int GetEndOfServiceNames(void)
+int GetLengthOfServiceNames(void)
 {
   int Result = 0;
   int i;
@@ -417,7 +480,7 @@ int GetEndOfServiceNames(void)
 
   if(p1)
   {
-    Result = 40004;    // 40000 / 39996 ***  ?
+    Result = 40000;    // 40004 / 39996 ***  ?
     if((p2 - p1) < Result)
       Result = p2 - p1;
 
@@ -425,14 +488,15 @@ int GetEndOfServiceNames(void)
     {
       if (!p1[i] && !p1[i+1])
       {
-        Result = i;
+        Result = i+1;
         break;
       }
     }
   }
+  return Result;
 }
 
-void DeleteServiceNames(bool isTV)
+void DeleteServiceNames(void)
 {
   void  (*Appl_DeleteTvSvcName)(unsigned short, bool);
   void  (*Appl_DeleteRadioSvcName)(unsigned short, bool);
@@ -467,11 +531,11 @@ bool DeleteAllSettings(void)
 
   {
     char                 *p;
-    p = (char*)(FIS_vFlashBlockServiceName());
 
-    DeleteServiceNames(TRUE);
+    DeleteServiceNames();
+    p = (char*)(FIS_vFlashBlockServiceName());
     if (p)
-      memset(p, 0, GetEndOfServiceNames());
+      memset(p, 0, GetLengthOfServiceNames());
   }
 
   {
@@ -570,7 +634,7 @@ bool ExportSettings()
     strncpy(FileHeader.Magic, "TFchan", 6);
     FileHeader.FileVersion = 1;
     FileHeader.SystemType = GetSystemType();
-//    FileHeader.UTF8System = isUTFToppy();
+    FileHeader.UTF8System = isUTFToppy();
 
     // Now write the data blocks to the file
     ret = ret && fwrite(&FileHeader, sizeof(tExportHeader), 1, fExportFile);
@@ -671,7 +735,7 @@ bool ExportSettings()
 //        FileHeader.ServiceNamesLength = 40004;   // 40000 / 39996 ***  ?
 //        if(p2)
 //          FileHeader.ServiceNamesLength = p2 - p1;
-        FileHeader.ServiceNamesLength = GetEndOfServiceNames();
+        FileHeader.ServiceNamesLength = GetLengthOfServiceNames();
         ret = ret && fwrite(p1, 1, FileHeader.ServiceNamesLength, fExportFile);
       }
       TAP_PrintNet((ret) ? "ServiceNames ok\n" : "ServiceNames Fehler\n");
@@ -738,14 +802,11 @@ bool ImportSettings()
           // Now write the data blocks from the file to the RAM
           {
             TYPE_SatInfo_TMSS *p;
-            dword             *NrSatellitesTest, NrSatellites;
 
             p = (TYPE_SatInfo_TMSS*)FIS_vFlashBlockSatInfo();
-            NrSatellitesTest = (dword*)(p) - 1;
 //            fseek(fImportFile, FileHeader.SatellitesOffset, SEEK_SET);
             if (ret && p /*&& (fread(Buffer, SIZE_SatInfo_TMSx, FileHeader.NrSatellites, fImportFile) == (size_t)FileHeader.NrSatellites)*/)
             {
-              TAP_PrintNet("NrSatellites = %lu \n", *NrSatellitesTest);
 //              NrSatellites = FlashSatTablesGetTotal();
 //              memset(p, 0, NrSatellites * SIZE_SatInfo_TMSx);
               memcpy(p, Buffer + FileHeader.SatellitesOffset, FileHeader.NrSatellites * SIZE_SatInfo_TMSx);
@@ -817,10 +878,10 @@ bool ImportSettings()
                     if (pServices[i].NameOffset < (dword)FileHeader.ServiceNamesLength)
                     {
                       TAP_PrintNet("%s\n", &Buffer2[pServices[i].NameOffset]);
-//                      p[i].NameOffset = (dword)Appl_AddSvcName(&Buffer2[pServices[i].NameOffset]);
+                      p[i].NameOffset = (dword)Appl_AddSvcName(&Buffer2[pServices[i].NameOffset]);
                     }
-//                    else
-//                      p[i].NameOffset = (dword)Appl_AddSvcName("***Dummy***");
+                    else
+                      p[i].NameOffset = (dword)Appl_AddSvcName("***Dummy***");
                   }
                   else
                     ret = FALSE;
@@ -864,10 +925,10 @@ bool ImportSettings()
                     if (pServices[i].NameOffset < (dword)FileHeader.ServiceNamesLength)
                     {
                       TAP_PrintNet("%s\n", &Buffer2[pServices[i].NameOffset]);
-//                      p[i].NameOffset = (dword)Appl_AddSvcName(&Buffer2[pServices[i].NameOffset]);
+                      p[i].NameOffset = (dword)Appl_AddSvcName(&Buffer2[pServices[i].NameOffset]);
                     }
-//                    else
-//                      p[i].NameOffset = (dword)Appl_AddSvcName("***Dummy***");
+                    else
+                      p[i].NameOffset = (dword)Appl_AddSvcName("***Dummy***");
                   }
                   else
                     ret = FALSE;
@@ -939,8 +1000,8 @@ bool ImportSettings()
   }
   else
     TAP_PrintNet ("Datei nicht gefunden!\n");
-  if(ret)
-    FlashProgram();
+//  if(ret)
+//    FlashProgram();
   TAP_PrintNet((ret) ? "Import erfolgreich\n" : "Import fehlgeschlagen\n");
   TRACEEXIT();
   return ret;
@@ -963,19 +1024,19 @@ int TAP_Main(void)
     TAP_Hdd_ChangeDir("/");
     if(TAP_Hdd_Exist(EXPORTFILENAME))
     {
-      ImportSettings();
-//      Appl_ImportChData(TAPFSROOT "/" EXPORTFILENAME "2");
-    }
-    else
-    {
       DeleteTimers();
-	    DeleteAllSettings();
+      DeleteAllSettings();
 //      DeleteFavourites();
 //      DeleteServices();
 //      DeleteTransponder(1);
 //      ImportTransponder();
+//      ImportSettings();
+//      Appl_ImportChData("Settings.std");
+    }
+    else
+    {
       ExportSettings();
-      Appl_ExportChData(TAPFSROOT "/" EXPORTFILENAME "2");
+      Appl_ExportChData("Settings.std");
     }
   }
   return 0;
