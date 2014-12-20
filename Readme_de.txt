@@ -55,7 +55,6 @@ Hinweise
 - Da die .inf- und .nav-Dateien aus dem Original neu berechnet werden, sind die geschnittenen Dateien sofort spulbar.
 - Auch wenn es durch das genaue Spulen den Anschein erweckt, lassen sich Aufnahmen nicht framegenau schneiden. Das liegt u.a. daran, dass intern mit Blöcken gearbeitet wird (ca. 9 kB), das Dateisystem danach aber auf Sektorgrenzen schneidet. Bei ersten Tests war diese Differenz bis zu einer halben Sekunde lang, genauere Daten werden wir aber erst durch weitere Tests bekommen.
 - Wenn sich der Wiedergabepunkt in den letzten 10 Sekunden der Aufnahme befindet, wird zuerst das Spulen eingestellt und später automatisch pausiert. Dies soll verhindern, dass sich die Wiedergabe beendet.
-- Kown Bug: Wird der MovieCutter (erstmalig) gestartet, während eine Verbindung mit TMS Remote besteht, so führt dies Unterbrechung der Remote-Verbindung. Grund dafür ist ein Timeout, der dadurch entsteht, dass MC die Systemzeit korrigiert. Die Verbindung kann anschließend sofort neu aufgebaut werden.
 
 
 Tasten
@@ -95,7 +94,7 @@ Falls ein oder mehrere Segmente mit der blauen Tasten selektiert wurden (dunkelb
 
 Optionen in der MovieCutter.ini
 ===============================
-- AutoOSDPolicy:		1: MovieCutter wird beim Abspielen einer Aufnahme automatisch eingeblendet. - 0: MovieCutter muss immer manuell gestartet werden.
+- AutoOSDPolicy:		1: MovieCutter wird beim Abspielen einer Aufnahme automatisch aktiviert. - 0: MovieCutter muss immer manuell gestartet werden.
 (ab V. 2.0g unterstützt)
 - DirectSegmentsCut		0: Aktion zum Auswählen der gerade/ungerade Segmente. - 1: Aktion zum direkten Löschen der geraden/ungeraden Segmente.
 (ab V. 2.0i unterstützt)
@@ -119,3 +118,5 @@ Optionen in der MovieCutter.ini
 (ab V. 3.1)
 - CheckFSAfterCut (geändert):	1: Automatische Dateisystemprüfung (nur wenn nötig). - 2: Immer nach dem Schneiden prüfen. - 0: Niemals prüfen (nicht empfohlen!)
 - DoiCheckTest (geändert):	1: gesammelter Test am Ende (ro). - 2: gesammelter Test und Fix. - 3: Test zwischen den Schnitten (ro). - 4: Test und Fix zwischen Schnitten. 0: Kein icheck-Test.
+(ab V. 3.2)
+- MaxNavDiscrepancy:		Maximal zulässige Abweichung der nav-Datei, bevor eine Warnmeldung angezeigt wird (in Millisekunden). - 0: Meldung niemals anzeigen.

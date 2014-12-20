@@ -54,7 +54,6 @@ Notes
 - Since the .inf and .nav files are recalculated from the original, the edited files are immediately seekable.
 - Even if it gives the impression through the exact seeking functions, it is not possible to cut frame-accurately. This is due to the fact that the receiver internally works with blocks (about 9 kB), but the filesystem then cuts on sector boundaries. In the first tests, this difference was up to half a second, but we will only get more accurate data by further testing.
 - If the playback point is within the last 10 seconds of the recording, the fast forward or backward function is automatically disabled and later the playback is paused. This is to prevent that the playback exits.
-- Kown Bug: If MovieCutter is started (for the first time), while TMS Remote is connected, the remote connection gets disconnected. That is due to a Timeout, resulting from MC's correction of the system time. After that the connection can immediately be reestablished.
 
 
 Keys
@@ -94,7 +93,7 @@ If one or more segments were selected with the blue button (dark blue frame), th
 
 Options in the MovieCutter.ini
 ==============================
-- AutoOSDPolicy:		1: Movie Cutter is automatically displayed when a playback starts. - 0: Movie Cutter always has to be activated manually.
+- AutoOSDPolicy:		1: Movie Cutter is automatically activated when a playback starts. - 0: Movie Cutter always has to be activated manually.
 (supported in V. 2.0g and higher)
 - DirectSegmentsCut:		0: Action selects the even/odd segments. - 1: Action deletes the even/odd segments instantly.
 (supported in V. 2.0i and higher)
@@ -118,3 +117,5 @@ Options in the MovieCutter.ini
 (in V. 3.1 and higher)
 - CheckFSAfterCut (changed):	1: Automatic file system check (only when required).  - 1: Always check after cutting. - 0: Never check (not recommended!)
 - DoiCheckTest (changed):	1: Cumulated test in the end (ro). - 2: Cummulated Test and Fix. - 3: Test between the cuts (ro). - 4: Test and fix between cuts. - 0: No icheck Test.
+(in V. 3.2 and higher)
+- MaxNavDiscrepancy:		Maximum tolerated discrepancy of the nav-file, without showing a warning message (in milliseconds). - 0: Never show a message.

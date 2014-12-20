@@ -262,6 +262,7 @@ bool                    AutoOSDPolicy      = FALSE;
 tOSDMode                DefaultOSDMode     = MD_FullOSD;
 int                     DefaultMinuteJump  = 0;
 bool                    ShowRebootMessage  = TRUE;
+dword                   MaxNavDiscrepancy  = 5000;
 bool                    AskBeforeEdit      = TRUE;
 bool                    SaveCutBak         = TRUE;
 bool                    DisableSpecialEnd  = FALSE;
@@ -735,7 +736,8 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
         }
 
         // Check if nav has correct length!
-        if(TimeStamps && (labs(TimeStamps[NrTimeStamps-1].Timems - (1000 * (60*PlayInfo.duration + PlayInfo.durationSec))) > 5000))
+        dword CurNavDiscrepancy = labs(TimeStamps[NrTimeStamps-1].Timems - (1000 * (60*PlayInfo.duration + PlayInfo.durationSec)));
+        if(TimeStamps && (((MaxNavDiscrepancy > 0) && (CurNavDiscrepancy > MaxNavDiscrepancy)) || (CurNavDiscrepancy > 5000)))
         {
           char  NavLengthWrongStr[128];
           WriteLogMC(PROGRAM_NAME, ".nav file length not matching duration!");
@@ -752,18 +754,21 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
           else
           {
             TAP_SPrint(NavLengthWrongStr, sizeof(NavLengthWrongStr), LangGetString(LS_NavLengthWrong), (TimeStamps[NrTimeStamps-1].Timems/1000) - (60*PlayInfo.duration + PlayInfo.durationSec));
-            if (!ShowConfirmationDialog(NavLengthWrongStr))
+            if ((MaxNavDiscrepancy > 0) && (CurNavDiscrepancy > MaxNavDiscrepancy))
             {
-              PlaybackRepeatSet(OldRepeatMode);
-              ClearOSD(TRUE);
-              if (AutoOSDPolicy)
-                State = ST_UnacceptedFile;
-              else
+              if (!ShowConfirmationDialog(NavLengthWrongStr))
               {
-                Cleanup(FALSE);
-                State = ST_InactiveMode;
+                PlaybackRepeatSet(OldRepeatMode);
+                ClearOSD(TRUE);
+                if (AutoOSDPolicy)
+                  State = ST_UnacceptedFile;
+                else
+                {
+                  Cleanup(FALSE);
+                  State = ST_InactiveMode;
+                }
+                break;
               }
-              break;
             }
           }
         }
@@ -1826,6 +1831,7 @@ void LoadINI(void)
     DefaultOSDMode    = (tOSDMode) INIGetInt("DefaultOSDMode",    MD_FullOSD,   0,    3);
     DefaultMinuteJump =            INIGetInt("DefaultMinuteJump",          0,   0,   99);
     ShowRebootMessage =            INIGetInt("ShowRebootMessage",          1,   0,    1)   !=   0;
+    MaxNavDiscrepancy =            INIGetInt("MaxNavDiscrepancy",       5000,   0,  86400000);       // = 24 Stunden
     AskBeforeEdit     =            INIGetInt("AskBeforeEdit",              1,   0,    1)   !=   0;
     SaveCutBak        =            INIGetInt("SaveCutBak",                 1,   0,    1)   !=   0;
     DisableSpecialEnd =            INIGetInt("DisableSpecialEnd",          0,   0,    1)   ==   1;
@@ -1864,6 +1870,7 @@ void SaveINI(void)
   INISetInt ("DefaultOSDMode",      DefaultOSDMode);
   INISetInt ("DefaultMinuteJump",   DefaultMinuteJump);
   INISetInt ("ShowRebootMessage",   ShowRebootMessage   ?  1  :  0);
+  INISetInt ("MaxNavDiscrepancy",   MaxNavDiscrepancy);
   INISetInt ("AskBeforeEdit",       AskBeforeEdit       ?  1  :  0);
   INISetInt ("SaveCutBak",          SaveCutBak          ?  1  :  0);
   INISetInt ("DisableSpecialEnd",   DisableSpecialEnd   ?  1  :  0);
