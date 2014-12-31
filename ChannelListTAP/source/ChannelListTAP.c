@@ -21,7 +21,7 @@ TAP_AUTHOR_NAME         ("chris86");
 TAP_DESCRIPTION         ("Import/Export of Sat, Transponder, Service, Favorites lists");
 TAP_ETCINFO             (__DATE__);
 
-#define EXPORTFILENAME   "ProgramFiles/Channels.txt"
+#define EXPORTFILENAME   "ProgramFiles/Channels"
 #define CRLF             "\r\n"
 
 
@@ -190,9 +190,9 @@ void ImportTransponder(void)
   int                       Count;
 
   Count = 0;
-  if(TAP_Hdd_Exist(EXPORTFILENAME))
+  if(TAP_Hdd_Exist(EXPORTFILENAME ".dat"))
   {
-    fSetting = fopen(TAPFSROOT "/" EXPORTFILENAME, "r");
+    fSetting = fopen(TAPFSROOT "/" EXPORTFILENAME ".dat", "r");
     if(fSetting)
     {
       DoParse = FALSE;
@@ -558,156 +558,6 @@ typedef struct
 } tExportHeader;
 
 
-bool ExportSettings()
-{
-  tExportHeader         FileHeader;
-  FILE                 *fExportFile = NULL;
-  int                   i;
-  bool                  ret = FALSE;
-
-  TRACEENTER();
-  TAP_PrintNet("Starte Export...\n");
-
-  fExportFile = fopen(TAPFSROOT "/" EXPORTFILENAME, "wb");
-  if(fExportFile)
-  {
-    ret = TRUE;
-
-    // Write the file header
-    memset(&FileHeader, 0, sizeof(FileHeader));
-    strncpy(FileHeader.Magic, "TFchan", 6);
-    FileHeader.FileVersion = 1;
-    FileHeader.SystemType = GetSystemType();
-    FileHeader.UTF8System = isUTFToppy();
-
-    // Now write the data blocks to the file
-    ret = fwrite(&FileHeader, sizeof(tExportHeader), 1, fExportFile) && ret;
-    {
-      TYPE_SatInfo_TMSS *p;
-      FileHeader.SatellitesOffset = ftell(fExportFile);
-      p = (TYPE_SatInfo_TMSS*)FIS_vFlashBlockSatInfo();
-      if(p)
-      {
-        FileHeader.NrSatellites = FlashSatTablesGetTotal();
-        ret = fwrite(&FileHeader.NrSatellites, sizeof(FileHeader.NrSatellites), 1, fExportFile) && ret;
-        FileHeader.SatellitesOffset = ftell(fExportFile);
-        if (FileHeader.NrSatellites > 0)
-          ret = fwrite(p, SIZE_SatInfo_TMSx, FileHeader.NrSatellites, fExportFile) && ret;
-      }
-    }
-    TAP_PrintNet((ret) ? "Satellites ok\n" : "Satellites Fehler\n");
-
-    {
-      TYPE_TpInfo_TMSS *p;
-      FileHeader.TranspondersOffset = ftell(fExportFile);
-      p = (TYPE_TpInfo_TMSS*)(FIS_vFlashBlockTransponderInfo());
-      if(p)
-      {
-        for(i = 0; i < FileHeader.NrSatellites; i++)
-          FileHeader.NrTransponders += FlashTransponderTablesGetTotal(i);
-        ret = fwrite(&FileHeader.NrTransponders, sizeof(FileHeader.NrTransponders), 1, fExportFile) && ret;
-        FileHeader.TranspondersOffset = ftell(fExportFile);
-        if (FileHeader.NrTransponders > 0)
-          ret = fwrite(p, SIZE_TpInfo_TMSx, FileHeader.NrTransponders, fExportFile) && ret;
-      }
-    }
-    TAP_PrintNet((ret) ? "Transponders ok\n" : "Transponders Fehler\n");
-
-    {
-      TYPE_Service_TMSS *p;
-      FileHeader.TVServicesOffset = ftell(fExportFile);
-      p = (TYPE_Service_TMSS*)(FIS_vFlashBlockTVServices());
-      if(p)
-      {
-        int Muell;
-        TAP_Channel_GetTotalNum(&FileHeader.NrTVServices, &Muell);
-        ret = fwrite(&FileHeader.NrTVServices, sizeof(FileHeader.NrTVServices), 1, fExportFile) && ret;
-        FileHeader.TVServicesOffset = ftell(fExportFile);
-        if (FileHeader.NrTVServices > 0)
-          ret = fwrite(p, SIZE_Service_TMSx, FileHeader.NrTVServices, fExportFile) && ret;
-      }
-    }
-    TAP_PrintNet((ret) ? "TVServices ok\n" : "TVServices Fehler\n");
-
-    {
-      TYPE_Service_TMSS *p;
-      FileHeader.RadioServicesOffset = ftell(fExportFile);
-      p = (TYPE_Service_TMSS*)(FIS_vFlashBlockRadioServices());
-      if(p)
-      {
-        int Muell;
-        TAP_Channel_GetTotalNum(&Muell, &FileHeader.NrRadioServices);
-        ret = fwrite(&FileHeader.NrRadioServices, sizeof(FileHeader.NrRadioServices), 1, fExportFile) && ret;
-        FileHeader.RadioServicesOffset = ftell(fExportFile);
-        if (FileHeader.NrRadioServices > 0)
-          ret = fwrite(p, SIZE_Service_TMSx, FileHeader.NrRadioServices, fExportFile) && ret;
-      }
-    }
-    TAP_PrintNet((ret) ? "RadioServices ok\n" : "RadioServices Fehler\n");
-
-    {
-      tFavorites FavGroup;
-      FileHeader.NrFavGroups = NrFavGroups;
-      FileHeader.NrSvcsPerFavGroup = NrFavsPerGroup;
-      ret = fwrite(&FileHeader.NrFavGroups, sizeof(FileHeader.NrFavGroups), 1, fExportFile) && ret;
-      FileHeader.FavoritesOffset = ftell(fExportFile);
-      for (i = 0; i < FileHeader.NrFavGroups; i++)
-      {
-        memset(&FavGroup, 0, sizeof(tFavorites));
-        FlashFavoritesGetInfo(i, &FavGroup);
-        ret = fwrite(&FavGroup, sizeof(tFavorites), 1, fExportFile) && ret;
-      }
-    }
-    TAP_PrintNet((ret) ? "Favorites ok\n" : "Favorites Fehler\n");
-
-    {
-      char *p1, *p2;
-      p1 = (char*)(FIS_vFlashBlockServiceName());
-      p2 = (char*)(FIS_vFlashBlockProviderInfo());
-      int NrProviderNames = NRPROVIDERNAMES;
-
-      ret = fwrite(&NrProviderNames, sizeof(NrProviderNames), 1, fExportFile) && ret;
-      FileHeader.ProviderNamesOffset = ftell(fExportFile);
-      if(p2)
-      {
-        FileHeader.ProviderNamesLength = PROVIDERNAMELENGTH * NRPROVIDERNAMES;  // ***  5380 ?
-        ret = fwrite(p2, 1, FileHeader.ProviderNamesLength, fExportFile) && ret;
-      }
-      TAP_PrintNet((ret) ? "ProviderNames ok\n" : "ProviderNames Fehler\n");
-
-      int NrServices = FileHeader.NrTVServices + FileHeader.NrRadioServices;
-      ret = fwrite(&NrServices, sizeof(FileHeader.NrTVServices), 1, fExportFile) && ret;
-      FileHeader.ServiceNamesOffset = ftell(fExportFile);
-      if(p1)
-      {
-//        FileHeader.ServiceNamesLength = 40004;   // 40000 / 39996 ***  ?
-//        if(p2)
-//          FileHeader.ServiceNamesLength = p2 - p1;
-        FileHeader.ServiceNamesLength = GetLengthOfServiceNames();
-        ret = fwrite(p1, 1, FileHeader.ServiceNamesLength, fExportFile) && ret;
-      }
-      TAP_PrintNet((ret) ? "ServiceNames ok\n" : "ServiceNames Fehler\n");
-    }
-
-    FileHeader.FileSize = ftell(fExportFile);
-    fclose(fExportFile);
-
-    fExportFile = fopen(TAPFSROOT "/" EXPORTFILENAME, "r+b");
-    if(fExportFile)
-    {
-      ret = fwrite(&FileHeader, sizeof(tExportHeader), 1, fExportFile) && ret;
-      fclose(fExportFile);
-    }
-  }
-  else
-    TAP_PrintNet("Datei nicht gefunden\n");
-
-  if (!ret)
-    if(TAP_Hdd_Exist(EXPORTFILENAME)) TAP_Hdd_Delete(EXPORTFILENAME);
-  TAP_PrintNet((ret) ? "Export erfolgreich\n" : "Export fehlgeschlagen\n");
-  TRACEEXIT();
-  return ret;
-}
 
 
 char* ByteArrToStr(char *outStr, byte *inArr, int length)
@@ -823,88 +673,101 @@ bool ExportSettings_Text(void)
   TRACEENTER();
   TAP_PrintNet("Starte Text Export...\n");
 
-  fExportFile = fopen(TAPFSROOT "/" EXPORTFILENAME, "w");
+  fExportFile = fopen(TAPFSROOT "/" EXPORTFILENAME ".txt", "w");
   if(fExportFile)
   {
     ret = TRUE;
 
     // Write the file header
     ret = (fprintf(fExportFile, "[ChannelListSaver]" CRLF)               > 0) && ret;
-    ret = (fprintf(fExportFile, "FileVersion=%d" CRLF,  1)               > 0) && ret;
+    ret = (fprintf(fExportFile, "FileVersion=%d" CRLF,  2)               > 0) && ret;
     FileSizePos = ftell(fExportFile);
-    ret = (fprintf(fExportFile, "FileSize=%010d" CRLF, 0)               > 0) && ret;
+    ret = (fprintf(fExportFile, "FileSize=%010d" CRLF,  0)               > 0) && ret;
     ret = (fprintf(fExportFile, "SystemType=%d" CRLF,   GetSystemType()) > 0) && ret;
     ret = (fprintf(fExportFile, "UTF8System=%d" CRLF,   isUTFToppy())    > 0) && ret;
     fprintf(fExportFile, CRLF);
     TAP_Channel_GetTotalNum(&FileHeader.NrTVServices, &FileHeader.NrRadioServices);
 
     //[Satellites]
-    //#Nr; SatName; SatPosition; NrTransponders; Unused1; Unknown1; Unused2; LNB1Supply; LNB1DiSEqC10; LNB1DiSEqC11; LNB1DiSeqC12; LNB1DiSEqC12Flags; LNB1Universal; LNB1Switch22; LNB1LowBand; LNB1HBFrq; LNB1Loop; LNB1Unknown1; LNB1Unknown2; LNB1Unknown3; LNB1Unknown4; LNB1Unknown5; LNB2Supply; LNB2DiSEqC10; LNB2DiSEqC11; LNB2DiSeqC12; LNB2DiSEqC12Flags; LNB2Universal; LNB2Switch22; LNB2LowBand; LNB2HBFrq; LNB2Loop; LNB2Unknown1; LNB2Unknown2; LNB2Unknown3; LNB2Unknown4; LNB2Unknown5
+    //#  ;                 ;       ;      ;    Supply;;      DiSEqC10;;    DiSEqC11;;    DiSeqC12;;    DiSEqC12Flags;;      Universal;;    Switch22;;     LowBand;;        HBFrq;;        Loop;;       Unused1;;     Unused2;;     Unused3;;     Unused4;;                   Unused5;;                ;                                                                   ;
+    //#Nr; SatName         ; SatPos; NrTps;   LNB1; LNB2;   LNB1; LNB2;   LNB1; LNB2;   LNB1; LNB2;      LNB1; LNB2;       LNB1;  LNB2;   LNB1;  LNB2;   LNB1;  LNB2;   LNB1;  LNB2;   LNB1; LNB2;   LNB1; LNB2;   LNB1; LNB2;   LNB1; LNB2;   LNB1; LNB2;             LNB1;           LNB2;   Unused1;  Unknown1                                                         ;  Unused2
+    //  1; Astra           ;    192;   136;     1;    1;      0;    0;      0;    0;      4;    4;   FE 7F 7F; FE 7F 7F;      1;     1;      0;     0;   9750;  9750;  10600; 10600;     1;    1;       0;    0;      0;    0;      0;    0;      0;    0;   FE 40 43 FF FF; FE 40 43 FF FF;    0xffff;  FF FF FF FF 01 01 00 01 00 00 00 00 B2 2E 02 04 6E 00 78 00 6E 00;  FF FF FF FF FF FF FF FF
     {
       tFlashSatTable         CurSat;
       char                   StringBuf1[100], StringBuf2[100];
 
       ret = (fprintf(fExportFile, "[Satellites]" CRLF)                   > 0) && ret;
-      ret = (fprintf(fExportFile, "#Nr; SatName; SatPosition; NrTransponders; Unused1; Unknown1; Unused2; LNB1Supply; LNB1DiSEqC10; LNB1DiSEqC11; LNB1DiSeqC12; LNB1DiSEqC12Flags; LNB1Universal; LNB1Switch22; LNB1LowBand; LNB1HBFrq; LNB1Loop; LNB1Unknown1; LNB1Unknown2; LNB1Unknown3; LNB1Unknown4; LNB1Unknown5; LNB2Supply; LNB2DiSEqC10; LNB2DiSEqC11; LNB2DiSeqC12; LNB2DiSEqC12Flags; LNB2Universal; LNB2Switch22; LNB2LowBand; LNB2HBFrq; LNB2Loop; LNB2Unknown1; LNB2Unknown2; LNB2Unknown3; LNB2Unknown4; LNB2Unknown5" CRLF) > 0) && ret;
+//      ret = (fprintf(fExportFile, "#Nr; SatName;          SatPos; NrTps; LNB1Supply; LNB1DiSEqC10; LNB1DiSEqC11; LNB1DiSeqC12; LNB1DiSEqC12Flags; LNB1Universal; LNB1Switch22; LNB1LowBand; LNB1HBFrq; LNB1Loop; LNB1Unused1; LNB1Unused2; LNB1Unused3; LNB1Unused4; LNB1Unused5; LNB2Supply; LNB2DiSEqC10; LNB2DiSEqC11; LNB2DiSeqC12; LNB2DiSEqC12Flags; LNB2Universal; LNB2Switch22; LNB2LowBand; LNB2HBFrq; LNB2Loop; LNB2Unused1; LNB2Unused2; LNB2Unused3; LNB2Unused4; LNB2Unused5; Unused1; Unknown1; Unused2" CRLF) > 0) && ret;
+      ret = (fprintf(fExportFile, "#  ;                 ;       ;      ;    Supply;;      DiSEqC10;;    DiSEqC11;;    DiSeqC12;;    DiSEqC12Flags;;      Universal;;    Switch22;;     LowBand;;        HBFrq;;    LoopThrough;;   Unused1;;     Unused2;;     Unused3;;     Unused4;;                    Unused5;;                ;                                                                   ;" CRLF) > 0) && ret;
+      ret = (fprintf(fExportFile, "#Nr; SatName         ; SatPos; NrTps;   LNB1; LNB2;   LNB1; LNB2;   LNB1; LNB2;   LNB1; LNB2;      LNB1; LNB2;       LNB1;  LNB2;   LNB1;  LNB2;   LNB1;  LNB2;   LNB1;  LNB2;   LNB1; LNB2;   LNB1; LNB2;   LNB1; LNB2;   LNB1; LNB2;   LNB1; LNB2;             LNB1;           LNB2;   Unused1;  Unknown1                                                         ;  Unused2" CRLF) > 0) && ret;
 
       FileHeader.NrSatellites = FlashSatTablesGetTotal();
       for(i = 0; i < FileHeader.NrSatellites; i++)
       {
         if (FlashSatTablesGetInfo(i, &CurSat))
         {
-          // Nr; SatName; SatPosition; NrTransponders; Unused1; Unknown1; Unused2
+          // Nr; SatName; SatPosition; NrTransponders;
+          ret = (fprintf(fExportFile, "%3d; %-16s;  %5hu; %5hu;   ",
+                                       i, CurSat.SatName, CurSat.SatPosition, CurSat.NrOfTransponders) > 0) && ret;
+/*          for (j = 0; j <= 1; j++)
+          {
+            // LNBxSupply; LNBxDiSEqC10; LNBxDiSEqC11; LNBxDiSeqC12; LNBxDiSEqC12Flags; LNBxUniversal; LNBxSwitch22; LNBxLowBand; LNBxHBFrq; LNBxLoop; LNBxUnused1; LNBxUnused2; LNBxUnused3; LNBxUnused4; LNBxUnused5;
+            ByteArrToStr(StringBuf1, CurSat.LNB[j].DiSEqC12Flags, sizeof(CurSat.LNB[j].DiSEqC12Flags));
+            ByteArrToStr(StringBuf2, CurSat.LNB[j].unused5, sizeof(CurSat.LNB[j].unused5));
+            ret = (fprintf(fExportFile, "%3hhu; %3hhu; %3hhu; %3hhu; %s; %5hu; %5hu; %5hu; %5hu; %3hhu; %#4x; %#4x; %#4x; %#4x; %s; ",
+                                         CurSat.LNB[j].LNBSupply, CurSat.LNB[j].DiSEqC10, CurSat.LNB[j].DiSEqC11, CurSat.LNB[j].DiSEqC12, StringBuf1, CurSat.LNB[j].UniversalLNB, CurSat.LNB[j].Switch22, CurSat.LNB[j].LowBand, CurSat.LNB[j].HBFrq, CurSat.LNB[j].LoopThrough, CurSat.LNB[j].unused1, CurSat.LNB[j].unused2, CurSat.LNB[j].unused3, CurSat.LNB[j].unused4, StringBuf2) > 0) && ret;
+          } */
+
+          // LNBxSupply; LNBxDiSEqC10; LNBxDiSEqC11; LNBxDiSeqC12; LNBxDiSEqC12Flags; LNBxUniversal; LNBxSwitch22; LNBxLowBand; LNBxHBFrq; LNBxLoop
+          ByteArrToStr(StringBuf1, CurSat.LNB[0].DiSEqC12Flags, sizeof(CurSat.LNB[0].DiSEqC12Flags));
+          ByteArrToStr(StringBuf2, CurSat.LNB[1].DiSEqC12Flags, sizeof(CurSat.LNB[1].DiSEqC12Flags));
+          ret = (fprintf(fExportFile, "%3hhu;  %3hhu;    %3hhu;  %3hhu;    %3hhu;  %3hhu;    %3hhu;  %3hhu;   %s; %s;  %5hu; %5hu;  %5hu; %5hu;  %5hu; %5hu;  %5hu; %5hu;   %3hhu;  %3hhu;    ",
+                                       CurSat.LNB[0].LNBSupply, CurSat.LNB[1].LNBSupply,  CurSat.LNB[0].DiSEqC10, CurSat.LNB[1].DiSEqC10,  CurSat.LNB[0].DiSEqC11, CurSat.LNB[1].DiSEqC11,  CurSat.LNB[0].DiSEqC12, CurSat.LNB[1].DiSEqC12,  StringBuf1, StringBuf2,  CurSat.LNB[0].UniversalLNB, CurSat.LNB[1].UniversalLNB,  CurSat.LNB[0].Switch22, CurSat.LNB[1].Switch22,  CurSat.LNB[0].LowBand, CurSat.LNB[1].LowBand,  CurSat.LNB[0].HBFrq, CurSat.LNB[1].HBFrq,  CurSat.LNB[0].LoopThrough, CurSat.LNB[1].LoopThrough) > 0) && ret;
+
+          // LNBxUnused1; LNBxUnused2; LNBxUnused3; LNBxUnused4; LNBxUnused5;
+          ByteArrToStr(StringBuf1, CurSat.LNB[0].unused5, sizeof(CurSat.LNB[0].unused5));
+          ByteArrToStr(StringBuf2, CurSat.LNB[1].unused5, sizeof(CurSat.LNB[1].unused5));
+          ret = (fprintf(fExportFile, "%#4x; %#4x;   %#4x; %#4x;   %#4x; %#4x;   %#4x; %#4x;   %s; %s;    ",
+                                       CurSat.LNB[0].unused1, CurSat.LNB[1].unused1,  CurSat.LNB[0].unused2, CurSat.LNB[1].unused2,  CurSat.LNB[0].unused3, CurSat.LNB[1].unused3,  CurSat.LNB[0].unused4, CurSat.LNB[1].unused4,  StringBuf1, StringBuf2) > 0) && ret;
+
+          // Unused1; Unknown1; Unused2
           ByteArrToStr(StringBuf1, CurSat.unknown1, sizeof(CurSat.unknown1));
           ByteArrToStr(StringBuf2, CurSat.unused2, sizeof(CurSat.unused2));
-          ret = (fprintf(fExportFile, "%3d; %16s; %5hu; %5hu; %#x; %s; %s; ",
-                                       i, CurSat.SatName, CurSat.SatPosition, CurSat.NrOfTransponders, CurSat.unused1, StringBuf1, StringBuf2) > 0) && ret;
-          // LNB1Supply; LNB1DiSEqC10; LNB1DiSEqC11; LNB1DiSeqC12; LNB1DiSEqC12Flags; LNB1Universal; LNB1Switch22; LNB1LowBand; LNB1HBFrq; LNB1Loop; LNB1Unknown1; LNB1Unknown2; LNB1Unknown3; LNB1Unknown4; LNB1Unknown5
-          ByteArrToStr(StringBuf1, CurSat.LNB[0].DiSEqC12Flags, sizeof(CurSat.LNB[0].DiSEqC12Flags));
-          ByteArrToStr(StringBuf2, CurSat.LNB[0].unused5, sizeof(CurSat.LNB[0].unused5));
-          ret = (fprintf(fExportFile, "%3hhu; %3hhu; %3hhu; %3hhu; %s; %5hu; %5hu; %5hu; %5hu; %3hhu; %#04x; %#04x; %#04x; %#04x; %s; ",
-                                       CurSat.LNB[0].LNBSupply, CurSat.LNB[0].DiSEqC10, CurSat.LNB[0].DiSEqC11, CurSat.LNB[0].DiSEqC12, StringBuf1, CurSat.LNB[0].UniversalLNB, CurSat.LNB[0].Switch22, CurSat.LNB[0].LowBand, CurSat.LNB[0].HBFrq, CurSat.LNB[0].LoopThrough, CurSat.LNB[0].unused1, CurSat.LNB[0].unused2, CurSat.LNB[0].unused3, CurSat.LNB[0].unused4, StringBuf2) > 0) && ret;
-          // LNB2Supply; LNB2DiSEqC10; LNB2DiSEqC11; LNB2DiSeqC12; LNB2DiSEqC12Flags; LNB2Universal; LNB2Switch22; LNB2LowBand; LNB2HBFrq; LNB2Loop; LNB2Unknown1; LNB2Unknown2; LNB2Unknown3; LNB2Unknown4; LNB2Unknown5
-          ByteArrToStr(StringBuf1, CurSat.LNB[1].DiSEqC12Flags, sizeof(CurSat.LNB[1].DiSEqC12Flags));
-          ByteArrToStr(StringBuf2, CurSat.LNB[1].unused5, sizeof(CurSat.LNB[1].unused5));
-          ret = (fprintf(fExportFile, "%3hhu; %3hhu; %3hhu; %3hhu; %s; %5hu; %5hu; %5hu; %5hu; %3hhu; %#04x; %#04x; %#04x; %#04x; %s" CRLF,
-                                       CurSat.LNB[1].LNBSupply, CurSat.LNB[1].DiSEqC10, CurSat.LNB[1].DiSEqC11, CurSat.LNB[1].DiSEqC12, StringBuf2, CurSat.LNB[1].UniversalLNB, CurSat.LNB[1].Switch22, CurSat.LNB[1].LowBand, CurSat.LNB[1].HBFrq, CurSat.LNB[1].LoopThrough, CurSat.LNB[1].unused1, CurSat.LNB[1].unused2, CurSat.LNB[1].unused3, CurSat.LNB[1].unused4, StringBuf2) > 0) && ret;
+          ret = (fprintf(fExportFile, "%#6x;  %s;  %s" CRLF,
+                                       CurSat.unused1, StringBuf1, StringBuf2) > 0) && ret;
         }
         else
           TAP_PrintNet("Failed to decode sat %d!\n", i);
       }
       fprintf(fExportFile, CRLF);
     }
-    TAP_PrintNet((ret) ? "Satellites ok\n" : "Satellites Fehler\n");
+    TAP_PrintNet((ret) ? "%d Satellites exportiert.\n" : "Satellites Fehler!\n", i);
 
     //[Transponders]
-    //#Nr; SatIdx; Frequency; SymbRate; Channel; BW; TSID; ONWID; NWID; Pilot; FEC; Modulation; System; Pol; LPHP; ClockSync; Unknown1; Unknown2; Unknown3; Unknown4
-    // 1;  1;      10729;     22000;    0;       0;  1050; 1;     0;    N;     2/3; 8PSK;       DVBS2;  V;   0;    N
+    //# Nr; SatIdx;  Frequency; SymbRate; Channel;  BW;  TSID;  ONWID;   NWID; Pilot;      FEC; Modulation; System; Pol; LPHP; ClockSync; Unknown1; Unknown2; Unknown3; Unknown4
+    //   0;      1;      10729;    22000;       0;   0;  1050;    0x1;      0;     n;      2/3;       8PSK;  DVBS2;   V;    0;         n;        0;        0;        0;        0
     {
       tFlashTransponderTable CurTransponder;
       int                    NrTransponders;
       char                   StringBuf1[10], StringBuf2[10];
 
       ret = (fprintf(fExportFile, "[Transponders]" CRLF)             > 0) && ret;
-      ret = (fprintf(fExportFile, "#Nr; SatIdx; Frequency; SymbRate; Channel; BW; TSID; ONWID; NWID; Pilot; FEC; Modulation; System; Pol; LPHP; ClockSync; Unknown1; Unknown2; Unknown3; Unknown4" CRLF) > 0) && ret;
-
       for(i = 0; i < FileHeader.NrSatellites; i++)
       {
+        ret = (fprintf(fExportFile, "# Nr; SatIdx;  Frequency; SymbRate; Channel;  BW;  TSID;  ONWID;   NWID; Pilot;      FEC; Modulation; System; Pol; LPHP; ClockSync; Unknown1; Unknown2; Unknown3; Unknown4" CRLF) > 0) && ret;
         NrTransponders = FlashTransponderTablesGetTotal(i);
         FileHeader.NrTransponders += NrTransponders;
         for(j = 0; j < NrTransponders; j++)
         {
           if (FlashTransponderTablesGetInfo(i, j, &CurTransponder))
           {
-            // Nr; SatIdx; Frequency; SymbRate; Channel; BW; TSID; ONWID; NWID
-            ret = (fprintf(fExportFile, "%4d; %3hhu; %10lu; %5hu; %3hhu; %3hhu; %5hu; %#06x; %#06x; ",
-                                         j, CurTransponder.SatIndex, CurTransponder.Frequency, CurTransponder.SymbolRate, CurTransponder.ChannelNr, CurTransponder.Bandwidth, CurTransponder.TSID, CurTransponder.OriginalNetworkID, CurTransponder.NetworkID) > 0) && ret;
-            // Pilot; FEC; Modulation; System
-            ret = (fprintf(fExportFile, "%c; %8s; %8s; ",
-                                         BoolToChar(CurTransponder.Pilot), FECtoStr(StringBuf1, CurTransponder.FEC), ModulationToStr(StringBuf2, CurTransponder.Modulation)) > 0) && ret;
-            // Pol; LPHP; ClockSync
-            ret = (fprintf(fExportFile, "%5s; %c; %3hhu; %c; ",
-                                         (CurTransponder.ModSystem ? "DVBS2" : "DVBS"), (CurTransponder.Polarisation ? 'H' : 'V'), CurTransponder.LPHP, BoolToChar(CurTransponder.ClockSync)) > 0) && ret;
-            // Unknown1; Unknown2; Unknown3; Unknown4
-            ret = (fprintf(fExportFile, "%#06x; %#06x; %#04x; %#04X" CRLF,
+            ret = (fprintf(fExportFile, "%4d;    %3hhu; %10lu;    %5hu;     %3hhu; %3hhu; %5hu; %#6x; %#6x;     "  // Nr; SatIdx; Frequency; SymbRate; Channel; BW; TSID; ONWID; NWID
+                                        "%c; %8s;   %8s;  "                                                        // Pilot; FEC; Modulation
+                                        "%5s;   %c;  %3hhu;         %c;   "                                        // System; Pol; LPHP; ClockSync
+                                        "%#6x;   %#6x;     %#4x;     %#6x" CRLF,                                   // Unknown1; Unknown2; Unknown3; Unknown4
+                                         j, CurTransponder.SatIndex, CurTransponder.Frequency, CurTransponder.SymbolRate, CurTransponder.ChannelNr, CurTransponder.Bandwidth, CurTransponder.TSID, CurTransponder.OriginalNetworkID, CurTransponder.NetworkID,
+                                         BoolToChar(CurTransponder.Pilot), FECtoStr(StringBuf1, CurTransponder.FEC), ModulationToStr(StringBuf2, CurTransponder.Modulation),
+                                         (CurTransponder.ModSystem ? "DVBS2" : "DVBS"), (CurTransponder.Polarisation ? 'H' : 'V'), CurTransponder.LPHP, BoolToChar(CurTransponder.ClockSync),
                                          CurTransponder.unused1, CurTransponder.unused2, CurTransponder.unused3, CurTransponder.unused4) > 0) && ret;
           }
           else
@@ -913,77 +776,47 @@ bool ExportSettings_Text(void)
         fprintf(fExportFile, CRLF);
       }
     }
-    TAP_PrintNet((ret) ? "Transponders ok\n" : "Transponders Fehler\n");
+    TAP_PrintNet((ret) ? "%d Transponders exportiert.\n" : "Transponders Fehler!\n", FileHeader.NrTransponders);
 
-    //[TVServices]
-    //#Nr; SatIndex; TransponderIndex; ServiceName; ProviderName; Tuner; VideoStreamType; AudioStreamType; ServiceID; PMTPID; PCRPID; VideoPID; AudioPID; LCN; FlagDelete; FlagCAS; FlagLock; FlagSkip; NameLock; Flags2; Unknown2
+    //[Services]
+    //# Nr; ServiceName            ; SatIdx; TrpIdx; Tuner; VideoType; AudioType;  SvcID; PMTPID; PCRPID; VidPID; AudPID;   LCN; FDel; FCAS; FLock; FSkip; NameLck; Flags2; Unknown2;           ProviderName
+    //   0; Das Erste              ;      1;     44;     3;     MPEG2;     MPEG1;  28106;    100;    101;    101;  32870;     0;    n;    n;     n;     n;       n;    0x1; 00 00 00 00 DC DD;  ARD
+    for (j = 0; j <= 1; j++)
     {
       tFlashService          CurService;
-      char                   StringBuf1[20], StringBuf2[20];
+      char                  *CurSvcType;
+      char                   StringBuf1[20], StringBuf2[20], StringBuf3[20];
 
-      ret = (fprintf(fExportFile, "[TVServices]" CRLF)                   > 0) && ret;
-      ret = (fprintf(fExportFile, "#Nr; SatIndex; TransponderIndex; ServiceName; ProviderName; Tuner; VideoStreamType; AudioStreamType; ServiceID; PMTPID; PCRPID; VideoPID; AudioPID; LCN; FlagDelete; FlagCAS; FlagLock; FlagSkip; NameLock; Flags2; Unknown2" CRLF) > 0) && ret;
+      CurSvcType = (j == 0) ? "TV" : "Radio";
+      ret = (fprintf(fExportFile, "[%sServices]" CRLF, CurSvcType)       > 0) && ret;
+      ret = (fprintf(fExportFile, "# Nr; ServiceName            ; SatIdx; TrpIdx; Tuner; VideoType; AudioType;  SvcID; PMTPID; PCRPID; VidPID; AudPID;   LCN; FDel; FCAS; FLock; FSkip; NameLck; Flags2;          Unknown2;  ProviderName" CRLF) > 0) && ret;
 
-      for(i = 0; i < FileHeader.NrTVServices; i++)
+      for(i = 0; i < ((j == 0) ? FileHeader.NrTVServices : FileHeader.NrRadioServices); i++)
       {
-        if (FlashServiceGetInfo(SVC_TYPE_Tv, i, &CurService))
+        if (FlashServiceGetInfo(((j == 0) ? SVC_TYPE_Tv : SVC_TYPE_Radio), i, &CurService))
         {
-          // Nr; SatIndex; TransponderIndex; ServiceName; ProviderName; Tuner
-          ret = (fprintf(fExportFile, "%4d; %3hhu; %5hu; %23.23s; %40.40s; %3hhu; ",
-                                       i, CurService.SatIndex, CurService.TransponderIndex, CurService.ServiceName, CurService.ProviderName, CurService.Tuner) > 0) && ret;
-          // VideoStreamType; AudioStreamType; ServiceID; PMTPID; PCRPID; VideoPID; AudioPID
-          ret = (fprintf(fExportFile, "%8s; %8s; %#6x; %#6x; %#6x; %#6x; %#6x; ",
-                                       VideoTypeToStr(StringBuf1, CurService.VideoStreamType), AudioTypeToStr(StringBuf2, CurService.AudioStreamType), CurService.ServiceID, CurService.PMTPID, CurService.PCRPID, CurService.VideoPID, CurService.AudioPID) > 0) && ret;
-          // LCN; FlagDelete; FlagCAS; FlagLock; FlagSkip; NameLock; Flags2; Unknown2
-          ByteArrToStr(StringBuf1, CurService.unknown2, sizeof(CurService.unknown2));
-          ret = (fprintf(fExportFile, "%5hu; %c; %c; %c; %c; %c; %#6x; %s" CRLF,
-                                       CurService.LCN, BoolToChar(CurService.FlagDelete), BoolToChar(CurService.FlagCAS), BoolToChar(CurService.FlagLock), BoolToChar(CurService.FlagSkip), BoolToChar(CurService.NameLock), CurService.Flags2, StringBuf1) > 0) && ret;
+          ByteArrToStr(StringBuf3, CurService.unknown2, sizeof(CurService.unknown2));
+          ret = (fprintf(fExportFile, "%4d; %-23s;    %3hhu;  %5hu;   %3hhu;  "                                    // Nr; ServiceName; SatIndex; TransponderIndex; Tuner;
+                                      "%8s;  %8s;  %5hu;  %5hu;  %5hu;  %5hu;  %5hu; "                             // VideoStreamType; AudioStreamType; ServiceID; PMTPID; PCRPID; VideoPID; AudioPID;
+                                      "%5hu;    %c;    %c;     %c;     %c;       %c; %#6x; %s;  %s" CRLF,          // LCN; FlagDelete; FlagCAS; FlagLock; FlagSkip; NameLock; Flags2; Unknown2; ProviderName
+                                       i, CurService.ServiceName, CurService.SatIndex, CurService.TransponderIndex, CurService.Tuner,
+                                       VideoTypeToStr(StringBuf1, CurService.VideoStreamType), AudioTypeToStr(StringBuf2, CurService.AudioStreamType), CurService.ServiceID, CurService.PMTPID, CurService.PCRPID, CurService.VideoPID, CurService.AudioPID,
+                                       CurService.LCN, BoolToChar(CurService.FlagDelete), BoolToChar(CurService.FlagCAS), BoolToChar(CurService.FlagLock), BoolToChar(CurService.FlagSkip), BoolToChar(CurService.NameLock), CurService.Flags2, StringBuf3, CurService.ProviderName) > 0) && ret;
         }
         else
-          TAP_PrintNet("Failed to decode TV service %d!\n", i);
+          TAP_PrintNet("Failed to decode %s service %d!\n", CurSvcType, i);
       }
       fprintf(fExportFile, CRLF);
+      TAP_PrintNet((ret) ? "%d %sServices exportiert.\n" : "%d %sServices Fehler!\n", i, CurSvcType);
     }
-    TAP_PrintNet((ret) ? "TVServices ok\n" : "TVServices Fehler\n");
-
-    //[RadioServices]
-    //#Nr; SatIndex; TransponderIndex; ServiceName; ProviderName; Tuner; VideoStreamType; AudioStreamType; ServiceID; PMTPID; PCRPID; VideoPID; AudioPID; LCN; FlagDelete; FlagCAS; FlagLock; FlagSkip; NameLock; Flags2; Unknown2
-    {
-      tFlashService          CurService;
-      char                   StringBuf1[20], StringBuf2[20];
-
-      ret = (fprintf(fExportFile, "[RadioServices]" CRLF)                > 0) && ret;
-      ret = (fprintf(fExportFile, "#Nr; SatIndex; TransponderIndex; ServiceName; ProviderName; Tuner; VideoStreamType; AudioStreamType; ServiceID; PMTPID; PCRPID; VideoPID; AudioPID; LCN; FlagDelete; FlagCAS; FlagLock; FlagSkip; NameLock; Flags2; Unknown2" CRLF) > 0) && ret;
-
-      for(i = 0; i < FileHeader.NrRadioServices; i++)
-      {
-        if (FlashServiceGetInfo(SVC_TYPE_Radio, i, &CurService))
-        {
-          // Nr; SatIndex; TransponderIndex; ServiceName; ProviderName; Tuner
-          ret = (fprintf(fExportFile, "%4d; %3hhu; %5hu; %23.23s; %40.40s; %3hhu; ",
-                                       i, CurService.SatIndex, CurService.TransponderIndex, CurService.ServiceName, CurService.ProviderName, CurService.Tuner) > 0) && ret;
-          // VideoStreamType; AudioStreamType; ServiceID; PMTPID; PCRPID; VideoPID; AudioPID
-          ret = (fprintf(fExportFile, "%8s; %8s; %#6x; %#6x; %#6x; %#6x; %#6x; ",
-                                       VideoTypeToStr(StringBuf1, CurService.VideoStreamType), AudioTypeToStr(StringBuf2, CurService.AudioStreamType), CurService.ServiceID, CurService.PMTPID, CurService.PCRPID, CurService.VideoPID, CurService.AudioPID) > 0) && ret;
-          // LCN; FlagDelete; FlagCAS; FlagLock; FlagSkip; NameLock; Flags2; Unknown2
-          ByteArrToStr(StringBuf1, CurService.unknown2, sizeof(CurService.unknown2));
-          ret = (fprintf(fExportFile, "%5hu; %c; %c; %c; %c; %c; %#6x; %s" CRLF,
-                                       CurService.LCN, BoolToChar(CurService.FlagDelete), BoolToChar(CurService.FlagCAS), BoolToChar(CurService.FlagLock), BoolToChar(CurService.FlagSkip), BoolToChar(CurService.NameLock), CurService.Flags2, StringBuf1) > 0) && ret;
-        }
-        else
-          TAP_PrintNet("Failed to decode Radio service %d!\n", i);
-      }
-      fprintf(fExportFile, CRLF);
-    }
-    TAP_PrintNet((ret) ? "RadioServices ok\n" : "RadioServices Fehler\n");
 
     //[Favorites]
-    // GroupName // SvcNums // SvcTypes // NrEntries // unused1
+    // GroupName = T/R, SvcNums
     {
       tFavorites             CurFavGroup;
 
       ret = (fprintf(fExportFile, "[Favorites]" CRLF)                   > 0) && ret;
-      ret = (fprintf(fExportFile, "#GroupName // SvcNums // SvcTypes // unused1" CRLF) > 0) && ret;
+      ret = (fprintf(fExportFile, "#GroupName = T/R, SvcNums" CRLF)     > 0) && ret;
 
       FileHeader.NrFavGroups = NrFavGroups;
       FileHeader.NrSvcsPerFavGroup = NrFavsPerGroup;
@@ -991,12 +824,13 @@ bool ExportSettings_Text(void)
       {
         if (FlashFavoritesGetInfo(i, &CurFavGroup))
         {
-          ret = (fprintf(fExportFile, "%s" CRLF, CurFavGroup.GroupName) > 0) && ret;
+          ret = (fprintf(fExportFile, "%s = %c" , CurFavGroup.GroupName, ((CurFavGroup.SvcType[0]==0) ? 'T' : 'R')) > 0) && ret;
           for (j = 0; j < CurFavGroup.NrEntries; j++)
-            ret = (fprintf(fExportFile, (j > 0) ? ", %hu" : "%hu", CurFavGroup.SvcNum[j]) > 0) && ret;
-          for (j = 0; j < CurFavGroup.NrEntries; j++)
-            ret = (fprintf(fExportFile, (j > 0) ? ", %hhu": CRLF "%hhu", CurFavGroup.SvcType[j]) > 0) && ret;
-          ret = (fprintf(fExportFile, CRLF "%#01X" CRLF CRLF, CurFavGroup.unused1) > 0) && ret;
+            ret = (fprintf(fExportFile, ", %hu", CurFavGroup.SvcNum[j]) > 0) && ret;
+//          for (j = 0; j < CurFavGroup.NrEntries; j++)
+//            ret = (fprintf(fExportFile, (j > 0) ? ", %hhu": CRLF "%hhu", CurFavGroup.SvcType[j]) > 0) && ret;
+//          ret = (fprintf(fExportFile, CRLF "%#01X" CRLF CRLF, CurFavGroup.unused1) > 0) && ret;
+          ret = (fprintf(fExportFile, CRLF)                             > 0) && ret;
         }
 //        else
 //          TAP_PrintNet("Failed to decode favorite group %d!\n", i);
@@ -1008,7 +842,7 @@ bool ExportSettings_Text(void)
     FileSize = ftell(fExportFile);
     fclose(fExportFile);
 
-    fExportFile = fopen(TAPFSROOT "/" EXPORTFILENAME, "r+");
+    fExportFile = fopen(TAPFSROOT "/" EXPORTFILENAME ".txt", "r+");
     if(fExportFile)
     {
       fseek(fExportFile, FileSizePos, SEEK_SET);
@@ -1020,7 +854,358 @@ bool ExportSettings_Text(void)
     TAP_PrintNet("Datei nicht gefunden\n");
 
   if (!ret)
-    if(TAP_Hdd_Exist(EXPORTFILENAME)) TAP_Hdd_Delete(EXPORTFILENAME);
+    if(TAP_Hdd_Exist(EXPORTFILENAME ".txt")) TAP_Hdd_Delete(EXPORTFILENAME ".txt");
+  TAP_PrintNet((ret) ? "Export erfolgreich\n" : "Export fehlgeschlagen\n");
+  TRACEEXIT();
+  return ret;
+}
+
+
+bool ImportSettings_Text(void)
+{
+  tExportHeader         FileHeader;
+  FILE                 *fImportFile = NULL;
+  unsigned long         fs;
+  char                  Buffer[512];
+  int                   i, j;
+  bool                  ret = FALSE;
+
+  TRACEENTER();
+  TAP_PrintNet("Starte Text Import...\n");
+
+  fImportFile = fopen(TAPFSROOT "/" EXPORTFILENAME ".txt", "r");
+  if(fImportFile)
+  {
+    ret = TRUE;
+
+    // Dateigröße bestimmen
+    fseek(fImportFile, 0, SEEK_END);
+    fs = ftell(fImportFile);
+    rewind(fImportFile);
+
+	// Header prüfen
+/*    ret = (fprintf(fExportFile, "[ChannelListSaver]" CRLF)               > 0) && ret;
+    ret = (fprintf(fExportFile, "FileVersion=%d" CRLF,  2)               > 0) && ret;
+    FileSizePos = ftell(fExportFile);
+    ret = (fprintf(fExportFile, "FileSize=%010d" CRLF,  0)               > 0) && ret;
+    ret = (fprintf(fExportFile, "SystemType=%d" CRLF,   GetSystemType()) > 0) && ret;
+    ret = (fprintf(fExportFile, "UTF8System=%d" CRLF,   isUTFToppy())    > 0) && ret;
+    fprintf(fExportFile, CRLF);
+    TAP_Channel_GetTotalNum(&FileHeader.NrTVServices, &FileHeader.NrRadioServices);
+*/
+
+
+    //[Satellites]
+    //#  ;                 ;       ;      ;    Supply;;      DiSEqC10;;    DiSEqC11;;    DiSeqC12;;    DiSEqC12Flags;;      Universal;;    Switch22;;     LowBand;;        HBFrq;;        Loop;;       Unused1;;     Unused2;;     Unused3;;     Unused4;;                   Unused5;;                ;                                                                   ;
+    //#Nr; SatName         ; SatPos; NrTps;   LNB1; LNB2;   LNB1; LNB2;   LNB1; LNB2;   LNB1; LNB2;      LNB1; LNB2;       LNB1;  LNB2;   LNB1;  LNB2;   LNB1;  LNB2;   LNB1;  LNB2;   LNB1; LNB2;   LNB1; LNB2;   LNB1; LNB2;   LNB1; LNB2;   LNB1; LNB2;             LNB1;           LNB2;   Unused1;  Unknown1                                                         ;  Unused2
+    //  1; Astra           ;    192;   136;     1;    1;      0;    0;      0;    0;      4;    4;   FE 7F 7F; FE 7F 7F;      1;     1;      0;     0;   9750;  9750;  10600; 10600;     1;    1;       0;    0;      0;    0;      0;    0;      0;    0;   FE 40 43 FF FF; FE 40 43 FF FF;    0xffff;  FF FF FF FF 01 01 00 01 00 00 00 00 B2 2E 02 04 6E 00 78 00 6E 00;  FF FF FF FF FF FF FF FF
+    {
+      tFlashSatTable         CurSat;
+      char                   StringBuf1[100], StringBuf2[100];
+
+      for(i = 0; i < FileHeader.NrSatellites; i++)
+      {
+        memset(&CurSat, 0, sizeof(CurSat));
+        if (FlashSatTablesGetInfo(i, &CurSat))
+        {
+          // Nr; SatName; SatPosition; NrTransponders;
+          ret = (sscanf(Buffer, "%i ; %16[^;\r\n] ; %hi ; %hi ; ",
+                                 &i, CurSat.SatName, &CurSat.SatPosition, &CurSat.NrOfTransponders) > 0) && ret;
+          RTrim(CurSat.SatName);
+
+          // LNBxSupply; LNBxDiSEqC10; LNBxDiSEqC11; LNBxDiSeqC12; LNBxDiSEqC12Flags; LNBxUniversal; LNBxSwitch22; LNBxLowBand; LNBxHBFrq; LNBxLoop
+          ret = (sscanf(Buffer, "%hhi ; %hhi ;  %hhi ; %hhi ;  %hhi ; %hhi ;  %hhi ; %hhi ;  %100[^;\r\n] ; %100[^;\r\n] ;  %hi ; %hi ;  %hi ; %hi ;  %hi ; %hi ;  %hi ; %hi ;  %hhi ; %hhi ; ",
+                                 &CurSat.LNB[0].LNBSupply, &CurSat.LNB[1].LNBSupply,  &CurSat.LNB[0].DiSEqC10, &CurSat.LNB[1].DiSEqC10,  &CurSat.LNB[0].DiSEqC11, &CurSat.LNB[1].DiSEqC11,  &CurSat.LNB[0].DiSEqC12, &CurSat.LNB[1].DiSEqC12,  StringBuf1, StringBuf2,  &CurSat.LNB[0].UniversalLNB, &CurSat.LNB[1].UniversalLNB,  &CurSat.LNB[0].Switch22, &CurSat.LNB[1].Switch22,  &CurSat.LNB[0].LowBand, &CurSat.LNB[1].LowBand,  &CurSat.LNB[0].HBFrq, &CurSat.LNB[1].HBFrq,  &CurSat.LNB[0].LoopThrough, &CurSat.LNB[1].LoopThrough) > 0) && ret;
+          StrToByteArr(&CurSat.LNB[0].DiSEqC12Flags, StringBuf1, sizeof(CurSat.LNB[0].DiSEqC12Flags));
+          StrToByteArr(&CurSat.LNB[1].DiSEqC12Flags, StringBuf2, sizeof(CurSat.LNB[1].DiSEqC12Flags));
+
+          // LNBxUnused1; LNBxUnused2; LNBxUnused3; LNBxUnused4; LNBxUnused5;
+          ret = (sscanf(Buffer, "%hhi ; %hhi ;  %hhi ; %hhi ;  %hhi ; %hhi ;  %hhi ; %hhi ;  %100[^;\r\n] ; %100[^;\r\n] ; ",
+                                 &CurSat.LNB[0].unused1, &CurSat.LNB[1].unused1,  &CurSat.LNB[0].unused2, CurSat.LNB[1].unused2,  &CurSat.LNB[0].unused3, &CurSat.LNB[1].unused3,  &CurSat.LNB[0].unused4, &CurSat.LNB[1].unused4,  StringBuf1, StringBuf2) > 0) && ret;
+          StrToByteArr(&CurSat.LNB[0].unused5, StringBuf1, sizeof(CurSat.LNB[0].unused5));
+          StrToByteArr(&CurSat.LNB[1].unused5, StringBuf2, sizeof(CurSat.LNB[1].unused5));
+
+          // Unused1; Unknown1; Unused2
+          ret = (sscanf(Buffer, "%hi ; %100[^;\r\n] ; %100[^;\r\n]" CRLF,
+                                 &CurSat.unused1, StringBuf1, StringBuf2) > 0) && ret;
+          StrToByteArr(&CurSat.unknown1, StringBuf1, sizeof(CurSat.unknown1));
+          StrToByteArr(&CurSat.unused2, StringBuf2, sizeof(CurSat.unused2));
+        }
+        else
+          TAP_PrintNet("Failed to encode sat %d!\n", i);
+      }
+    }
+    TAP_PrintNet((ret) ? "%d Satellites importiert.\n" : "Satellites Fehler!\n", i);
+
+    //[Transponders]
+    //# Nr; SatIdx;  Frequency; SymbRate; Channel;  BW;  TSID;  ONWID;   NWID; Pilot;      FEC; Modulation; System; Pol; LPHP; ClockSync; Unknown1; Unknown2; Unknown3; Unknown4
+    //   0;      1;      10729;    22000;       0;   0;  1050;    0x1;      0;     n;      2/3;       8PSK;  DVBS2;   V;    0;         n;        0;        0;        0;        0
+    {
+      tFlashTransponderTable CurTransponder;
+      int                    NrTransponders;
+      char                   StringBuf1[10], StringBuf2[10], StringBuf3[10];
+
+      for(i = 0; i < FileHeader.NrSatellites; i++)
+      {
+        for(j = 0; j < NrTransponders; j++)
+        {
+          memset(&CurTransponder, 0, sizeof(CurTransponder));
+          if (FlashTransponderTablesGetInfo(i, j, &CurTransponder))
+          {
+            char CharPilot, CharPolarisation, CharClockSync;
+
+            ret = (sscanf(Buffer, "%i ; %hhi ; %li ; %hi ; %hhi ; %hhi ; %hi ; %hi ; %hi ; "       // Nr; SatIdx; Frequency; SymbRate; Channel; BW; TSID; ONWID; NWID
+                                  "%c ; %8[^;\r\n] ; %8[^;\r\n] ; "                                // Pilot; FEC; Modulation
+                                  "%6[^;\r\n] ; %c ; %hhi ; %c ; "                                 // System; Pol; LPHP; ClockSync
+                                  "%hi ; %hi ; %hhi ; %hi",                                        // Unknown1; Unknown2; Unknown3; Unknown4
+                                   &j, &CurTransponder.SatIndex, &CurTransponder.Frequency, &CurTransponder.SymbolRate, &CurTransponder.ChannelNr, &CurTransponder.Bandwidth, &CurTransponder.TSID, &CurTransponder.OriginalNetworkID, &CurTransponder.NetworkID,
+                                   &CharPilot, StringBuf1, StringBuf2,
+                                   StringBuf3, &CharPolarisation, &CurTransponder.LPHP, &CharClockSync,
+                                   &CurTransponder.unused1, &CurTransponder.unused2, &CurTransponder.unused3, &CurTransponder.unused4) > 0) && ret;
+            CurTransponder.Pilot = CharToBool(CharPilot);
+            CurTransponder.FEC = StrToFEC(StringBuf1);
+            CurTransponder.Modulation = StrToModulation(StringBuf2);
+            if (strncmp(StringBuf3, "DVBS2", 5))
+              CurTransponder.ModSystem = 1;
+            if (CharPolarisation == 'H')
+              CurTransponder.Polarisation = 1;
+            CurTransponder.ClockSync = CharToBool(CharClockSync);
+          }
+          else
+            TAP_PrintNet("Failed to encode transponder %d!\n", j);
+        }
+      }
+    }
+    TAP_PrintNet((ret) ? "%d Transponders importiert.\n" : "Transponders Fehler!\n", FileHeader.NrTransponders);
+
+    //[Services]
+    //# Nr; ServiceName            ; SatIdx; TrpIdx; Tuner; VideoType; AudioType;  SvcID; PMTPID; PCRPID; VidPID; AudPID;   LCN; FDel; FCAS; FLock; FSkip; NameLck; Flags2; Unknown2;           ProviderName
+    //   0; Das Erste              ;      1;     44;     3;     MPEG2;     MPEG1;  28106;    100;    101;    101;  32870;     0;    n;    n;     n;     n;       n;    0x1; 00 00 00 00 DC DD;  ARD
+    for (j = 0; j <= 1; j++)
+    {
+      tFlashService          CurService;
+      char                  *CurSvcType;
+      char                   StringBuf1[20], StringBuf2[20], StringBuf3[20];
+
+      CurSvcType = (j == 0) ? "TV" : "Radio";
+
+      for(i = 0; i < ((j == 0) ? FileHeader.NrTVServices : FileHeader.NrRadioServices); i++)
+      {
+        memset(&CurService, 0, sizeof(CurService));
+        if (FlashServiceGetInfo(((j == 0) ? SVC_TYPE_Tv : SVC_TYPE_Radio), i, &CurService))
+        {
+          char CharFlagDel, CharFlagCAS, CharFlagLock, CharFlagSkip, CharNameLock;
+          ret = (sscanf(Buffer, "%i ; %23[^;\r\n] ; %hhi ; %hi ; %hhi ; "                          // Nr; ServiceName; SatIndex; TransponderIndex; Tuner;
+                                "%8[^;\r\n] ; %8[^;\r\n] ; %hi ; %hi ; %hi ; %hi ; %hi ; "         // VideoStreamType; AudioStreamType; ServiceID; PMTPID; PCRPID; VideoPID; AudioPID;
+                                "%hi ; %c ; %c ; %c ; %c ; %c ; %hi ; %20[^;\r\n] ; %40[^;\r\n]",  // LCN; FlagDelete; FlagCAS; FlagLock; FlagSkip; NameLock; Flags2; Unknown2; ProviderName
+                                 &i, CurService.ServiceName, &CurService.SatIndex, &CurService.TransponderIndex, &CurService.Tuner,
+                                 StringBuf1, StringBuf2, &CurService.ServiceID, &CurService.PMTPID, &CurService.PCRPID, &CurService.VideoPID, &CurService.AudioPID,
+                                 &CurService.LCN, &CharFlagDel, &CharFlagCAS, &CharFlagLock, &CharFlagSkip, &CharNameLock, &CurService.Flags2, StringBuf3, CurService.ProviderName) > 0) && ret;
+
+          RTrim(CurService.ServiceName);
+          RTrim(CurService.ProviderName);
+          CurService.VideoStreamType = StrToVideoType(StringBuf1);
+          CurService.AudioStreamType = StrToAudioType(StringBuf2);
+          CurService.FlagDelete = CharToBool(CharFlagDel);
+          CurService.FlagCAS = CharToBool(CharFlagCAS);
+          CurService.FlagLock = CharToBool(CharFlagLock);
+          CurService.FlagSkip = CharToBool(CharFlagSkip);
+          CurService.NameLock = CharToBool(CharNameLock);
+          StrToByteArr(&CurService.unknown2, StringBuf3, sizeof(CurService.unknown2));
+        }
+        else
+          TAP_PrintNet("Failed to encode %s service %d!\n", CurSvcType, i);
+      }
+      TAP_PrintNet((ret) ? "%d %sServices exportiert.\n" : "%d %sServices Fehler!\n", i, CurSvcType);
+    }
+
+    //[Favorites]
+    // GroupName = T/R, SvcNums
+    {
+      tFavorites             CurFavGroup;
+
+      FileHeader.NrFavGroups = NrFavGroups;
+      FileHeader.NrSvcsPerFavGroup = NrFavsPerGroup;
+      for (i = 0; i < FileHeader.NrFavGroups; i++)
+      {
+        if (FlashFavoritesGetInfo(i, &CurFavGroup))
+        {
+          for (j = 0; j < CurFavGroup.NrEntries; j++)
+            ret = (strtol(Buffer, NULL, 0) > 0) && ret;
+//          for (j = 0; j < CurFavGroup.NrEntries; j++)
+//            ret = (fprintf(fExportFile, (j > 0) ? ", %hhu": CRLF "%hhu", CurFavGroup.SvcType[j]) > 0) && ret;
+//          ret = (fprintf(fExportFile, CRLF "%#01X" CRLF CRLF, CurFavGroup.unused1) > 0) && ret;
+        }
+//        else
+//          TAP_PrintNet("Failed to decode favorite group %d!\n", i);
+      }
+    }
+    TAP_PrintNet((ret) ? "%d Favourite-Groups importiert.\n" : "Favourites Fehler!\n");
+
+    fclose(fImportFile);
+  }
+  else
+    TAP_PrintNet("Datei nicht gefunden\n");
+
+  if (!ret)
+    if(TAP_Hdd_Exist(EXPORTFILENAME ".txt")) TAP_Hdd_Delete(EXPORTFILENAME ".txt");
+  TAP_PrintNet((ret) ? "Export erfolgreich\n" : "Export fehlgeschlagen\n");
+  TRACEEXIT();
+  return ret;
+}
+
+
+
+
+
+
+
+bool ExportSettings()
+{
+  tExportHeader         FileHeader;
+  FILE                 *fExportFile = NULL;
+  int                   i;
+  bool                  ret = FALSE;
+
+  TRACEENTER();
+  TAP_PrintNet("Starte Export...\n");
+
+  fExportFile = fopen(TAPFSROOT "/" EXPORTFILENAME ".dat", "wb");
+  if(fExportFile)
+  {
+    ret = TRUE;
+
+    // Write the file header
+    memset(&FileHeader, 0, sizeof(FileHeader));
+    strncpy(FileHeader.Magic, "TFchan", 6);
+    FileHeader.FileVersion = 1;
+    FileHeader.SystemType = GetSystemType();
+    FileHeader.UTF8System = isUTFToppy();
+
+    // Now write the data blocks to the file
+    ret = fwrite(&FileHeader, sizeof(tExportHeader), 1, fExportFile) && ret;
+    {
+      TYPE_SatInfo_TMSS *p;
+      FileHeader.SatellitesOffset = ftell(fExportFile);
+      p = (TYPE_SatInfo_TMSS*)FIS_vFlashBlockSatInfo();
+      if(p)
+      {
+        FileHeader.NrSatellites = FlashSatTablesGetTotal();
+        ret = fwrite(&FileHeader.NrSatellites, sizeof(FileHeader.NrSatellites), 1, fExportFile) && ret;
+        FileHeader.SatellitesOffset = ftell(fExportFile);
+        if (FileHeader.NrSatellites > 0)
+          ret = fwrite(p, SIZE_SatInfo_TMSx, FileHeader.NrSatellites, fExportFile) && ret;
+      }
+    }
+    TAP_PrintNet((ret) ? "%d Satellites exportiert.\n" : "Satellites Fehler!\n", FileHeader.NrSatellites);
+
+    {
+      TYPE_TpInfo_TMSS *p;
+      FileHeader.TranspondersOffset = ftell(fExportFile);
+      p = (TYPE_TpInfo_TMSS*)(FIS_vFlashBlockTransponderInfo());
+      if(p)
+      {
+        for(i = 0; i < FileHeader.NrSatellites; i++)
+          FileHeader.NrTransponders += FlashTransponderTablesGetTotal(i);
+        ret = fwrite(&FileHeader.NrTransponders, sizeof(FileHeader.NrTransponders), 1, fExportFile) && ret;
+        FileHeader.TranspondersOffset = ftell(fExportFile);
+        if (FileHeader.NrTransponders > 0)
+          ret = fwrite(p, SIZE_TpInfo_TMSx, FileHeader.NrTransponders, fExportFile) && ret;
+      }
+    }
+    TAP_PrintNet((ret) ? "%d Transponders exportiert.\n" : "Transponders Fehler!\n", FileHeader.NrTransponders);
+
+    {
+      TYPE_Service_TMSS *p;
+      FileHeader.TVServicesOffset = ftell(fExportFile);
+      p = (TYPE_Service_TMSS*)(FIS_vFlashBlockTVServices());
+      if(p)
+      {
+        int Muell;
+        TAP_Channel_GetTotalNum(&FileHeader.NrTVServices, &Muell);
+        ret = fwrite(&FileHeader.NrTVServices, sizeof(FileHeader.NrTVServices), 1, fExportFile) && ret;
+        FileHeader.TVServicesOffset = ftell(fExportFile);
+        if (FileHeader.NrTVServices > 0)
+          ret = fwrite(p, SIZE_Service_TMSx, FileHeader.NrTVServices, fExportFile) && ret;
+      }
+    }
+    TAP_PrintNet((ret) ? "%d TVServices exportiert.\n" : "TVServices Fehler!\n", FileHeader.NrTVServices);
+
+    {
+      TYPE_Service_TMSS *p;
+      FileHeader.RadioServicesOffset = ftell(fExportFile);
+      p = (TYPE_Service_TMSS*)(FIS_vFlashBlockRadioServices());
+      if(p)
+      {
+        int Muell;
+        TAP_Channel_GetTotalNum(&Muell, &FileHeader.NrRadioServices);
+        ret = fwrite(&FileHeader.NrRadioServices, sizeof(FileHeader.NrRadioServices), 1, fExportFile) && ret;
+        FileHeader.RadioServicesOffset = ftell(fExportFile);
+        if (FileHeader.NrRadioServices > 0)
+          ret = fwrite(p, SIZE_Service_TMSx, FileHeader.NrRadioServices, fExportFile) && ret;
+      }
+    }
+    TAP_PrintNet((ret) ? "%d RadioServices exportiert.\n" : "RadioServices Fehler!\n", FileHeader.NrRadioServices);
+
+    {
+      tFavorites FavGroup;
+      FileHeader.NrFavGroups = NrFavGroups;
+      FileHeader.NrSvcsPerFavGroup = NrFavsPerGroup;
+      ret = fwrite(&FileHeader.NrFavGroups, sizeof(FileHeader.NrFavGroups), 1, fExportFile) && ret;
+      FileHeader.FavoritesOffset = ftell(fExportFile);
+      for (i = 0; i < FileHeader.NrFavGroups; i++)
+      {
+        memset(&FavGroup, 0, sizeof(tFavorites));
+        FlashFavoritesGetInfo(i, &FavGroup);
+        ret = fwrite(&FavGroup, sizeof(tFavorites), 1, fExportFile) && ret;
+      }
+    }
+    TAP_PrintNet((ret) ? "%d Favourite-Groups exportiert.\n" : "Favourites Fehler!\n", FileHeader.NrFavGroups);
+
+    {
+      char *p1, *p2;
+      p1 = (char*)(FIS_vFlashBlockServiceName());
+      p2 = (char*)(FIS_vFlashBlockProviderInfo());
+      int NrProviderNames = NRPROVIDERNAMES;
+
+      ret = fwrite(&NrProviderNames, sizeof(NrProviderNames), 1, fExportFile) && ret;
+      FileHeader.ProviderNamesOffset = ftell(fExportFile);
+      if(p2)
+      {
+        FileHeader.ProviderNamesLength = PROVIDERNAMELENGTH * NRPROVIDERNAMES;  // ***  5380 ?
+        ret = fwrite(p2, 1, FileHeader.ProviderNamesLength, fExportFile) && ret;
+      }
+      TAP_PrintNet((ret) ? "%d ProviderNames exportiert.\n" : "ProviderNames Fehler!\n", NRPROVIDERNAMES);
+
+      int NrServices = FileHeader.NrTVServices + FileHeader.NrRadioServices;
+      ret = fwrite(&NrServices, sizeof(FileHeader.NrTVServices), 1, fExportFile) && ret;
+      FileHeader.ServiceNamesOffset = ftell(fExportFile);
+      if(p1)
+      {
+//        FileHeader.ServiceNamesLength = 40004;   // 40000 / 39996 ***  ?
+//        if(p2)
+//          FileHeader.ServiceNamesLength = p2 - p1;
+        FileHeader.ServiceNamesLength = GetLengthOfServiceNames();
+        ret = fwrite(p1, 1, FileHeader.ServiceNamesLength, fExportFile) && ret;
+      }
+      TAP_PrintNet((ret) ? "ServiceNames exportiert.\n" : "ServiceNames Fehler!\n");
+    }
+
+    FileHeader.FileSize = ftell(fExportFile);
+    fclose(fExportFile);
+
+    fExportFile = fopen(TAPFSROOT "/" EXPORTFILENAME ".dat", "r+b");
+    if(fExportFile)
+    {
+      ret = fwrite(&FileHeader, sizeof(tExportHeader), 1, fExportFile) && ret;
+      fclose(fExportFile);
+    }
+  }
+  else
+    TAP_PrintNet("Datei nicht gefunden\n");
+
+  if (!ret)
+    if(TAP_Hdd_Exist(EXPORTFILENAME ".dat")) TAP_Hdd_Delete(EXPORTFILENAME ".dat");
   TAP_PrintNet((ret) ? "Export erfolgreich\n" : "Export fehlgeschlagen\n");
   TRACEEXIT();
   return ret;
@@ -1039,7 +1224,7 @@ bool ImportSettings()
   TRACEENTER();
   TAP_PrintNet ("Starte Import...\n");
 
-  fImportFile = fopen(TAPFSROOT "/" EXPORTFILENAME, "rb");
+  fImportFile = fopen(TAPFSROOT "/" EXPORTFILENAME ".dat", "rb");
   if(fImportFile)
   {
     // Dateigröße bestimmen um Puffer zu allozieren
@@ -1079,7 +1264,7 @@ bool ImportSettings()
             else
               ret = FALSE;
           }
-          TAP_PrintNet((ret) ? "Satellites ok\n" : "Satellites Fehler\n");
+          TAP_PrintNet((ret) ? "%d Satellites importiert.\n" : "Satellites Fehler!\n", FileHeader.NrSatellites);
 
           {
             TYPE_TpInfo_TMSS *p;
@@ -1099,7 +1284,7 @@ bool ImportSettings()
             else
               ret = FALSE;
           }
-          TAP_PrintNet((ret) ? "Transponders ok\n" : "Transponders Fehler\n");
+          TAP_PrintNet((ret) ? "%d Transponders importiert.\n" : "Transponders Fehler!\n", FileHeader.NrTransponders);
 
           {
             char*                 (*Appl_AddSvcName)(char const*);
@@ -1164,7 +1349,7 @@ bool ImportSettings()
               }
               else
                 ret = FALSE;
-              TAP_PrintNet((ret) ? "TVServices ok\n" : "TVServices Fehler\n");
+              TAP_PrintNet((ret) ? "%d TVServices importiert.\n" : "TVServices Fehler\n", i);
 
               p    = (TYPE_Service_TMSx*)(FIS_vFlashBlockRadioServices());
               nSvc = (word*)FIS_vnRadioSvc();
@@ -1211,6 +1396,7 @@ bool ImportSettings()
               }
               else
                 ret = FALSE;
+              TAP_PrintNet((ret) ? "%d TVServices importiert.\n" : "TVServices Fehler\n", i);
             }
             else
               ret = FALSE;
@@ -1219,7 +1405,6 @@ bool ImportSettings()
 //              ret = FALSE;
             Buffer2 = NULL;  // TAP_MemFree(Buffer2);
             Buffer3 = NULL;  // TAP_MemFree(Buffer3);
-            TAP_PrintNet((ret) ? "RadioServices ok\n" : "RadioServices Fehler\n");
           }
 
           {
@@ -1250,7 +1435,7 @@ bool ImportSettings()
               }
             }
           }
-          TAP_PrintNet((ret) ? "Favorites ok\n" : "Favorites Fehler\n");
+          TAP_PrintNet((ret) ? "%d Favourite-Groups importiert.\n" : "Favourites Fehler!\n", i);
         }
 
         TAP_MemFree(Buffer);
@@ -1286,19 +1471,26 @@ int TAP_Main(void)
   if (InitSystemType())
   {
     TAP_Hdd_ChangeDir("/");
-    if(TAP_Hdd_Exist(EXPORTFILENAME))
+    if(TAP_Hdd_Exist(EXPORTFILENAME ".txt"))
     {
-/*      DeleteTimers();
+      DeleteTimers();
+      DeleteAllSettings();
+      ImportSettings_Text();
+    }
+/*    else if(TAP_Hdd_Exist(EXPORTFILENAME ".dat"))
+    {
+      DeleteTimers();
       DeleteAllSettings();
 //      DeleteFavourites();
 //      DeleteServices();
 //      DeleteTransponder(1);
 //      ImportTransponder();
-      ImportSettings_Text();
+      ImportSettings();
 //      Appl_ImportChData("Settings.std");
-*/    }
-    else
+    }
+*/    else
     {
+      ExportSettings();
       ExportSettings_Text();
 //      Appl_ExportChData("Settings.std");
     }
