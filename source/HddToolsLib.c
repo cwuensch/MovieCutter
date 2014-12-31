@@ -713,6 +713,7 @@ tReturnCode RunIcheckWithLog(const char *DeviceNode, const char *ParamString, ch
 bool HDD_CheckInode(const char *FileName, const char *AbsDirectory, bool DoFix, bool InodeMonitoring)
 {
   char                  DeviceNode[20], ListFile[MAX_FILE_NAME_SIZE + 1];
+  char                  AbsFilePath[FBLIB_DIR_SIZE];
   char                  ParamString[1024];
   tReturnCode           ret = rc_UNKNOWN;
 
@@ -730,7 +731,9 @@ bool HDD_CheckInode(const char *FileName, const char *AbsDirectory, bool DoFix, 
   if(InodeMonitoring && DoFix) remove("/tmp/FixInodes.tmp");
 
   // Execute jfs_icheck and read its output
-  TAP_SPrint(ParamString, sizeof(ParamString), "%s \"%s/%s\"", ((DoFix) ? "-f -L /tmp/FixInodes.tmp" : ""), AbsDirectory, FileName);
+  TAP_SPrint(AbsFilePath, sizeof(AbsFilePath), "%s/%s", AbsDirectory, FileName);
+  StrReplace(AbsFilePath, "\"", "\\\"");
+  TAP_SPrint(ParamString, sizeof(ParamString), "%s \"%s\"", ((DoFix) ? "-f -L /tmp/FixInodes.tmp" : ""), AbsFilePath);
   ret = RunIcheckWithLog(DeviceNode, ParamString, NULL);
 
   // Add the damaged inodes list to the device list

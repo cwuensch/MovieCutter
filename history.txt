@@ -1,6 +1,7 @@
-2015-??-?? v3.2
+2014-12-31 v3.2  BUGFIX:
+                    - jfs_icheck wird auch bei Dateienamen mit Anführungszeichen korrekt aufgerufen
                  INI-File:
-                    - MaxNavDiscrepancy:   Maximal zulässige Abweichung der nav-Datei, bevor eine Warnmeldung angezeigt wird (in Millisekunden). - 0: Meldung niemals anzeigen.
+                    - MaxNavDiscrepancy: Maximal zulässige Abweichung der nav-Datei, bevor eine Warnmeldung angezeigt wird (in Millisekunden). - 0: Meldung niemals anzeigen.
 
 2014-07-31 v3.1a BUGFIX:
                     - Parameter DefaultMinuteJump funktionierte nicht
