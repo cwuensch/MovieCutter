@@ -118,5 +118,5 @@ Optionen in der MovieCutter.ini
 (ab V. 3.1)
 - CheckFSAfterCut (geändert):	1: Automatische Dateisystemprüfung (nur wenn nötig). - 2: Immer nach dem Schneiden prüfen. - 0: Niemals prüfen (nicht empfohlen!)
 - DoiCheckTest (geändert):	1: gesammelter Test am Ende (ro). - 2: gesammelter Test und Fix. - 3: Test zwischen den Schnitten (ro). - 4: Test und Fix zwischen Schnitten. 0: Kein icheck-Test.
-(ab V. 3.2)
+(ab V. 3.1b)
 - MaxNavDiscrepancy:		Maximal zulässige Abweichung der nav-Datei, bevor eine Warnmeldung angezeigt wird (in Millisekunden). - 0: Meldung niemals anzeigen.
