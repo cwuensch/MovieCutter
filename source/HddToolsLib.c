@@ -9,7 +9,7 @@
 #include                <string.h>
 #include                <unistd.h>
 #include                <tap.h>
-#include                <libFireBird.h>
+#include                "libFireBird.h"
 #include                "CWTapApiLib.h"
 #include                "MovieCutterLib.h"
 #include                "HddToolsLib.h"

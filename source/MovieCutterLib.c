@@ -10,7 +10,7 @@
 #include                <unistd.h>
 #include                <stdarg.h>
 #include                <tap.h>
-#include                <libFireBird.h>
+#include                "libFireBird.h"
 #include                "CWTapApiLib.h"
 #include                "MovieCutterLib.h"
 

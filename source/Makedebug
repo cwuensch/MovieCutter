@@ -25,9 +25,9 @@ TAP_LIBS = ${BASE}/tapinit.o ${BASE}/libtap.so -lFireBird -ldl -lc
 
 all: $(APP1).tap clean
 
-$(APP1).tap: $(APP1).o MovieCutterLib.o HddToolsLib.o CWTapApiLib.o
+$(APP1).tap: $(APP1).o MovieCutterLib.o HddToolsLib.o CWTapApiLib.o FBLibWrapper.o
 	@echo "[Linking... $@]"
-	@$(LD) -shared --no-undefined --allow-shlib-undefined MovieCutterLib.o HddToolsLib.o CWTapApiLib.o -o $@ $< $(TAP_LIBS)
+	@$(LD) -shared --no-undefined --allow-shlib-undefined MovieCutterLib.o HddToolsLib.o CWTapApiLib.o FBLibWrapper.o -o $@ $< $(TAP_LIBS)
 	@$(JB) $@
 
 %.o: %.c ${BASE}/include/libFireBird.h

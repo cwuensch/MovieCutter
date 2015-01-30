@@ -13,16 +13,6 @@
 
 //#define STACKTRACE            TRUE
 
-#ifdef STACKTRACE
-  #undef TRACEENTER
-  #define TRACEENTER()    CallTraceEnter((char*)__FUNCTION__)
-  #undef TRACEEXIT
-  #define TRACEEXIT()     CallTraceExit(NULL)
-#else
-  #define TRACEENTER()
-  #define TRACEEXIT()
-#endif
-
 
 typedef enum
 {

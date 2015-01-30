@@ -33,6 +33,9 @@
     <ClInclude Include="..\source\HddToolsLib.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
+    <ClInclude Include="..\source\libFireBird.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\source\MovieCutter.c">
@@ -47,12 +50,27 @@
     <ClCompile Include="..\source\HddToolsLib.c">
       <Filter>Quelldateien</Filter>
     </ClCompile>
+    <ClCompile Include="..\source\FBLibWrapper.c">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\MovieCutter.ini">
       <Filter>Ressourcendateien</Filter>
     </None>
     <None Include="..\MovieCutter.lng">
+      <Filter>Ressourcendateien</Filter>
+    </None>
+    <None Include="..\source\Makefile">
+      <Filter>Ressourcendateien</Filter>
+    </None>
+    <None Include="..\source\Makedebug">
+      <Filter>Ressourcendateien</Filter>
+    </None>
+    <None Include="..\source\Makedebug_Stacktrace">
+      <Filter>Ressourcendateien</Filter>
+    </None>
+    <None Include="..\source\build_TMS.bat">
       <Filter>Ressourcendateien</Filter>
     </None>
   </ItemGroup>
