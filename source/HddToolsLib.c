@@ -274,7 +274,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
     PlaybackName[MAX_FILE_NAME_SIZE] = '\0';
     PlaybackName[strlen(PlaybackName) - 4] = '\0';
 
-    //Extract the absolute path to the rec file and change into that dir
+    //Extract the absolute path to the rec file
     HDD_GetAbsolutePathByTypeFile2(PlayInfo.file, AbsPlaybackDir);
 //    AbsPlaybackDir[FBLIB_DIR_SIZE - 1] = '\0';
 

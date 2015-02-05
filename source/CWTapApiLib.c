@@ -198,11 +198,11 @@ bool HDD_StartPlayback2(char *FileName, char *AbsDirectory)
   bool                  ret = FALSE;
 
   TRACEENTER();
+  HDD_TAP_PushDir();
 
   //Initialize the directory structure
   memset(&FolderStruct, 0, sizeof(tDirEntry));
   FolderStruct.Magic = 0xbacaed31;
-//  HDD_TAP_PushDir();
 
   //Save the current directory resources and change into our directory (current directory of the TAP)
   ApplHdd_SaveWorkFolder();
@@ -214,7 +214,7 @@ bool HDD_StartPlayback2(char *FileName, char *AbsDirectory)
     ret = (Appl_StartPlayback(FileName, 0, TRUE, FALSE) == 0);
   }
   ApplHdd_RestoreWorkFolder();
-//  HDD_TAP_PopDir();
+  HDD_TAP_PopDir();
 
   TRACEEXIT();
   return ret;
