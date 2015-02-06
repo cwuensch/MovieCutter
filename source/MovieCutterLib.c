@@ -15,6 +15,7 @@
 #include                "MovieCutterLib.h"
 
 
+SYSTEM_TYPE GetRecHeaderType(dword FileSize);
 bool        FileCut(char *SourceFileName, char *CutFileName, char *AbsDirectory, dword StartBlock, dword NrBlocks);
 bool        WriteByteToFile(const char *FileName, const char *AbsDirectory, off_t BytePosition, char OldValue, char NewValue);
 bool        PatchRecFile(const char *SourceFileName, const char *AbsDirectory, off_t RequestedCutPosition, byte CutPointArray[], off_t OutPatchedBytes[]);
@@ -951,6 +952,23 @@ bool FindCutPointOffset(const byte CutPacket[], const byte CutPointArray[], long
 // ----------------------------------------------------------------------------
 //                              INF-Funktionen
 // ----------------------------------------------------------------------------
+SYSTEM_TYPE GetRecHeaderType(dword FileSize)
+{
+  TRACEENTER();
+  SYSTEM_TYPE RECHeaderType = ST_UNKNOWN;
+
+  switch (FileSize % 122312)
+  {
+    case 10320:  RECHeaderType = ST_TMSC; break;
+    case 10324:
+      if(GetSystemType() == ST_TMSC) RECHeaderType = ST_TMSS;
+      break;
+  }
+
+  TRACEEXIT();
+  return RECHeaderType;
+}
+
 bool GetRecDateFromInf(const char *RecFileName, const char *AbsDirectory, dword *const DateTime)
 {
   FILE                 *f = NULL;
@@ -1019,8 +1037,13 @@ bool SaveBookmarksToInf(const char *RecFileName, const char *AbsDirectory, const
   }
   BytesRead = fread(Buffer, 1, INFSIZE, fInf);
 
+  // get inf size and type
+  fseek(fInf, 0, SEEK_END);
+  dword fs = ftell(fInf);
+  rewind(fInf);
+
   //decode inf
-  if(!HDD_DecodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN))
+  if(!HDD_DecodeRECHeader(Buffer, &RECHeaderInfo, GetRecHeaderType(fs)))
   {
     WriteLogMC("MovieCutterLib", "SaveBookmarksToInf() E0f03: decoding of rec-header failed.");
     fclose(fInf);
@@ -1102,15 +1125,14 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
 //  fs = TAP_Hdd_Flen(tf);
 //  ret = TAP_Hdd_Fread(Buffer, min(fs, INFSIZE), 1, tf);
 //  TAP_Hdd_Fclose(tf);
+  BytesRead = fread(Buffer, 1, INFSIZE, fSourceInf);
   fseek(fSourceInf, 0, SEEK_END);
   dword fs = ftell(fSourceInf);
-  rewind(fSourceInf);
-  BytesRead = fread(Buffer, 1, INFSIZE, fSourceInf);
   fclose(fSourceInf);
 WriteLogMCf("MovieCutterLib", "PatchInfFiles(): %lu / %lu Bytes read.", BytesRead, fs);
 
   //Decode the source .inf
-  if(!HDD_DecodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN))
+  if(!HDD_DecodeRECHeader(Buffer, &RECHeaderInfo, GetRecHeaderType(fs)))
   {
     WriteLogMC("MovieCutterLib", "PatchInfFiles() E0903: source inf not patched, cut inf not created.");
     TAP_MemFree(Buffer);

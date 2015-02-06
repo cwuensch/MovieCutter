@@ -240,6 +240,7 @@ typedef enum
   LS_MinuteJumpActive,
   LS_MinuteJumpDisabled,
   LS_NotEnoughSpace,
+  LS_UnknownSystemType,
   LS_NrStrings
 } tLngStrings;
 
@@ -267,7 +268,7 @@ bool                    AskBeforeEdit      = TRUE;
 bool                    SaveCutBak         = TRUE;
 bool                    DisableSpecialEnd  = FALSE;
 byte                    DoiCheckTest       = 1;   // 0 - nie, 1 - gesammelt am Ende (ro), 2 - gesammelt am Ende (fix), 3 - nach jedem Schnitt (ro), [4 - nach jedem Schnitt (fix)]
-byte                    CheckFSAfterCut    = 1;   // 0 - nie, 1 - auto, 2 - immer
+byte                    CheckFSAfterCut    = 1;   // 0 - nie, 1 - auto, 2 - immer, 3 - beim Beenden
 bool                    InodeMonitoring    = FALSE;
 dword                   Overscan_X         = 50;
 dword                   Overscan_Y         = 25;
@@ -295,9 +296,10 @@ dword                   JumpRequestedBlock = (dword) -1;      //Is set, when use
 dword                   JumpRequestedTime = 0;                //Is set, when one of the options on top is active
 dword                   JumpPerformedTime = 0;                //Is set after a segment jump has been performed to reduce flicker
 dword                   LastMessageBoxKey;
-//bool                    fsck_Cancelled;
 tUndoEvent             *UndoStack = NULL;
 int                     UndoLastItem;
+char                   *SuspectHDDs = NULL;
+int                     NrAllSuspectInodes = 0;
 
 // Playback information
 TYPE_PlayInfo           PlayInfo;
@@ -400,7 +402,25 @@ int TAP_Main(void)
     {
       OSDMenuEvent(NULL, NULL, NULL);
     } while(OSDMenuInfoBoxIsVisible());
-    OSDMenuInfoBoxDestroy();
+
+    FMUC_FreeFontFile(&Calibri_10_FontDataUC);
+    FMUC_FreeFontFile(&Calibri_12_FontDataUC);
+    FMUC_FreeFontFile(&Calibri_14_FontDataUC);
+    FMUC_FreeFontFile(&Courier_New_13_FontDataUC);
+
+    TRACEEXIT();
+    return 0;
+  }
+
+  // Check FirmwareTMS.dat and SystemType
+  if((GetSystemType() != ST_TMSS) && (GetSystemType() != ST_TMSC) && (GetSystemType() != ST_TMST))
+  {
+    WriteLogMC(PROGRAM_NAME, "Unknown SystemType. Please check FirmwareTMS.dat!");
+    OSDMenuInfoBoxShow(PROGRAM_NAME " " VERSION, LangGetString(LS_UnknownSystemType), 500);
+    do
+    {
+      OSDMenuEvent(NULL, NULL, NULL);
+    } while(OSDMenuInfoBoxIsVisible());
 
     FMUC_FreeFontFile(&Calibri_10_FontDataUC);
     FMUC_FreeFontFile(&Calibri_12_FontDataUC);
@@ -415,10 +435,13 @@ int TAP_Main(void)
   SegmentMarker = (tSegmentMarker*) TAP_MemAlloc(NRSEGMENTMARKER * sizeof(tSegmentMarker));
   Bookmarks     = (dword*)          TAP_MemAlloc(NRBOOKMARKS     * sizeof(dword));
   UndoStack     = (tUndoEvent*)     TAP_MemAlloc(NRUNDOEVENTS    * sizeof(tUndoEvent));
-  if (!SegmentMarker || !Bookmarks || !UndoStack)
+  SuspectHDDs   = (char*)           TAP_MemAlloc(SIZESUSPECTHDDS);
+  memset(SuspectHDDs, 0, SIZESUSPECTHDDS);
+  if (!SegmentMarker || !Bookmarks || !UndoStack || !SuspectHDDs)
   {
     WriteLogMC(PROGRAM_NAME, "Failed to allocate buffers!");
 
+    TAP_MemFree(SuspectHDDs);
     TAP_MemFree(UndoStack);
     TAP_MemFree(Bookmarks);
     TAP_MemFree(SegmentMarker);
@@ -431,6 +454,7 @@ int TAP_Main(void)
     TRACEEXIT();
     return 0;
   }
+
   // Reset Undo-Stack
   UndoResetStack();
 
@@ -448,8 +472,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   static tOSDMode       LastOSDMode = MD_FullOSD;
   static dword          LastMinuteKey = 0;
   static dword          LastDraw = 0;
-  static bool           InterceptShutdown = TRUE;     //Soll der Shutdown abgefangen werden?
-  static bool           DoOwnJob = FALSE;             //Der Shutdown wurde abgefangen, eigenen "Job" beginnen
 
   (void) param2;
 
@@ -482,23 +504,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     param1 = 0;
   }
 
-  // Shutdown Server
-  if(event == EVT_IDLE)
-  {
-    SDS();
-  }
-  if((event == EVT_STOP) && (param1 == 2))
-  {
-    WriteLogMC(PROGRAM_NAME, "EVT_STOP\n");
-    if(InterceptShutdown)
-    {
-      WriteLogMC(PROGRAM_NAME, "Shutdown has been intercepted, starting own job\n");
-      DoOwnJob = TRUE;
-      TRACEEXIT();
-      return 0;
-    }
-  }
-
 
   if(DoNotReenter)
   {
@@ -529,24 +534,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       TAPCOM_Reject(Channel);
   }
 
-  // Shutdown-Event abfangen
-  if(event == EVT_IDLE)
-  {
-    if(DoOwnJob)
-    {
-      WriteLogMC(PROGRAM_NAME, "Doing shutdown own job\n");
-      CheckFileSystem(0, 1, 1, TRUE, TRUE, FALSE, FALSE, 0, NULL);
-
-      //Abfang-Flag zurücksetzen, sonst endet man in einer Endlosschleife
-      TAP_PrintNet("Own job is done, shutting Toppy down\n");
-
-      InterceptShutdown = FALSE;
-      DoOwnJob = FALSE;
-      SDSTerminate();
-      Shutdown(TaskPower);
-    }
-  }
-
   if((event == EVT_STOP) && (param1 != 2))
   {
     State = ST_Exit;
@@ -570,7 +557,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 /* // **** LÖSCHEN ****
 if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==ST_InactiveModePlaying || State==ST_InactiveMode || State==ST_WaitForPlayback || State==ST_UnacceptedFile) && !DisableSleepKey)
 {
-  CheckFileSystem(0, 1, 1, TRUE, TRUE, FALSE, FALSE, 0, NULL);
+  CheckFileSystem((AbsPlaybackDir[0] ? AbsPlaybackDir : TAPFSROOT), 0, 1, 1, TRUE, TRUE, FALSE, FALSE, 0, NULL);
 } */
 #endif
 
@@ -1513,7 +1500,7 @@ WriteLogMC("DEBUG-Ausgabe", "ChUp/ChDown-Event empfangen, das nicht durch Up/Dow
                 case MI_DeleteFile:
                 {
                   if (!BookmarkMode)
-                    CheckFileSystem(0, 1, 1, TRUE, FALSE, FALSE, TRUE, 0, NULL);
+                    CheckFileSystem(AbsPlaybackDir, 0, 1, 1, TRUE, FALSE, FALSE, TRUE, 0, NULL);
                   else
                     MovieCutterDeleteFile();
                   break;
@@ -1574,11 +1561,41 @@ WriteLogMC("DEBUG-Ausgabe", "ChUp/ChDown-Event empfangen, das nicht durch Up/Dow
 #endif
         CutFileSave();
       }
+
+      // wenn nötig, beim Beenden HDDCheck und/oder Inode-Fix durchführen
+      if (SuspectHDDs[0])
+      {
+        int   i = 0, NrHDDs = 0;
+        char *p;
+        
+        if (CheckFSAfterCut == 3)
+        {
+          while (SuspectHDDs[i] != '\0')
+            if (SuspectHDDs[i++] == ';') NrHDDs++;
+        }        
+
+        i = 0;
+        p = strtok(SuspectHDDs, ";");
+        while (p && p[0])
+        {
+          if (CheckFSAfterCut == 3)
+          {
+            WriteLogMCf(PROGRAM_NAME, "Inode-Check (%d/%d) mit fsck für Mount: %s", i, NrHDDs, p);
+            WriteDebugLog(            "Inode-Check (%d/%d) mit fsck für Mount: %s", i, NrHDDs, p);
+            CheckFileSystem(p, i, i+1, NrHDDs, TRUE, TRUE, FALSE, FALSE, NrAllSuspectInodes, NULL);
+          }
+          else if (InodeMonitoring)
+            HDD_FixInodeList(p, TRUE);
+          p = strtok(NULL, ";");
+          i++;
+        }
+      }
+      else if(InodeMonitoring)
+        HDD_FixInodeList(((AbsPlaybackDir[0]) ? AbsPlaybackDir : TAPFSROOT), TRUE);
+
       if(isPlaybackRunning()) PlaybackRepeatSet(OldRepeatMode);
       Cleanup(TRUE);
-      if(InodeMonitoring)
-        HDD_FixInodeList(((AbsPlaybackDir[0]) ? AbsPlaybackDir : TAPFSROOT), TRUE);
-      SDSTerminate();
+      TAP_MemFree(SuspectHDDs);
       TAP_MemFree(UndoStack);
       TAP_MemFree(Bookmarks);
       TAP_MemFree(SegmentMarker);
@@ -1879,7 +1896,7 @@ void LoadINI(void)
     SaveCutBak        =            INIGetInt("SaveCutBak",                 1,   0,    1)   !=   0;
     DisableSpecialEnd =            INIGetInt("DisableSpecialEnd",          0,   0,    1)   ==   1;
     DoiCheckTest      =            INIGetInt("DoiCheckTest",               1,   0,    4);
-    CheckFSAfterCut   =            INIGetInt("CheckFSAfterCut",            1,   0,    2);
+    CheckFSAfterCut   =            INIGetInt("CheckFSAfterCut",            1,   0,    3);
     InodeMonitoring   =            INIGetInt("InodeMonitoring",            0,   0,    1)   ==   1;
 
     Overscan_X        =            INIGetInt("Overscan_X",                50,   0,  100);
@@ -5149,12 +5166,20 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
   }
   CutFileSave();
   CutDumpList();
-
 //  TAP_Osd_Sync();
 //  ClearOSD(FALSE);
 //  OSDRedrawEverything();
 
-  //Flush the caches *experimental*
+  // Playback-Position wiederherstellen
+  if (isPlaybackRunning())
+  {
+    if(TrickMode == TRICKMODE_Pause) Playback_Normal();
+WriteLogMCf(PROGRAM_NAME, "Debug: Springe jetzt zu CurPlayPosition = %lu", CurPlayPosition);
+    if (CurPlayPosition > 0)
+      TAP_Hdd_ChangePlaybackPos(CurPlayPosition);
+  }
+
+  // Flush the caches *experimental*
   sync();
   TAP_Sleep(1);
 
@@ -5167,15 +5192,27 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
   }
 WriteLogMCf(PROGRAM_NAME, "Debug: DoiCheckTest=%d, CheckFSAfterCut=%d, InodeMonitoring=%d, icheckErrors=%d", DoiCheckTest, CheckFSAfterCut, InodeMonitoring, icheckErrors);
 
-  //Check file system consistency and show a warning
-  if ((CheckFSAfterCut == 2) || (CheckFSAfterCut != 0 && icheckErrors))
+  // Save HDD mount point in list of suspect devices
+  if (icheckErrors && (InodeMonitoring || CheckFSAfterCut == 3))
+  {
+    char MountPoint[FBLIB_DIR_SIZE];
+    HDD_FindMountPointDev2(AbsPlaybackDir, MountPoint, NULL);
+    strcat(MountPoint, ";");
+    if (strstr(SuspectHDDs, MountPoint) == 0)
+      TAP_SPrint(&SuspectHDDs[strlen(SuspectHDDs)], SIZESUSPECTHDDS-strlen(SuspectHDDs), MountPoint);
+    NrAllSuspectInodes += max(icheckErrors, 0);
+TAP_PrintNet("DEBUG: NrAllSuspectInodes=%d, SuspectHDDs='%s'\n", NrAllSuspectInodes, SuspectHDDs);
+  }
+
+  // Check file system consistency and show a warning
+  if ((CheckFSAfterCut == 2) || (CheckFSAfterCut == 1 && icheckErrors))
   {
     WriteLogMCf(PROGRAM_NAME, "Inodes-Check mit fsck: %s", InodeNrs);
     WriteDebugLog(            "Inodes-Check mit fsck: %s", InodeNrs);
     if (CheckFSAfterCut == 2)
-      CheckFileSystem(maxProgress, maxProgress + 1, maxProgress + 1, TRUE, TRUE, TRUE, TRUE, icheckErrors, InodeNrs);
+      CheckFileSystem(AbsPlaybackDir, maxProgress, maxProgress + 1, maxProgress + 1, TRUE, TRUE, TRUE, TRUE, icheckErrors, InodeNrs);
     else
-      CheckFileSystem(maxProgress, maxProgress, maxProgress, TRUE, TRUE, TRUE, TRUE, icheckErrors, InodeNrs);
+      CheckFileSystem(AbsPlaybackDir, maxProgress, maxProgress, maxProgress, TRUE, TRUE, TRUE, TRUE, icheckErrors, InodeNrs);
 //    if (CurPlayPosition > 0)
 //      TAP_Hdd_ChangePlaybackPos(CurPlayPosition);
   }
@@ -5212,10 +5249,10 @@ WriteLogMCf(PROGRAM_NAME, "Debug: DoiCheckTest=%d, CheckFSAfterCut=%d, InodeMoni
 
   if (isPlaybackRunning())
   {
-    if(TrickMode == TRICKMODE_Pause) Playback_Normal();
+/*    if(TrickMode == TRICKMODE_Pause) Playback_Normal();
 WriteLogMCf(PROGRAM_NAME, "Debug: Springe jetzt zu CurPlayPosition = %lu", CurPlayPosition);
     if (CurPlayPosition > 0)
-      TAP_Hdd_ChangePlaybackPos(CurPlayPosition);
+      TAP_Hdd_ChangePlaybackPos(CurPlayPosition);  */
     PlaybackRepeatSet(OldRepeatMode);
   }
 
@@ -5462,10 +5499,9 @@ bool PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isH
 // ----------------------------------------------------------------------------
 //                           System-Funktionen
 // ----------------------------------------------------------------------------
-bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, bool DoFix, bool Quick, bool NoOkInfo, bool ErrorMessage, int SuspectFiles, char *InodeNrs)
+bool CheckFileSystem(char *MountPath, dword ProgressStart, dword ProgressEnd, dword ProgressMax, bool DoFix, bool Quick, bool NoOkInfo, bool ErrorMessage, int SuspectFiles, char *InodeNrs)
 {
   char                  ErrorStrFmt[512], SuspectFilesStr[12];
-  char                 *MountPath = NULL;
   dword                 OldSysState, OldSysSubState;
   bool                  ret = FALSE;
   
@@ -5487,7 +5523,7 @@ bool CheckFileSystem(dword ProgressStart, dword ProgressEnd, dword ProgressMax, 
     TAP_SPrint(SuspectFilesStr, sizeof(SuspectFilesStr), "?");
   TAP_SPrint(ErrorStrFmt, sizeof(ErrorStrFmt), LangGetString(LS_CheckFSFailed), SuspectFilesStr);
 
-  MountPath = (AbsPlaybackDir[0]) ? AbsPlaybackDir : TAPFSROOT;
+//  MountPath = (AbsPlaybackDir[0]) ? AbsPlaybackDir : TAPFSROOT;
   ret = HDD_CheckFileSystem(MountPath, NULL, ((ErrorMessage) ? &ShowErrorMessage : NULL), DoFix, Quick, InodeMonitoring, NoOkInfo, InodeNrs, LangGetString(LS_CheckFSSuccess), ErrorStrFmt, LangGetString(LS_CheckFSAborted));
 
   // Prüfen, ob das Playback wieder gestartet wurde
