@@ -115,7 +115,7 @@ Options in the MovieCutter.ini
 - InodeMonitoring:              1: Monitoring of the Inodes corrupted while cutting. - 0: No Monitoring.
 - RCUMode:                      0: SRP-2401 - 1: SRP-2410 - 2: CRP-2401 - 3: TF5000 (identical with 2) - 4: No use of the VolKeys
 (in V. 3.1 and higher)
-- CheckFSAfterCut (changed):	1: Automatic file system check (only when required).  - 1: Always check after cutting. - 0: Never check (not recommended!)
+- CheckFSAfterCut (changed):	1: Automatic file system check (only when required).  - 2: Always check after cutting. - 3: Check on shutdown. - 0: Never check (not recommended!)
 - DoiCheckTest (changed):	1: Cumulated test in the end (ro). - 2: Cummulated Test and Fix. - 3: Test between the cuts (ro). - 4: Test and fix between cuts. - 0: No icheck Test.
 (in V. 3.1b and higher)
 - MaxNavDiscrepancy:		Maximum tolerated discrepancy of the nav-file, without showing a warning message (in milliseconds). - 0: Never show a message.
