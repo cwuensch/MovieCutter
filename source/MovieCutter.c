@@ -4799,9 +4799,9 @@ void MovieCutterProcess(bool KeepCut)
 //  HDD_ChangeDir(PlaybackDir);
   UndoResetStack();
 
-  // *CW* FRAGE: Werden die Bookmarks von der Firmware sowieso vor dem Schneiden in die inf gespeichert?
+  // *CW* FRAGE: Werden die Bookmarks von der Firmware sowieso vor dem Schneiden in die inf gespeichert? -> JA
   // -> sonst könnte man der Schnittroutine auch das Bookmark-Array übergeben
-  SaveBookmarksToInf(PlaybackName, AbsPlaybackDir, Bookmarks, NrBookmarks);
+//  SaveBookmarksToInf(PlaybackName, AbsPlaybackDir, Bookmarks, NrBookmarks);
   CutDumpList();
 
   // Lege ein Backup der .cut-Datei an
@@ -5170,14 +5170,14 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
 //  ClearOSD(FALSE);
 //  OSDRedrawEverything();
 
-  // Playback-Position wiederherstellen
+/*  // Playback-Position wiederherstellen
   if (isPlaybackRunning())
   {
     if(TrickMode == TRICKMODE_Pause) Playback_Normal();
 WriteLogMCf(PROGRAM_NAME, "Debug: Springe jetzt zu CurPlayPosition = %lu", CurPlayPosition);
     if (CurPlayPosition > 0)
       TAP_Hdd_ChangePlaybackPos(CurPlayPosition);
-  }
+  } */
 
   // Flush the caches *experimental*
   sync();
@@ -5249,10 +5249,10 @@ TAP_PrintNet("DEBUG: NrAllSuspectInodes=%d, SuspectHDDs='%s'\n", NrAllSuspectIno
 
   if (isPlaybackRunning())
   {
-/*    if(TrickMode == TRICKMODE_Pause) Playback_Normal();
+    if(TrickMode == TRICKMODE_Pause) Playback_Normal();
 WriteLogMCf(PROGRAM_NAME, "Debug: Springe jetzt zu CurPlayPosition = %lu", CurPlayPosition);
     if (CurPlayPosition > 0)
-      TAP_Hdd_ChangePlaybackPos(CurPlayPosition);  */
+      TAP_Hdd_ChangePlaybackPos(CurPlayPosition);
     PlaybackRepeatSet(OldRepeatMode);
   }
 

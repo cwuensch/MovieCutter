@@ -1,3 +1,15 @@
+2015-02-?? v3.2  NEU:
+                    * Prüfung auf bekannten System-Typ (FirmwareTMS.dat) beim Start von MC!
+
+                 INI-File:
+                   ** neue Option CheckFSAfterCut=3 prüft Dateisystem für alle betroffenen HDDs beim Beenden
+
+                 INTERNALS:
+                    - neue modifizierte FireBirdLib (2013-02-18)
+                    - auf europäischen Töpfen auch ohne FirmwareTMS.dat lauffähig
+                    - EncodeRECHeader überschreibt nicht mehr den ungenutzten Bereich
+                    - Debug-Ausgaben entfernt
+
 2014-12-31 v3.1b BUGFIX:
                     - jfs_icheck wird auch bei Dateinamen mit Anführungszeichen korrekt aufgerufen
                  INI-File:
