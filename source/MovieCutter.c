@@ -305,7 +305,7 @@ int                     NrAllSuspectInodes = 0;
 TYPE_PlayInfo           PlayInfo;
 char                    PlaybackName[MAX_FILE_NAME_SIZE + 1];
 char                    AbsPlaybackDir[FBLIB_DIR_SIZE];
-__off64_t               RecFileSize;
+__off64_t               RecFileSize = 0;
 dword                   LastTotalBlocks = 0;
 dword                   BlocksOneSecond;
 dword                   BlockNrLastSecond;
@@ -545,10 +545,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   {
     if (OSDMenuMessageBoxIsVisible()) OSDMenuMessageBoxDestroy();
 
-//    DumpInodeFixingList("/mnt/hd/FixInodes.lst");
-//    DumpInodeFixingList("/tmp/FixInodes.tmp");
-//    HDD_FixInodeList(((AbsPlaybackDir[0]) ? AbsPlaybackDir : TAPFSROOT), TRUE);
-
 //    TAP_EnterNormal();
     State = ST_Exit;
     param1 = 0;
@@ -581,6 +577,7 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
 */
       // Load INI
       LoadINI();
+      WriteLogMCf(PROGRAM_NAME, "Options: SpecialEnd=%s, DoiCheckTest=%d, CheckFSAfterCut=%d, InodeMonitoring=%d", (DisableSpecialEnd ? "disabled" : "enabled"), DoiCheckTest, CheckFSAfterCut, InodeMonitoring);
       OSDMode = DefaultOSDMode;
 
       // Set the system time to current time
@@ -1092,7 +1089,7 @@ if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==
             // bei anderen Fernbedienungen (ohne Up/Down) steuert ChUp/ChDown die Up/Down-Tase
             else if (RCUMode != RC_SRP2410 && RCUMode != RC_SRP2401 && RCUMode != RC_NoVolKeys)
             {
-WriteLogMC("DEBUG-Ausgabe", "ChUp/ChDown-Event empfangen, das nicht durch Up/Down gehandelt wurde!");
+              WriteLogMC("DEBUG", "ChUp/ChDown-Event empfangen, das nicht durch Up/Down gehandelt wurde!");
               if (param1 == RKEY_ChUp)          Playback_SetJumpNavigate(TRUE, FALSE, TRUE);
               else if (param1 == RKEY_ChDown)   Playback_SetJumpNavigate(TRUE, FALSE, FALSE);
             }
@@ -1580,8 +1577,7 @@ WriteLogMC("DEBUG-Ausgabe", "ChUp/ChDown-Event empfangen, das nicht durch Up/Dow
         {
           if (CheckFSAfterCut == 3)
           {
-            WriteLogMCf(PROGRAM_NAME, "Inode-Check (%d/%d) mit fsck für Mount: %s", i, NrHDDs, p);
-            WriteDebugLog(            "Inode-Check (%d/%d) mit fsck für Mount: %s", i, NrHDDs, p);
+//            WriteLogMCf(PROGRAM_NAME, "Inode-Check (%d/%d) mit fsck für Mount: %s", i+1, NrHDDs, p);
             CheckFileSystem(p, i, i+1, NrHDDs, TRUE, TRUE, FALSE, FALSE, NrAllSuspectInodes, NULL);
           }
           else if (InodeMonitoring)
@@ -1605,7 +1601,7 @@ WriteLogMC("DEBUG-Ausgabe", "ChUp/ChDown-Event empfangen, das nicht durch Up/Dow
       FMUC_FreeFontFile(&Calibri_14_FontDataUC);
       FMUC_FreeFontFile(&Courier_New_13_FontDataUC);
       OSDMenuFreeStdFonts();
-      WriteLogMC(PROGRAM_NAME, "MovieCutter Exit.");
+      WriteLogMC(PROGRAM_NAME, "MovieCutter Exit.\r\n");
       TAP_Exit();
       break;
     }
@@ -2748,9 +2744,9 @@ bool CutFileLoad(void)
   // Wenn letzter Segment-Marker ungleich TotalBlock ist -> anpassen
   if (SegmentMarker[NrSegmentMarker - 1].Block != PlayInfo.totalBlock)
   {
-#ifdef FULLDEBUG
-  WriteLogMCf(PROGRAM_NAME, "CutFileLoad: Letzter Segment-Marker %lu ist ungleich TotalBlock %lu!", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
-#endif
+    #ifdef FULLDEBUG
+      WriteLogMCf(PROGRAM_NAME, "CutFileLoad: Letzter Segment-Marker %lu ist ungleich TotalBlock %lu!", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
+    #endif
     SegmentMarker[NrSegmentMarker - 1].Block = PlayInfo.totalBlock;
     dword newTime = NavGetBlockTimeStamp(SegmentMarker[NrSegmentMarker - 1].Block);
     SegmentMarker[NrSegmentMarker - 1].Timems = (newTime) ? newTime : (dword)(1000 * (60*PlayInfo.duration + PlayInfo.durationSec));
@@ -4781,9 +4777,8 @@ void MovieCutterProcess(bool KeepCut)
   tTimeStamp            CutStartPoint, BehindCutPoint;
   dword                 DeltaBlock; //, DeltaTime;
   dword                 CurPlayPosition;
-  char                  DeviceNode[20], CommandLine[512], InodeNrs[768];
+  char                  CommandLine[512], InodeNrs[768];
   __ino64_t             InodeNr = 0;
-  __off64_t             FileSize = 0;
   int                   icheckErrors = -2;
   int                   i, j;
   tResultCode           ret = RC_Error;
@@ -4835,35 +4830,19 @@ void MovieCutterProcess(bool KeepCut)
   TAP_SPrint(MessageString, sizeof(MessageString), LangGetString(LS_Cutting), 0, maxProgress);
   OSDMenuProgressBarShow(PROGRAM_NAME, MessageString, 0, maxProgress + ((CheckFSAfterCut==2) ? 1 : 0), NULL);
   CurPlayPosition = PlayInfo.currentBlock;
-WriteLogMCf(PROGRAM_NAME, "Debug: Speichere CurPlayPosition = %lu", CurPlayPosition);
 
 // Aufnahmenfresser-Test und Ausgabe
-HDD_FindMountPointDev2(AbsPlaybackDir, NULL, DeviceNode);
+//HDD_FindMountPointDev2(AbsPlaybackDir, NULL, DeviceNode);
 //TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,rw,integrity %s", DeviceNode);
 //system(CommandLine);
-WriteDebugLog("======================\n");
-WriteDebugLog("MC-Version: %s, FBLib: %s, SpecialEnd %s, DoiCheckTest=%d, CheckFSAfterCut=%d, InodeMonitoring=%d", VERSION, __FBLIB_VERSION__, (DisableSpecialEnd) ? "nicht aktiv" : "aktiv", DoiCheckTest, CheckFSAfterCut, InodeMonitoring);
-FILE *MountState;
-TAP_SPrint(CommandLine, sizeof(CommandLine), "mount | grep '%s on'", DeviceNode);
-MountState = popen(CommandLine, "r");
-if(MountState)
-{
-  fgets(CommandLine, sizeof(CommandLine), MountState);
-  WriteDebugLog("Device: %s, gemountet als: %s. (%s)", DeviceNode, ((CommandLine[0] && !strstr(CommandLine, "nointegrity")) ? "integrity" : ((CommandLine[0]) ? "nointegrity" : "unbekannt")), RemoveEndLineBreak(CommandLine));
-}
-if (HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, &InodeNr, &FileSize))
-  WriteDebugLog("Source:   '%s/%s', inode=%llu, size=%llu", AbsPlaybackDir, PlaybackName, InodeNr, FileSize);
 if (DoiCheckTest >= 3)
 {
   icheckErrors = 0;
   if (!HDD_CheckInode(PlaybackName, AbsPlaybackDir, FALSE, InodeMonitoring /*, "Original" */))
     icheckErrors++;
 }
-WriteDebugLog("%d Schnittoperation(en) vorgesehen.", NrSelectedSegments);
-WriteDebugLog("---------------");
-
-  if (HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, &InodeNr, NULL))
-    TAP_SPrint(InodeNrs, sizeof(InodeNrs), "%llu", InodeNr);
+if (HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, &InodeNr, NULL))
+  TAP_SPrint(InodeNrs, sizeof(InodeNrs), "%llu", InodeNr);
 
   for(i = NrSegmentMarker - 2; i >= 0 /*-1*/; i--)
   {
@@ -4923,7 +4902,6 @@ WriteDebugLog("---------------");
           BehindCutPoint.BlockNr = SegmentMarker[NrSegmentMarker-2].Block;
           BehindCutPoint.Timems  = SegmentMarker[NrSegmentMarker-2].Timems;
           WriteLogMC(PROGRAM_NAME, "(* first special mode for cut ending *)");
-          WriteDebugLog("EndSchnitt - special mode:");
         }
         else if (KeepCut)
           BehindCutPoint.BlockNr = 0xFFFFFFFF;  //letztes Segment soll gespeichert werden -> versuche bis zum tatsächlichen Ende zu gehen
@@ -4945,17 +4923,11 @@ WriteDebugLog("---------------");
 
       // Schnittoperation
       ret = MovieCutter(PlaybackName, ((CutEnding) ? TempFileName : CutFileName), AbsPlaybackDir, &CutStartPoint, &BehindCutPoint, (TRUE || KeepCut || CutEnding), HDVideo);
-WriteLogMCf(PROGRAM_NAME, "Debug: MovieCutter() returned: %d", ret);
 
       if (HDD_GetFileSizeAndInode2(((CutEnding) ? TempFileName : CutFileName), AbsPlaybackDir, &InodeNr, NULL))
         TAP_SPrint(&InodeNrs[strlen(InodeNrs)], sizeof(InodeNrs)-strlen(InodeNrs), " %llu", InodeNr);
 
 // Aufnahmenfresser-Test und Ausgabe
-WriteLogMC(PROGRAM_NAME, "Debug: vor icheck-Test");
-if (HDD_GetFileSizeAndInode2(((CutEnding) ? TempFileName : CutFileName), AbsPlaybackDir, &InodeNr, &FileSize))
-  WriteDebugLog("Cut file: '%s/%s', inode=%llu, size=%llu", AbsPlaybackDir, ((CutEnding) ? TempFileName : CutFileName), InodeNr, FileSize);
-if (HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, &InodeNr, &FileSize))
-  WriteDebugLog("RestFile: '%s/%s', inode=%llu, size=%llu", AbsPlaybackDir, PlaybackName, InodeNr, FileSize);
 if (DoiCheckTest >= 3)
 {
   if (!HDD_CheckInode(((CutEnding) ? TempFileName : CutFileName), AbsPlaybackDir, (DoiCheckTest==4), InodeMonitoring /*, "CutFile" */))
@@ -4965,7 +4937,6 @@ if (DoiCheckTest >= 3)
 }
 if (!KeepCut && !CutEnding)
   HDD_Delete2(CutFileName, AbsPlaybackDir, TRUE);  // wenn diese Zeile gelöscht wird, stattdessen das TRUE im MovieCutter-Aufruf wieder rausnehmen
-WriteLogMC(PROGRAM_NAME, "Debug: nach icheck-Test");
 
 // INFplus
 if (CutEnding || KeepCut)
@@ -4988,7 +4959,6 @@ if (CutEnding || KeepCut)
   }
 }
 
-WriteLogMC(PROGRAM_NAME, "Debug: vor Renaming");
       // Das erzeugte CutFile wird zum neuen SourceFile
       if (CutEnding)
       {
@@ -5013,7 +4983,6 @@ WriteLogMC(PROGRAM_NAME, "Debug: vor Renaming");
           }
         }
       }
-WriteLogMC(PROGRAM_NAME, "Debug: nach Renaming");
 
       // Überprüfung von Existenz und Größe der geschnittenen Aufnahme
       RecFileSize = 0;
@@ -5026,7 +4995,6 @@ WriteLogMC(PROGRAM_NAME, "Debug: nach Renaming");
       if (RecFileSize > 0)
       {
 //        TAP_Hdd_PlayTs(PlaybackName);
-WriteLogMCf(PROGRAM_NAME, "Debug: HDD_StartPlayback2('%s', '%s')", PlaybackName, AbsPlaybackDir);
         HDD_StartPlayback2(PlaybackName, AbsPlaybackDir);
         PlayInfo.totalBlock = 0;
         j = 0;
@@ -5035,7 +5003,9 @@ WriteLogMCf(PROGRAM_NAME, "Debug: HDD_StartPlayback2('%s', '%s')", PlaybackName,
           TAP_SystemProc();
           j++;
         }
-WriteLogMCf(PROGRAM_NAME, "Debug: Playback gestartet (j=%d, isPlaybackRunning=%s, TotalBlock=%lu, CurrentBlock=%lu)", j, ((isPlaybackRunning()) ? "true" : "false"), PlayInfo.totalBlock, PlayInfo.currentBlock);
+        #ifdef FULLDEBUG        
+          WriteLogMCf(PROGRAM_NAME, "Playback re-started (j=%d, isPlaybackRunning=%s, TotalBlock=%lu, CurrentBlock=%lu)", j, ((isPlaybackRunning()) ? "true" : "false"), PlayInfo.totalBlock, PlayInfo.currentBlock);
+        #endif
         if (PlayInfo.playMode == PLAYMODE_Playing)
           PlaybackRepeatSet(TRUE);
 //        HDD_ChangeDir(PlaybackDir);
@@ -5122,7 +5092,6 @@ WriteLogMCf(PROGRAM_NAME, "Debug: Playback gestartet (j=%d, isPlaybackRunning=%s
           if (CurPlayPosition >= BehindCutPoint.BlockNr)
             CurPlayPosition = 0;
       }
-WriteLogMCf(PROGRAM_NAME, "Debug: Ändere CurPlayPosition = %lu", CurPlayPosition);
 
       // Wenn Spezial-Crop-Modus, nochmal testen, ob auch mit der richtigen rec weitergemacht wird
       if(CutEnding)
@@ -5153,7 +5122,6 @@ WriteLogMCf(PROGRAM_NAME, "Debug: Ändere CurPlayPosition = %lu", CurPlayPosition
       OSDSegmentListDrawList(FALSE);
       OSDInfoDrawProgressbar(TRUE, TRUE);
 
-TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegments, maxProgress);
       if (OSDMenuProgressBarIsVisible())
       {
         OSDMenuSaveMyRegion(rgnSegmentList);
@@ -5174,7 +5142,6 @@ TAP_PrintNet("Aktueller Prozentstand: %d von %d\n", maxProgress - NrSelectedSegm
   if (isPlaybackRunning())
   {
     if(TrickMode == TRICKMODE_Pause) Playback_Normal();
-WriteLogMCf(PROGRAM_NAME, "Debug: Springe jetzt zu CurPlayPosition = %lu", CurPlayPosition);
     if (CurPlayPosition > 0)
       TAP_Hdd_ChangePlaybackPos(CurPlayPosition);
   } */
@@ -5190,7 +5157,6 @@ WriteLogMCf(PROGRAM_NAME, "Debug: Springe jetzt zu CurPlayPosition = %lu", CurPl
       OSDMenuProgressBarShow(PROGRAM_NAME, LangGetString(LS_CheckingFileSystem), maxProgress - NrSelectedSegments, maxProgress + ((CheckFSAfterCut==2) ? 1 : 0), NULL);
     icheckErrors = HDD_CheckInodes(InodeNrs, AbsPlaybackDir, (DoiCheckTest==2), InodeMonitoring);
   }
-WriteLogMCf(PROGRAM_NAME, "Debug: DoiCheckTest=%d, CheckFSAfterCut=%d, InodeMonitoring=%d, icheckErrors=%d", DoiCheckTest, CheckFSAfterCut, InodeMonitoring, icheckErrors);
 
   // Save HDD mount point in list of suspect devices
   if (icheckErrors && (InodeMonitoring || CheckFSAfterCut == 3))
@@ -5201,14 +5167,13 @@ WriteLogMCf(PROGRAM_NAME, "Debug: DoiCheckTest=%d, CheckFSAfterCut=%d, InodeMoni
     if (strstr(SuspectHDDs, MountPoint) == 0)
       TAP_SPrint(&SuspectHDDs[strlen(SuspectHDDs)], SIZESUSPECTHDDS-strlen(SuspectHDDs), MountPoint);
     NrAllSuspectInodes += max(icheckErrors, 0);
-TAP_PrintNet("DEBUG: NrAllSuspectInodes=%d, SuspectHDDs='%s'\n", NrAllSuspectInodes, SuspectHDDs);
+WriteLogMCf("DEBUG", "DEBUG: NrAllSuspectInodes=%d, SuspectHDDs='%s'", NrAllSuspectInodes, SuspectHDDs);
   }
 
   // Check file system consistency and show a warning
   if ((CheckFSAfterCut == 2) || (CheckFSAfterCut == 1 && icheckErrors))
   {
     WriteLogMCf(PROGRAM_NAME, "Inodes-Check mit fsck: %s", InodeNrs);
-    WriteDebugLog(            "Inodes-Check mit fsck: %s", InodeNrs);
     if (CheckFSAfterCut == 2)
       CheckFileSystem(AbsPlaybackDir, maxProgress, maxProgress + 1, maxProgress + 1, TRUE, TRUE, TRUE, TRUE, icheckErrors, InodeNrs);
     else
@@ -5250,7 +5215,6 @@ TAP_PrintNet("DEBUG: NrAllSuspectInodes=%d, SuspectHDDs='%s'\n", NrAllSuspectIno
   if (isPlaybackRunning())
   {
     if(TrickMode == TRICKMODE_Pause) Playback_Normal();
-WriteLogMCf(PROGRAM_NAME, "Debug: Springe jetzt zu CurPlayPosition = %lu", CurPlayPosition);
     if (CurPlayPosition > 0)
       TAP_Hdd_ChangePlaybackPos(CurPlayPosition);
     PlaybackRepeatSet(OldRepeatMode);

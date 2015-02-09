@@ -8,7 +8,7 @@
 //#define TEMPCUTNAME        "__tempcut__.ts"
 
 #ifndef FULLDEBUG
-  #define FULLDEBUG             TRUE  // ***
+//  #define FULLDEBUG             TRUE  // ***
 #endif
 
 //#define STACKTRACE            TRUE
@@ -67,7 +67,7 @@ typedef struct
 
 void        WriteLogMC(char *ProgramName, char *s);
 void        WriteLogMCf(char *ProgramName, const char *format, ...);
-void        WriteDebugLog(const char *format, ...);
+//void        WriteDebugLog(const char *format, ...);
 tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirectory, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepCut, bool isHD);
 void        GetNextFreeCutName(const char *SourceFileName, char *const OutCutFileName, const char *AbsDirectory, int LeaveNamesOut);
 void        SecToTimeString(dword Time, char *const TimeString);     // needs max. 4 + 1 + 2 + 1 + 2 + 1 = 11 chars

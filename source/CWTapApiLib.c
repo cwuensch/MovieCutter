@@ -185,7 +185,9 @@ __off64_t HDD_GetFreeDiscSpace(char *AnyFileName, char *AbsDirectory)
   TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s", AbsDirectory, AnyFileName);
   if(statvfs64(AbsFileName, &statbuf) == 0)
     ret = (statbuf.f_bavail * statbuf.f_bsize);
-//TAP_PrintNet("File System stat ('%s'): Block size=%lu, Fragment size=%lu, Total blocks=%llu, Free blocks=%llu, Avail blocks=%llu\n", AbsFileName, statbuf.f_bsize, statbuf.f_frsize, statbuf.f_blocks, statbuf.f_bfree, statbuf.f_bavail);
+  #if STACKTRACE == TRUE
+    TAP_PrintNet("File System stat ('%s'): Block size=%lu, Fragment size=%lu, Total blocks=%llu, Free blocks=%llu, Avail blocks=%llu\n", AbsFileName, statbuf.f_bsize, statbuf.f_frsize, statbuf.f_blocks, statbuf.f_bfree, statbuf.f_bavail);
+  #endif
 
   TRACEEXIT();
   return ret;
@@ -292,11 +294,11 @@ bool ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks)
     if(NrBookmarks) *NrBookmarks = 0;
 //    WriteLogMC(PROGRAM_NAME, "ReadBookmarks: Fatal error - inf cache entry point not found!");
 
-    char s[128];
+/*    char s[128];
     TAP_SPrint(s, sizeof(s), "TempRecSlot=%p", TempRecSlot);
     if(TempRecSlot)
       TAP_SPrint(&s[strlen(s)], sizeof(s)-strlen(s), ", *TempRecSlot=%d, HDD_NumberOfRECSlots()=%lu", *TempRecSlot, HDD_NumberOfRECSlots());
-//    WriteLogMC(PROGRAM_NAME, s);
+    WriteLogMC(PROGRAM_NAME, s);  */
     ret = FALSE;
   }
 

@@ -78,8 +78,10 @@ tInodeData* ReadListFileAlloc(const char *AbsListFileName, int *OutNrInodes, int
 
   TRACEENTER();
   InodeListHeader.NrEntries = 0;
-TAP_PrintNet("ReadListFileAlloc: OutNrInodes: %d, HeaderNrEntries: %d\n", (OutNrInodes) ? *OutNrInodes : 0, InodeListHeader.NrEntries);
-  
+  #if STACKTRACE == TRUE
+    TAP_PrintNet("ReadListFileAlloc: OutNrInodes: %d, HeaderNrEntries: %d\n", (OutNrInodes) ? *OutNrInodes : 0, InodeListHeader.NrEntries);
+  #endif
+
   fInodeList = fopen(AbsListFileName, "rb");
   if(fInodeList)
   {
@@ -101,14 +103,18 @@ TAP_PrintNet("ReadListFileAlloc: OutNrInodes: %d, HeaderNrEntries: %d\n", (OutNr
       return NULL;
     }
   }
-else TAP_PrintNet("File could not be opened: %s\n", AbsListFileName);
+  #if STACKTRACE == TRUE
+    else TAP_PrintNet("File could not be opened: %s\n", AbsListFileName);
+  #endif
 
   if(OutNrInodes) *OutNrInodes = InodeListHeader.NrEntries;
 
   // Puffer allozieren
   if (InodeListHeader.NrEntries + AddEntries > 0)
   {
-TAP_PrintNet("ReadListFileAlloc(): Puffer alloziert (%d entries, %d Bytes)\n", InodeListHeader.NrEntries+AddEntries, (InodeListHeader.NrEntries+AddEntries)*sizeof(tInodeData));
+    #if STACKTRACE == TRUE
+      TAP_PrintNet("ReadListFileAlloc(): Puffer alloziert (%d entries, %d Bytes)\n", InodeListHeader.NrEntries+AddEntries, (InodeListHeader.NrEntries+AddEntries)*sizeof(tInodeData));
+    #endif
     InodeList = (tInodeData*) malloc((InodeListHeader.NrEntries + AddEntries) * sizeof(tInodeData));
     if(InodeList)
       memset(InodeList, '\0', (InodeListHeader.NrEntries + AddEntries) * sizeof(tInodeData));
@@ -126,7 +132,9 @@ TAP_PrintNet("ReadListFileAlloc(): Puffer alloziert (%d entries, %d Bytes)\n", I
     }
     if (!InodeList)
       WriteLogMC("HddToolsLib", "ReadListFileAlloc: Not enough memory to store the list file.");
-TAP_PrintNet("END ReadListFileAlloc: OutNrInodes: %d, HeaderNrEntries: %d\n", (OutNrInodes) ? *OutNrInodes : 0, InodeListHeader.NrEntries);
+    #if STACKTRACE == TRUE
+      TAP_PrintNet("END ReadListFileAlloc: OutNrInodes: %d, HeaderNrEntries: %d\n", (OutNrInodes) ? *OutNrInodes : 0, InodeListHeader.NrEntries);
+    #endif
   }
   if(fInodeList) fclose(fInodeList);
   TRACEEXIT();
@@ -171,7 +179,9 @@ bool AddTempListToDevice(const char *AbsDeviceList, const char *AbsTempList, int
   bool                  ret = TRUE;
 
   TRACEENTER();
-TAP_PrintNet("AddTempListToDevice: NrMarkedFiles: %d, NrNewMarkedFiles: %d\n", (OutMarkedFiles) ? *OutMarkedFiles : 0, (OutNewMarkedFiles) ? *OutNewMarkedFiles : 0);
+  #if STACKTRACE == TRUE
+    TAP_PrintNet("AddTempListToDevice: NrMarkedFiles: %d, NrNewMarkedFiles: %d\n", (OutMarkedFiles) ? *OutMarkedFiles : 0, (OutNewMarkedFiles) ? *OutNewMarkedFiles : 0);
+  #endif
 
   TempInodeList = ReadListFileAlloc(AbsTempList, &NrTempEntries, 0);
   if(TempInodeList)
@@ -220,14 +230,20 @@ TAP_PrintNet("AddTempListToDevice: NrMarkedFiles: %d, NrNewMarkedFiles: %d\n", (
     int64_t fs = 0;
     if (HDD_GetFileSizeAndInode2(&AbsDeviceList[1], "", NULL, &fs))
       NrMarkedFiles = (fs - min(sizeof(tInodeListHeader), fs)) / sizeof(tInodeData);
-TAP_PrintNet("fs: %lld, NrMarkedFiles: %d\n", fs, NrMarkedFiles);
+    #if STACKTRACE == TRUE
+      TAP_PrintNet("fs: %lld, NrMarkedFiles: %d\n", fs, NrMarkedFiles);
+    #endif
   }
-TAP_PrintNet("END AddTempListToDevice: NrMarkedFiles: %d, NrNewMarkedFiles: %d\n", NrMarkedFiles, NrNewMarkedFiles);
+  #if STACKTRACE == TRUE
+    TAP_PrintNet("END AddTempListToDevice: NrMarkedFiles: %d, NrNewMarkedFiles: %d\n", NrMarkedFiles, NrNewMarkedFiles);
+  #endif
 
   if(OutMarkedFiles)    *OutMarkedFiles    = (ret) ? NrMarkedFiles    : OldNrMarkedFiles;
   if(OutNewMarkedFiles) *OutNewMarkedFiles = (ret) ? NrNewMarkedFiles : 0;
 
-TAP_PrintNet("END AddTempListToDevice: OutMarkedFiles: %d, OutNewMarkedFiles: %d\n", (OutMarkedFiles) ? *OutMarkedFiles : 0, (OutNewMarkedFiles) ? *OutNewMarkedFiles : 0);
+  #if STACKTRACE == TRUE
+    TAP_PrintNet("END AddTempListToDevice: OutMarkedFiles: %d, OutNewMarkedFiles: %d\n", (OutMarkedFiles) ? *OutMarkedFiles : 0, (OutNewMarkedFiles) ? *OutNewMarkedFiles : 0);
+  #endif
   TRACEEXIT();
   return ret;
 }
@@ -497,8 +513,6 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
       {
         RemoveEndLineBreak(Buffer);
         WriteLogMC("CheckFS", Buffer);
-        if(ActivePhase == 10)
-          WriteDebugLog(Buffer);
       }
     }
     fclose(fLogFileIn);
@@ -518,7 +532,6 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
       fsck_Errors = TRUE;
     if (NrNewMarkedFiles != NrRepairedFiles)
       fsck_Errors = TRUE;
-DumpInodeFixingList(CommandLine);
   }
 
   // --- 9.) Output after completion or abortion of process ---
@@ -584,7 +597,6 @@ DumpInodeFixingList(CommandLine);
   TRACEENTER();
   TAP_SPrint(LogString, sizeof(LogString), "AddInodeToFixingList: InodeNr=%lu, LastFixedTime=%lu, di_size=%lld, nblocks_wrong=%lld, nblocks_real=%lld.", pInode.InodeNr, pInode.LastFixTime, pInode.nblocks_wrong, pInode.nblocks_real, pInode.di_size);
   WriteLogMC("HddToolsLib", LogString);
-  WriteDebugLog(LogString);
 
   // Get the list filename
 //  HDD_GetMountPointFromDevice(DeviceNode, MountPoint);
@@ -613,7 +625,7 @@ DumpInodeFixingList(CommandLine);
   return ret;
 }  */
 
-void DumpInodeFixingList(const char *AbsListFile)
+/* void DumpInodeFixingList(const char *AbsListFile)
 {
   tInodeData           *InodeList = NULL;
   int                   NrInodes = 0, i;
@@ -635,7 +647,7 @@ void DumpInodeFixingList(const char *AbsListFile)
     WriteLogMC("HddToolsLib", "-> List file not existing.");
 
   TRACEEXIT();
-}
+} */
 
 
 // ----------------------------------------------------------------------------------------------------------
@@ -651,7 +663,7 @@ tReturnCode RunIcheckWithLog(const char *DeviceNode, const char *ParamString, ch
   {
     TAP_SPrint(CommandLine, sizeof(CommandLine), "mount -o remount,ro %s", DeviceNode);
     if (system(CommandLine) != 0)
-      WriteDebugLog("Schreibgeschützter Remount nicht erfolgreich!");
+      WriteLogMC("Schreibgeschützter Remount nicht erfolgreich!");
   }  */
 
   // Execute jfs_icheck and read its output (last line separately)
@@ -692,9 +704,10 @@ tReturnCode RunIcheckWithLog(const char *DeviceNode, const char *ParamString, ch
   // Write output of jfs_icheck to Logfile
   if (FullLog[0])
   {
-    WriteLogMC("HddToolsLib", FullLog);
-    if ((ret != rc_NOFILEFOUND) && (ret != rc_ALLFILESOKAY))
-      WriteDebugLog(FullLog);
+    #ifdef FULLDEBUG
+      if ((ret != rc_NOFILEFOUND) && (ret != rc_ALLFILESOKAY))
+        WriteLogMC("HddToolsLib", FullLog);
+    #endif
   }
   if (LastLine[0])
     WriteLogMC("HddToolsLib", LastLine);
@@ -740,14 +753,12 @@ bool HDD_CheckInode(const char *FileName, const char *AbsDirectory, bool DoFix, 
   if(InodeMonitoring && DoFix)
   {
     AddTempListToDevice(ListFile, "/tmp/FixInodes.tmp", NULL, NULL);
-DumpInodeFixingList(ListFile);
   }
 
   // Write result state to Logfile
   if (!(ret == rc_ALLFILESOKAY || ret == rc_ALLFILESFIXED || (!DoFix && ret == rc_SOMENOTFIXED)))  // NICHT: Datei ist ok, oder gefixt, oder sollte nicht gefixt werden
   {
     WriteLogMCf("HddToolsLib", "Error! jfs_icheck returned %d.", ret);
-    WriteDebugLog(             "Error! jfs_icheck returned %d.", ret);
   }
 
   TRACEEXIT();
@@ -766,7 +777,6 @@ int HDD_CheckInodes(const char *InodeNrs, const char *AbsMountPath, bool DoFix, 
   strcat(ListFile, "/FixInodes.lst");
 
   WriteLogMCf("HddToolsLib", "Inodes-Check mit icheck: %s (Device=%s, ListFile=%s):", InodeNrs, DeviceNode, ListFile);
-  WriteDebugLog(             "Inodes-Check mit icheck: %s (Device=%s, ListFile=%s):", InodeNrs, DeviceNode, ListFile);
 
   // Set the system time to current time
 //  if(DoFix) SetSystemTimeToCurrent();
@@ -782,7 +792,6 @@ int HDD_CheckInodes(const char *InodeNrs, const char *AbsMountPath, bool DoFix, 
   if(InodeMonitoring && DoFix)
   {
     AddTempListToDevice(ListFile, "/tmp/FixInodes.tmp", NULL, &NrDefectFiles);
-DumpInodeFixingList(ListFile);
   }
   else
   {
@@ -795,7 +804,6 @@ DumpInodeFixingList(ListFile);
   if (!(ret == rc_NOFILEFOUND || ret == rc_ALLFILESOKAY || ret == rc_ALLFILESFIXED || (!DoFix && ret == rc_SOMENOTFIXED)))  // NICHT: keine gefunden, alle ok, alle gefixt oder sollten nicht gefixt werden
   {
     WriteLogMCf("HddToolsLib", "Error! jfs_icheck returned %d.", ret);
-    WriteDebugLog(             "Error! jfs_icheck returned %d.", ret);
   }
 
   TRACEEXIT();
@@ -835,7 +843,6 @@ bool HDD_FixInodeList2(const char *ListFile, const char *DeviceNode, bool Delete
   // Write result state to Logfile
   if (!(ret == rc_NOFILEFOUND || ret == rc_ALLFILESOKAY || ret == rc_ALLFILESFIXED))  // NICHT: keine gefunden, alle ok oder alle gefixt
     WriteLogMCf("HddToolsLib", "Error! jfs_icheck returned %d.", ret);
-DumpInodeFixingList(ListFile);
 
   TRACEEXIT();
   return (ret == rc_NOFILEFOUND || ret == rc_ALLFILESOKAY || ret == rc_ALLFILESFIXED);  // keine gefunden, alle okay oder alle gefixt

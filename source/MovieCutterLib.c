@@ -67,7 +67,7 @@ void WriteLogMCf(char *ProgramName, const char *format, ...)
   }
 }
 
-void WriteDebugLog(const char *format, ...)
+/* void WriteDebugLog(const char *format, ...)
 {
   char Text[512];
 
@@ -84,7 +84,7 @@ void WriteDebugLog(const char *format, ...)
   }
 
   HDD_TAP_PopDir();
-}
+} */
 
 static inline dword CalcBlockSize(off_t Size)
 {
@@ -256,7 +256,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
     TRACEEXIT();
     return RC_Error;
   }
-WriteLogMC("MovieCutterLib", "Debug: Firmware cutting routine finished.");
+  WriteLogMC("MovieCutterLib", "Firmware cutting routine finished.");
 
   // Detect the size of the cut file
   if(!HDD_GetFileSizeAndInode2(CutFileName, AbsDirectory, &InodeNr, &CutFileSize))
@@ -474,16 +474,15 @@ bool FileCut(char *SourceFileName, char *CutFileName, char *AbsDirectory, dword 
       ApplHdd_SetWorkFolder(&FolderStruct);
 
       //Do the cutting
-WriteLogMCf("MovieCutterLib", "Debug: ApplHdd_FileCutPaste('%s', %lu, %lu, '%s')", SourceFileName, StartBlock, NrBlocks, CutFileName);
+      #ifdef FULLDEBUG
+        WriteLogMCf("MovieCutterLib", "ApplHdd_FileCutPaste('%s', %lu, %lu, '%s')", SourceFileName, StartBlock, NrBlocks, CutFileName);
+      #endif
       ret = ApplHdd_FileCutPaste(SourceFileName, StartBlock, NrBlocks, CutFileName);
-/*char tmp[FBLIB_DIR_SIZE];
-TAP_SPrint(tmp, sizeof(tmp), "touch \"%s/%s\"", AbsDirectory, CutFileName);
-system(tmp);*/
-WriteLogMCf("MovieCutterLib", "Debug: ApplHdd_FileCutPaste() returned: %lu.", ret);
-
+      #ifdef FULLDEBUG
+        WriteLogMCf("MovieCutterLib", "ApplHdd_FileCutPaste() returned: %lu.", ret);
+      #endif
       //Restore all resources
-      dword ret2 = DevHdd_DeviceClose(pFolderStruct);
-TAP_PrintNet("DevHdd_DeviceClose() returned: %lu.\n", ret2);
+      DevHdd_DeviceClose(pFolderStruct);
     }
   }
   ApplHdd_RestoreWorkFolder();
@@ -510,7 +509,6 @@ TAP_PrintNet("DevHdd_DeviceClose() returned: %lu.\n", ret2);
     return FALSE;
   }
 
-WriteLogMC("MovieCutterLib", "Debug: ENDE FileCut().");
   TRACEEXIT();
   return TRUE;
 }
@@ -665,10 +663,10 @@ bool WriteByteToFile(const char *FileName, const char *AbsDirectory, off_t ByteP
 
   // Check, if the old value is correct
   char old = (char)fgetc(f);
-#ifdef FULLDEBUG
-  if (NewValue == 'G')
-    WriteLogMCf("MovieCutterLib", "UnpatchRecFile(): value read from cache: '%c' (expected 'F').", old);
-#endif
+  #ifdef FULLDEBUG
+    if (NewValue == 'G')
+      WriteLogMCf("MovieCutterLib", "UnpatchRecFile(): value read from cache: '%c' (expected 'F').", old);
+  #endif
   if ((old != OldValue) && (old != 'G'))
   {
     fclose(f);
@@ -989,12 +987,12 @@ bool GetRecDateFromInf(const char *RecFileName, const char *AbsDirectory, dword 
 
   TRACEENTER();
 
-#ifdef FULLDEBUG
-  TAP_PrintNet("SaveBookmarksToInf()\n");
-  for (i = 0; i < NrBookmarks; i++) {
-    TAP_PrintNet("%lu\n", Bookmarks[i]);
-  }
-#endif
+  #ifdef FULLDEBUG
+    TAP_PrintNet("SaveBookmarksToInf()\n");
+    for (i = 0; i < NrBookmarks; i++) {
+      TAP_PrintNet("%lu\n", Bookmarks[i]);
+    }
+  #endif
 
   //Allocate and clear the buffer
   Buffer = (byte*) TAP_MemAlloc(8192);
@@ -1103,10 +1101,12 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
 //  ret = TAP_Hdd_Fread(Buffer, min(fs, INFSIZE), 1, tf);
 //  TAP_Hdd_Fclose(tf);
   BytesRead = fread(Buffer, 1, INFSIZE, fSourceInf);
-  fseek(fSourceInf, 0, SEEK_END);
-  dword fs = ftell(fSourceInf);
-  fclose(fSourceInf);
-WriteLogMCf("MovieCutterLib", "PatchInfFiles(): %lu / %lu Bytes read.", BytesRead, fs);
+  #ifdef FULLDEBUG
+    fseek(fSourceInf, 0, SEEK_END);
+    dword fs = ftell(fSourceInf);
+    fclose(fSourceInf);
+    WriteLogMCf("MovieCutterLib", "PatchInfFiles(): %lu / %lu Bytes read.", BytesRead, fs);
+  #endif
 
   //Decode the source .inf
   if(!HDD_DecodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN))
@@ -1116,7 +1116,6 @@ WriteLogMCf("MovieCutterLib", "PatchInfFiles(): %lu / %lu Bytes read.", BytesRea
     TRACEEXIT();
     return FALSE;
   }
-WriteLogMC("MovieCutterLib", "Header erfolgreich decoded!");
 
   //Calculate the new play times
   if (SourcePlayTime)
@@ -1535,11 +1534,6 @@ tTimeStamp* NavLoad(const char *RecFileName, const char *AbsDirectory, int *cons
     return(NULL);
   }
 
-#ifdef FULLDEBUG
-  TAP_PrintNet("NavSize: %lu\t\tBufSize: %lu\n", NavSize, NavRecordsNr * sizeof(tTimeStamp));
-  TAP_PrintNet("Expected Nav-Records: %lu\n", NavRecordsNr);
-#endif
-
   //Count and save all the _different_ time stamps in the .nav
   LastTimeStamp = 0xFFFFFFFF;
   FirstTime = 0xFFFFFFFF;
@@ -1595,10 +1589,6 @@ tTimeStamp* NavLoad(const char *RecFileName, const char *AbsDirectory, int *cons
       }
     }
   } while(ret == NAVRECS_SD);
-#ifdef FULLDEBUG
-  TAP_PrintNet("FirstTime: %lu\n", FirstTime);
-  TAP_PrintNet("NrTimeStamps: %d\n", NrTimeStamps);
-#endif
 
   // Free the nav-Buffer and close the file
   fclose(fNav);
