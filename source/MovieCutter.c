@@ -551,10 +551,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   }
 
 /* // **** LÖSCHEN ****
-if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==ST_InactiveModePlaying || State==ST_InactiveMode || State==ST_WaitForPlayback || State==ST_UnacceptedFile) && !DisableSleepKey)
-{
-  CheckFileSystem((AbsPlaybackDir[0] ? AbsPlaybackDir : TAPFSROOT), 0, 1, 1, TRUE, TRUE, FALSE, FALSE, 0, NULL);
-} */
+  if((event == EVT_KEY) && (param1 == RKEY_Sat) && (State==ST_ActiveOSD || State==ST_InactiveModePlaying || State==ST_InactiveMode || State==ST_WaitForPlayback || State==ST_UnacceptedFile) && !DisableSleepKey)
+  {
+    CheckFileSystem((AbsPlaybackDir[0] ? AbsPlaybackDir : TAPFSROOT), 0, 1, 1, TRUE, TRUE, FALSE, FALSE, 0, NULL);
+  } */
 #endif
 
 
@@ -2491,7 +2491,9 @@ void UndoAddEvent(bool Bookmark, dword PreviousBlock, dword NewBlock, bool Segme
     if (UndoLastItem >= NRUNDOEVENTS)
       UndoLastItem = 0;
     NextAction = &UndoStack[UndoLastItem];
-    TAP_PrintNet("MovieCutter: UndoAddEvent %d (%s, PreviousBlock=%lu, NewBlock=%lu)\n", UndoLastItem, (Bookmark) ? "Bookmark" : "SegmentMarker", PreviousBlock, NewBlock);
+    #ifdef FULLDEBUG
+      TAP_PrintNet("MovieCutter: UndoAddEvent %d (%s, PreviousBlock=%lu, NewBlock=%lu)\n", UndoLastItem, (Bookmark) ? "Bookmark" : "SegmentMarker", PreviousBlock, NewBlock);
+    #endif
 
     NextAction->Bookmark           = Bookmark;
     NextAction->PrevBlockNr        = PreviousBlock;
@@ -2514,7 +2516,9 @@ bool UndoLastAction(void)
     return FALSE;
   }
   LastAction = &UndoStack[UndoLastItem];
-  TAP_PrintNet("MovieCutter: UndoLastAction %d (%s, PreviousBlock=%lu, NewBlock=%lu)\n", UndoLastItem, (LastAction->Bookmark) ? "Bookmark" : "SegmentMarker", LastAction->PrevBlockNr, LastAction->NewBlockNr);
+  #ifdef FULLDEBUG
+    TAP_PrintNet("MovieCutter: UndoLastAction %d (%s, PreviousBlock=%lu, NewBlock=%lu)\n", UndoLastItem, (LastAction->Bookmark) ? "Bookmark" : "SegmentMarker", LastAction->PrevBlockNr, LastAction->NewBlockNr);
+  #endif
 
   if (LastAction->Bookmark)
   {
@@ -2573,7 +2577,9 @@ bool UndoLastAction(void)
 void UndoResetStack(void)
 {
   TRACEENTER();
-  TAP_PrintNet("MovieCutter: UndoResetStack()\n");
+  #ifdef FULLDEBUG
+    TAP_PrintNet("MovieCutter: UndoResetStack()\n");
+  #endif
 
   memset(UndoStack, 0, NRUNDOEVENTS * sizeof(tUndoEvent));
   UndoLastItem = 0;
@@ -5504,9 +5510,9 @@ bool CheckFileSystem(char *MountPath, dword ProgressStart, dword ProgressEnd, dw
     {
       if (SegmentMarker[NrSegmentMarker - 1].Block != PlayInfo.totalBlock)
       {
-#ifdef FULLDEBUG
-  WriteLogMCf(PROGRAM_NAME, "CheckFileSystem: Nach Playback-Restart neues TotalBlock %lu (vorher %lu)!", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
-#endif
+        #ifdef FULLDEBUG
+          WriteLogMCf(PROGRAM_NAME, "CheckFileSystem: Nach Playback-Restart neues TotalBlock %lu (vorher %lu)!", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
+        #endif
         SegmentMarker[NrSegmentMarker - 1].Block = PlayInfo.totalBlock;
       }
 //      OSDRedrawEverything();

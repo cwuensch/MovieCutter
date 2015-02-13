@@ -442,9 +442,7 @@ bool FileCut(char *SourceFileName, char *CutFileName, char *AbsDirectory, dword 
   dword                 x;
 
   TRACEENTER();
-  #ifdef FULLDEBUG
-    WriteLogMCf("MovieCutterLib", "FileCut('%s', '%s', '%s', %lu, %lu)", SourceFileName, CutFileName, AbsDirectory, StartBlock, NrBlocks);
-  #endif
+  WriteLogMCf("MovieCutterLib", "FileCut('%s', '%s', '%s', %lu, %lu)", SourceFileName, CutFileName, AbsDirectory, StartBlock, NrBlocks);
 
   //If a playback is running, stop it
   TAP_Hdd_GetPlayInfo(&PlayInfo);

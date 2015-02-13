@@ -522,7 +522,9 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
   if(fLogFileOut) fclose(fLogFileOut);
 
   // Copy the log to MovieCutter folder
-  system("cp /tmp/fsck.log " ABSLOGDIR "/Lastfsck.log");
+  #ifdef FULLDEBUG
+    system("cp /tmp/fsck.log " ABSLOGDIR "/Lastfsck.log");
+  #endif
 
   // --- 8.) Copy the FixInodes list to root of drive ---
   if(InodeMonitoring)
