@@ -1,8 +1,15 @@
-2015-02-?? v3.2  NEU:
-                    * Prüfung auf bekannten System-Typ (FirmwareTMS.dat) beim Start von MC!
+2015-02-26 v3.2  NEU:
+                   ** Dateisystemprüfung kann automatisch beim Beenden/Herunterfahren ausgeführt werden
+                   ** schnellere Zeitanzeige beim Spulen (kein "Stottern" mehr)
+                    * stabilisierte Zeitanzeige bei Slow-Motion ("Hin- und Herspringen")
+                    * verbesserte Reaktion bei schnell wiederholtem Drücken der Spul-Tasten (?)
+                    * Prüfung auf bekannten System-Typ (FirmwareTMS.dat) beim Start von MC
 
                  INI-File:
                    ** neue Option CheckFSAfterCut=3 prüft Dateisystem für alle betroffenen HDDs beim Beenden
+
+                 BUGFIX:
+                    * Crash, wenn MC mit einer Aufnahme ohne nav-Datei verwendet wurde (erst seit v3.1b)
 
                  INTERNALS:
                     - neue modifizierte FireBirdLib (2013-02-18)
