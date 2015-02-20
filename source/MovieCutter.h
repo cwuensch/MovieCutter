@@ -92,6 +92,7 @@ char* RemoveEndLineBreak (char *const Text);
 void  SaveINI(void);
 bool  SelectSegmentMarker(void);
 void  SetCurrentSegment(void);
+bool  SetPlaybackSpeed(TYPE_TrickMode newTrickMode, byte newTrickModeSpeed);
 bool  ShowConfirmationDialog(char *MessageStr);
 void  ShowErrorMessage(char *MessageStr, char *TitleStr);
 dword TMSCommander_handler(dword param1);

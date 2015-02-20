@@ -471,7 +471,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   static bool           DoNotReenter = FALSE;
   static tOSDMode       LastOSDMode = MD_FullOSD;
   static dword          LastMinuteKey = 0;
-  static dword          LastDraw = 0;
+//  static dword          LastDraw = 0;
 
   (void) param2;
 
@@ -758,38 +758,41 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         }
 
         // Check if nav has correct length!
-        dword CurNavDiscrepancy = labs(TimeStamps[NrTimeStamps-1].Timems - (1000 * (60*PlayInfo.duration + PlayInfo.durationSec)));
-        if(TimeStamps && (((MaxNavDiscrepancy > 0) && (CurNavDiscrepancy > MaxNavDiscrepancy)) || (CurNavDiscrepancy > 5000)))
+        if(TimeStamps)
         {
-          char  NavLengthWrongStr[128];
-          WriteLogMC(PROGRAM_NAME, ".nav file length not matching duration!");
+          dword CurNavDiscrepancy = labs(TimeStamps[NrTimeStamps-1].Timems - (1000 * (60*PlayInfo.duration + PlayInfo.durationSec)));
+          if(((MaxNavDiscrepancy > 0) && (CurNavDiscrepancy > MaxNavDiscrepancy)) || (CurNavDiscrepancy > 5000))
+          {
+            char  NavLengthWrongStr[128];
+            WriteLogMC(PROGRAM_NAME, ".nav file length not matching duration!");
 
-          // [COMPATIBILITY LAYER - fill holes in old nav file]
-          if (PatchOldNavFile(PlaybackName, AbsPlaybackDir, HDVideo))
-          {
-            LastTotalBlocks = 0;
-            WriteLogMC(PROGRAM_NAME, ".nav file patched by Compatibility Layer.");
-            ShowErrorMessage(LangGetString(LS_NavPatched), NULL);
-            PlaybackRepeatSet(OldRepeatMode);
-            break;
-          }
-          else
-          {
-            TAP_SPrint(NavLengthWrongStr, sizeof(NavLengthWrongStr), LangGetString(LS_NavLengthWrong), (TimeStamps[NrTimeStamps-1].Timems/1000) - (60*PlayInfo.duration + PlayInfo.durationSec));
-            if ((MaxNavDiscrepancy > 0) && (CurNavDiscrepancy > MaxNavDiscrepancy))
+            // [COMPATIBILITY LAYER - fill holes in old nav file]
+            if (PatchOldNavFile(PlaybackName, AbsPlaybackDir, HDVideo))
             {
-              if (!ShowConfirmationDialog(NavLengthWrongStr))
+              LastTotalBlocks = 0;
+              WriteLogMC(PROGRAM_NAME, ".nav file patched by Compatibility Layer.");
+              ShowErrorMessage(LangGetString(LS_NavPatched), NULL);
+              PlaybackRepeatSet(OldRepeatMode);
+              break;
+            }
+            else
+            {
+              TAP_SPrint(NavLengthWrongStr, sizeof(NavLengthWrongStr), LangGetString(LS_NavLengthWrong), (TimeStamps[NrTimeStamps-1].Timems/1000) - (60*PlayInfo.duration + PlayInfo.durationSec));
+              if ((MaxNavDiscrepancy > 0) && (CurNavDiscrepancy > MaxNavDiscrepancy))
               {
-                PlaybackRepeatSet(OldRepeatMode);
-                ClearOSD(TRUE);
-                if (AutoOSDPolicy)
-                  State = ST_UnacceptedFile;
-                else
+                if (!ShowConfirmationDialog(NavLengthWrongStr))
                 {
-                  Cleanup(FALSE);
-                  State = ST_InactiveMode;
+                  PlaybackRepeatSet(OldRepeatMode);
+                  ClearOSD(TRUE);
+                  if (AutoOSDPolicy)
+                    State = ST_UnacceptedFile;
+                  else
+                  {
+                    Cleanup(FALSE);
+                    State = ST_InactiveMode;
+                  }
+                  break;
                 }
-                break;
               }
             }
           }
@@ -1360,58 +1363,63 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           param1 = 0;
       }
 
-      // VORSICHT!!! Das hier wird interaktiv ausgeführt
-      if(labs(TAP_GetTick() - LastDraw) > 10)
+      else if (event == EVT_IDLE)
       {
-        if (JumpRequestedTime && (labs(TAP_GetTick() - JumpRequestedTime) >= 100))
-        {
-          if ((JumpRequestedSegment != 0xFFFF) || (JumpRequestedBlock != (dword) -1))
+        // VORSICHT!!! Das hier wird interaktiv ausgeführt
+//        if(labs(TAP_GetTick() - LastDraw) > 10)
+//        {
+          if (JumpRequestedTime && (labs(TAP_GetTick() - JumpRequestedTime) >= 100))
           {
-            if(TrickMode == TRICKMODE_Pause) Playback_Normal();
-            if (JumpRequestedSegment != 0xFFFF)
+            if ((JumpRequestedSegment != 0xFFFF) || (JumpRequestedBlock != (dword) -1))
             {
-              TAP_Hdd_ChangePlaybackPos(SegmentMarker[JumpRequestedSegment].Block);
-              ActiveSegment = JumpRequestedSegment;
-              JumpRequestedBlock = (dword) -1;
+              if(TrickMode == TRICKMODE_Pause) Playback_Normal();
+              if (JumpRequestedSegment != 0xFFFF)
+              {
+                TAP_Hdd_ChangePlaybackPos(SegmentMarker[JumpRequestedSegment].Block);
+                ActiveSegment = JumpRequestedSegment;
+                JumpRequestedBlock = (dword) -1;
+              }
+              else if (JumpRequestedBlock != (dword) -1)
+                TAP_Hdd_ChangePlaybackPos(JumpRequestedBlock);
+              JumpPerformedTime = TAP_GetTick();    if(!JumpPerformedTime) JumpPerformedTime = 1;
+              LastPlayStateChange = TAP_GetTick();  if(!LastPlayStateChange) LastPlayStateChange = 1;
+              JumpRequestedSegment = 0xFFFF;
             }
-            else if (JumpRequestedBlock != (dword) -1)
-              TAP_Hdd_ChangePlaybackPos(JumpRequestedBlock);
-            JumpPerformedTime = TAP_GetTick();    if(!JumpPerformedTime) JumpPerformedTime = 1;
-            LastPlayStateChange = TAP_GetTick();  if(!LastPlayStateChange) LastPlayStateChange = 1;
-            JumpRequestedSegment = 0xFFFF;
+            JumpRequestedTime = 0;
           }
-          JumpRequestedTime = 0;
-        }
-        if(LastPlayStateChange && (labs(TAP_GetTick() - LastPlayStateChange) > 300))
-        {
-          if(rgnPlayState)
+          if(LastPlayStateChange && (labs(TAP_GetTick() - LastPlayStateChange) > 300))
           {
-            TAP_Osd_Delete(rgnPlayState);
-            rgnPlayState = 0;
+            if(rgnPlayState)
+            {
+              TAP_Osd_Delete(rgnPlayState);
+              rgnPlayState = 0;
+            }
+            if(rgnTextState)
+            {
+              TAP_Osd_Delete(rgnTextState);
+              rgnTextState = 0;
+            }
+            if(rgnInfoBarMini && OSDMode != MD_MiniOSD)
+            {
+              TAP_Osd_Delete(rgnInfoBarMini);
+              rgnInfoBarMini = 0;
+            }
+            LastPlayStateChange = 0;
           }
-          if(rgnTextState)
-          {
-            TAP_Osd_Delete(rgnTextState);
-            rgnTextState = 0;
-          }
-          if(rgnInfoBarMini && OSDMode != MD_MiniOSD)
-          {
-            TAP_Osd_Delete(rgnInfoBarMini);
-            rgnInfoBarMini = 0;
-          }
-          LastPlayStateChange = 0;
-        }
-        CheckLastSeconds();
-        SetCurrentSegment();
-        OSDInfoDrawProgressbar(FALSE, FALSE);
-        OSDInfoDrawPlayIcons(FALSE, FALSE);
-        if ((JumpRequestedBlock != (dword) -1) && !JumpRequestedTime)  // nach Sprung den grauen Balken aktualisieren
-          OSDInfoDrawCurrentPlayTime(TRUE);
-        else
-          OSDInfoDrawCurrentPlayTime(FALSE);
-        OSDInfoDrawClock(FALSE);
-        TAP_Osd_Sync();
-        LastDraw = TAP_GetTick();
+          CheckLastSeconds();
+          SetCurrentSegment();
+          OSDInfoDrawProgressbar(FALSE, FALSE);
+//          if(!LastPlayStateChange || (labs(TAP_GetTick() - LastPlayStateChange) > 20))
+            OSDInfoDrawPlayIcons(FALSE, FALSE);
+
+          if ((JumpRequestedBlock != (dword) -1) && !JumpRequestedTime)  // nach Sprung den grauen Balken aktualisieren
+            OSDInfoDrawCurrentPlayTime(TRUE);
+          else
+            OSDInfoDrawCurrentPlayTime(FALSE);
+          OSDInfoDrawClock(FALSE);
+          TAP_Osd_Sync();
+//          LastDraw = TAP_GetTick();
+//        }
       }
       break;
     }
@@ -3112,7 +3120,7 @@ void SetCurrentSegment(void)
     ActiveSegment = VisibleSegment;
   }
 
-  if (!JumpPerformedTime || (labs(TAP_GetTick() - JumpPerformedTime) >= 150))
+  if (!JumpPerformedTime || (labs(TAP_GetTick() - JumpPerformedTime) >= 200))
   {
     if (JumpPerformedTime) DoDraw = TRUE;
     JumpPerformedTime = 0;
@@ -3541,17 +3549,17 @@ void OSDInfoDrawPlayIcons(bool Force, bool DoSync)
 
   TRACEENTER();
 
-  if(rgnInfoBar)
+  if((Force && rgnInfoBar) || (TrickMode != LastTrickMode) || (TrickModeSpeed != LastTrickModeSpeed))
   {
-    const int            ButtonWidth = _Button_Play_Inactive_Gd.width,         ButtonDist = 3;
-    const int            FrameWidth  = 5 * ButtonWidth + 4 * ButtonDist;
-    const int            FrameLeft   = ScreenWidth - Overscan_X - FrameWidth,  FrameTop = 1;
-    const int            ButtonTop   = FrameTop + 20;
-    char                 SpeedText[6];
-    int                  PosX, TextPosX=0;
-
-    if(Force || /*((OSDMode == MD_NoOSD) != LastNoOSDMode) ||*/ (TrickMode != LastTrickMode) || (TrickModeSpeed != LastTrickModeSpeed))
+    if(rgnInfoBar)
     {
+      const int            ButtonWidth = _Button_Play_Inactive_Gd.width,         ButtonDist = 3;
+      const int            FrameWidth  = 5 * ButtonWidth + 4 * ButtonDist;
+      const int            FrameLeft   = ScreenWidth - Overscan_X - FrameWidth,  FrameTop = 1;
+      const int            ButtonTop   = FrameTop + 20;
+      char                 SpeedText[6];
+      int                  PosX, TextPosX=0;
+
       TAP_Osd_FillBox(rgnInfoBar, FrameLeft - 6, FrameTop, min(FrameWidth + 13, ScreenWidth-FrameLeft+6), ButtonTop - FrameTop, ColorInfoBarTitle);  // müsste eigentlich 7 nach links gehen...
 
       PosX = FrameLeft;
@@ -3577,24 +3585,17 @@ void OSDInfoDrawPlayIcons(bool Force, bool DoSync)
         TAP_SPrint(SpeedText, sizeof(SpeedText), ((TrickMode == TRICKMODE_Slow) ? "1/%dx" : "%dx"), (1 << TrickModeSpeed));
         FMUC_PutString(rgnInfoBar, TextPosX - 7, FrameTop, TextPosX + ButtonWidth + 6 , SpeedText, COLOR_White, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_CENTER);
       }
-
-      LastTrickMode = TrickMode;
-      LastTrickModeSpeed = TrickModeSpeed;
-      if(DoSync) TAP_Osd_Sync();
     }
-  }
-  else
-  {
-    const int            RegionWidth  = _PlayState_Background_Gd.width;
-    const int            RegionHeight = _PlayState_Background_Gd.height;
-    const int            IconLeft = 6,   IconTop = 6;
-
-    char                 SpeedText[6];
-    TYPE_GrData         *ActiveSymbol = NULL;
-    int                  PosX, PosX2;
-
-    if((TrickMode != LastTrickMode) || (TrickModeSpeed != LastTrickModeSpeed))
+    else
     {
+      const int            RegionWidth  = _PlayState_Background_Gd.width;
+      const int            RegionHeight = _PlayState_Background_Gd.height;
+      const int            IconLeft = 6,   IconTop = 6;
+
+      char                 SpeedText[6];
+      TYPE_GrData         *ActiveSymbol = NULL;
+      int                  PosX, PosX2;
+
       if(rgnTextState)
       {
         TAP_Osd_Delete(rgnTextState);
@@ -3635,13 +3636,13 @@ void OSDInfoDrawPlayIcons(bool Force, bool DoSync)
         else
           FMUC_PutString(rgnPlayState, IconLeft + 7, IconTop + 8, RegionWidth - 1, SpeedText,  COLOR_White, COLOR_None, &Calibri_12_FontDataUC, FALSE, ALIGN_LEFT);
       }
-
-      LastTrickMode = TrickMode;
-      LastTrickModeSpeed = TrickModeSpeed;
 //      TAP_Osd_Sync();
       OSDInfoDrawCurrentPlayTime(TRUE);
-      if(DoSync) TAP_Osd_Sync();
     }
+
+    LastTrickMode = TrickMode;
+    LastTrickModeSpeed = TrickModeSpeed;
+    if(DoSync) TAP_Osd_Sync();
   }
 
 //  LastNoOSDMode = (OSDMode == MD_NoOSD);
@@ -3663,9 +3664,9 @@ void OSDInfoDrawCurrentPlayTime(bool Force)
 
   // Experiment: Stabilisierung der vor- und zurückspringenden Zeit-Anzeige (noch linear)
   dword curBlock = currentVisibleBlock();
-  if ((TrickMode != TRICKMODE_Normal) || (curBlock > maxBlock)) maxBlock = curBlock;
+  if ((TrickMode != TRICKMODE_Normal && TrickMode != TRICKMODE_Slow) || (curBlock > maxBlock)) maxBlock = curBlock;
 
-  if ((TrickMode != TRICKMODE_Normal) || (labs(TAP_GetTick() - LastDraw) > 15) || Force)
+  if ((TrickMode != TRICKMODE_Normal && TrickMode != TRICKMODE_Slow) || (labs(TAP_GetTick() - LastDraw) > 15) || Force)
   {
     dword             Time;
     float             Percent;
@@ -4101,6 +4102,25 @@ void ActionMenuRemove(void)
 // ----------------------------------------------------------------------------
 //                            Playback-Funktionen
 // ----------------------------------------------------------------------------
+bool SetPlaybackSpeed(TYPE_TrickMode newTrickMode, byte newTrickModeSpeed)
+{
+  TRACEENTER();
+//  HDD_TAP_PushDir();
+
+  int i = 0;
+  do {
+    Appl_SetPlaybackSpeed(newTrickMode, newTrickModeSpeed, TRUE);
+    if (i > 0) TAP_SystemProc();
+    if (!isPlaybackRunning()) break;
+    i++;
+  } while ((i < 100) && (TrickMode != newTrickMode || TrickModeSpeed != newTrickModeSpeed));
+//TAP_PrintNet("TrickMode=%d, Speed=%d - Iterationen: %d\n", newTrickMode, newTrickModeSpeed, i);
+
+//  HDD_TAP_PopDir();
+  TRACEEXIT();
+  return (TrickMode == newTrickMode && TrickModeSpeed == newTrickModeSpeed);
+}
+
 void Playback_Faster(void)
 {
   TRACEENTER();
@@ -4171,8 +4191,9 @@ void Playback_Faster(void)
       return;
     }
   }
-  Appl_SetPlaybackSpeed(TrickMode, TrickModeSpeed, TRUE);
-  isPlaybackRunning();
+//  Appl_SetPlaybackSpeed(TrickMode, TrickModeSpeed, TRUE);
+//  isPlaybackRunning();
+  SetPlaybackSpeed(TrickMode, TrickModeSpeed);
   OSDInfoDrawPlayIcons(FALSE, TRUE);
 
   TRACEEXIT();
@@ -4246,8 +4267,9 @@ void Playback_Slower(void)
       return;
     }
   }
-  Appl_SetPlaybackSpeed(TrickMode, TrickModeSpeed, TRUE);
-  isPlaybackRunning();
+//  Appl_SetPlaybackSpeed(TrickMode, TrickModeSpeed, TRUE);
+//  isPlaybackRunning();
+  SetPlaybackSpeed(TrickMode, TrickModeSpeed);
   OSDInfoDrawPlayIcons(FALSE, TRUE);
 
   TRACEEXIT();
@@ -4261,6 +4283,7 @@ void Playback_Normal(void)
   TrickModeSpeed = 1;
   Appl_SetPlaybackSpeed(TrickMode, TrickModeSpeed, TRUE);
   isPlaybackRunning();
+//  SetPlaybackSpeed(TrickMode, TrickModeSpeed);
   OSDInfoDrawPlayIcons(FALSE, TRUE);
 
   TRACEEXIT();
@@ -4274,6 +4297,7 @@ void Playback_Pause(void)
   TrickModeSpeed = 0;
   Appl_SetPlaybackSpeed(TrickMode, TrickModeSpeed, TRUE);
   isPlaybackRunning();
+//  SetPlaybackSpeed(TrickMode, TrickModeSpeed);
   OSDInfoDrawPlayIcons(FALSE, TRUE);
 
   TRACEEXIT();
@@ -4298,8 +4322,9 @@ void Playback_FFWD(void)
     TrickMode = TRICKMODE_Forward;
     TrickModeSpeed++;
     if (TrickModeSpeed < 6) TrickModeSpeed++;
-    Appl_SetPlaybackSpeed(TrickMode, TrickModeSpeed, TRUE);
-    isPlaybackRunning();
+//    Appl_SetPlaybackSpeed(TrickMode, TrickModeSpeed, TRUE);
+//    isPlaybackRunning();
+    SetPlaybackSpeed(TrickMode, TrickModeSpeed);
     OSDInfoDrawPlayIcons(FALSE, TRUE);
   }
   else
@@ -4327,8 +4352,9 @@ void Playback_RWD(void)
     TrickMode = TRICKMODE_Rewind;
     TrickModeSpeed++;
     if (TrickModeSpeed < 6) TrickModeSpeed++;
-    Appl_SetPlaybackSpeed(TrickMode, TrickModeSpeed, TRUE);
-    isPlaybackRunning();
+//    Appl_SetPlaybackSpeed(TrickMode, TrickModeSpeed, TRUE);
+//    isPlaybackRunning();
+    SetPlaybackSpeed(TrickMode, TrickModeSpeed);
     OSDInfoDrawPlayIcons(FALSE, TRUE);
   }
   else
@@ -4352,8 +4378,9 @@ void Playback_Slow(void)
     if(TrickModeSpeed < 3) TrickModeSpeed++;
     else TrickModeSpeed = 1;
   TrickMode = TRICKMODE_Slow;
-  Appl_SetPlaybackSpeed(TrickMode, TrickModeSpeed, TRUE);
-  isPlaybackRunning();
+//  Appl_SetPlaybackSpeed(TrickMode, TrickModeSpeed, TRUE);
+//  isPlaybackRunning();
+  SetPlaybackSpeed(TrickMode, TrickModeSpeed);
   OSDInfoDrawPlayIcons(FALSE, TRUE);
 
   TRACEEXIT();
