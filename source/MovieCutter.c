@@ -1866,20 +1866,6 @@ void CleanupCut(void)
 // ----------------------------------------------------------------------------
 //                             INI-Funktionen
 // ----------------------------------------------------------------------------
-void CreateSettingsDir(void)
-{
-  TRACEENTER();
-
-  HDD_TAP_PushDir();
-  HDD_ChangeDir("/ProgramFiles");
-  if(!TAP_Hdd_Exist("Settings")) TAP_Hdd_Create("Settings", ATTR_FOLDER);
-  HDD_ChangeDir("Settings");
-  if(!TAP_Hdd_Exist("MovieCutter")) TAP_Hdd_Create("MovieCutter", ATTR_FOLDER);
-  HDD_TAP_PopDir();
-
-  TRACEEXIT();
-}
-
 void LoadINI(void)
 {
   TRACEENTER();

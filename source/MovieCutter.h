@@ -34,7 +34,6 @@ void  CheckLastSeconds(void);
 void  Cleanup(bool DoClearOSD);
 void  CleanupCut(void);
 void  CreateOSD(void);
-void  CreateSettingsDir(void);
 void  ClearOSD(bool EnterNormal);
 void  CutDumpList(void);
 void  CutFileDelete(void);

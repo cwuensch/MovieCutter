@@ -34,20 +34,31 @@ static int              CUTPOINTSECTORRADIUS = 2;
 // ----------------------------------------------------------------------------
 //                           Hilfsfunktionen
 // ----------------------------------------------------------------------------
+void CreateSettingsDir(void)
+{
+  TRACEENTER();
+
+  HDD_TAP_PushDir();
+  HDD_ChangeDir("/ProgramFiles");
+  if(!TAP_Hdd_Exist("Settings")) TAP_Hdd_Create("Settings", ATTR_FOLDER);
+  HDD_ChangeDir("Settings");
+  if(!TAP_Hdd_Exist("MovieCutter")) TAP_Hdd_Create("MovieCutter", ATTR_FOLDER);
+  HDD_TAP_PopDir();
+
+  TRACEEXIT();
+}
+
 void WriteLogMC(char *ProgramName, char *s)
 {
-  static bool FirstCall = TRUE;
+//  static bool FirstCall = TRUE;
 
   HDD_TAP_PushDir();
 
-  if(FirstCall)
+/*  if(FirstCall)
   {
-    HDD_ChangeDir("/ProgramFiles");
-    if(!TAP_Hdd_Exist("Settings")) TAP_Hdd_Create("Settings", ATTR_FOLDER);
-    HDD_ChangeDir("Settings");
-    if(!TAP_Hdd_Exist("MovieCutter")) TAP_Hdd_Create("MovieCutter", ATTR_FOLDER);
+    CreateSettingsDir();
     FirstCall = FALSE;
-  }
+  } */
 
   TAP_Hdd_ChangeDir("/ProgramFiles/Settings/MovieCutter");
   LogEntry("MovieCutter.log", ProgramName, TRUE, TIMESTAMP_YMDHMS, s);

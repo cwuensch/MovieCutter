@@ -65,6 +65,7 @@ typedef struct
   dword                 Zero8;
 } tnavHD;
 
+void        CreateSettingsDir(void);
 void        WriteLogMC(char *ProgramName, char *s);
 void        WriteLogMCf(char *ProgramName, const char *format, ...);
 //void        WriteDebugLog(const char *format, ...);
