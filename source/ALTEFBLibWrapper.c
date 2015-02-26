@@ -91,6 +91,30 @@ void OSDMenuMessageBoxDoScrollOver(word *event, dword *param1)
     }
   }
 }
+/* void OSDMenuMessageBoxDoScrollOver(word *event, dword *param1)
+{
+  if(MessageBoxAllowScrollOver && (MessageBox.NrButtons > 1))
+  {
+    if ((*event == EVT_KEY) && (*param1 == RKEY_Left))
+    {
+      if(MessageBox.CurrentButton == 0)
+      {
+        MessageBox.CurrentButton = MessageBox.NrButtons - 1;
+        OSDMenuMessageBoxShow();
+        *param1 = 0;
+      }
+    }
+    if ((*event == EVT_KEY) && (*param1 == RKEY_Right))
+    {  
+      if(MessageBox.CurrentButton >= (MessageBox.NrButtons - 1))
+      {
+        MessageBox.CurrentButton = 0;
+        OSDMenuMessageBoxShow();
+        *param1 = 0;
+      }
+    }
+  }
+} */
 
 
 extern word ProgressBarOSDRgn;

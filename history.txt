@@ -9,7 +9,7 @@
                    ** neue Option CheckFSAfterCut=3 prüft Dateisystem für alle betroffenen HDDs beim Beenden
 
                  BUGFIX:
-                    * Crash, wenn MC mit einer Aufnahme ohne nav-Datei verwendet wurde (erst seit v3.1b)
+                    * Crash, wenn MC mit einer Aufnahme ohne nav-Datei verwendet wurde (Bug eingebaut in v3.1b)
 
                  INTERNALS:
                     - neue modifizierte FireBirdLib (2013-02-18)

@@ -389,4 +389,15 @@ char* RemoveEndLineBreak (char *const Text)
   return Text;
 }
 
+char SysTypeToStr(void)
+{
+  switch (GetSystemType())
+  {
+    case ST_TMSS:  return 'S';
+    case ST_TMSC:  return 'C';
+    case ST_TMST:  return 'T';
+    default:       return '?';
+  }
+}
+
 // create, fopen, fread, fwrite

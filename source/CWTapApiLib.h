@@ -31,6 +31,7 @@ bool       PlaybackRepeatSet(bool EnableRepeatAll);
 bool       PlaybackRepeatGet();
 bool       HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint, char *const OutDeviceNode);  // OutDeviceNode: max. 20 Zeichen, OutMountPoint: max. FILE_NAME_SIZE+1 (inkl. Nullchar)
 char*      RemoveEndLineBreak (char *const Text);
+char       SysTypeToStr(void);
 
 
 //These will prevent the compiler from complaining

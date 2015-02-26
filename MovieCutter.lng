@@ -107,7 +107,7 @@ de_080=Letzte rückgängig
 de_081=Minutensprung an: %d'
 de_082=Minutensprung aus
 de_083=Wenig freier Festplattenspeicher!\nTrotzdem fortfahren?
-de_084=SystemType ist unbekannt.\n\nBitte die FirmwareTMS.dat überprüfen!
+de_084=SystemType ist unbekannt.\nBitte die FirmwareTMS.dat überprüfen!
 
 
 #English
@@ -195,7 +195,7 @@ en_080=Undo last action
 en_081=Minute jump: %d'
 en_082=Minute jump off
 en_083=Free disc space is low!\nProceed anyways?
-en_084=Unknown SystemType.\n\nPlease check FirmwareTMS.dat!
+en_084=Unknown system type.\nPlease check FirmwareTMS.dat!
 
 
 #French
@@ -283,7 +283,7 @@ fr_080=Dernière action annulée
 fr_081=Saut de minutes : %d'
 fr_082=Saut désactivé
 fr_083=Peu d'espace disque libre !\nProcéder quand même ?
-fr_084=Unknown SystemType.\n\nPlease check FirmwareTMS.dat!
+fr_084=Unknown system type.\nPlease check FirmwareTMS.dat!
 
 
 #Dutch
@@ -371,4 +371,4 @@ nl_080=Laatste actie ongedaan maken
 nl_081=Minutensprong naar: %d'
 nl_082=Minutensprong uit
 nl_083=Free disc space is low!\nProceed anyways?
-nl_084=Unknown SystemType.\n\nPlease check FirmwareTMS.dat!
+nl_084=Unknown system type.\nPlease check FirmwareTMS.dat!

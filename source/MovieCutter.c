@@ -353,8 +353,8 @@ int TAP_Main(void)
   #if STACKTRACE == TRUE
     CallTraceInit();
     CallTraceEnable(TRUE);
-    TRACEENTER();
   #endif
+  TRACEENTER();
 
   if(HDD_TAP_CheckCollision())
   {
@@ -370,7 +370,7 @@ int TAP_Main(void)
 
   WriteLogMC (PROGRAM_NAME, "***  MovieCutter " VERSION " started! (FBLib " __FBLIB_VERSION__ ") ***");
   WriteLogMC (PROGRAM_NAME, "=======================================================");
-  WriteLogMCf(PROGRAM_NAME, "Receiver Model: %s (%u)", GetToppyString(GetSysID()), GetSysID());
+  WriteLogMCf(PROGRAM_NAME, "Receiver Model: %s (%u), System Type: TMS-%c (%d)", GetToppyString(GetSysID()), GetSysID(), SysTypeToStr(), GetSystemType());
   WriteLogMCf(PROGRAM_NAME, "Firmware: %s", GetApplVer());
   if (HDD_GetHddID(HDDModel, HDDSerial, HDDFirmware))
     WriteLogMCf(PROGRAM_NAME, "Hard disk: %s, FW %s, Serial: %s", HDDModel, HDDFirmware, HDDSerial);
@@ -381,7 +381,7 @@ int TAP_Main(void)
      && FMUC_LoadFontFile("Calibri_14.ufnt", &Calibri_14_FontDataUC)
      && FMUC_LoadFontFile("Courier_New_13.ufnt", &Courier_New_13_FontDataUC)))
   {
-    WriteLogMC(PROGRAM_NAME, "Loading fonts failed!");
+    WriteLogMC(PROGRAM_NAME, "Loading fonts failed!\r\n");
     FMUC_FreeFontFile(&Calibri_10_FontDataUC);
     FMUC_FreeFontFile(&Calibri_12_FontDataUC);
     FMUC_FreeFontFile(&Calibri_14_FontDataUC);
@@ -396,7 +396,7 @@ int TAP_Main(void)
   {
     char LogString[512];
     TAP_SPrint(LogString, sizeof(LogString), "Language file '%s' not found!", LNGFILENAME);
-    WriteLogMC(PROGRAM_NAME, LogString);
+    WriteLogMCf(PROGRAM_NAME, "%s\r\n", LogString);
     OSDMenuInfoBoxShow(PROGRAM_NAME " " VERSION, LogString, 500);
     do
     {
@@ -415,7 +415,7 @@ int TAP_Main(void)
   // Check FirmwareTMS.dat and SystemType
   if((GetSystemType() != ST_TMSS) && (GetSystemType() != ST_TMSC) && (GetSystemType() != ST_TMST))
   {
-    WriteLogMC(PROGRAM_NAME, "Unknown SystemType. Please check FirmwareTMS.dat!");
+    WriteLogMC(PROGRAM_NAME, "Unknown SystemType. Please check FirmwareTMS.dat!\r\n");
     OSDMenuInfoBoxShow(PROGRAM_NAME " " VERSION, LangGetString(LS_UnknownSystemType), 500);
     do
     {
@@ -439,7 +439,7 @@ int TAP_Main(void)
   memset(SuspectHDDs, 0, SIZESUSPECTHDDS);
   if (!SegmentMarker || !Bookmarks || !UndoStack || !SuspectHDDs)
   {
-    WriteLogMC(PROGRAM_NAME, "Failed to allocate buffers!");
+    WriteLogMC(PROGRAM_NAME, "Failed to allocate buffers!\r\n");
 
     TAP_MemFree(SuspectHDDs);
     TAP_MemFree(UndoStack);
@@ -654,7 +654,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           HDD_ChangeDir(&AbsPlaybackDir[strlen(TAPFSROOT)]);
 
         WriteLogMCf(PROGRAM_NAME, "Attaching to %s/%s", AbsPlaybackDir, PlaybackName);
-        WriteLogMC ("MovieCutterLib", "----------------------------------------");
+        WriteLogMC (PROGRAM_NAME, "----------------------------------------");
 
         //Free the old timing array, so that it is empty (NULL pointer) if something goes wrong
         if(TimeStamps)
@@ -2808,11 +2808,11 @@ void CutFileSave(void)
   TAP_SPrint(&AbsCutName[strlen(AbsCutName) - 4], 5, ".cut");
   CutName = &AbsCutName[strlen(AbsPlaybackDir) + 1];
 
-#ifdef FULLDEBUG
+/* #ifdef FULLDEBUG
   char CurDir[FBLIB_DIR_SIZE];
   HDD_TAP_GetCurrentDir(CurDir);
   WriteLogMCf(PROGRAM_NAME, "CutFileSave()! CurrentDir: '%s', PlaybackName: '%s', CutFileName: '%s'", CurDir, PlaybackName, CutName);
-#endif
+#endif */
 //  HDD_ChangeDir(PlaybackDir);
 
   if(!HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, NULL, &RecFileSize))
@@ -3753,7 +3753,7 @@ void OSDInfoDrawClock(bool Force)
     TAP_GetTime(&mjd, &hour, &min, &sec);
     if((min != LastMin) || Force)
     {
-      TAP_SPrint(Time, sizeof(Time), "%2.2d:%2.2d", hour, min);
+      TAP_SPrint(Time, sizeof(Time), "%02d:%02d", hour, min);
       FMUC_PutString (rgnInfoBar, FrameLeft, FrameTop, FrameLeft + FrameWidth - 1, Time, COLOR_White, ColorDarkBackground, &Calibri_14_FontDataUC, FALSE, ALIGN_RIGHT);
       LastMin = min;
     }
