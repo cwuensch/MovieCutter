@@ -4549,11 +4549,11 @@ void Playback_JumpPrevSegment(void)
 {
   TRACEENTER();
 
-  const dword FiveSeconds = PlayInfo.totalBlock * 5 / (60*PlayInfo.duration + PlayInfo.durationSec);
+  const dword ThreeSeconds = PlayInfo.totalBlock * 3 / (60*PlayInfo.duration + PlayInfo.durationSec);
 
   if(NrSegmentMarker >= 2)
   {
-    if (PlayInfo.currentBlock < (SegmentMarker[ActiveSegment].Block + FiveSeconds))
+    if (PlayInfo.currentBlock < (SegmentMarker[ActiveSegment].Block + ThreeSeconds))
     {
       if (ActiveSegment > 0)
         ActiveSegment--;
@@ -4583,7 +4583,7 @@ void Playback_JumpNextBookmark(void)
   if ((NrBookmarks > 0) && (PlayInfo.currentBlock > Bookmarks[NrBookmarks-1]))
   {
     if(TrickMode == TRICKMODE_Pause) Playback_Normal();
-    TAP_Hdd_ChangePlaybackPos(Bookmarks[0]);
+    TAP_Hdd_ChangePlaybackPos(0);   // Bookmarks[0]
     JumpRequestedSegment = 0xFFFF;
     JumpRequestedBlock = (dword) -1;
     TRACEEXIT();
@@ -4610,23 +4610,23 @@ void Playback_JumpPrevBookmark(void)
 {
   TRACEENTER();
 
-  const dword           FiveSeconds = PlayInfo.totalBlock * 5 / (60*PlayInfo.duration + PlayInfo.durationSec);
+  const dword           ThreeSeconds = PlayInfo.totalBlock * 3 / (60*PlayInfo.duration + PlayInfo.durationSec);
   dword                 JumpToBlock = PlayInfo.currentBlock;
   int                   i;
 
   if (NrBookmarks == 0)
     JumpToBlock = 0;
-  else if (PlayInfo.currentBlock < Bookmarks[0] + FiveSeconds)
+  else if (PlayInfo.currentBlock < Bookmarks[0] + ThreeSeconds)
   {
-//    if (PlayInfo.currentBlock >= FiveSeconds)
+    if (PlayInfo.currentBlock >= ThreeSeconds)
       JumpToBlock = 0;
-//    else
-//      JumpToBlock = Bookmarks[NrBookmarks - 1];
+    else
+      JumpToBlock = Bookmarks[NrBookmarks - 1];
   }
   else
     for(i = NrBookmarks - 1; i >= 0; i--)
     {
-      if((Bookmarks[i] + FiveSeconds) <= PlayInfo.currentBlock)
+      if((Bookmarks[i] + ThreeSeconds) <= PlayInfo.currentBlock)
       {
         JumpToBlock = Bookmarks[i];
         break;
