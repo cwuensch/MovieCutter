@@ -2,11 +2,11 @@
 #define __MOVIECUTTERH__
 
 #define PROGRAM_NAME          "MovieCutter"
-#define VERSION               "V3.2 beta"  // alpha = α,  beta = β, � = ü
+#define VERSION               "V3.2"  // alpha = α,  beta = β, � = ü
 #define TAPID                 0x8E0A4247
 //#define AUTHOR                "FireBird / Christian W�nsch"
 #define AUTHOR                "FireBird / C. Wünsch"
-#define DESCRIPTION           "MovieCutter"
+#define DESCRIPTION           "Allows cutting of recorded TV programmes."
 
 #define NRSEGMENTMARKER       101            // max. number of file markers +1 (marker for the end of file)
 //#define NRBOOKMARKS           144

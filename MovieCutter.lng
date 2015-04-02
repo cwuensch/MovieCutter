@@ -220,7 +220,7 @@ fr_017=Segments
 fr_018=â€• Sélectionner une fonction â€•
 fr_019=Le découpage a échoué !\nConsulter le log.
 fr_020=Le fichier est (partiellement) encrypté.
-fr_021=Découpage en cours...\n(Section %d de %d)
+fr_021=Découpage en cours...\n(section %d de %d)
 fr_022=Supprimer les segments impairs
 fr_023=Supprimer les segments pairs
 fr_024=Extraire les %d segments marqués
@@ -254,7 +254,7 @@ fr_051=Vous devriez d'abord redémarrer l'appareil !\nProcéder quand même ?
 fr_052=Durée incorrecte du fichier .nav  corrigée !\nNouvelle tentative...
 fr_053=Vérifier le système de fichiers
 fr_054=Vérification du système de fichiers en cours...
-fr_055=Erreurs détectées !\n%s fichiers suspects, %%d sur %%d à réparer. [%%s]%%s\n(Total des fichiers analysés : %%d)
+fr_055=Erreurs détectées !\n%s fichiers suspects, %%d sur %%d en réparation. [%%s]%%s\n(Total des fichiers analysés : %%d)
 fr_056=Vérification du système de fichiers interrompue.
 fr_057=Le système de fichiers semble être sain.\n\n(Fichiers actuellement analysés : %d)
 fr_058=%s fichier(s) suspect(s) détecté(s).\nVérifiez le système de fichiers !
@@ -283,7 +283,7 @@ fr_080=Dernière action annulée
 fr_081=Saut de minutes : %d'
 fr_082=Saut désactivé
 fr_083=Peu d'espace disque libre !\nProcéder quand même ?
-fr_084=Unknown system type.\nPlease check FirmwareTMS.dat!
+fr_084=Type de système indéterminé.\nContrôler FirmwareTMS.dat !
 
 
 #Dutch

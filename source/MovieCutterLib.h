@@ -11,8 +11,6 @@
 //  #define FULLDEBUG             TRUE  // ***
 #endif
 
-//#define STACKTRACE            TRUE
-
 
 typedef enum
 {

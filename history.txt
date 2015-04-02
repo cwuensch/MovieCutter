@@ -1,9 +1,13 @@
+2015-03-31 v3.2     * Segment- und Bookmark-Marker wieder ohne Anti-Aliasing
+        (final)     * direkter Bookmark-Sprung nun zyklisch und inklusive Aufnahmestart
+
 2015-02-26 v3.2  NEU:
-                   ** Dateisystemprüfung kann automatisch beim Beenden/Herunterfahren ausgeführt werden
+         (beta)    ** Dateisystemprüfung kann automatisch beim Beenden/Herunterfahren ausgeführt werden
                    ** schnellere Zeitanzeige beim Spulen (kein "Stottern" mehr)
                     * stabilisierte Zeitanzeige bei Slow-Motion ("Hin- und Herspringen")
                     * verbesserte Reaktion bei schnell wiederholtem Drücken der Spul-Tasten (?)
                     * Prüfung auf bekannten System-Typ (FirmwareTMS.dat) beim Start von MC
+                  ( * Test: Segment- und Bookmark-Marker mit Anti-Aliasing )
 
                  INI-File:
                    ** neue Option CheckFSAfterCut=3 prüft Dateisystem für alle betroffenen HDDs beim Beenden

@@ -3,6 +3,7 @@
 #ifdef _MSC_VER
   #define __const const
 #endif
+//#define STACKTRACE      TRUE
 
 #include                <stdio.h>
 #include                <stdlib.h>
