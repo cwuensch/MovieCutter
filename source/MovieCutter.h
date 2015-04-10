@@ -2,7 +2,7 @@
 #define __MOVIECUTTERH__
 
 #define PROGRAM_NAME          "MovieCutter"
-#define VERSION               "V3.2"  // alpha = α,  beta = β, � = ü
+#define VERSION               "V3.3 beta"  // alpha = α,  beta = β, � = ü
 #define TAPID                 0x8E0A4247
 //#define AUTHOR                "FireBird / Christian W�nsch"
 #define AUTHOR                "FireBird / C. Wünsch"
@@ -17,88 +17,98 @@
 #define LNGFILENAME           PROGRAM_NAME ".lng"
 #define INIFILENAME           PROGRAM_NAME ".ini"
 
+typedef struct
+{
+  dword                 Block;  //Block nr
+  dword                 Timems; //Time in ms
+  float                 Percent;
+  bool                  Selected;
+} tSegmentMarker;
+
+
 int fseeko64 (FILE *__stream, __off64_t __off, int __whence);
 
 int   TAP_Main(void);
 dword TAP_EventHandler(word event, dword param1, dword param2);
-void  ActionMenuDown(void);
-void  ActionMenuDraw(void);
-void  ActionMenuRemove(void);
-void  ActionMenuUp(void);
-int   AddBookmark(dword newBlock, bool RejectSmallScenes);
-bool  AddDefaultSegmentMarker(void);
-int   AddSegmentMarker(dword newBlock, bool RejectSmallSegments);
-void  CalcLastSeconds(void);
-bool  CheckFileSystem(char *MountPath, dword ProgressStart, dword ProgressEnd, dword ProgressMax, bool DoFix, bool Quick, bool NoOkInfo, bool ErrorMessage, int SuspectFiles, char *InodeNrs);
-void  CheckLastSeconds(void);
-void  Cleanup(bool DoClearOSD);
-void  CleanupCut(void);
-void  CreateOSD(void);
-void  ClearOSD(bool EnterNormal);
-void  CutDumpList(void);
-void  CutFileDelete(void);
-bool  CutFileLoad(void);
-void  CutFileSave(void);
-bool  DeleteBookmark(int BookmarkIndex);
-bool  DeleteAllBookmarks(void);
-bool  DeleteSegmentMarker(int MarkerIndex);
-void  DeleteAllSegmentMarkers(void);
-void  ExportSegmentsToBookmarks(void);
-int   FindNearestBookmark(dword curBlock);
-int   FindNearestSegmentMarker(dword curBlock);
-int   FindSegmentWithBlock(dword curBlock);
-void  ImportBookmarksToSegments(void);
-bool  isPlaybackRunning(void);
-void  LoadINI(void);
-bool  MoveBookmark(int BookmarkIndex, dword newBlock, bool RejectSmallScenes);
-bool  MoveSegmentMarker(int MarkerIndex, dword newBlock, bool RejectSmallSegments);
-void  MovieCutterDeleteFile(void);
-void  MovieCutterDeleteSegments(void);
-void  MovieCutterSelectOddSegments(void);
-void  MovieCutterSelectEvenSegments(void);
-void  MovieCutterUnselectAll(void);
-void  MovieCutterProcess(bool KeepCut);
-void  MovieCutterSaveSegments(void);
-dword NavGetBlockTimeStamp(dword PlaybackBlockNr);
-void  OSDInfoDrawBackground(void);
-void  OSDInfoDrawBookmarkMode(bool DoSync);
-void  OSDInfoDrawClock(bool Force);
-void  OSDInfoDrawCurrentPlayTime(bool Force);
-void  OSDInfoDrawMinuteJump(bool DoSync);
-void  OSDInfoDrawPlayIcons(bool Force, bool DoSync);
-void  OSDInfoDrawProgressbar(bool Force, bool DoSync);
-void  OSDInfoDrawRecName(void);
-void  OSDRedrawEverything(void);
-void  OSDSegmentListDrawList(bool DoSync);
-void  OSDTextStateWindow(int MessageID);
-void  Playback_Faster(void);
-void  Playback_FFWD(void);
-void  Playback_SetJumpNavigate(bool pJumpRequest, bool pNavRequest, bool pBackwards);
-void  Playback_JumpBackward(void);
-void  Playback_JumpForward(void);
-void  Playback_JumpNextSegment(void);
-void  Playback_JumpPrevSegment(void);
-void  Playback_JumpNextBookmark(void);
-void  Playback_JumpPrevBookmark(void);
-void  Playback_Normal(void);
-void  Playback_Pause(void);
-void  Playback_RWD(void);
-void  Playback_Slow(void);
-void  Playback_Slower(void);
-//bool  ReadBookmarks(void);
-char* RemoveEndLineBreak (char *const Text);
-//bool  SaveBookmarks(void);
-void  SaveINI(void);
-bool  SelectSegmentMarker(void);
-void  SetCurrentSegment(void);
-bool  SetPlaybackSpeed(TYPE_TrickMode newTrickMode, byte newTrickModeSpeed);
-bool  ShowConfirmationDialog(char *MessageStr);
-void  ShowErrorMessage(char *MessageStr, char *TitleStr);
 dword TMSCommander_handler(dword param1);
-void  UndoAddEvent(bool Bookmark, dword PreviousBlock, dword NewBlock, bool SegmentWasSelected);
-bool  UndoLastAction(void);
-void  UndoResetStack(void);
-bool  PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isHD);
+
+static bool  ActionMenuItemInactive(int MenuItem);
+static void  ActionMenuDown(void);
+static void  ActionMenuDraw(void);
+static void  ActionMenuRemove(void);
+static void  ActionMenuUp(void);
+static int   AddBookmark(dword newBlock, bool RejectSmallScenes);
+static bool  AddDefaultSegmentMarker(void);
+static int   AddSegmentMarker(dword newBlock, bool RejectSmallSegments);
+static void  CalcLastSeconds(void);
+static bool  CheckFileSystem(char *MountPath, dword ProgressStart, dword ProgressEnd, dword ProgressMax, bool DoFix, bool Quick, bool NoOkInfo, bool ErrorMessage, int SuspectFiles, char *InodeNrs);
+static void  CheckLastSeconds(void);
+static void  Cleanup(bool DoClearOSD);
+static void  CleanupCut(void);
+static void  CreateOSD(void);
+static void  ClearOSD(bool EnterNormal);
+static void  CutDumpList(void);
+static void  CutFileDelete(void);
+static bool  CutFileLoad(void);
+static void  CutFileSave();
+static void  CutFileSave2(tSegmentMarker SegmentMarker[], int NrSegmentMarker, char* RecFileName);
+static bool  DeleteBookmark(int BookmarkIndex);
+static bool  DeleteAllBookmarks(void);
+static bool  DeleteSegmentMarker(int MarkerIndex);
+static void  DeleteAllSegmentMarkers(void);
+static void  ExportSegmentsToBookmarks(void);
+static int   FindNearestBookmark(dword curBlock);
+static int   FindNearestSegmentMarker(dword curBlock);
+static int   FindSegmentWithBlock(dword curBlock);
+static void  ImportBookmarksToSegments(void);
+static bool  isPlaybackRunning(void);
+static void  LoadINI(void);
+static bool  MoveBookmark(int BookmarkIndex, dword newBlock, bool RejectSmallScenes);
+static bool  MoveSegmentMarker(int MarkerIndex, dword newBlock, bool RejectSmallSegments);
+static void  MovieCutterDeleteFile(void);
+static void  MovieCutterDeleteSegments(void);
+static void  MovieCutterSelectEvOddSegments(void);
+static void  MovieCutterSplitMovie(void);
+static void  MovieCutterUnselectAll(void);
+static void  MovieCutterProcess(bool KeepCut, bool SplitHere);
+static void  MovieCutterSaveSegments(void);
+static dword NavGetBlockTimeStamp(dword PlaybackBlockNr);
+static void  OSDInfoDrawBackground(void);
+static void  OSDInfoDrawBookmarkMode(bool DoSync);
+static void  OSDInfoDrawClock(bool Force);
+static void  OSDInfoDrawCurrentPlayTime(bool Force);
+static void  OSDInfoDrawMinuteJump(bool DoSync);
+static void  OSDInfoDrawPlayIcons(bool Force, bool DoSync);
+static void  OSDInfoDrawProgressbar(bool Force, bool DoSync);
+static void  OSDInfoDrawRecName(void);
+static void  OSDRedrawEverything(void);
+static void  OSDSegmentListDrawList(bool DoSync);
+static void  OSDTextStateWindow(int MessageID);
+static void  Playback_Faster(void);
+static void  Playback_FFWD(void);
+static void  Playback_SetJumpNavigate(bool pJumpRequest, bool pNavRequest, bool pBackwards);
+static void  Playback_JumpBackward(void);
+static void  Playback_JumpForward(void);
+static void  Playback_JumpNextSegment(void);
+static void  Playback_JumpPrevSegment(void);
+static void  Playback_JumpNextBookmark(void);
+static void  Playback_JumpPrevBookmark(void);
+static void  Playback_Normal(void);
+static void  Playback_Pause(void);
+static void  Playback_RWD(void);
+static void  Playback_Slow(void);
+static void  Playback_Slower(void);
+static void  SaveINI(void);
+static bool  SelectSegmentMarker(void);
+static void  SetCurrentSegment();
+static bool  SetPlaybackSpeed(TYPE_TrickMode newTrickMode, byte newTrickModeSpeed);
+static bool  ShowConfirmationDialog(char *MessageStr);
+static void  ShowErrorMessage(char *MessageStr, char *TitleStr);
+static void  UndoAddEvent(bool Bookmark, dword PreviousBlock, dword NewBlock, bool SegmentWasSelected);
+static bool  UndoLastAction(void);
+static void  UndoResetStack(void);
+static bool  PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isHD);
+
 extern void OSDMenuFreeStdFonts(void);
 
 #endif

@@ -344,6 +344,7 @@ bool HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint, char
   char                  MountPoint[MAX_FILE_NAME_SIZE+1], DeviceNode[20];
   FILE                 *aFile;
   struct mntent        *ent;
+  char                 *x;
 
   TRACEENTER();
 
@@ -354,15 +355,24 @@ bool HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint, char
   {
     while((ent = getmntent(aFile)) != NULL)
     {
-      if(strncmp(AbsPath, ent->mnt_dir, strlen(ent->mnt_dir)) == 0)
+      x = ansicstr(ent->mnt_dir, strlen(ent->mnt_dir), 0, NULL, NULL);
+      if(x)
       {
-        if(strlen(ent->mnt_dir) > strlen(MountPoint))
+        if((strncmp(AbsPath, ent->mnt_dir, strlen(ent->mnt_dir)) == 0) && (strlen(ent->mnt_dir) > strlen(MountPoint)))
         {
-          strncpy(MountPoint, ent->mnt_dir, sizeof(MountPoint));
+          strncpy(MountPoint, x, sizeof(MountPoint));
           MountPoint[sizeof(MountPoint) - 1] = '\0';
           strncpy(DeviceNode, ent->mnt_fsname, sizeof(DeviceNode));
           DeviceNode[sizeof(DeviceNode) - 1] = '\0';
         }
+        TAP_MemFree(x);
+      }
+      else if((strncmp(AbsPath, ent->mnt_dir, strlen(ent->mnt_dir)) == 0) && (strlen(ent->mnt_dir) > strlen(MountPoint)))
+      {
+        strncpy(MountPoint, ent->mnt_dir, sizeof(MountPoint));
+        MountPoint[sizeof(MountPoint) - 1] = '\0';
+        strncpy(DeviceNode, ent->mnt_fsname, sizeof(DeviceNode));
+        DeviceNode[sizeof(DeviceNode) - 1] = '\0';
       }
     }
     endmntent(aFile);

@@ -36,7 +36,7 @@ de_009=MovieCutter beenden
 de_010=Konnte F/W-Funktion _bookmarkTime nicht finden.
 de_011=Nächster Bookmark
 de_012=Vorhergehender Bookmark
-de_013=Importiere Bookmarks
+de_013=Import Bookmarks -> Segmente
 de_014=OK
 de_015=Vor-/Nachlauf entfernen
 de_016=Ausgewählte Segmente speichern
@@ -60,7 +60,7 @@ de_033=Mittelstück markieren
 de_034=Alle abwählen
 de_035=Segmentliste zurücksetzen
 de_036=Alle Bookmarks löschen
-de_037=Export Segmente zu Bookmarks
+de_037=Export Segmente -> Bookmarks
 de_038=Segmente
 de_039=Bookmarks
 de_040=Seite
@@ -108,6 +108,8 @@ de_081=Minutensprung an: %d'
 de_082=Minutensprung aus
 de_083=Wenig freier Festplattenspeicher!\nTrotzdem fortfahren?
 de_084=SystemType ist unbekannt.\nBitte die FirmwareTMS.dat überprüfen!
+de_085=Un/Gerade Segmente markieren
+de_086=Aufnahme hier teilen
 
 
 #English
@@ -196,6 +198,8 @@ en_081=Minute jump: %d'
 en_082=Minute jump off
 en_083=Free disc space is low!\nProceed anyways?
 en_084=Unknown system type.\nPlease check FirmwareTMS.dat!
+en_085=Select even/odd segments
+en_086=Split movie here
 
 
 #French
@@ -284,6 +288,8 @@ fr_081=Saut de minutes : %d'
 fr_082=Saut désactivé
 fr_083=Peu d'espace disque libre !\nProcéder quand même ?
 fr_084=Type de système indéterminé.\nContrôler FirmwareTMS.dat !
+fr_085=Select even/odd segments
+fr_086=Split movie here
 
 
 #Dutch
@@ -372,3 +378,5 @@ nl_081=Minutensprong naar: %d'
 nl_082=Minutensprong uit
 nl_083=Free disc space is low!\nProceed anyways?
 nl_084=Unknown system type.\nPlease check FirmwareTMS.dat!
+nl_085=Select even/odd segments
+nl_086=Split movie here

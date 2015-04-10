@@ -16,15 +16,15 @@
 #include                "MovieCutterLib.h"
 
 
-bool        FileCut(char *SourceFileName, char *CutFileName, char *AbsDirectory, dword StartBlock, dword NrBlocks);
-bool        WriteByteToFile(const char *FileName, const char *AbsDirectory, off_t BytePosition, char OldValue, char NewValue);
-bool        PatchRecFile(const char *SourceFileName, const char *AbsDirectory, off_t RequestedCutPosition, byte CutPointArray[], off_t OutPatchedBytes[]);
-bool        UnpatchRecFile(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, off_t CutStartPos, off_t BehindCutPos, const off_t PatchedBytes[], int NrPatchedBytes);
-bool        ReadCutPointArea(const char *SourceFileName, const char *AbsDirectory, off_t CutPosition, byte CutPointArray[]);
-bool        ReadFirstAndLastCutPacket(const char *CutFileName, const char *AbsDirectory, byte FirstCutPacket[], byte LastCutPacket[]);
-bool        FindCutPointOffset(const byte CutPacket[], const byte CutPointArray[], long *const Offset);
-bool        PatchInfFiles(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, dword SourcePlayTime, const tTimeStamp *CutStartPoint, const tTimeStamp *BehindCutPoint);
-bool        PatchNavFiles(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, off_t CutStartPos, off_t BehindCutPos, bool isHD, dword *const OutCutStartTime, dword *const OutBehindCutTime, dword *const OutSourcePlayTime);
+static bool  FileCut(char *SourceFileName, char *CutFileName, char *AbsDirectory, dword StartBlock, dword NrBlocks);
+static bool  WriteByteToFile(const char *FileName, const char *AbsDirectory, off_t BytePosition, char OldValue, char NewValue);
+static bool  PatchRecFile(const char *SourceFileName, const char *AbsDirectory, off_t RequestedCutPosition, byte CutPointArray[], off_t OutPatchedBytes[]);
+static bool  UnpatchRecFile(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, off_t CutStartPos, off_t BehindCutPos, const off_t PatchedBytes[], int NrPatchedBytes);
+static bool  ReadCutPointArea(const char *SourceFileName, const char *AbsDirectory, off_t CutPosition, byte CutPointArray[]);
+static bool  ReadFirstAndLastCutPacket(const char *CutFileName, const char *AbsDirectory, byte FirstCutPacket[], byte LastCutPacket[]);
+static bool  FindCutPointOffset(const byte CutPacket[], const byte CutPointArray[], long *const Offset);
+static bool  PatchInfFiles(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, dword SourcePlayTime, const tTimeStamp *CutStartPoint, const tTimeStamp *BehindCutPoint);
+static bool  PatchNavFiles(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, off_t CutStartPos, off_t BehindCutPos, bool isHD, dword *const OutCutStartTime, dword *const OutBehindCutTime, dword *const OutSourcePlayTime);
 
 static int              PACKETSIZE = 192;
 static int              SYNCBYTEPOS = 4;

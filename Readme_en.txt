@@ -33,11 +33,14 @@ Usage
 * If all the desired cutting areas are defined, use the BLUE button to select one or more of these segments.
 * The selected segments can then either be deleted from the recording (then they are irretrievably lost), or stored into separate files (which also removes them from the original recording).
 
-Alternative:
+Alternatives:
 - You can also create bookmarks during normal playback of a file (with deactivated MovieCutter) using the green button. This may include any jump or advertising search TAP be used. The thus created bookmarks can then be imported into the MovieCutter.
+- If you just want to split the recording at one position into two parts, there is no need to create a segment marker beforehand.
 
 Use Case Examples
 =================
+* Split a recording:
+	Navigate the playback to the position, at which the recording shall be split. Press 'Menu', and select the option "Split recording here".
 * Remove padding:
 	Set a marker at the beginning and at the end of the movie that you want to keep. Then, in the action menu chose "Select padding" function and then select "Delete selected segments".
 * Clean a recording from padding and advertising:
@@ -84,6 +87,7 @@ If one or more segments were selected with the blue button (dark blue frame), th
 
 * "Save selected segments":	The active segment or selected segments are removed from the original recording and stored into a separate file each. The newly created files get the name of the original recording, with addition of "(Cut-1)", "(Cut-2)", etc.
 * "Delete selected segments":	The active segment or selected segments are canceled out from the recording. These parts are lost forever!
+* "Split movie here":		The movie is split into two parts at the current playback position. Bookmarks and segment markers are kept.
 * "Select padding":		Mark the first and last of three segments.
 * "Select even/odd segments":	Selects all segments with even resp. odd number. (counting starts at 1)
 * "Import Bookmarks":		The Bookmarks from the recording are imported and used as new segment markers.
@@ -93,29 +97,32 @@ If one or more segments were selected with the blue button (dark blue frame), th
 
 Options in the MovieCutter.ini
 ==============================
-- AutoOSDPolicy:		1: Movie Cutter is automatically activated when a playback starts. - 0: Movie Cutter always has to be activated manually.
-(supported in V. 2.0g and higher)
-- DirectSegmentsCut:		0: Action selects the even/odd segments. - 1: Action deletes the even/odd segments instantly.
-(supported in V. 2.0i and higher)
-- SaveCutBak			1: Creates a backup of the cut file. - 0: Create no .cut.bak files.
-- ShowRebootMessage		1: Reminds the user to reboot the system before doing a cut. - 0: No reboot warning.
-- CheckFSAfterCut		0: Automatic file system check (only when required).  - 1: Always check after cutting. - 2: Never check (not recommended!)
-(supported in V. 2.1 and higher)
-- DefaultOSDMode:		0: Show full OSD. - 1: Hide the segment list. - 2: Display OSD in minimal mode.
-- MinuteJump:			0: Minute jump mode is disabled at startup. - 1-99: Default value for the minute jump mode.
-- AskBeforeEdit:		1: Ask before performing an irreversible cutting operation . - 0: Do not ask.
-- Overscan_X:                   Distance of the OSD from left/right screen border. Possible values: 0-100 (recommended: 30-60)
-- Overscan_Y:                   Distance of the OSD from upper/lower screen border. Possible values: 0-100 (recommended: 25)
-- SegmentList_X:		Display position of the segment list (x-coordinate, possible values: 0-719)
-- SegmentList_Y:		Display position of the segment list (y-coordinate, possible values: 0-575)
-- DisableSleepKey:              1: Disables Exit of MovieCutter by pressing the Sleep key.
-- DisableSpecialEnd:            Debugging-Option (Standard: 0).
-(supported in V. 3.0 and higher)
-- DoiCheckTest:                 0: No Inode-Test between the cuts. - 1: Do test but not fix. - 2: Test and fix.
-- InodeMonitoring:              1: Monitoring of the Inodes corrupted while cutting. - 0: No Monitoring.
-- RCUMode:                      0: SRP-2401 - 1: SRP-2410 - 2: CRP-2401 - 3: TF5000 (identical with 2) - 4: No use of the VolKeys
-(in V. 3.1 and higher)
-- CheckFSAfterCut (changed):	1: Automatic file system check (only when required).  - 2: Always check after cutting. - 3: Check on shutdown. - 0: Never check (not recommended!)
-- DoiCheckTest (changed):	1: Cumulated test in the end (ro). - 2: Cummulated Test and Fix. - 3: Test between the cuts (ro). - 4: Test and fix between cuts. - 0: No icheck Test.
-(in V. 3.1b and higher)
-- MaxNavDiscrepancy:		Maximum tolerated discrepancy of the nav-file, without showing a warning message (in milliseconds). - 0: Never show a message.
+[since V. 3.3]
+  - CutFileMode:		0: Save the cut markers in cut- and inf-file. - 1: cut-file only. - 2: inf-file only.
+[since V. 3.1b]
+  - MaxNavDiscrepancy:		Maximum tolerated discrepancy of the nav-file, without showing a warning message (in milliseconds). - 0: Never show a message.
+[since V. 3.1]
+  - CheckFSAfterCut: 	(new)	1: Automatic file system check (only when required).  - 2: Always check after cutting. - 3: Check on shutdown. - 0: Never check (not recommended!)
+  - DoiCheckTest:	(new)	1: Cumulated test in the end (ro). - 2: Cummulated Test and Fix. - 3: Test between the cuts (ro). - 4: Test and fix between cuts. - 0: No icheck Test.
+[since V. 3.0]
+  - DoiCheckTest:	(old!)	0: No Inode-Test between the cuts. - 1: Do test but not fix. - 2: Test and fix.
+  - InodeMonitoring:		1: Monitoring of the Inodes corrupted while cutting. - 0: No Monitoring.
+  - RCUMode:			0: SRP-2401 - 1: SRP-2410 - 2: CRP-2401 - 3: TF5000 (identical with 2) - 4: No use of the VolKeys
+[since V. 2.1]
+  - DefaultOSDMode:		0: Show full OSD. - 1: Hide the segment list. - 2: Display OSD in minimal mode.
+  - MinuteJump:			0: Minute jump mode is disabled at startup. - 1-99: Default value for the minute jump mode.
+  - AskBeforeEdit:		1: Ask before performing an irreversible cutting operation . - 0: Do not ask.
+  - Overscan_X:			Distance of the OSD from left/right screen border. Possible values: 0-100 (recommended: 30-60)
+  - Overscan_Y:			Distance of the OSD from upper/lower screen border. Possible values: 0-100 (recommended: 25)
+  - SegmentList_X:		Display position of the segment list (x-coordinate, possible values: 0-719)
+  - SegmentList_Y:		Display position of the segment list (y-coordinate, possible values: 0-575)
+  - DisableSleepKey:		1: Disables Exit of MovieCutter by pressing the Sleep key.
+  - DisableSpecialEnd:		Debugging-Option (Standard: 0).
+[since V. 2.0i]
+  - SaveCutBak			1: Creates a backup of the cut file. - 0: Create no .cut.bak files.
+  - ShowRebootMessage		1: Reminds the user to reboot the system before doing a cut. - 0: No reboot warning.
+  - CheckFSAfterCut	(old!)	0: Automatic file system check (only when required).  - 1: Always check after cutting. - 2: Never check (not recommended!)
+[since V. 2.0g]
+  - DirectSegmentsCut:		0: Action selects the even/odd segments. - 1: Action deletes the even/odd segments instantly.
+[since V. 1.x]
+  - AutoOSDPolicy:		1: Movie Cutter is automatically activated when a playback starts. - 0: Movie Cutter always has to be activated manually.

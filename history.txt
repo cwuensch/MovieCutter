@@ -1,5 +1,14 @@
+2015-04-?? v3.3  NEU:
+                  *** neue Funktion "Aufnahme teilen" (ersetzt "Gerade Segmente löschen")
+                   ** neue, bessere Stabilisierung der Zeitanzeige (auch bei Segmentwechsel)
+                   ** Speicherung der Schnittmarker wahlweise in der inf-Datei
+                    * alle Tasten werden berücksichtigt (auch Front-Keys?)
+
+                 INI-FILE:
+                    - CutFileMode = Speicherung der Marker: [0] in cut- und inf-Datei, [1] nur cut-Datei, [2] nur inf-Datei.
+
 2015-03-31 v3.2     * Segment- und Bookmark-Marker wieder ohne Anti-Aliasing
-        (final)     * direkter Bookmark-Sprung nun zyklisch und inklusive Aufnahmestart
+                    * direkter Bookmark-Sprung nun zyklisch und inklusive Aufnahmestart
 
 2015-02-26 v3.2  NEU:
          (beta)    ** Dateisystemprüfung kann automatisch beim Beenden/Herunterfahren ausgeführt werden

@@ -22,7 +22,16 @@ char*                   LS_Dummy = "< Dummy >";
 char                   *LS_Warning, *LS_CheckingFileSystem;
 
 
-void HDDCheck_ProgBarHandler(bool ShowProgBar, dword CurrentValue, dword pProgressStart, dword pProgressEnd, dword pProgressMax, dword pRegionToSave)
+/*static void         HDDCheck_ProgBarHandler(bool ShowProgBar, dword CurrentValue, dword pProgressStart, dword pProgressEnd, dword pProgressMax, dword pRegionToSave);
+static void         HDDCheck_RefreshProgBar(bool ShowProgBar, dword CurrentValue);
+static void         ShowInfoBox(char *MessageStr, char *TitleStr);
+static tInodeData*  ReadListFileAlloc(const char *AbsListFileName, int *OutNrInodes, int AddEntries);
+static bool         WriteListFile(const char *AbsListFileName, const tInodeData InodeList[], const int NrInodes);
+static bool         AddTempListToDevice(const char *AbsDeviceList, const char *AbsTempList, int *const OutMarkedFiles, int *const OutNewMarkedFiles);
+static tReturnCode  RunIcheckWithLog(const char *DeviceNode, const char *ParamString, char *const OutLastLine);
+*/
+
+static void HDDCheck_ProgBarHandler(bool ShowProgBar, dword CurrentValue, dword pProgressStart, dword pProgressEnd, dword pProgressMax, dword pRegionToSave)
 {
   // Initialisierung der statischen Variablen
   static dword ProgressStart = 0, ProgressEnd = 100, ProgressMax = 100;
@@ -48,12 +57,12 @@ void HDDCheck_InitProgBar(dword pProgressStart, dword pProgressEnd, dword pProgr
   if (pCheckingStr)   LS_CheckingFileSystem = pCheckingStr;     else LS_CheckingFileSystem = LS_Dummy;
   HDDCheck_ProgBarHandler(FALSE, 0, pProgressStart, pProgressEnd, pProgressMax, pRegionToSave);
 }
-void HDDCheck_RefreshProgBar(bool ShowProgBar, dword CurrentValue)
+static void HDDCheck_RefreshProgBar(bool ShowProgBar, dword CurrentValue)
 {
   HDDCheck_ProgBarHandler(ShowProgBar, CurrentValue, 0, 0, 0, 0);
 }
 
-void ShowInfoBox(char *MessageStr, char *TitleStr)
+static void ShowInfoBox(char *MessageStr, char *TitleStr)
 {
   OSDMenuSaveMyRegion(RegionToSave);
   OSDMenuInfoBoxShow(TitleStr, MessageStr, 0);
@@ -69,7 +78,7 @@ void HDD_CancelCheckFS()
 
 // ----------------------------------------------------------------------------------------------------------
 
-tInodeData* ReadListFileAlloc(const char *AbsListFileName, int *OutNrInodes, int AddEntries)
+static tInodeData* ReadListFileAlloc(const char *AbsListFileName, int *OutNrInodes, int AddEntries)
 {
   tInodeListHeader      InodeListHeader;
   tInodeData           *InodeList  = NULL;
@@ -142,7 +151,7 @@ tInodeData* ReadListFileAlloc(const char *AbsListFileName, int *OutNrInodes, int
   return InodeList;
 }
 
-bool WriteListFile(const char *AbsListFileName, const tInodeData InodeList[], const int NrInodes)
+static bool WriteListFile(const char *AbsListFileName, const tInodeData InodeList[], const int NrInodes)
 {
   tInodeListHeader      InodeListHeader;
   FILE                 *fInodeList = NULL;
@@ -171,7 +180,7 @@ bool WriteListFile(const char *AbsListFileName, const tInodeData InodeList[], co
   return ret;
 }
 
-bool AddTempListToDevice(const char *AbsDeviceList, const char *AbsTempList, int *const OutMarkedFiles, int *const OutNewMarkedFiles)
+static bool AddTempListToDevice(const char *AbsDeviceList, const char *AbsTempList, int *const OutMarkedFiles, int *const OutNewMarkedFiles)
 {
   tInodeData           *InodeList = NULL, *TempInodeList = NULL;
   tInodeData           *curInode;
@@ -655,7 +664,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
 
 // ----------------------------------------------------------------------------------------------------------
 
-tReturnCode RunIcheckWithLog(const char *DeviceNode, const char *ParamString, char *const OutLastLine)
+static tReturnCode RunIcheckWithLog(const char *DeviceNode, const char *ParamString, char *const OutLastLine)
 {
   FILE                 *LogStream;
   char                  CommandLine[1024], FullLog[512], LastLine[512], CurLine[512];

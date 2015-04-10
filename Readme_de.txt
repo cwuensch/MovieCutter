@@ -33,11 +33,14 @@ Bedienung
 * Wenn die gewünschten Schnittbereiche festgelegt sind, verwenden Sie die BLAUE Taste, um ein oder mehrere dieser Segmente auszuwählen.
 * Die gewählten Segmente lassen sich dann entweder aus der Aufnahme herauslöschen (dann sind sie unwiederbringlich verloren), oder in jeweils eine separate Datei abspeichern (dabei werden sie ebenfalls aus der Original-Aufnahme entfernt).
 
-Alternative:
+Alternativen:
 - Es besteht auch die Möglichkeit, während der normalen Wiedergabe einer Datei (bei deaktiviertem MovieCutter) mit der grünen Taste Bookmarks anzulegen. Hierzu kann auch ein beliebiges Sprung- oder Werbungs-Such-TAP verwendet werden. Die so angelegten Bookmarks können anschließend in den MovieCutter importiert werden.
+- Wenn eine Aufnahme an bloß einer Stelle in zwei Teilstücke geteilt werden soll, brauchen keine Schnittmarker angelegt werden.
 
 Anwendungsbeispiele
 ===================
+* Eine Aufnahme teilen:
+	Spulen Sie die Aufnahme zu der Stelle, an der sie geteilt werden soll. Drücken Sie 'Menü', und wählen Sie im Schnittmenü "Aufnahme hier teilen".
 * Vor- und Nachlauf entfernen:
 	Setzen Sie am Beginn und am Ende des zu behaltenden Films je einen Marker. Wählen Sie dann im Schnittmenü die Funktion "Vor-/Nachlauf markieren" und anschließend "Ausgewählte Segmente löschen".
 * Eine Aufnahme von Vor- und Nachlauf und der Werbung bereinigen:
@@ -84,7 +87,8 @@ Aktionen im Schnittmenü
 Falls ein oder mehrere Segmente mit der blauen Tasten selektiert wurden (dunkelblau umrahmt), beziehen sich die Speichern/Löschen-Aktionen auf dieses Segment/diese Segmente. Anderenfalls beziehen sich die Funktionen auf das aktive Segment (blau hinterlegt).
 
 * "Markierte Segmente speichern":	Das aktive Segment bzw. die selektierten Segmente werden aus der Original-Aufnahme entfernt und in jeweils einer eigenen Datei gespeichert. Die neu erzeugten Dateien bekommen den Namen der Original-Aufnahme, ergänzt um den Zusatz "(Cut-1)", "(Cut-2)", usw.
-* "Markierte Segmente löschen":	        Das aktive Segment bzw. die selektierten Segmente werden aus der Aufnahme herausgelöscht. Diese Teile sind unwiderruflich verloren!
+* "Markierte Segmente löschen":		Das aktive Segment bzw. die selektierten Segmente werden aus der Aufnahme herausgelöscht. Diese Teile sind unwiderruflich verloren!
+* "Aufnahme hier teilen":		Die Aufnahme wird an der aktuellen Abspielposition in zwei Teilstücke zerteilt. Sämtliche Bookmarks und Segment-Marker bleiben erhalten.
 * "Vor-/Nachlauf markieren":		Markiert das erste und letzte von 3 Segmenten.
 * "(Un)gerade Segmente markieren":	Markiert alle Segmente mit gerader bzw. alle mit ungerader Nummer. (Die Zählung beginnt bei 1.)
 * "Importiere Bookmarks":		Die für die Aufnahme angelegten Bookmarks werden importiert und als Segmentmarker verwendet.
@@ -94,29 +98,32 @@ Falls ein oder mehrere Segmente mit der blauen Tasten selektiert wurden (dunkelb
 
 Optionen in der MovieCutter.ini
 ===============================
-- AutoOSDPolicy:		1: MovieCutter wird beim Abspielen einer Aufnahme automatisch aktiviert. - 0: MovieCutter muss immer manuell gestartet werden.
-(ab V. 2.0g unterstützt)
-- DirectSegmentsCut		0: Aktion zum Auswählen der gerade/ungerade Segmente. - 1: Aktion zum direkten Löschen der geraden/ungeraden Segmente.
-(ab V. 2.0i unterstützt)
-- SaveCutBak			1: Beim Schneiden wird ein Backup des CutFiles angelegt. - 0: Keine .cut.bak Dateien.
-- ShowRebootMessage		1: Vor dem Schnitt wird zum Neustart aufgefordert. - 0: Keine Neustart-Meldung.
-- CheckFSAfterCut		0: Automatische Dateisystemprüfung (nur wenn nötig). - 1: Immer nach dem Schneiden prüfen. - 2: Niemals prüfen (nicht empfohlen!)
-(ab V. 2.1 unterstützt)
-- DefaultOSDMode:		0: MC arbeitet im Hintergrund. - 1: Vollständiges OSD. - 2: OSD ohne Segmentliste. - 3: OSD im Minimal-Modus.
-- DefaultMinuteJump:		0: Minutensprung-Modus ist beim Starten deaktiviert. - 1-99: Voreingestellter Wert für den Minutensprung-Modus.
-- AskBeforeEdit:		1: Vor dem Ausführen einer irreversiblen Schnittoperation nachfragen. - 0: Keine Rückfrage.
-- Overscan_X:			Abstand des OSD vom linken/rechten Bildschirmrand. Mögliche Werte: 0-100 (empfohlen: 30-60)
-- Overscan_Y:			Abstand des OSD vom oberen/unteren Bildschirmrand. Mögliche Werte: 0-100 (Standard: 25)
-- SegmentList_X:		Anzeigeposition der Segmentliste (x-Koordinate der oberen linken Ecke, mögliche Werte: 0-556)
-- SegmentList_Y:		Anzeigeposition der Segmentliste (y-Koordinate der oberen linken Ecke, mögliche Werte: 0-246)
-- DisableSleepKey:		1: Deaktiviert die Beendigung des MovieCutters durch Drücken der Sleep-Taste.
-- DisableSpecialEnd:		Debugging-Einstellung (Standard: 0).
-(ab V. 3.0 unterstützt)
-- DoiCheckTest:			0: Kein Inode-Test zwischen den Schnitten. - 1: Testen aber nicht fixen. - 2: Test und fix.
-- InodeMonitoring:		1: Überwachung der beim Schneiden beschädigten Inodes. - 0: keine Überwachung.
-- RCUMode:			0: SRP-2401 - 1: SRP-2410 - 2: CRP-2401 - 3: TF5000 (identisch mit 2) - 4: VolKeys nicht belegen
-(ab V. 3.1)
-- CheckFSAfterCut (geändert):	1: Automatische Dateisystemprüfung (nur wenn nötig). - 2: Immer nach dem Schneiden prüfen. - 3: Beim Herunterfahren prüfen. - 0: Niemals prüfen (nicht empfohlen!)
-- DoiCheckTest (geändert):	1: gesammelter Test am Ende (ro). - 2: gesammelter Test und Fix. - 3: Test zwischen den Schnitten (ro). - 4: Test und Fix zwischen Schnitten. 0: Kein icheck-Test.
-(ab V. 3.1b)
-- MaxNavDiscrepancy:		Maximal zulässige Abweichung der nav-Datei, bevor eine Warnmeldung angezeigt wird (in Millisekunden). - 0: Meldung niemals anzeigen.
+[seit V. 3.3]
+  - CutFileMode:		Speicherung der Schnittmarker: [0] in cut- und inf-Datei, [1] nur cut-Datei, [2] nur inf-Datei.
+[seit V. 3.1b]
+  - MaxNavDiscrepancy:		Maximal zulässige Abweichung der nav-Datei (in Millisekunden), [0] Meldung niemals anzeigen.
+[seit V. 3.1]
+  - CheckFSAfterCut:	(neu)	Dateisystemprüfung: [1] automatisch (nur wenn nötig), [2] immer prüfen, [3] beim Beenden prüfen, [0] niemals prüfen (nicht empfohlen!).
+  - DoiCheckTest:	(neu)	Inodes überprüfen: [1] gesammelt am Ende (ro), [2] gesammelt mit Fix, [3] einzeln zwischen Schnitten (ro), [4] einzeln mit Fix, [0] kein Test.
+[seit V. 3.0]
+  - DoiCheckTest:	(alt!)	Inodes überprüfen: [1] Testen aber nicht fixen, [2] Test und Fix, [0] kein Test.
+  - InodeMonitoring:		Überwachung beschädigter Inodes. [0,1]
+  - RCUMode:			Fernbedienungs-Modus: [0] SRP-2401, [1] SRP-2410, [2] CRP-2401, [3] TF5000 (=CRP), [4] VolKeys nicht belegen.
+[seit V. 2.1]
+  - DefaultOSDMode:		OSD-Modus: [0] Hintergrund, [1] Vollständiges OSD, [2] ohne Segmentliste, [3] Minimal-Modus.
+  - DefaultMinuteJump:		Startwert für den Minutensprung-Modus [1-99], [0] zum Deaktivieren.
+  - AskBeforeEdit:		Vor irreversiblen Schnittoperationen nachfragen. [0,1]
+  - Overscan_X:			Abstand des OSD vom linken/rechten Bildschirmrand [0-100] (empfohlen: 30-60)
+  - Overscan_Y:			Abstand des OSD vom oberen/unteren Bildschirmrand [0-100] (Standard: 25)
+  - SegmentList_X:		Anzeigeposition der Segmentliste von links [0-556]
+  - SegmentList_Y:		Anzeigeposition der Segmentliste von oben [0-246]
+  - DisableSleepKey:		Deaktiviert die MC-Beendigung durch Drücken der Sleep-Taste. [0,1]
+  - DisableSpecialEnd:		Deaktivieren der umgekehrten Endbehandlung. (Debugging!) [0,1]
+[seit V. 2.0i]
+  - SaveCutBak			Beim Schneiden ein Backup des CutFiles (.cut.bak) anlegen. [0,1]
+  - ShowRebootMessage		Beim Laden einer zu frischen Aufnahme zum Neustart auffordern. [0,1]
+  - CheckFSAfterCut:	(alt!)	Dateisystemprüfung: [0] automatisch (nur wenn nötig), [1] immer prüfen, [2] niemals prüfen (nicht empfohlen!).
+[seit V. 2.0g]
+  - DirectSegmentsCut		Aktion im Schnittmenü: [0] gerade/ungerade Segmente auswählen, [1] gerade/ungerade Segmente löschen.
+[seit V. 1.x]
+  - AutoOSDPolicy:		MovieCutter beim Abspielen einer Aufnahme automatisch aktivieren. [0,1]
