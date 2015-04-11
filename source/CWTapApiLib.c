@@ -58,7 +58,19 @@ bool HDD_Exist2(const char *FileName, const char *AbsDirectory)
 
   TRACEENTER();
   TAP_SPrint  (AbsFileName, sizeof(AbsFileName), "%s/%s",     AbsDirectory, FileName);
-  ret= (access(AbsFileName, F_OK) == 0);
+  ret = (access(AbsFileName, F_OK) == 0);
+  TRACEEXIT();
+  return ret;
+}
+
+bool HDD_TruncateFile(const char *FileName, const char *AbsDirectory, off_t NewFileSize)
+{
+  char                  AbsFileName[FBLIB_DIR_SIZE];
+  bool                  ret;
+
+  TRACEENTER();
+  TAP_SPrint  (AbsFileName, sizeof(AbsFileName), "%s/%s",     AbsDirectory, FileName);
+  ret = (truncate(AbsFileName, NewFileSize) == 0);
   TRACEEXIT();
   return ret;
 }
@@ -195,6 +207,9 @@ __off64_t HDD_GetFreeDiscSpace(char *AnyFileName, char *AbsDirectory)
 }
 
 
+// ----------------------------------------------------------------------------
+//                        Playback-Operationen
+// ----------------------------------------------------------------------------
 bool HDD_StartPlayback2(char *FileName, char *AbsDirectory)
 {
   tDirEntry             FolderStruct;
@@ -339,6 +354,9 @@ bool SaveBookmarks(dword Bookmarks[], int NrBookmarks)
 }
 
 
+// ----------------------------------------------------------------------------
+//                               Festplatte
+// ----------------------------------------------------------------------------
 bool HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint, char *const OutDeviceNode)  // OutDeviceNode: max. 20 Zeichen, OutMountPoint: max. FILE_NAME_SIZE+1 (inkl. Nullchar)
 {
   char                  MountPoint[MAX_FILE_NAME_SIZE+1], DeviceNode[20];
@@ -389,6 +407,9 @@ bool HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint, char
 }
 
 
+// ----------------------------------------------------------------------------
+//                          String-Funktionen
+// ----------------------------------------------------------------------------
 char* RemoveEndLineBreak (char *const Text)
 {
   TRACEENTER();
@@ -409,6 +430,255 @@ char SysTypeToStr(void)
     case ST_TMST:  return 'T';
     default:       return '?';
   }
+}
+
+
+// ----------------------------------------------------------------------------
+//                      infData-API (FireBirdLib)
+// ----------------------------------------------------------------------------
+#define INFDATASTART      0x7d000   //500kB
+#define INFDATAMAXSIG     64
+#define INFDATMAGIC       "TFr+"
+
+typedef struct
+{
+  char                  Magic[4];
+  dword                 NameTagLen;
+  dword                 PayloadSize;
+} tTFRPlusHdr;
+
+FILE *infDatainfFile = NULL;
+long infDataFileSize = 0;
+
+
+static bool infData_OpenFile(const char *RecFileName, const char *AbsDirectory)
+{
+  char                  AbsFileName[FBLIB_DIR_SIZE];
+
+  TAP_SPrint (AbsFileName, sizeof(AbsFileName), "%s/%s.inf", AbsDirectory, FileName);
+  infDatainfFile = fopen(AbsFileName, "r+b");
+  if (infDatainfFile)
+  {  
+    fseek(infDatainfFile, 0, SEEK_END);
+    infDataFileSize = ftell(infDatainfFile);
+    rewind(infDatainfFile);
+    return TRUE;
+  }
+  else
+    return FALSE;
+}
+
+static bool infData_LocateSig(const char *NameTag, dword *PayloadSize)
+{
+  bool                  ret;
+  tTFRPlusHdr           TFRPlusHdr;
+  char                  NameTagHdr[INFDATAMAXSIG];
+  dword                 CurrentPos;
+
+  //Format
+  //  char Magic[4]             //TFr+
+  //  dword PayloadSize
+  //  word NameTagLength        //includes the NULL character
+  //  char NameTag[SigLength]
+  //  byte Payload[PayloadSize]
+
+  TRACEENTER();
+
+  ret = FALSE;
+  if(PayloadSize) *PayloadSize = 0;
+
+  if(NameTag && NameTag[0] && infDatainfFile && (infDataFileSize > INFDATASTART))
+  {
+    fseek(infDatainfFile, INFDATASTART, SEEK_SET);
+
+    while((CurrentPos = ftell(infDatainfFile)) < infDataFileSize)
+    {
+      fread(&TFRPlusHdr, sizeof(tTFRPlusHdr), 1, infDatainfFile);
+
+      //Stop parsing if the magic is invalid
+      if(memcmp(TFRPlusHdr.Magic, INFDATMAGIC, 4) != 0) break;
+
+      fread(NameTagHdr, min(TFRPlusHdr.NameTagLen, INFDATAMAXSIG), 1, infDatainfFile);
+
+      if(strncmp(NameTag, NameTagHdr, INFDATAMAXSIG) == 0)
+      {
+        ret = TRUE;
+        if(PayloadSize) *PayloadSize = TFRPlusHdr.PayloadSize;
+        fseek(infDatainfFile, CurrentPos, SEEK_SET);
+        break;
+      }
+      fseek(infDatainfFile, TFRPlusHdr.PayloadSize, SEEK_CUR);
+    }
+  }
+
+  TRACEEXIT();
+  return ret;
+}
+
+bool infData_Get2(const char *RecFileName, const char *AbsDirectory, const char *NameTag, dword *const PayloadSize, byte **Payload)
+{
+  byte                 *DataBlock;
+  bool                  ret;
+  tTFRPlusHdr           TFRPlusHdr;
+  char                  NameTagHdr[INFDATAMAXSIG], s[INFDATAMAXSIG];
+
+  TRACEENTER();
+
+  ret = FALSE;
+  if(PayloadSize) *PayloadSize = 0;
+  if(Payload) *Payload = NULL;
+
+  if(NameTag && NameTag[0] && Payload && infData_OpenFile(RecFileName, AbsDirectory) && infData_LocateSig(NameTag, NULL))
+  {
+    ret = TRUE;
+    DataBlock = NULL;
+
+    fread(&TFRPlusHdr, sizeof(tTFRPlusHdr), 1, infDatainfFile);
+    fread(NameTagHdr, min(TFRPlusHdr.NameTagLen, INFDATAMAXSIG), 1, infDatainfFile);
+    if(PayloadSize) *PayloadSize = TFRPlusHdr.PayloadSize;
+
+    if(TFRPlusHdr.PayloadSize > 0)
+    {
+      DataBlock = (byte*) TAP_MemAlloc(TFRPlusHdr.PayloadSize);
+      if(DataBlock)
+        fread(DataBlock, TFRPlusHdr.PayloadSize, 1, infDatainfFile);
+//      else
+//        WriteLogMCf(PROGRAM_NAME, "infData: failed to reserve %d bytes for %s.inf:%s", TFRPlusHdr.PayloadSize, RecFileName, NameTag);
+    }
+    *Payload = DataBlock;
+  }
+
+  fclose(infDatainfFile);
+  infDatainfFile = NULL;
+
+  TRACEEXIT();
+  return ret;
+}
+
+bool infData_Set2(const char *RecFileName, const char *AbsDirectory, const char *NameTag, dword PayloadSize, byte Payload[])
+{
+  bool                  ret;
+  tTFRPlusHdr           TFRPlusHdr;
+
+  TRACEENTER();
+
+  ret = FALSE;
+
+  infData_Delete2(RecFileName, AbsDirectory, NameTag);
+  if(NameTag && NameTag[0] && infData_OpenFile(RecFileName, AbsDirectory))
+  {
+    ret = TRUE;
+
+    //Ensure the minimum size of INFDATASTART bytes
+    if(infDataFileSize < INFDATASTART)
+    {
+      fclose(infDatainfFile);
+      HDD_TruncateFile(infFileName, AbsDirectory, INFDATASTART);
+      infData_OpenFile(RecFileName, AbsDirectory);
+    }
+
+    //Add the data block
+    fseek(infDatainfFile, 0, SEEK_END);
+
+    memcpy(TFRPlusHdr.Magic, INFDATMAGIC, 4);
+    TFRPlusHdr.NameTagLen = min(strlen(NameTag) + 1, INFDATAMAXSIG);
+    TFRPlusHdr.PayloadSize = PayloadSize;
+
+    if(PayloadSize && (Payload == NULL))
+    {
+//      WriteLogMCf(PROGRAM_NAME, "infData: PayloadSize of %s.inf:%s is not 0, but data pointer is NULL!", RecFileName, NameTag);
+      TFRPlusHdr.PayloadSize = 0;
+      ret = FALSE;
+    }
+
+    fwrite(&TFRPlusHdr, sizeof(tTFRPlusHdr), 1, infDatainfFile);
+    fwrite(NameTag, TFRPlusHdr.NameTagLen, 1, infDatainfFile);
+
+    if(Payload)
+      fwrite(Payload, TFRPlusHdr.PayloadSize, 1, infDatainfFile);
+  }
+  fclose(infDatainfFile);
+  infDatainfFile = NULL;
+
+  TRACEEXIT();
+  return ret;
+}
+
+bool infData_Delete2(const char *RecFileName, const char *AbsDirectory, const char *NameTag)
+{
+  bool                  ret;
+  dword                 SourcePos, DestPos, Len;
+  tTFRPlusHdr           TFRPlusHdr;
+  char                  NameTagHdr[INFDATAMAXSIG];
+  byte                  *Data;
+
+  TRACEENTER();
+
+  ret = FALSE;
+
+  if(NameTag && NameTag[0] && infData_OpenFile(RecFileName, AbsDirectory) && infData_LocateSig(NameTag, NULL))
+  {
+    ret = TRUE;
+
+    //Now the file pointer is located at the beginning of the data block
+    //which should be deleted.
+    DestPos = ftell(infDatainfFile);
+    fread(&TFRPlusHdr, sizeof(tTFRPlusHdr), 1, infDatainfFile);
+    Len = sizeof(tTFRPlusHdr) + TFRPlusHdr.NameTagLen + TFRPlusHdr.PayloadSize;
+    SourcePos = DestPos + Len;
+    fseek(infDatainfFile, SourcePos, SEEK_SET);
+
+    while(SourcePos < infDataFileSize)
+    {
+      //Stop if we're unable to read the whole header
+      if(fread(&TFRPlusHdr, sizeof(tTFRPlusHdr), 1, infDatainfFile) == 0) break;
+
+      //Stop parsing if the magic is invalid
+      if(memcmp(TFRPlusHdr.Magic, INFDATMAGIC, 4) != 0) break;
+
+      Len = sizeof(tTFRPlusHdr) + TFRPlusHdr.NameTagLen + TFRPlusHdr.PayloadSize;
+
+      fread(NameTagHdr, min(TFRPlusHdr.NameTagLen, INFDATAMAXSIG), 1, infDatainfFile);
+
+      if(TFRPlusHdr.PayloadSize)
+      {
+        Data = TAP_MemAlloc(TFRPlusHdr.PayloadSize);
+        if(Data)
+        {
+          fread(Data, TFRPlusHdr.PayloadSize, 1, infDatainfFile);
+        }
+        else
+        {
+//          WriteLogMCf(PROGRAM_NAME, "infData: failed to reserve %d bytes for deletion of %s.inf:%s", TFRPlusHdr.PayloadSize, RecFileName, NameTagHdr);
+          TFRPlusHdr.PayloadSize = 0;
+        }
+      }
+      else
+        Data = NULL;
+
+      fseek(infDatainfFile, DestPos, SEEK_SET);
+      fwrite(&TFRPlusHdr, sizeof(tTFRPlusHdr), 1, infDatainfFile);
+      fwrite(NameTagHdr, min(TFRPlusHdr.NameTagLen, INFDATAMAXSIG), 1, infDatainfFile);
+
+      if(Data)
+      {
+        fwrite(Data, TFRPlusHdr.PayloadSize, 1, infDatainfFile);
+        TAP_MemFree(Data);
+      }
+
+      DestPos += Len;
+      SourcePos += Len;
+
+      fseek(infDatainfFile, SourcePos, SEEK_SET);
+    }
+    HDD_TruncateFile(infFileName, AbsDirectory, DestPos);
+  }
+
+  fclose(infDatainfFile);
+  infDatainfFile = NULL;
+
+  TRACEEXIT();
+  return ret;
 }
 
 // create, fopen, fread, fwrite

@@ -5,6 +5,7 @@
 #define NAVRECS_SD              2000
 #define NAVRECS_HD              1000
 #define BLOCKSIZE               9024
+#define INFFILETAG              "MCCut"
 //#define TEMPCUTNAME        "__tempcut__.ts"
 
 #ifndef FULLDEBUG

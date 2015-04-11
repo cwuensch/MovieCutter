@@ -19,6 +19,7 @@
 void       HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNav);
 void       HDD_Delete2(const char *FileName, const char *AbsDirectory, bool DeleteInfNav);
 bool       HDD_Exist2(const char *FileName, const char *AbsDirectory);
+bool       HDD_TruncateFile(const char *FileName, const char *AbsDirectory, off_t NewFileSize);
 bool       HDD_GetAbsolutePathByTypeFile2(TYPE_File *File, char *OutAbsFileName);    // OutAbsFileName: mind. FBLIB_DIR_SIZE Zeichen (inkl. Nullchar)
 bool       HDD_GetFileSizeAndInode2(const char *FileName, const char *AbsDirectory, __ino64_t *OutCInode, __off64_t *OutFileSize);
 bool       HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, dword NewDateTime);
@@ -32,6 +33,9 @@ bool       PlaybackRepeatGet();
 bool       HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint, char *const OutDeviceNode);  // OutDeviceNode: max. 20 Zeichen, OutMountPoint: max. FILE_NAME_SIZE+1 (inkl. Nullchar)
 char*      RemoveEndLineBreak (char *const Text);
 char       SysTypeToStr(void);
+bool       infData_Get2(const char *RecFileName, const char *AbsDirectory, const char *NameTag, dword *const PayloadSize, byte **Payload);
+bool       infData_Set2(const char *RecFileName, const char *AbsDirectory, const char *NameTag, dword PayloadSize, byte Payload[]);
+bool       infData_Delete2(const char *RecFileName, const char *AbsDirectory, const char *NameTag);
 
 
 //These will prevent the compiler from complaining
