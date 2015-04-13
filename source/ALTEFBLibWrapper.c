@@ -12,61 +12,6 @@
 #include                "libFireBird.h"
 
 
-inline dword FIS_fwAppl_StartPlayback(void)
-{
-  static dword          fwAppl_StartPlayback = 0;
-
-  if(!fwAppl_StartPlayback)
-    fwAppl_StartPlayback = TryResolve("_Z18Appl_StartPlaybackPKcjb");
-
-  return fwAppl_StartPlayback;
-}
-int Appl_StartPlayback(char *FileName, unsigned int p2, bool p3, bool ScaleInPip)
-{
-  int (*__Appl_StartPlayback)(char const*, unsigned int, bool, bool);
-  int  ret = -1;
-
-  __Appl_StartPlayback = (void*)FIS_fwAppl_StartPlayback();
-  if(__Appl_StartPlayback) ret = __Appl_StartPlayback(FileName, p2, p3, ScaleInPip);
-  return ret;
-}
-
-
-bool FMUC_LoadFontFile(char *FontFileName, tFontData *FontData)
-{
-//  return FM_LoadFontFile(FontFileName, FontData);
-  char *myFontFileName = FontFileName; myFontFileName++;
-  tFontData *myFontData = FontData; myFontData++;
-  return TRUE;
-}
-
-void  FMUC_FreeFontFile(tFontData *FontData)
-{
-//  FM_FreeFontFile(FontData);
-  tFontData *myFontData = FontData; myFontData++;
-}
-
-dword FMUC_GetStringWidth(const char *Text, tFontData *FontData)
-{
-  return FM_GetStringWidth(Text, FontData);
-}
-
-dword FMUC_GetStringHeight(const char *Text, tFontData *FontData)
-{
-  return FM_GetStringHeight(Text, FontData);
-}
-
-void FMUC_PutString(word rgn, dword x, dword y, dword maxX, const char * str, dword fcolor, dword bcolor, tFontData *FontData, byte bDot, byte align)
-{
-  FM_PutString(rgn, x, y, maxX, str, fcolor, bcolor, FontData, bDot, align);
-}
-
-void FMUC_PutStringAA(word rgn, dword x, dword y, dword maxX, const char * str, dword fcolor, dword bcolor, tFontData *FontData, byte bDot, byte align, float AntiAliasFactor)
-{
-  FM_PutStringAA(rgn, x, y, maxX, str, fcolor, bcolor, FontData, bDot, align, AntiAliasFactor);
-}
-
-
 extern tMessageBox      MessageBox;
 bool                    MessageBoxAllowScrollOver = FALSE;
 
@@ -134,7 +79,25 @@ void OSDMenuProgressBarDestroyNoOSDUpdate(void)
   ProgressBarLastValue =  0xfff;
 }
 
-void  OSDMenuFreeStdFonts(void) {}
+
+inline dword FIS_fwAppl_StartPlayback(void)
+{
+  static dword          fwAppl_StartPlayback = 0;
+
+  if(!fwAppl_StartPlayback)
+    fwAppl_StartPlayback = TryResolve("_Z18Appl_StartPlaybackPKcjb");
+
+  return fwAppl_StartPlayback;
+}
+int Appl_StartPlayback(char *FileName, unsigned int p2, bool p3, bool ScaleInPip)
+{
+  int (*__Appl_StartPlayback)(char const*, unsigned int, bool, bool);
+  int  ret = -1;
+
+  __Appl_StartPlayback = (void*)FIS_fwAppl_StartPlayback();
+  if(__Appl_StartPlayback) ret = __Appl_StartPlayback(FileName, p2, p3, ScaleInPip);
+  return ret;
+}
 
 
 inline dword FIS_vTempRecSlot(void)
@@ -172,6 +135,25 @@ byte *HDD_GetPvrRecTsPlayInfoPointer(byte Slot)
     return NULL;
   StructSize = ((dword)__pvrRecTempInfo - (dword)__pvrRecTsPlayInfo) / (HDD_NumberOfRECSlots() + 1);
   ret = &__pvrRecTsPlayInfo[StructSize * Slot];
+  return ret;
+}
+
+
+inline dword FIS_fwTimeToLinux(void)
+{
+  static dword          _TimeToLinux = 0;
+  if(!_TimeToLinux)
+    _TimeToLinux = TryResolve("PvrTimeToLinux");
+  return _TimeToLinux;
+}
+dword PvrTimeToLinux(dword PVRTime)
+{
+  dword (*_PvrTimeToLinux)(dword) = NULL;
+  dword ret;
+
+  ret = 0xfe00;
+  _PvrTimeToLinux = (void*)FIS_fwTimeToLinux();
+  if(_PvrTimeToLinux) ret = _PvrTimeToLinux(PVRTime);
   return ret;
 }
 

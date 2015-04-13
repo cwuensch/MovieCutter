@@ -176,7 +176,7 @@ bool HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, dword N
   if(NewDateTime > 0xd0790000)
   {
     utimebuf.actime = statbuf.st_atime;
-    utimebuf.modtime = TF2UnixTime(NewDateTime);
+    utimebuf.modtime = PvrTimeToLinux(NewDateTime);
     utime(AbsFileName, &utimebuf);
 
     TRACEEXIT();
@@ -359,7 +359,7 @@ bool SaveBookmarks(dword Bookmarks[], int NrBookmarks)
 // ----------------------------------------------------------------------------
 bool HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint, char *const OutDeviceNode)  // OutDeviceNode: max. 20 Zeichen, OutMountPoint: max. FILE_NAME_SIZE+1 (inkl. Nullchar)
 {
-  char                  MountPoint[MAX_FILE_NAME_SIZE+1], DeviceNode[20];
+  char                  MountPoint[FBLIB_DIR_SIZE], DeviceNode[20];
   FILE                 *aFile;
   struct mntent        *ent;
   char                 *x;

@@ -334,7 +334,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
 
   // --- 4.) Run fsck and create a log file ---
 //  if(DoFix) SetSystemTimeToCurrent();
-  StartTime = TF2UnixTime(Now(&sec)) + sec;
+  StartTime = PvrTimeToLinux(Now(&sec)) + sec;
   if (DeviceUnmounted || (DoFix != 2))
   {
     TAP_SPrint(CommandLine, sizeof(CommandLine), FSCKPATH "/jfs_fsck -v %s %s %s -L /tmp/FixInodes.tmp %s %s &> /tmp/fsck.log & echo $!", ((DoFix) ? ((DoFix==2) ? "-f" : "-n -r") : "-n"), ((Quick && DoFix!=2) ? "-q" : ""), ((Quick && InodeNrs) ? "-i" : ""), DeviceNode, ((InodeNrs) ? InodeNrs : ""));  // > /tmp/fsck.pid
