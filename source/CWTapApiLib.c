@@ -448,14 +448,14 @@ typedef struct
 } tTFRPlusHdr;
 
 FILE *infDatainfFile = NULL;
-long infDataFileSize = 0;
+dword infDataFileSize = 0;
 
 
 static bool infData_OpenFile(const char *RecFileName, const char *AbsDirectory)
 {
   char                  AbsFileName[FBLIB_DIR_SIZE];
 
-  TAP_SPrint (AbsFileName, sizeof(AbsFileName), "%s/%s.inf", AbsDirectory, FileName);
+  TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.inf", AbsDirectory, RecFileName);
   infDatainfFile = fopen(AbsFileName, "r+b");
   if (infDatainfFile)
   {  
@@ -520,7 +520,7 @@ bool infData_Get2(const char *RecFileName, const char *AbsDirectory, const char 
   byte                 *DataBlock;
   bool                  ret;
   tTFRPlusHdr           TFRPlusHdr;
-  char                  NameTagHdr[INFDATAMAXSIG], s[INFDATAMAXSIG];
+  char                  NameTagHdr[INFDATAMAXSIG];
 
   TRACEENTER();
 
@@ -572,8 +572,10 @@ bool infData_Set2(const char *RecFileName, const char *AbsDirectory, const char 
     //Ensure the minimum size of INFDATASTART bytes
     if(infDataFileSize < INFDATASTART)
     {
+      char InfFileName[MAX_FILE_NAME_SIZE + 1];
       fclose(infDatainfFile);
-      HDD_TruncateFile(infFileName, AbsDirectory, INFDATASTART);
+      TAP_SPrint(InfFileName, sizeof(InfFileName), "%s.inf", RecFileName);
+      HDD_TruncateFile(InfFileName, AbsDirectory, INFDATASTART);
       infData_OpenFile(RecFileName, AbsDirectory);
     }
 
@@ -606,11 +608,12 @@ bool infData_Set2(const char *RecFileName, const char *AbsDirectory, const char 
 
 bool infData_Delete2(const char *RecFileName, const char *AbsDirectory, const char *NameTag)
 {
-  bool                  ret;
+  char                  InfFileName[MAX_FILE_NAME_SIZE + 1];
   dword                 SourcePos, DestPos, Len;
   tTFRPlusHdr           TFRPlusHdr;
   char                  NameTagHdr[INFDATAMAXSIG];
   byte                  *Data;
+  bool                  ret;
 
   TRACEENTER();
 
@@ -618,8 +621,6 @@ bool infData_Delete2(const char *RecFileName, const char *AbsDirectory, const ch
 
   if(NameTag && NameTag[0] && infData_OpenFile(RecFileName, AbsDirectory) && infData_LocateSig(NameTag, NULL))
   {
-    ret = TRUE;
-
     //Now the file pointer is located at the beginning of the data block
     //which should be deleted.
     DestPos = ftell(infDatainfFile);
@@ -671,7 +672,10 @@ bool infData_Delete2(const char *RecFileName, const char *AbsDirectory, const ch
 
       fseek(infDatainfFile, SourcePos, SEEK_SET);
     }
-    HDD_TruncateFile(infFileName, AbsDirectory, DestPos);
+
+    TAP_SPrint(InfFileName, sizeof(InfFileName), "%s.inf", RecFileName);
+    HDD_TruncateFile(InfFileName, AbsDirectory, DestPos);
+    ret = TRUE;
   }
 
   fclose(infDatainfFile);

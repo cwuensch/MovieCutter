@@ -2648,7 +2648,7 @@ void UndoResetStack(void)
 // ----------------------------------------------------------------------------
 //                           CutFile-Funktionen
 // ----------------------------------------------------------------------------
-bool CutFileDecode(const byte CutBuffer[], dword BufSize)
+bool CutFileDecode(byte CutBuffer[], dword BufSize)
 {
   char                  LogString[512];
   word                  Version;
@@ -2688,12 +2688,19 @@ bool CutFileDecode(const byte CutBuffer[], dword BufSize)
     StartSegments = sizeof(tCutHeader2);
   }
   if (NrSegmentMarker > NRSEGMENTMARKER) NrSegmentMarker = NRSEGMENTMARKER;
-  memcpy(SegmentMarker, &CutBuffer[StartSegments], NrSegmentMarker * sizeof(tSegmentMarker));
+  if (StartSegments + NrSegmentMarker * sizeof(tSegmentMarker) <= BufSize)
+    memcpy(SegmentMarker, &CutBuffer[StartSegments], NrSegmentMarker * sizeof(tSegmentMarker));
+  else
+  {
+    WriteLogMC(PROGRAM_NAME, "CutFileDecode: Unexpected end of file!");
+    TRACEEXIT();
+    return FALSE;
+  }
 
   // Check, if size of rec-File has been changed
   if(RecFileSize != SavedSize)
   {
-    WriteLogMC(PROGRAM_NAME, "CutFileLoad: .cut file size mismatch!");
+    WriteLogMC(PROGRAM_NAME, "CutFileDecode: .cut file size mismatch!");
 /*    TRACEEXIT();
     return FALSE; */
   }
@@ -2704,7 +2711,7 @@ bool CutFileDecode(const byte CutBuffer[], dword BufSize)
     if ((NrSegmentMarker > 2) && (TimeStamps != NULL))
     {
       char curTimeStr[16];
-      WriteLogMC(PROGRAM_NAME, "CutFileLoad: Importing timestamps only, recalculating block numbers..."); 
+      WriteLogMC(PROGRAM_NAME, "CutFileDecode: Importing timestamps only, recalculating block numbers..."); 
 
       SegmentMarker[0].Block = 0;
       SegmentMarker[0].Timems = NavGetBlockTimeStamp(0);
@@ -2766,7 +2773,7 @@ bool CutFileDecode(const byte CutBuffer[], dword BufSize)
     }
     else
     {
-      WriteLogMC(PROGRAM_NAME, "CutFileLoad: Two or less timestamps imported, or NavTimeStamps=NULL!"); 
+      WriteLogMC(PROGRAM_NAME, "CutFileDecode: Two or less timestamps imported, or NavTimeStamps=NULL!"); 
       NrSegmentMarker = 0;
     }
   }
@@ -2788,7 +2795,7 @@ bool CutFileDecode(const byte CutBuffer[], dword BufSize)
   {
     NrSegmentMarker = 0;
     ActiveSegment = 0;
-    WriteLogMC(PROGRAM_NAME, "CutFileLoad: Two or less timestamps imported, resetting!"); 
+    WriteLogMC(PROGRAM_NAME, "CutFileDecode: Two or less timestamps imported, resetting!"); 
     TRACEEXIT();
     return FALSE;
   }
@@ -2797,7 +2804,7 @@ bool CutFileDecode(const byte CutBuffer[], dword BufSize)
   if (SegmentMarker[NrSegmentMarker - 1].Block != PlayInfo.totalBlock)
   {
     #ifdef FULLDEBUG
-      WriteLogMCf(PROGRAM_NAME, "CutFileLoad: Letzter Segment-Marker %lu ist ungleich TotalBlock %lu!", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
+      WriteLogMCf(PROGRAM_NAME, "CutFileDecode: Letzter Segment-Marker %lu ist ungleich TotalBlock %lu!", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
     #endif
     SegmentMarker[NrSegmentMarker - 1].Block = PlayInfo.totalBlock;
     dword newTime = NavGetBlockTimeStamp(SegmentMarker[NrSegmentMarker - 1].Block);
@@ -2859,7 +2866,7 @@ bool CutFileLoad(void)
       CutBlockSize = ftell(fCut);
       rewind(fCut);
 
-      CutBlock = (byte) TAP_MemAlloc(CutBlockSize);
+      CutBlock = (byte*) TAP_MemAlloc(CutBlockSize);
       if (CutBlock)
       {
         if (fread(CutBlock, CutBlockSize, 1, fCut))
@@ -2889,19 +2896,21 @@ bool CutFileLoad(void)
   return ret;
 }
   
-bool CutFileEncode(byte **CutBuffer, dword &BufSize)
+bool CutFileEncode(tSegmentMarker SegmentMarker[], int NrSegmentMarker, char* RecFileName, byte **OutCutBuffer, dword *OutBufSize)
 {
   byte                 *Buffer = NULL;
   tCutHeader2          *CutHeader = NULL;
   bool                  ret = FALSE;
 
   TRACEENTER();
+  if (OutBufSize)
+    *OutBufSize = sizeof(tCutHeader2) + NrSegmentMarker * sizeof(tSegmentMarker);
   Buffer = (byte*) TAP_MemAlloc(sizeof(tCutHeader2) + NrSegmentMarker * sizeof(tSegmentMarker));
   CutHeader = (tCutHeader2*) Buffer;
 
-  if(CutBuffer && Buffer)
+  if(OutCutBuffer && Buffer)
   {
-    if(HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, NULL, &RecFileSize))
+    if(HDD_GetFileSizeAndInode2(RecFileName, AbsPlaybackDir, NULL, &RecFileSize))
     {
       SegmentMarker[NrSegmentMarker - 1].Selected = FALSE;
       if(NrSegmentMarker <= 2) SegmentMarker[0].Selected = FALSE;
@@ -2920,7 +2929,7 @@ bool CutFileEncode(byte **CutBuffer, dword &BufSize)
   }
   else
     WriteLogMC(PROGRAM_NAME, "CutFileEncode: Could not allocate buffer!"); 
-  *CutBuffer = Buffer;
+  *OutCutBuffer = Buffer;
 
   TRACEEXIT();
   return ret;
@@ -2949,7 +2958,7 @@ void CutFileSave2(tSegmentMarker SegmentMarker[], int NrSegmentMarker, char* Rec
   // neues CutFile speichern
   if (NrSegmentMarker > 2)
   {
-    CutFileEncode(&CutBlock, CutBlockSize);
+    CutFileEncode(SegmentMarker, NrSegmentMarker, RecFileName, &CutBlock, &CutBlockSize);
     if (CutBlock)
     {
       if (CutFileMode != CM_InfOnly)

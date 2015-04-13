@@ -63,4 +63,6 @@
 
   bool  HDD_TAP_CheckCollision(void);
 
+  char *ansicstr (char *string, int len, int flags, int *sawc, int *rlen);
+
 #endif

@@ -24,7 +24,7 @@ static bool  PatchRecFile(const char *SourceFileName, const char *AbsDirectory, 
 static bool  UnpatchRecFile(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, off_t CutStartPos, off_t BehindCutPos, const off_t PatchedBytes[], int NrPatchedBytes);
 static bool  ReadCutPointArea(const char *SourceFileName, const char *AbsDirectory, off_t CutPosition, byte CutPointArray[]);
 static bool  ReadFirstAndLastCutPacket(const char *CutFileName, const char *AbsDirectory, byte FirstCutPacket[], byte LastCutPacket[]);
-static bool  FindCutPointOffset(const byte CutPacket[], const byte CutPointArray[], long *const Offset);
+static bool  FindCutPointOffset(const byte CutPacket[], const byte CutPointArray[], long *const OutOffset);
 static bool  FindCutPointOffset2(const byte CutPointArray[], off_t RequestedCutPosition, bool CheckPacketStart, long *const OutOffset);
 static bool  PatchInfFiles(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, dword SourcePlayTime, const tTimeStamp *CutStartPoint, const tTimeStamp *BehindCutPoint);
 static bool  PatchNavFiles(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, off_t CutStartPos, off_t BehindCutPos, bool isHD, bool IgnoreRecordsAfterCut, dword *const OutCutStartTime, dword *const OutBehindCutTime, dword *const OutSourcePlayTime);
@@ -534,8 +534,8 @@ bool FileCut(char *SourceFileName, char *CutFileName, char *AbsDirectory, dword 
 
 bool RecTruncate(char *SourceFileName, char *AbsDirectory, off_t TruncPosition)
 {
-  char                  AbsFileName[FBLIB_DIR_SIZE];
   TYPE_PlayInfo         PlayInfo;
+  dword                 x;
   bool                  ret;
 
   TRACEENTER();
@@ -683,7 +683,7 @@ bool isPacketStart(const byte PacketArray[], int ArrayLen)
   bool                  ret = TRUE;
 
   TRACEENTER();
-  for (int i = 0; i < 10; i++)
+  for (i = 0; i < 10; i++)
   {
     if (SYNCBYTEPOS + (i * PACKETSIZE) >= ArrayLen)
       break;
@@ -694,6 +694,7 @@ bool isPacketStart(const byte PacketArray[], int ArrayLen)
     }
   }
   TRACEEXIT();
+  return ret;
 }
 
 bool WriteByteToFile(const char *FileName, const char *AbsDirectory, off_t BytePosition, char OldValue, char NewValue)
@@ -767,8 +768,7 @@ bool PatchRecFile(const char *SourceFileName, const char *AbsDirectory, off_t Re
 {
   off_t                 pos;
   int                   ArrayPos;
-  int                   i, j;
-  bool                  isPacketStart;
+  int                   i;
   bool                  ret = TRUE;
 
   TRACEENTER();
@@ -956,18 +956,18 @@ bool ReadFirstAndLastCutPacket(const char *CutFileName, const char *AbsDirectory
 // Searches the best occurance of CutPacket in CutPointArray (nearest to the middle).
 // (search is no longer packet-based, because sometimes the firmware cuts somewhere in the middle of a packet)
 // Returns true if found. Offset is 0, if CutPacket starts at requested position, -x if it starts x bytes before, +x if it starts x bytes after
-bool FindCutPointOffset(const byte CutPacket[], const byte CutPointArray[], long *const Offset)
+bool FindCutPointOffset(const byte CutPacket[], const byte CutPointArray[], long *const OutOffset)
 {
   const byte           *MidArray;
   byte                  FirstByte;
   ptrdiff_t             i;    // negative array indices might be critical on 64-bit systems! (http://www.devx.com/tips/Tip/41349)
 
-  if (Offset == NULL) return FALSE;
+  if (OutOffset == NULL) return FALSE;
   TRACEENTER();
 
   FirstByte = CutPacket[0];
   MidArray = &CutPointArray[CUTPOINTSEARCHRADIUS];
-  *Offset = CUTPOINTSEARCHRADIUS + 1;
+  *OutOffset = CUTPOINTSEARCHRADIUS + 1;
 
   for (i = -CUTPOINTSEARCHRADIUS; i <= (CUTPOINTSEARCHRADIUS - PACKETSIZE); i++)
   {
@@ -975,20 +975,20 @@ bool FindCutPointOffset(const byte CutPacket[], const byte CutPointArray[], long
     {
       if (memcmp(&MidArray[i], CutPacket, PACKETSIZE) == 0)
       {
-        if (labs(*Offset) < CUTPOINTSEARCHRADIUS)
+        if (labs(*OutOffset) < CUTPOINTSEARCHRADIUS)
         {
           WriteLogMC("MovieCutterLib", "FindCutPointOffset() W0401: cut packet found more than once.");
 //          if (i > labs(*Offset)) break;
-          *Offset = CUTPOINTSEARCHRADIUS + 1;
+          *OutOffset = CUTPOINTSEARCHRADIUS + 1;
           break;
         }
-        *Offset = i;
+        *OutOffset = i;
       }
     }
   }
-  if (labs(*Offset) > CUTPOINTSEARCHRADIUS)
+  if (labs(*OutOffset) > CUTPOINTSEARCHRADIUS)
   {
-    *Offset = 0;
+    *OutOffset = 0;
     TRACEEXIT();
     return FALSE;
   }
@@ -1003,14 +1003,13 @@ bool FindCutPointOffset2(const byte CutPointArray[], off_t RequestedCutPosition,
   const byte           *MidArray;
   int                   ArrayPos;
   int                   i;
-  bool                  isPacketStart;
   bool                  ret = FALSE;
 
-  if (Offset == NULL) return FALSE;
+  if (OutOffset == NULL) return FALSE;
   TRACEENTER();
 
   MidArray = &CutPointArray[CUTPOINTSEARCHRADIUS];
-  *Offset = 0;
+  *OutOffset = 0;
 
   // For each of the 4 (Austr: 48) possible cut positions
 //  for (i = -(CUTPOINTSECTORRADIUS-1); i <= CUTPOINTSECTORRADIUS; i++)
@@ -1034,7 +1033,7 @@ bool FindCutPointOffset2(const byte CutPointArray[], off_t RequestedCutPosition,
     ret = FALSE;
   }
   if (ret)
-    *Offset = ArrayPos;
+    *OutOffset = ArrayPos;
 
   TRACEEXIT();
   return ret;
