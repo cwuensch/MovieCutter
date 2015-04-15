@@ -574,9 +574,9 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
         TAP_SPrint(&FirstErrorFile[strlen(FirstErrorFile)], sizeof(FirstErrorFile)-strlen(FirstErrorFile), ", + %u", NrDefectFiles-1);
 //      StrMkISO(FirstErrorFile);
       TAP_SPrint(MessageString, sizeof(MessageString), ErrorStrFmt, ((InodeMonitoring) ? min(NrNewMarkedFiles, NrRepairedFiles) : NrRepairedFiles), NrDefectFiles, ((fsck_Errors) ? "??" : "ok"), ((FirstErrorFile[0]) ? FirstErrorFile : ""), NrMarkedFiles);
-      //#ifdef Calibri_10_FontDataUC
+      #ifndef MC_UNICODE
         if (isUTFToppy()) StrMkISO(MessageString);
-      //#endif
+      #endif
       WriteLogMC("HddToolsLib", MessageString);
       ShowErrorMessage(MessageString, LS_Warning);
     }

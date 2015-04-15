@@ -30,7 +30,7 @@ bool       SaveBookmarks(dword Bookmarks[], int NrBookmarks);
 //TYPE_RepeatMode PlaybackRepeatMode(bool ChangeMode, TYPE_RepeatMode RepeatMode, dword RepeatStartBlock, dword RepeatEndBlock);
 bool       PlaybackRepeatSet(bool EnableRepeatAll);
 bool       PlaybackRepeatGet();
-bool       HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint, char *const OutDeviceNode);  // OutDeviceNode: max. 20 Zeichen, OutMountPoint: max. FILE_NAME_SIZE+1 (inkl. Nullchar)
+bool       HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint, char *const OutDeviceNode);  // OutDeviceNode: max. 20 Zeichen, OutMountPoint: max. FBLIB_DIR_SIZE (inkl. Nullchar)
 char*      RemoveEndLineBreak (char *const Text);
 char       SysTypeToStr(void);
 bool       infData_Get2(const char *RecFileName, const char *AbsDirectory, const char *NameTag, dword *const PayloadSize, byte **Payload);

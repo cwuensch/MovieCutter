@@ -1,5 +1,7 @@
 #ifndef __MOVIECUTTERLIB__
 #define __MOVIECUTTERLIB__
+
+//#define MC_UNICODE      TRUE
                                       // MinEncode   Header   MinInf    NormInf    MaxInf
 #define INFSIZE                 2128  //    8192  // 2128  // 3320   // 132636  // 499572
 #define NAVRECS_SD              2000
