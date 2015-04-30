@@ -14,7 +14,7 @@
 //#define TAP_MemSet    memset
 #define TAP_SPrint    snprintf
 
-#define NRBOOKMARKS           144
+#define NRBOOKMARKS           177
 
 void       HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNav);
 void       HDD_Delete2(const char *FileName, const char *AbsDirectory, bool DeleteInfNav);
@@ -26,13 +26,14 @@ bool       HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, d
 __off64_t  HDD_GetFreeDiscSpace(char *AnyFileName, char *AbsDirectory);
 bool       HDD_StartPlayback2(char *FileName, char *AbsDirectory);
 bool       ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks);
-bool       SaveBookmarks(dword Bookmarks[], int NrBookmarks);
+bool       SaveBookmarks(dword Bookmarks[], int NrBookmarks, bool OverwriteAll);
 //TYPE_RepeatMode PlaybackRepeatMode(bool ChangeMode, TYPE_RepeatMode RepeatMode, dword RepeatStartBlock, dword RepeatEndBlock);
 bool       PlaybackRepeatSet(bool EnableRepeatAll);
 bool       PlaybackRepeatGet();
-bool       HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint, char *const OutDeviceNode);  // OutDeviceNode: max. 20 Zeichen, OutMountPoint: max. FBLIB_DIR_SIZE (inkl. Nullchar)
+bool       HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint, char *const OutDeviceNode);  // OutMountPoint und OutDeviceNode: max. FBLIB_DIR_SIZE (inkl. Nullchar)
 char*      RemoveEndLineBreak (char *const Text);
 char       SysTypeToStr(void);
+void       LogEntry2(char *AbsFileName, char *ProgramName, bool Console, eTimeStampFormat TimeStampFormat, char *Text);
 bool       infData_Get2(const char *RecFileName, const char *AbsDirectory, const char *NameTag, dword *const PayloadSize, byte **Payload);
 bool       infData_Set2(const char *RecFileName, const char *AbsDirectory, const char *NameTag, dword PayloadSize, byte Payload[]);
 bool       infData_Delete2(const char *RecFileName, const char *AbsDirectory, const char *NameTag);

@@ -273,7 +273,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
   dword                 LastPlaybackPos = 0;
 
   FILE                 *fPidFile = NULL, *fLogFileIn = NULL, *fLogFileOut = NULL;
-  char                  DeviceNode[20], MountPoint[FBLIB_DIR_SIZE];
+  char                  DeviceNode[FBLIB_DIR_SIZE], MountPoint[FBLIB_DIR_SIZE];
   char                  CommandLine[1024], Buffer[512]; //, PidStr[13];
   char                  FirstErrorFile[50], *p = NULL;
   dword                 fsck_Pid = 0;
@@ -601,7 +601,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
 
 /* bool AddInodeToFixingList(tInodeData pInode, const char *AbsListFile)
 {
-//  char                  MountPoint[MAX_FILE_NAME_SIZE + 1], AbsListFile[MAX_FILE_NAME_SIZE + 1];
+//  char                  MountPoint[FBLIB_DIR_SIZE], AbsListFile[FBLIB_DIR_SIZE];
   FILE                 *fListFile = NULL;
   tInodeData            curInode;
   bool                  ret = FALSE;
@@ -737,7 +737,7 @@ static tReturnCode RunIcheckWithLog(const char *DeviceNode, const char *ParamStr
 
 bool HDD_CheckInode(const char *FileName, const char *AbsDirectory, bool DoFix, bool InodeMonitoring)
 {
-  char                  DeviceNode[20], ListFile[MAX_FILE_NAME_SIZE + 1];
+  char                  DeviceNode[FBLIB_DIR_SIZE], ListFile[FBLIB_DIR_SIZE];
   char                  AbsFilePath[FBLIB_DIR_SIZE];
   char                  ParamString[1024];
   tReturnCode           ret = rc_UNKNOWN;
@@ -779,7 +779,7 @@ bool HDD_CheckInode(const char *FileName, const char *AbsDirectory, bool DoFix, 
 
 int HDD_CheckInodes(const char *InodeNrs, const char *AbsMountPath, bool DoFix, bool InodeMonitoring)
 {
-  char                  DeviceNode[20], ListFile[MAX_FILE_NAME_SIZE + 1];
+  char                  DeviceNode[FBLIB_DIR_SIZE], ListFile[FBLIB_DIR_SIZE];
   char                  ParamString[1024], LastLine[512];
   int                   NrDefectFiles = -1, ret = -1;
 
@@ -862,7 +862,7 @@ bool HDD_FixInodeList2(const char *ListFile, const char *DeviceNode, bool Delete
 
 bool HDD_FixInodeList(const char *AbsMountPath, bool DeleteOldEntries)
 {
-  char                  DeviceNode[20], ListFile[MAX_FILE_NAME_SIZE + 1];
+  char                  DeviceNode[FBLIB_DIR_SIZE], ListFile[FBLIB_DIR_SIZE];
   bool                  ret;
 
   TRACEENTER();

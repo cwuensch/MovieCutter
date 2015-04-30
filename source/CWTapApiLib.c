@@ -79,6 +79,7 @@ bool HDD_TruncateFile(const char *FileName, const char *AbsDirectory, off_t NewF
 bool HDD_GetAbsolutePathByTypeFile2(TYPE_File *File, char *OutAbsFileName)
 {
   dword                *d;
+  char                  AbsFileName[FBLIB_DIR_SIZE];
   bool                  ret = FALSE;
 
   TRACEENTER();
@@ -90,8 +91,9 @@ bool HDD_GetAbsolutePathByTypeFile2(TYPE_File *File, char *OutAbsFileName)
     d = (dword*) File->handle;
     if(d && d[2])
     {
-      strncpy(OutAbsFileName, (char*)d[2], FBLIB_DIR_SIZE - 1);
-      OutAbsFileName[FBLIB_DIR_SIZE - 1] = '\0';
+      strncpy(AbsFileName, (char*)d[2], sizeof(AbsFileName));
+      AbsFileName[sizeof(AbsFileName) - 1] = '\0';
+      strcpy(OutAbsFileName, AbsFileName);
       ret = TRUE;
     }
   }
@@ -301,8 +303,8 @@ bool ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks)
   if(Bookmarks && NrBookmarks && PlayInfoBookmarkStruct)
   {
     *NrBookmarks = PlayInfoBookmarkStruct[0];
-    memset(Bookmarks, 0, NRBOOKMARKS * sizeof(dword));
-    memcpy(Bookmarks, &PlayInfoBookmarkStruct[1], *NrBookmarks * sizeof(dword));
+//    memset(Bookmarks, 0, NRBOOKMARKS * sizeof(dword));
+    memcpy(Bookmarks, &PlayInfoBookmarkStruct[1], NRBOOKMARKS * sizeof(dword));
     ret = TRUE;
   }
   else
@@ -323,7 +325,7 @@ bool ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks)
 }
 
 //Experimentelle Methode, um Bookmarks direkt in der Firmware abzuspeichern.
-bool SaveBookmarks(dword Bookmarks[], int NrBookmarks)
+bool SaveBookmarks(dword Bookmarks[], int NrBookmarks, bool OverwriteAll)
 {
   dword                *PlayInfoBookmarkStruct;
   byte                 *TempRecSlot;
@@ -339,8 +341,8 @@ bool SaveBookmarks(dword Bookmarks[], int NrBookmarks)
   if(Bookmarks && PlayInfoBookmarkStruct)
   {
     PlayInfoBookmarkStruct[0] = NrBookmarks;
-    memset(&PlayInfoBookmarkStruct[1], 0, NRBOOKMARKS * sizeof(dword));
-    memcpy(&PlayInfoBookmarkStruct[1], Bookmarks, NrBookmarks * sizeof(dword));
+//    memset(&PlayInfoBookmarkStruct[1], 0, NRBOOKMARKS * sizeof(dword));
+    memcpy(&PlayInfoBookmarkStruct[1], Bookmarks, (OverwriteAll ? NRBOOKMARKS : NrBookmarks) * sizeof(dword));
     ret = TRUE;
   }
   else
@@ -357,11 +359,11 @@ bool SaveBookmarks(dword Bookmarks[], int NrBookmarks)
 // ----------------------------------------------------------------------------
 //                               Festplatte
 // ----------------------------------------------------------------------------
-bool HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint, char *const OutDeviceNode)  // OutDeviceNode: max. 20 Zeichen, OutMountPoint: max. FBLIB_DIR_SIZE (inkl. Nullchar)
+bool HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint, char *const OutDeviceNode)  // OutMountPoint und OutDeviceNode: max. FBLIB_DIR_SIZE (inkl. Nullchar)
 {
   struct mntent        *ent;
   FILE                 *aFile;
-  char                  MountPoint[FBLIB_DIR_SIZE], DeviceNode[20];
+  char                  MountPoint[FBLIB_DIR_SIZE], DeviceNode[FBLIB_DIR_SIZE];
   char                 *x;
 
   TRACEENTER();
@@ -437,6 +439,74 @@ char SysTypeToStr(void)
 
 
 // ----------------------------------------------------------------------------
+//                         LogFile-Funktionen
+// ----------------------------------------------------------------------------
+void LogEntry2(char *AbsFileName, char *ProgramName, bool Console, eTimeStampFormat TimeStampFormat, char *Text)
+{
+  FILE                 *f;
+  char                 *TS;
+  char                  CRLF[] = {'\r', '\n'};
+  byte                  Sec;
+  struct utimbuf        times;
+
+  TS = TimeFormat(Now (&Sec), Sec, TimeStampFormat);
+  if (TS [0]) strcat (TS, " ");
+
+  if (AbsFileName && AbsFileName [0])
+  {
+    f = fopen(AbsFileName, "a");
+    if(f)
+    {
+      fwrite(TS, strlen(TS), 1, f);
+      if(Text && Text[0]) fwrite(Text, strlen(Text), 1, f);
+      fwrite(CRLF, 2, 1, f);
+      fclose(f);
+
+      //As the log would receive the Linux time stamp (01.01.2000), adjust to the PVR's time
+      times.actime = PvrTimeToLinux(Now(NULL));
+      times.modtime = times.actime;
+      utime(AbsFileName, &times);
+    }
+  }
+
+  if (Console)
+  {
+    if (TimeStampFormat != TIMESTAMP_NONE) TAP_PrintNet (TS);
+    if (ProgramName && ProgramName [0]) TAP_PrintNet ("%s: ", ProgramName);
+
+    //Max length is 512. If above, a buffer overflow may occur
+    if(Text && Text [0])
+    {
+      if(strlen(Text) < 510)
+      {
+        TAP_PrintNet("%s", Text);
+      }
+      else
+      {
+        char *p = Text;
+
+        while(*p)
+        {
+          int     l;
+          char    q;
+
+          l = strlen(p);
+          if(l > 510) l = 510;
+
+          q = p[l];
+          p[l] = '\0';
+          TAP_PrintNet("%s", p);
+          p[l] = q;
+          p += l;
+        }
+      }
+    }
+    TAP_PrintNet ("\n");
+  }
+}
+
+
+/*// ----------------------------------------------------------------------------
 //                      infData-API (FireBirdLib)
 // ----------------------------------------------------------------------------
 #define INFDATASTART      0x7d000   //500kB
@@ -549,9 +619,8 @@ bool infData_Get2(const char *RecFileName, const char *AbsDirectory, const char 
 //        WriteLogMCf(PROGRAM_NAME, "infData: failed to reserve %d bytes for %s.inf:%s", TFRPlusHdr.PayloadSize, RecFileName, NameTag);
     }
     *Payload = DataBlock;
+    fclose(infDatainfFile);
   }
-
-  fclose(infDatainfFile);
   infDatainfFile = NULL;
 
   TRACEEXIT();
@@ -560,6 +629,7 @@ bool infData_Get2(const char *RecFileName, const char *AbsDirectory, const char 
 
 bool infData_Set2(const char *RecFileName, const char *AbsDirectory, const char *NameTag, dword PayloadSize, byte Payload[])
 {
+  char InfFileName[MAX_FILE_NAME_SIZE + 1];
   bool                  ret;
   tTFRPlusHdr           TFRPlusHdr;
 
@@ -573,11 +643,10 @@ bool infData_Set2(const char *RecFileName, const char *AbsDirectory, const char 
     ret = TRUE;
 
     //Ensure the minimum size of INFDATASTART bytes
+    TAP_SPrint(InfFileName, sizeof(InfFileName), "%s.inf", RecFileName);
     if(infDataFileSize < INFDATASTART)
     {
-      char InfFileName[MAX_FILE_NAME_SIZE + 1];
       fclose(infDatainfFile);
-      TAP_SPrint(InfFileName, sizeof(InfFileName), "%s.inf", RecFileName);
       HDD_TruncateFile(InfFileName, AbsDirectory, INFDATASTART);
       infData_OpenFile(RecFileName, AbsDirectory);
     }
@@ -601,8 +670,9 @@ bool infData_Set2(const char *RecFileName, const char *AbsDirectory, const char 
 
     if(Payload)
       fwrite(Payload, TFRPlusHdr.PayloadSize, 1, infDatainfFile);
+    fclose(infDatainfFile);
+    HDD_SetFileDateTime(InfFileName, AbsDirectory, Now(NULL));
   }
-  fclose(infDatainfFile);
   infDatainfFile = NULL;
 
   TRACEEXIT();
@@ -675,17 +745,17 @@ bool infData_Delete2(const char *RecFileName, const char *AbsDirectory, const ch
 
       fseek(infDatainfFile, SourcePos, SEEK_SET);
     }
+    fclose(infDatainfFile);
 
     TAP_SPrint(InfFileName, sizeof(InfFileName), "%s.inf", RecFileName);
     HDD_TruncateFile(InfFileName, AbsDirectory, DestPos);
+    HDD_SetFileDateTime(InfFileName, AbsDirectory, Now(NULL));
     ret = TRUE;
   }
-
-  fclose(infDatainfFile);
   infDatainfFile = NULL;
 
   TRACEEXIT();
   return ret;
-}
+}  */
 
 // create, fopen, fread, fwrite

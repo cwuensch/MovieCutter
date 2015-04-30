@@ -10,6 +10,8 @@
 #include                <string.h>
 #include                <unistd.h>
 #include                <stdarg.h>
+#include                <sys/types.h>
+#include                <dirent.h>
 #include                <tap.h>
 #include                "libFireBird.h"
 #include                "CWTapApiLib.h"
@@ -43,9 +45,9 @@ void CreateSettingsDir(void)
   TRACEENTER();
 
   HDD_TAP_PushDir();
-  HDD_ChangeDir("/ProgramFiles");
+  TAP_Hdd_ChangeDir("/ProgramFiles");
   if(!TAP_Hdd_Exist("Settings")) TAP_Hdd_Create("Settings", ATTR_FOLDER);
-  HDD_ChangeDir("Settings");
+  TAP_Hdd_ChangeDir("Settings");
   if(!TAP_Hdd_Exist("MovieCutter")) TAP_Hdd_Create("MovieCutter", ATTR_FOLDER);
   HDD_TAP_PopDir();
 
@@ -54,19 +56,10 @@ void CreateSettingsDir(void)
 
 void WriteLogMC(char *ProgramName, char *s)
 {
-//  static bool FirstCall = TRUE;
-
-  HDD_TAP_PushDir();
-
-/*  if(FirstCall)
-  {
-    CreateSettingsDir();
-    FirstCall = FALSE;
-  } */
-
-  TAP_Hdd_ChangeDir("/ProgramFiles/Settings/MovieCutter");
-  LogEntry("MovieCutter.log", ProgramName, TRUE, TIMESTAMP_YMDHMS, s);
-  HDD_TAP_PopDir();
+//  HDD_TAP_PushDir();
+//  TAP_Hdd_ChangeDir("/ProgramFiles/Settings/MovieCutter");
+  LogEntry2(TAPFSROOT "/ProgramFiles/Settings/MovieCutter/MovieCutter.log", ProgramName, TRUE, TIMESTAMP_YMDHMS, s);
+//  HDD_TAP_PopDir();
 }
 void WriteLogMCf(char *ProgramName, const char *format, ...)
 {
@@ -145,23 +138,34 @@ void MSecToTimeString(dword Timems, char *const TimeString)  // needs max. 4 + 1
 
 void GetNextFreeCutName(const char *SourceFileName, char *const OutCutFileName, const char *AbsDirectory, int LeaveNamesOut)
 {
-  size_t                NameLen;
-  int                   i;
-  char                  NextFileName[MAX_FILE_NAME_SIZE + 1];
+  size_t                NameLen, ExtStart;
+  int                   maxIndex = 0, curIndex;
+  char                 *p;
+  DIR                  *dp;
+  struct dirent        *ep;
 
   TRACEENTER();
 
-  NameLen = strlen(SourceFileName) - 4;  // ".rec" entfernen
-  strncpy(NextFileName, SourceFileName, NameLen);
-  strncpy(OutCutFileName, SourceFileName, NameLen);
-
-  i = 0;
-  do
+  NameLen = ExtStart = strlen(SourceFileName) - 4;  // ".rec" entfernen
+  if((p = strstr(&SourceFileName[NameLen - 10], " (Cut-")) != NULL)
   {
-    i++;
-    TAP_SPrint(&NextFileName[NameLen], MAX_FILE_NAME_SIZE+1 - NameLen, " (Cut-%d)%s", i, &SourceFileName[NameLen]);
-    TAP_SPrint(&OutCutFileName[NameLen],  MAX_FILE_NAME_SIZE+1 - NameLen, " (Cut-%d)%s", i + LeaveNamesOut, &SourceFileName[NameLen]);
-  } while (HDD_Exist2(NextFileName, AbsDirectory) || HDD_Exist2(OutCutFileName, AbsDirectory));
+    NameLen = p - SourceFileName;        // wenn schon ein ' (Cut-xxx)' vorhanden ist, entfernen
+    maxIndex = strtol(&SourceFileName[NameLen+6], NULL, 10);
+  }
+
+  if ((dp = opendir(AbsDirectory)) != NULL)
+  {
+    while ((ep = readdir(dp)) != NULL)
+      if ((strncmp(ep->d_name, SourceFileName, NameLen) == 0) && (strncmp(&ep->d_name[NameLen], " (Cut-", 6) == 0))
+        if ((curIndex = strtol(&ep->d_name[NameLen+6], NULL, 10)) >= maxIndex)
+          maxIndex = curIndex;
+    closedir(dp);
+  }
+  else
+    WriteLogMC("MovieCutterLib", "GetNextFreeCutName: Could not open the directory!");
+
+  strncpy(OutCutFileName, SourceFileName, NameLen);
+  TAP_SPrint(&OutCutFileName[NameLen], MAX_FILE_NAME_SIZE+1 - NameLen, " (Cut-%d)%s", maxIndex+1 + LeaveNamesOut, &SourceFileName[ExtStart]);
 
   TRACEEXIT();
 }
@@ -249,10 +253,10 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
 
   if (TruncateEnding && !KeepCut)
   {
-    FindCutPointOffset2(CutPointArea1, CutStartPos, TRUE, &CutStartPosOffset);
-    CutStartPos = CutStartPos + CutStartPosOffset;
+    FindCutPointOffset2(CutPointArea1, CutStartPos, TRUE, &CutStartPosOffset);         // unnötig?
+    CutStartPos = CutStartPos + CutStartPosOffset;                                     // unnötig?
     BehindCutPos = SourceFileSize;
-    BehindCutPosOffset = BehindCutPos - ((off_t)BehindCutPoint->BlockNr * BLOCKSIZE);  // unnötig
+    BehindCutPosOffset = BehindCutPos - ((off_t)BehindCutPoint->BlockNr * BLOCKSIZE);  // unnötig!
     WriteLogMCf("MovieCutterLib", "Cut start offset: %ld Bytes (=%ld packets and %ld Bytes), Cut end offset: %ld Bytes (=%ld packets and %ld Bytes)", CutStartPosOffset, CutStartPosOffset/PACKETSIZE, labs(CutStartPosOffset%PACKETSIZE), BehindCutPosOffset, BehindCutPosOffset/PACKETSIZE, labs(BehindCutPosOffset%PACKETSIZE));
     WriteLogMCf("MovieCutterLib", "Estimated cut positions:  Cut Start = %llu, Behind Cut: %llu", CutStartPos, BehindCutPos);
   }
@@ -1113,6 +1117,7 @@ bool GetRecDateFromInf(const char *RecFileName, const char *AbsDirectory, dword 
   byte                 *Buffer = NULL;
   FILE                 *fInf = NULL;
   dword                 BytesRead;
+  bool                  ret = FALSE;
   int                   i;
 
   TRACEENTER();
@@ -1170,7 +1175,8 @@ bool GetRecDateFromInf(const char *RecFileName, const char *AbsDirectory, dword 
   if(HDD_EncodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN))
   {
     fseek(fInf, 0, SEEK_SET);
-    fwrite(Buffer, 1, INFSIZE, fInf);
+    if (fwrite(Buffer, 1, INFSIZE, fInf) == INFSIZE)
+      ret = TRUE;
   }
   else
     WriteLogMC("MovieCutterLib", "SaveBookmarksToInf() E0f04: failed to encode the new inf header!");
@@ -1179,7 +1185,7 @@ bool GetRecDateFromInf(const char *RecFileName, const char *AbsDirectory, dword 
   TAP_MemFree(Buffer);
 
   TRACEEXIT();
-  return TRUE;
+  return ret;
 } */
 
 bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, dword SourcePlayTime, const tTimeStamp *CutStartPoint, const tTimeStamp *BehindCutPoint)
@@ -1191,7 +1197,8 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   byte                 *Buffer = NULL;
   tRECHeaderInfo        RECHeaderInfo;
   dword                 BytesRead;
-  dword                 Bookmarks[177];
+  dword                 Bookmarks[NRBOOKMARKS];
+  dword                 NrBookmarks;
   dword                 CutPlayTime;
   dword                 OrigHeaderStartTime;
   word                  i;
@@ -1270,9 +1277,10 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
     RECHeaderInfo.HeaderStartTime = AddTime(OrigHeaderStartTime, BehindCutPoint->Timems / 60000);
 
   //Save all bookmarks to a temporary array
-  memcpy(Bookmarks, RECHeaderInfo.Bookmark, 177 * sizeof(dword));
+  memcpy(Bookmarks, RECHeaderInfo.Bookmark, NRBOOKMARKS * sizeof(dword));
+  NrBookmarks = RECHeaderInfo.NrBookmarks;
   TAP_SPrint(LogString, sizeof(LogString), "Bookmarks: ");
-  for(i = 0; i < 177; i++)
+  for(i = 0; i < NrBookmarks; i++)
   {
     if(Bookmarks[i] == 0) break;
     TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "%lu ", Bookmarks[i]);
@@ -1280,7 +1288,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   WriteLogMC("MovieCutterLib", LogString);
 
   //Clear all source Bookmarks
-  memset(RECHeaderInfo.Bookmark, 0, 177 * sizeof(dword));
+  memset(RECHeaderInfo.Bookmark, 0, NRBOOKMARKS * sizeof(dword));
   RECHeaderInfo.NrBookmarks = 0;
   RECHeaderInfo.Resume = 0;
 
@@ -1291,7 +1299,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
     SetCutBookmark = FALSE;
 
   TAP_SPrint(LogString, sizeof(LogString), "Bookmarks->Source: ");
-  for(i = 0; i < 177; i++)
+  for(i = 0; i < NrBookmarks; i++)
   {
     if((Bookmarks[i] >= 100 && Bookmarks[i] + 100 < CutStartPoint->BlockNr) || (Bookmarks[i] >= BehindCutPoint->BlockNr + 100))
     {
@@ -1311,7 +1319,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
       TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "%lu ", RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks]);
       RECHeaderInfo.NrBookmarks++;
     }
-    if(Bookmarks[i+1] == 0) break;
+//    if(Bookmarks[i+1] == 0) break;
   }
   // Setzt automatisch ein Bookmark an die Schnittstelle
   if (SetCutBookmark)
@@ -1332,7 +1340,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
       fseek(fSourceInf, 0, SEEK_SET);
       fwrite(Buffer, 1, INFSIZE, fSourceInf);
       fclose(fSourceInf);
-      infData_Delete2(SourceFileName, AbsDirectory, INFFILETAG);
+//      infData_Delete2(SourceFileName, AbsDirectory, INFFILETAG);
     }
     else
     {
@@ -1355,13 +1363,13 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   RECHeaderInfo.HeaderStartTime = AddTime(OrigHeaderStartTime, CutStartPoint->Timems / 60000);
 
   //Clear all source Bookmarks
-  memset(RECHeaderInfo.Bookmark, 0, 177 * sizeof(dword));
+  memset(RECHeaderInfo.Bookmark, 0, NRBOOKMARKS * sizeof(dword));
   RECHeaderInfo.NrBookmarks = 0;
 
   //Copy all bookmarks which are >= CutPointA and < CutPointB
   //Move them by CutPointA
   TAP_SPrint(LogString, sizeof(LogString), "Bookmarks->Cut: ");
-  for(i = 0; i < 177; i++)
+  for(i = 0; i < NrBookmarks; i++)
   {
     if((Bookmarks[i] >= CutStartPoint->BlockNr + 100) && (Bookmarks[i] + 100 < BehindCutPoint->BlockNr))
     {
@@ -1369,7 +1377,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
       TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "%lu ", RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks]);
       RECHeaderInfo.NrBookmarks++;
     }
-    if(Bookmarks[i+1] == 0) break;
+//    if(Bookmarks[i+1] == 0) break;
   }
   WriteLogMC("MovieCutterLib", LogString);
 

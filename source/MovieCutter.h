@@ -11,7 +11,7 @@
 #define NRSEGMENTMARKER       101            // max. number of file markers +1 (marker for the end of file)
 //#define NRBOOKMARKS           144
 #define NRUNDOEVENTS          100
-#define SIZESUSPECTHDDS       512
+#define SIZESUSPECTHDDS       1024
 #define CUTFILEVERSION        2
 #define LOGDIR                "/ProgramFiles/Settings/MovieCutter"
 #define LNGFILENAME           PROGRAM_NAME ".lng"
@@ -48,12 +48,16 @@ static void  CleanupCut(void);
 static void  CreateOSD(void);
 static void  ClearOSD(bool EnterNormal);
 static void  CutDumpList(void);
+static bool  CutDecodeFromBM(void);
+static bool  CutEncodeToBM(tSegmentMarker SegmentMarker[], int NrSegmentMarker, dword Bookmarks[], int NrBookmarks);
 static void  CutFileDelete(void);
-static bool  CutFileDecode(byte CutBuffer[], dword BufSize);
-static bool  CutFileEncode(tSegmentMarker SegmentMarker[], int NrSegmentMarker, char* RecFileName, byte **OutCutBuffer, dword *OutBufSize);
+static bool  CutFileDecode(byte CutBuffer[], dword BufSize, bool *OutRecalcTimeStamps);
+static bool  CutFileEncode(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const char* RecFileName, byte **OutCutBuffer, dword *OutBufSize);
 static bool  CutFileLoad(void);
-static void  CutFileSave(void);
-static void  CutFileSave2(tSegmentMarker SegmentMarker[], int NrSegmentMarker, char* RecFileName);
+static bool  CutFileSave(void);
+static bool  CutFileSave2(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const char* RecFileName);
+static bool  CutSaveToBM(void);
+static bool  CutSaveToInf(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const char* RecFileName);
 static bool  DeleteBookmark(int BookmarkIndex);
 static bool  DeleteAllBookmarks(void);
 static bool  DeleteSegmentMarker(int MarkerIndex);
