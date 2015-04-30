@@ -99,6 +99,7 @@ Options in the MovieCutter.ini
 ==============================
 [since V. 3.3]
   - CutFileMode:		0: Save the cut markers in cut- and inf-file. - 1: cut-file only. - 2: inf-file only.
+  - ForceSpecialEnd:		1: Force the inverse handling of last segment. (Default: only when safe) [0,1]
 [since V. 3.1b]
   - MaxNavDiscrepancy:		Maximum tolerated discrepancy of the nav-file, without showing a warning message (in milliseconds). - 0: Never show a message.
 [since V. 3.1]

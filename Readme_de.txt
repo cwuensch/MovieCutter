@@ -100,6 +100,7 @@ Optionen in der MovieCutter.ini
 ===============================
 [seit V. 3.3]
   - CutFileMode:		Speicherung der Schnittmarker: [0] in cut- und inf-Datei, [1] nur cut-Datei, [2] nur inf-Datei.
+  - ForceSpecialEnd:		Erzwingen der umgekehrten Endbehandlung. (Default: nur wenn sicher) [0,1]
 [seit V. 3.1b]
   - MaxNavDiscrepancy:		Maximal zulässige Abweichung der nav-Datei (in Millisekunden), [0] Meldung niemals anzeigen.
 [seit V. 3.1]
