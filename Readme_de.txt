@@ -101,6 +101,7 @@ Optionen in der MovieCutter.ini
 [seit V. 3.3]
   - CutFileMode:		Speicherung der Schnittmarker: [0] in cut- und inf-Datei, [1] nur cut-Datei, [2] nur inf-Datei.
   - ForceSpecialEnd:		Erzwingen der umgekehrten Endbehandlung. (Default: nur wenn sicher) [0,1]
+  - RCUMode:		(neu)	Fernbedienungs-Modus: [0] auto, [1] SRP-2401, [2] SRP-2410, [3] CRP-2401, [4] TF5000 (=CRP), [5] VolKeys nicht belegen.
 [seit V. 3.1b]
   - MaxNavDiscrepancy:		Maximal zulässige Abweichung der nav-Datei (in Millisekunden), [0] Meldung niemals anzeigen.
 [seit V. 3.1]
@@ -109,7 +110,7 @@ Optionen in der MovieCutter.ini
 [seit V. 3.0]
   - DoiCheckTest:	(alt!)	Inodes überprüfen: [1] Testen aber nicht fixen, [2] Test und Fix, [0] kein Test.
   - InodeMonitoring:		Überwachung beschädigter Inodes. [0,1]
-  - RCUMode:			Fernbedienungs-Modus: [0] SRP-2401, [1] SRP-2410, [2] CRP-2401, [3] TF5000 (=CRP), [4] VolKeys nicht belegen.
+  - RCUMode:		(alt!)	Fernbedienungs-Modus: [0] SRP-2401, [1] SRP-2410, [2] CRP-2401, [3] TF5000 (=CRP), [4] VolKeys nicht belegen.
 [seit V. 2.1]
   - DefaultOSDMode:		OSD-Modus: [0] Hintergrund, [1] Vollständiges OSD, [2] ohne Segmentliste, [3] Minimal-Modus.
   - DefaultMinuteJump:		Startwert für den Minutensprung-Modus [1-99], [0] zum Deaktivieren.

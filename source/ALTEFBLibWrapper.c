@@ -158,7 +158,7 @@ dword PvrTimeToLinux(dword PVRTime)
 }
 
 
-bool HDD_TAP_CheckCollision(void)
+/* bool HDD_TAP_CheckCollision(void)
 {
   char                 *myTAPFileName, *TAPFileName;
   dword                *pCurrentTAPIndex, myTAPIndex;
@@ -184,7 +184,7 @@ bool HDD_TAP_CheckCollision(void)
     }
   }
   return TAPCollision;
-}
+} */
 
 
 // ----------------------------------------------------------------------------

@@ -100,6 +100,7 @@ Options in the MovieCutter.ini
 [since V. 3.3]
   - CutFileMode:		0: Save the cut markers in cut- and inf-file. - 1: cut-file only. - 2: inf-file only.
   - ForceSpecialEnd:		1: Force the inverse handling of last segment. (Default: only when safe) [0,1]
+  - RCUMode:		(new)	0: auto - 1: SRP-2401 - 2: SRP-2410 - 3: CRP-2401 - 4: TF5000 (identical with 2) - 5: No use of the VolKeys
 [since V. 3.1b]
   - MaxNavDiscrepancy:		Maximum tolerated discrepancy of the nav-file, without showing a warning message (in milliseconds). - 0: Never show a message.
 [since V. 3.1]
@@ -108,7 +109,7 @@ Options in the MovieCutter.ini
 [since V. 3.0]
   - DoiCheckTest:	(old!)	0: No Inode-Test between the cuts. - 1: Do test but not fix. - 2: Test and fix.
   - InodeMonitoring:		1: Monitoring of the Inodes corrupted while cutting. - 0: No Monitoring.
-  - RCUMode:			0: SRP-2401 - 1: SRP-2410 - 2: CRP-2401 - 3: TF5000 (identical with 2) - 4: No use of the VolKeys
+  - RCUMode:		(old!)	0: SRP-2401 - 1: SRP-2410 - 2: CRP-2401 - 3: TF5000 (identical with 2) - 4: No use of the VolKeys
 [since V. 2.1]
   - DefaultOSDMode:		0: Show full OSD. - 1: Hide the segment list. - 2: Display OSD in minimal mode.
   - MinuteJump:			0: Minute jump mode is disabled at startup. - 1-99: Default value for the minute jump mode.

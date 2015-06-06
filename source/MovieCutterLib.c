@@ -10,8 +10,7 @@
 #include                <string.h>
 #include                <unistd.h>
 #include                <stdarg.h>
-#include                <sys/types.h>
-#include                <dirent.h>
+#include                <sys/stat.h>
 #include                <tap.h>
 #include                "libFireBird.h"
 #include                "CWTapApiLib.h"
@@ -23,7 +22,7 @@ static bool  RecTruncate(char *SourceFileName, char *AbsDirectory, off_t TruncPo
 static bool  isPacketStart(const byte PacketArray[], int ArrayLen);
 static bool  WriteByteToFile(const char *FileName, const char *AbsDirectory, off_t BytePosition, char OldValue, char NewValue);
 static bool  PatchRecFile(const char *SourceFileName, const char *AbsDirectory, off_t RequestedCutPosition, byte CutPointArray[], off_t OutPatchedBytes[]);
-static bool  UnpatchRecFile(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, off_t CutStartPos, off_t BehindCutPos, const off_t PatchedBytes[], int NrPatchedBytes);
+static bool  UnpatchRecFile(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, off_t CutStartPos, off_t BehindCutPos, off_t PatchedBytes[], int NrPatchedBytes);
 static bool  ReadCutPointArea(const char *SourceFileName, const char *AbsDirectory, off_t CutPosition, byte CutPointArray[]);
 static bool  ReadFirstAndLastCutPacket(const char *CutFileName, const char *AbsDirectory, byte FirstCutPacket[], byte LastCutPacket[]);
 static bool  FindCutPointOffset(const byte CutPacket[], const byte CutPointArray[], long *const OutOffset);
@@ -44,12 +43,11 @@ void CreateSettingsDir(void)
 {
   TRACEENTER();
 
-  HDD_TAP_PushDir();
-  TAP_Hdd_ChangeDir("/ProgramFiles");
-  if(!TAP_Hdd_Exist("Settings")) TAP_Hdd_Create("Settings", ATTR_FOLDER);
-  TAP_Hdd_ChangeDir("Settings");
-  if(!TAP_Hdd_Exist("MovieCutter")) TAP_Hdd_Create("MovieCutter", ATTR_FOLDER);
-  HDD_TAP_PopDir();
+//  tstat64 st;
+//  if (lstat64(TAPFSROOT "/ProgramFiles/Settings", &st) == -1)
+    mkdir(TAPFSROOT "/ProgramFiles/Settings", 666);
+//  if (lstat64(TAPFSROOT "/ProgramFiles/Settings/MovieCutter", &st) == -1)
+    mkdir(TAPFSROOT "/ProgramFiles/Settings/MovieCutter", 666);
 
   TRACEEXIT();
 }
@@ -102,71 +100,80 @@ static inline dword CalcBlockSize(off_t Size)
   return (dword)(Size >> 6) / 141;
 }
 
-void SecToTimeString(dword Time, char *const TimeString)  // needs max. 4 + 1 + 2 + 1 + 2 + 1 = 11 chars
+void SecToTimeString(dword Time, char *const OutTimeString)  // needs max. 4 + 1 + 2 + 1 + 2 + 1 = 11 chars
 {
   dword                 Hour, Min, Sec;
 
   TRACEENTER();
 
-  if(TimeString)
+  if(OutTimeString)
   {
     Hour = (Time / 3600);
     Min  = (Time / 60) % 60;
     Sec  = Time % 60;
     if (Hour >= 10000) Hour = 9999;
-    TAP_SPrint(TimeString, 11, "%lu:%02lu:%02lu", Hour, Min, Sec);
+    TAP_SPrint(OutTimeString, 11, "%lu:%02lu:%02lu", Hour, Min, Sec);
   }
   TRACEEXIT();
 }
 
-void MSecToTimeString(dword Timems, char *const TimeString)  // needs max. 4 + 1 + 2 + 1 + 2 + 1 + 3 + 1 = 15 chars
+void MSecToTimeString(dword Timems, char *const OutTimeString)  // needs max. 4 + 1 + 2 + 1 + 2 + 1 + 3 + 1 = 15 chars
 {
   dword                 Hour, Min, Sec, Millisec;
 
   TRACEENTER();
 
-  if(TimeString)
+  if(OutTimeString)
   {
     Hour = (Timems / 3600000);
     Min  = (Timems / 60000) % 60;
     Sec  = (Timems / 1000) % 60;
     Millisec = Timems % 1000;
-    TAP_SPrint(TimeString, 15, "%lu:%02lu:%02lu.%03lu", Hour, Min, Sec, Millisec);
+    TAP_SPrint(OutTimeString, 15, "%lu:%02lu:%02lu.%03lu", Hour, Min, Sec, Millisec);
   }
   TRACEEXIT();
 }
 
-void GetNextFreeCutName(const char *SourceFileName, char *const OutCutFileName, const char *AbsDirectory, int LeaveNamesOut)
+dword TimeStringToMSec(char *const TimeString)
 {
-  size_t                NameLen, ExtStart;
-  int                   maxIndex = 0, curIndex;
-  char                 *p;
-  DIR                  *dp;
-  struct dirent        *ep;
-
+  dword                 Hour=0, Min=0, Sec=0, Millisec=0, ret=0;
   TRACEENTER();
 
-  NameLen = ExtStart = strlen(SourceFileName) - 4;  // ".rec" entfernen
-  if((p = strstr(&SourceFileName[NameLen - 10], " (Cut-")) != NULL)
+  if(TimeString)
   {
-    NameLen = p - SourceFileName;        // wenn schon ein ' (Cut-xxx)' vorhanden ist, entfernen
-    maxIndex = strtol(&SourceFileName[NameLen+6], NULL, 10);
+    if (sscanf(TimeString, "%lu:%lu:%lu.%lu", &Hour, &Min, &Sec, &Millisec) == 4)
+      ret = 1000*(60*(60*Hour + Min) + Sec) + Millisec;
   }
+  TRACEEXIT();
+  return ret;
+}
 
-  if ((dp = opendir(AbsDirectory)) != NULL)
+void GetNextFreeCutName(const char *SourceFileName, char *const OutCutFileName, const char *AbsDirectory, int LeaveNamesOut)
+{
+  char                  CheckFileName[MAX_FILE_NAME_SIZE + 1];
+  size_t                NameLen, ExtStart;
+  int                   FreeIndices = 0, i = 0;
+
+  TRACEENTER();
+  if(OutCutFileName) OutCutFileName[0] = '\0';
+
+  if (SourceFileName && OutCutFileName)
   {
-    while ((ep = readdir(dp)) != NULL)
-      if ((strncmp(ep->d_name, SourceFileName, NameLen) == 0) && (strncmp(&ep->d_name[NameLen], " (Cut-", 6) == 0))
-        if ((curIndex = strtol(&ep->d_name[NameLen+6], NULL, 10)) >= maxIndex)
-          maxIndex = curIndex;
-    closedir(dp);
+    NameLen = ExtStart = strlen(SourceFileName) - 4;  // ".rec" entfernen
+//    if((p = strstr(&SourceFileName[NameLen - 10], " (Cut-")) != NULL)
+//      NameLen = p - SourceFileName;        // wenn schon ein ' (Cut-xxx)' vorhanden ist, entfernen
+    strncpy(CheckFileName, SourceFileName, NameLen);
+
+    do
+    {
+      i++;
+      TAP_SPrint(&CheckFileName[NameLen], MAX_FILE_NAME_SIZE+1 - NameLen, " (Cut-%d)%s", i, &SourceFileName[ExtStart]);
+      if (!HDD_Exist2(CheckFileName, AbsDirectory))
+        FreeIndices++;
+    } while (FreeIndices <= LeaveNamesOut);
+
+    strcpy(OutCutFileName, CheckFileName);
   }
-  else
-    WriteLogMC("MovieCutterLib", "GetNextFreeCutName: Could not open the directory!");
-
-  strncpy(OutCutFileName, SourceFileName, NameLen);
-  TAP_SPrint(&OutCutFileName[NameLen], MAX_FILE_NAME_SIZE+1 - NameLen, " (Cut-%d)%s", maxIndex+1 + LeaveNamesOut, &SourceFileName[ExtStart]);
-
   TRACEEXIT();
 }
 
@@ -346,17 +353,18 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
   }
 
 #ifdef FULLDEBUG
+  bool  CutStartGuessed, BehindCutGuessed;
   long  GuessedCutStartOffset = 0, GuessedBehindCutOffset = 0;
   off_t ReqCutStartPos  = (off_t)CutStartPoint->BlockNr * BLOCKSIZE;
   off_t ReqBehindCutPos = (off_t)BehindCutPoint->BlockNr * BLOCKSIZE;
 
-  FindCutPointOffset2(CutPointArea1, ReqCutStartPos, FALSE, &GuessedCutStartOffset);
-  FindCutPointOffset2(CutPointArea2, ReqBehindCutPos, FALSE, &GuessedBehindCutOffset);
+  CutStartGuessed  = FindCutPointOffset2(CutPointArea1, ReqCutStartPos, FALSE, &GuessedCutStartOffset);
+  BehindCutGuessed = FindCutPointOffset2(CutPointArea2, ReqBehindCutPos, FALSE, &GuessedBehindCutOffset);
 
-  if ((CutStartPos == ReqCutStartPos + GuessedCutStartOffset) && (BehindCutPos == ReqBehindCutPos + GuessedBehindCutOffset))
+  if (CutStartGuessed && BehindCutGuessed && (CutStartPos == ReqCutStartPos + GuessedCutStartOffset) && (BehindCutPos == ReqBehindCutPos + GuessedBehindCutOffset))
     WriteLogMC("MovieCutterLib", "--> Real cutting points guessed correctly!");
   else
-    WriteLogMCf("MovieCutterLib", "!! -- Real cutting points NOT correctly guessed: GuessedStart = %llu, GuessedBehind = %llu", ReqCutStartPos + GuessedCutStartOffset, ReqBehindCutPos + GuessedBehindCutOffset);
+    WriteLogMCf("MovieCutterLib", "!! -- Real cutting points NOT correctly guessed: GuessedStart = %llu, GuessedBehind = %llu", (CutStartGuessed ? ReqCutStartPos + GuessedCutStartOffset : 0), (BehindCutGuessed ? ReqBehindCutPos + GuessedBehindCutOffset : 0));
 #endif
 
   TAP_MemFree(CutPointArea1); CutPointArea1 = NULL;
@@ -574,7 +582,7 @@ int GetPacketSize(const char *RecFileName)
   if (strncmp(&RecFileName[strlen(RecFileName) - 4], ".mpg", 4) == 0)
   {
     PACKETSIZE = 188;
-    SYNCBYTEPOS = 4;   // komisch, aber ist tatsächlich so!!!
+    SYNCBYTEPOS = 0;   // 4 - komisch, aber ist tatsächlich so!!!
     CUTPOINTSEARCHRADIUS = 99264;
     CUTPOINTSECTORRADIUS = CUTPOINTSEARCHRADIUS/4096;  // 24
   }
@@ -790,18 +798,37 @@ bool PatchRecFile(const char *SourceFileName, const char *AbsDirectory, off_t Re
     ArrayPos = (int)(pos-RequestedCutPosition);
 
     // Check, if the current position is a sync-byte
-    if ((MidArray[ArrayPos+SYNCBYTEPOS] == 'G'))
+    if ((MidArray[ArrayPos+4] == 'G'))
     {
       // If there IS a sync-Byte, but NOT a packet start, then patch this byte
       if (!isPacketStart(&MidArray[ArrayPos], CUTPOINTSEARCHRADIUS-ArrayPos))
       {
-        if (WriteByteToFile(SourceFileName, AbsDirectory, pos+SYNCBYTEPOS, 'G', 'F'))
+        if (WriteByteToFile(SourceFileName, AbsDirectory, pos+4, 'G', 'F'))
         {
-          OutPatchedBytes[i + (CUTPOINTSECTORRADIUS-1)] = pos+SYNCBYTEPOS;
-          MidArray[ArrayPos+SYNCBYTEPOS] = 'F';   // ACHTUNG! Nötig, damit die neue Schätzung der CutPosition korrekt funktioniert.
+          OutPatchedBytes[i + (CUTPOINTSECTORRADIUS-1)] = pos+4;
+          MidArray[ArrayPos+4] = 'F';    // ACHTUNG! Nötig, damit die neue Schätzung der CutPosition korrekt funktioniert.
         }                                         // Könnte aber ein Problem geben bei der (alten) CutPoint-Identifikation (denn hier wird der noch ungepatchte Wert aus dem Cache gelesen)!
         else
           ret = FALSE;
+      }
+    }
+
+    // If Australian PVR, write a sync-Byte at the desired cut position + 4
+    if ((PACKETSIZE==188) && (i < CUTPOINTSECTORRADIUS))
+    {
+      if (MidArray[ArrayPos+0] == 'G')
+      {
+        if (isPacketStart(&MidArray[ArrayPos], CUTPOINTSEARCHRADIUS-ArrayPos))
+        {
+          byte oldVal = MidArray[ArrayPos+4];
+          if (WriteByteToFile(SourceFileName, AbsDirectory, pos+4, oldVal, 'G'))
+          {
+            OutPatchedBytes[2*CUTPOINTSECTORRADIUS - 1] = ((pos+4) << 8) + oldVal;  // missbrauche die letzte Position für den Schnitt-Patch
+            MidArray[ArrayPos+4] = 'G';    // ACHTUNG! Nötig, damit die neue Schätzung der CutPosition korrekt funktioniert.
+          }                                         // Könnte aber ein Problem geben bei der (alten) CutPoint-Identifikation (denn hier wird der noch ungepatchte Wert aus dem Cache gelesen)!
+          else
+            ret = FALSE;
+        }
       }
     }
   }
@@ -811,7 +838,7 @@ bool PatchRecFile(const char *SourceFileName, const char *AbsDirectory, off_t Re
 }
 
 // Restores the patched Sync-Bytes in the rec-File
-bool UnpatchRecFile(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, off_t CutStartPos, off_t BehindCutPos, const off_t PatchedBytes[], int NrPatchedBytes)
+bool UnpatchRecFile(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, off_t CutStartPos, off_t BehindCutPos, off_t PatchedBytes[], int NrPatchedBytes)
 {
   char                  LogString[512];
   word                  i;
@@ -837,14 +864,21 @@ bool UnpatchRecFile(const char *SourceFileName, const char *CutFileName, const c
     
   for (i = 0; i < NrPatchedBytes; i++)
   {
+    byte newVal = 'G';
+    if ((PACKETSIZE == 188) && (i == 2*CUTPOINTSECTORRADIUS-1 || i == 4*CUTPOINTSECTORRADIUS-1))
+    {
+      newVal = PatchedBytes[i] & 0xFF;
+      PatchedBytes[i] = PatchedBytes[i] >> 8;
+    }
+
     if (PatchedBytes[i] > 0)
     {
       if (PatchedBytes[i] < CutStartPos)
-        ret = ret + !WriteByteToFile(SourceFileName, AbsDirectory, PatchedBytes[i], 'F', 'G');
+        ret = ret + !WriteByteToFile(SourceFileName, AbsDirectory, PatchedBytes[i], 'F', newVal);
       else if (PatchedBytes[i] < BehindCutPos)
-        ret = ret + !WriteByteToFile(CutFileName, AbsDirectory, PatchedBytes[i] - CutStartPos, 'F', 'G');
+        ret = ret + !WriteByteToFile(CutFileName, AbsDirectory, PatchedBytes[i] - CutStartPos, 'F', newVal);
       else
-        ret = ret + !WriteByteToFile(SourceFileName, AbsDirectory, PatchedBytes[i] - (BehindCutPos - CutStartPos), 'F', 'G');
+        ret = ret + !WriteByteToFile(SourceFileName, AbsDirectory, PatchedBytes[i] - (BehindCutPos - CutStartPos), 'F', newVal);
     }
   }
 
@@ -1023,14 +1057,14 @@ bool FindCutPointOffset2(const byte CutPointArray[], off_t RequestedCutPosition,
 //    ArrayPos = (int)(((RequestedCutPosition >> 12) << 12) + (i * 4096) - RequestedCutPosition);
     ArrayPos = (int)(((RequestedCutPosition >> 12) << 12) - (i * 4096) - RequestedCutPosition);
     if (!CheckPacketStart) {
-      if (MidArray[ArrayPos+SYNCBYTEPOS] == 'G') break;
+      if (MidArray[ArrayPos+4] == 'G') break;
     } else {
       if (isPacketStart(&MidArray[ArrayPos], CUTPOINTSEARCHRADIUS-ArrayPos)) break;
     }
 
     ArrayPos = (int)(((RequestedCutPosition >> 12) << 12) + ((i+1) * 4096) - RequestedCutPosition);
     if (!CheckPacketStart) {
-      if (MidArray[ArrayPos+SYNCBYTEPOS] == 'G') break;
+      if (MidArray[ArrayPos+4] == 'G') break;
     } else {
       if (isPacketStart(&MidArray[ArrayPos], CUTPOINTSEARCHRADIUS-ArrayPos)) break;
     }
@@ -1191,7 +1225,7 @@ bool GetRecDateFromInf(const char *RecFileName, const char *AbsDirectory, dword 
 bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, dword SourcePlayTime, const tTimeStamp *CutStartPoint, const tTimeStamp *BehindCutPoint)
 {
   char                  AbsSourceInfName[FBLIB_DIR_SIZE], AbsCutInfName[FBLIB_DIR_SIZE];
-  char                  T1[12], T2[12], T3[12];
+  char                  T1[16], T2[16], T3[16];
   char                  LogString[512];
   FILE                 *fSourceInf = NULL, *fCutInf = NULL;
   byte                 *Buffer = NULL;
@@ -1207,7 +1241,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
 
   TRACEENTER();
   #ifdef FULLDEBUG
-    WriteLogMC("MovieCutterLib", "PatchInfFiles()");
+//    WriteLogMC("MovieCutterLib", "PatchInfFiles()");
   #endif
 
   //Allocate and clear the buffer
@@ -1255,16 +1289,24 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   }
 
   //Calculate the new play times
+  CutPlayTime = BehindCutPoint->Timems - CutStartPoint->Timems;
+  MSecToTimeString(CutPlayTime, T2);
   if (SourcePlayTime)
+  {
+    MSecToTimeString(SourcePlayTime, T1);
+    SourcePlayTime -= min(CutPlayTime, SourcePlayTime);
+    MSecToTimeString(SourcePlayTime, T3);
     SourcePlayTime = (dword)((SourcePlayTime + 500) / 1000);
+    CutPlayTime    = (dword)((CutPlayTime + 500) / 1000);
+  }
   else
+  {
     SourcePlayTime = 60 * RECHeaderInfo.HeaderDuration + RECHeaderInfo.HeaderDurationSec;
-  CutPlayTime = (dword)(((BehindCutPoint->Timems - CutStartPoint->Timems) + 500) / 1000);
-  SecToTimeString(SourcePlayTime, T1);
-  SecToTimeString(CutPlayTime, T2);
-
-  SourcePlayTime -= min(CutPlayTime, SourcePlayTime);
-  SecToTimeString(SourcePlayTime, T3);
+    SecToTimeString(SourcePlayTime, T1);
+    CutPlayTime    = (dword)((SourcePlayTime + 500) / 1000);
+    SourcePlayTime -= min(CutPlayTime, SourcePlayTime);
+    SecToTimeString(SourcePlayTime, T3);
+  }
   WriteLogMCf("MovieCutterLib", "Playtimes: Orig = %s, Cut = %s, New = %s", T1, T2, T3);
 
   //Change the new source play time
@@ -1301,7 +1343,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   TAP_SPrint(LogString, sizeof(LogString), "Bookmarks->Source: ");
   for(i = 0; i < NrBookmarks; i++)
   {
-    if((Bookmarks[i] >= 100 && Bookmarks[i] + 100 < CutStartPoint->BlockNr) || (Bookmarks[i] >= BehindCutPoint->BlockNr + 100))
+    if(((Bookmarks[i] >= 100) && (Bookmarks[i] + 100 < CutStartPoint->BlockNr)) || (Bookmarks[i] >= BehindCutPoint->BlockNr + 100))
     {
       if(Bookmarks[i] < BehindCutPoint->BlockNr)
         RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks] = Bookmarks[i];
@@ -1317,7 +1359,8 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
         RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks] = Bookmarks[i] - (BehindCutPoint->BlockNr - CutStartPoint->BlockNr);
       }
       TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "%lu ", RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks]);
-      RECHeaderInfo.NrBookmarks++;
+      if (RECHeaderInfo.NrBookmarks < 48)
+        RECHeaderInfo.NrBookmarks++;
     }
 //    if(Bookmarks[i+1] == 0) break;
   }
@@ -1326,7 +1369,8 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   {
     RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks] = CutStartPoint->BlockNr;
     TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "*%lu ", CutStartPoint->BlockNr);
-    RECHeaderInfo.NrBookmarks++;
+    if (RECHeaderInfo.NrBookmarks < 48)
+      RECHeaderInfo.NrBookmarks++;
   }
   WriteLogMC("MovieCutterLib", LogString);
 

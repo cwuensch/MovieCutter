@@ -5,6 +5,7 @@
 #endif
 //#define STACKTRACE      TRUE
 
+#define _GNU_SOURCE
 #include                <stdio.h>
 #include                <stdlib.h>
 #include                <string.h>
@@ -135,7 +136,8 @@ typedef enum
   ST_UnacceptedFile,     // ->[ST_Inact.Playing] // TAP is not active and cannot be entered (playback of unsupported file)
   ST_ActionMenu,         // [ST_ActionDialog]    // Action Menu is open, navigation only within menu
 //  ST_CutFailDialog,    //                      // Show the failure dialog
-  ST_Exit                //                      // Preparing to exit TAP
+  ST_Exit,               //                      // Preparing to exit TAP
+  ST_ExitNoSave
 } tState;
 
 typedef enum
@@ -163,6 +165,7 @@ typedef enum
 
 typedef enum
 {
+  RC_auto,
   RC_SRP2401,
   RC_SRP2410,
   RC_CRP,
@@ -232,7 +235,7 @@ typedef enum
   LS_DeleteNrSegments,
   LS_Delete1Segment,
   LS_DeleteCurSegment,
-  LS_SelectEvOddSegments,
+  LS_SelectOddSegments,
   LS_SelectPadding,
   LS_SelectEvenSegments,
   LS_SelectMiddle,
@@ -293,7 +296,7 @@ typedef enum
   LS_NrStrings
 } tLngStrings;
 
-char* DefaultStrings[LS_NrStrings] =
+static char* DefaultStrings[LS_NrStrings] =
 {
   "Neu",
   "Löschen",
@@ -329,9 +332,9 @@ char* DefaultStrings[LS_NrStrings] =
   "Markierte %d Segmente löschen",
   "Markiertes Segment löschen",
   "Aktuelles Segment löschen",
-  "Un/gerade Segmente markieren",   // Ungerade Segmente markieren
+  "Ungerade Segmente markieren",   // Ungerade Segmente markieren
   "Vor-/Nachlauf markieren",
-  "",   // Gerade Segmente markieren
+  "Gerade Segmente markieren",   // Gerade Segmente markieren
   "Mittelstück markieren",
   "Alle abwählen",
   "Segmentliste zurücksetzen",
@@ -386,99 +389,103 @@ char* DefaultStrings[LS_NrStrings] =
   "SystemType ist unbekannt.\nBitte die FirmwareTMS.dat überprüfen!",
   "Aufnahme hier teilen"
 };
-#define LangGetString(x)  LangGetStringDefault(x, DefaultStrings[x])
-
+#ifdef MC_MULTILANG
+  #define LangGetString(x)  LangGetStringDefault(x, DefaultStrings[x])
+#else
+  #define LangGetString(x)  DefaultStrings[x]  
+#endif
 
 // Konstanten
-const int               ScreenWidth = 720;
-const int               ScreenHeight = 576;
-const dword             ColorInfoBarTitle      = RGB(51, 51, 51);
-const dword             ColorDarkBackground    = RGB(16, 16, 16);
-const dword             ColorLightBackground   = RGB(24, 24, 24);
-const dword             ColorInfoBarDarkSub    = RGB(30, 30, 30);
-const dword             ColorInfoBarLightSub   = RGB(43, 43, 43);
-const int               InfoBarRightAreaWidth  = 190;
-const int               InfoBarModeAreaWidth   = 72;
-const int               InfoBarLine1_Y         = 49,   InfoBarLine1Height = 30;
-const int               InfoBarLine2_Y         = 84;
-const int               InfoBarLine3_Y         = 128;  // alternativ: 135
+static const int        ScreenWidth = 720;
+static const int        ScreenHeight = 576;
+static const dword      ColorInfoBarTitle      = RGB(51, 51, 51);
+static const dword      ColorDarkBackground    = RGB(16, 16, 16);
+static const dword      ColorLightBackground   = RGB(24, 24, 24);
+static const dword      ColorInfoBarDarkSub    = RGB(30, 30, 30);
+static const dword      ColorInfoBarLightSub   = RGB(43, 43, 43);
+static const int        InfoBarRightAreaWidth  = 190;
+static const int        InfoBarModeAreaWidth   = 72;
+static const int        InfoBarLine1_Y         = 49,   InfoBarLine1Height = 30;
+static const int        InfoBarLine2_Y         = 84;
+static const int        InfoBarLine3_Y         = 128;  // alternativ: 135
 
 // MovieCutter INI-Flags
-bool                    AutoOSDPolicy      = FALSE;
-tOSDMode                DefaultOSDMode     = MD_FullOSD;
-int                     DefaultMinuteJump  = 0;
-bool                    ShowRebootMessage  = TRUE;
-dword                   MaxNavDiscrepancy  = 5000;
-bool                    AskBeforeEdit      = TRUE;
-tCutSaveMode            CutFileMode        = CM_Both;   // [0] in cut- und inf-Datei, [1] nur cut-Datei, [2] nur inf-Datei
-bool                    SaveCutBak         = TRUE;
-bool                    ForceSpecialEnd    = FALSE;     // TRUE = immer umgekehrte Endbehandlung, FALSE = nur, wenn ungefährlich (< 4 GB)
-bool                    DisableSpecialEnd  = FALSE;     // TRUE = niemals umgekehrte Endbehandlung, überschreibt ForceSpecialEnd
-tiCheckMode             DoiCheckTest       = IM_ROEnd;  // [0] nie, [1] gesammelt am Ende (ro), [2] gesammelt am Ende (fix), [3] nach jedem Schnitt (ro), [4] nach jedem Schnitt (fix)
-tCheckFSMode            CheckFSAfterCut    = FM_Auto;   // [0] nie, [1] auto, [2] immer, [3] beim Beenden
-bool                    InodeMonitoring    = FALSE;
-dword                   Overscan_X         = 50;
-dword                   Overscan_Y         = 25;
-dword                   SegmentList_X      = 55;
-dword                   SegmentList_Y      = 78;
-tRCUMode                RCUMode            = RC_SRP2401;
-bool                    DirectSegmentsCut  = FALSE;
-bool                    DisableSleepKey    = FALSE;
+static bool             AutoOSDPolicy      = FALSE;
+static tOSDMode         DefaultOSDMode     = MD_FullOSD;
+static int              DefaultMinuteJump  = 0;
+static bool             ShowRebootMessage  = TRUE;
+static dword            MaxNavDiscrepancy  = 5000;
+static bool             AskBeforeEdit      = TRUE;
+static tCutSaveMode     CutFileMode        = CM_Both;   // [0] in cut- und inf-Datei, [1] nur cut-Datei, [2] nur inf-Datei
+static bool             SaveCutBak         = TRUE;
+static bool             ForceSpecialEnd    = FALSE;     // TRUE = immer umgekehrte Endbehandlung, FALSE = nur, wenn ungefährlich (< 4 GB)
+static bool             DisableSpecialEnd  = FALSE;     // TRUE = niemals umgekehrte Endbehandlung, überschreibt ForceSpecialEnd
+static tiCheckMode      DoiCheckTest       = IM_ROEnd;  // [0] nie, [1] gesammelt am Ende (ro), [2] gesammelt am Ende (fix), [3] nach jedem Schnitt (ro), [4] nach jedem Schnitt (fix)
+static tCheckFSMode     CheckFSAfterCut    = FM_Auto;   // [0] nie, [1] auto, [2] immer, [3] beim Beenden
+static bool             InodeMonitoring    = FALSE;
+static dword            Overscan_X         = 50;
+static dword            Overscan_Y         = 25;
+static dword            SegmentList_X      = 55;
+static dword            SegmentList_Y      = 78;
+static tRCUMode         RCUMode            = RC_SRP2401;
+static bool             DirectSegmentsCut  = FALSE;
+static bool             DisableSleepKey    = FALSE;
 
 
 // MovieCutter state variables
-tState                  State = ST_Init;
-tOSDMode                OSDMode = MD_NoOSD;
-bool                    BookmarkMode;
-bool                    LinearTimeMode = FALSE;
-bool                    MCShowMessageBox = FALSE;
-bool                    OldRepeatMode = FALSE;
-bool                    ActionMenuEvenOdd;
-TYPE_TrickMode          TrickMode;
-byte                    TrickModeSpeed;
-int                     MinuteJump;                           //Seconds or 0 if deactivated
-//bool                    NoPlaybackCheck = FALSE;              //Used to circumvent a race condition during the cutting process
-int                     NrSelectedSegments;
-word                    JumpRequestedSegment = 0xFFFF;        //Is set, when the user presses up/down to jump to another segment
-dword                   JumpRequestedBlock = (dword) -1;      //Is set, when user presses Vol+/- to navigate in the progressbar
-dword                   JumpRequestedTime = 0;                //Is set, when one of the options on top is active
-dword                   JumpPerformedTime = 0;                //Is set after a segment jump has been performed to reduce flicker
-dword                   LastMessageBoxKey;
-tUndoEvent             *UndoStack = NULL;
-int                     UndoLastItem;
-char                   *SuspectHDDs = NULL;
-int                     NrAllSuspectInodes = 0;
+static tState           State = ST_Init;
+static tOSDMode         OSDMode = MD_NoOSD;
+static bool             BookmarkMode;
+static bool             LinearTimeMode = FALSE;
+static bool             MCShowMessageBox = FALSE;
+static bool             OldRepeatMode = FALSE;
+static bool             ActionMenuEvenOdd;
+static TYPE_TrickMode   TrickMode;
+static byte             TrickModeSpeed;
+static int              MinuteJump;                           //Seconds or 0 if deactivated
+//static bool             NoPlaybackCheck = FALSE;              //Used to circumvent a race condition during the cutting process
+static int              NrSelectedSegments;
+static word             JumpRequestedSegment = 0xFFFF;        //Is set, when the user presses up/down to jump to another segment
+static dword            JumpRequestedBlock = (dword) -1;      //Is set, when user presses Vol+/- to navigate in the progressbar
+static dword            JumpRequestedTime = 0;                //Is set, when one of the options on top is active
+static dword            JumpPerformedTime = 0;                //Is set after a segment jump has been performed to reduce flicker
+static dword            LastMessageBoxKey;
+static tUndoEvent      *UndoStack = NULL;
+static int              UndoLastItem;
+static char            *SuspectHDDs = NULL;
+static int              NrAllSuspectInodes = 0;
 
 // Playback information
-TYPE_PlayInfo           PlayInfo;
-char                    PlaybackName[MAX_FILE_NAME_SIZE + 1];
-char                    AbsPlaybackDir[FBLIB_DIR_SIZE];
-__off64_t               RecFileSize = 0;
-dword                   LastTotalBlocks = 0;
-dword                   BlocksOneSecond;
-dword                   BlockNrLastSecond;
-dword                   BlockNrLast10Seconds;
+static TYPE_PlayInfo    PlayInfo;
+static char             PlaybackName[MAX_FILE_NAME_SIZE + 1];
+static char             AbsPlaybackDir[FBLIB_DIR_SIZE];
+static __off64_t        RecFileSize = 0;
+static dword            LastTotalBlocks = 0;
+static dword            BlocksOneSecond;
+static dword            BlockNrLastSecond;
+static dword            BlockNrLast10Seconds;
 
 // Video parameters
-tSegmentMarker         *SegmentMarker = NULL;       //[0]=Start of file, [x]=End of file
-dword                  *Bookmarks = NULL;
-int                     NrSegmentMarker;
-int                     ActiveSegment;
-int                     NrBookmarks;
-int                     NrTimeStamps = 0;
-tTimeStamp             *TimeStamps = NULL;
-tTimeStamp             *LastTimeStamp = NULL;
-bool                    HDVideo;
+static tSegmentMarker  *SegmentMarker = NULL;       //[0]=Start of file, [x]=End of file
+static dword           *Bookmarks = NULL;
+static int              NrSegmentMarker;
+static int              ActiveSegment;
+static int              NrBookmarks;
+static int              NrTimeStamps = 0;
+static tTimeStamp      *TimeStamps = NULL;
+static tTimeStamp      *LastTimeStamp = NULL;
+static bool             HDVideo;
 
 // OSD object variables
-word                    rgnSegmentList = 0;
-word                    rgnInfoBar = 0;
-word                    rgnInfoBarMini = 0;
-word                    rgnPlayState = 0;
-word                    rgnTextState = 0;
-word                    rgnActionMenu = 0;
-int                     ActionMenuItem;
-dword                   LastPlayStateChange = 0;
+static word             rgnSegmentList = 0;
+static word             rgnInfoBar = 0;
+static word             rgnInfoBarMini = 0;
+static word             rgnPlayState = 0;
+static word             rgnTextState = 0;
+static word             rgnActionMenu = 0;
+static int              ActionMenuItem;
+static dword            LastPlayStateChange = 0;
+static bool             jfs_fsck_present = FALSE;
 
 
 static inline dword currentVisibleBlock()
@@ -498,7 +505,7 @@ int TAP_Main(void)
   #endif
   TRACEENTER();
 
-  if(HDD_TAP_CheckCollision())
+  if(HDD_TAP_CheckCollisionByID(TAPID))
   {
     TAP_PrintNet("MovieCutter: Duplicate instance of the same TAP already started!\n");
     TRACEEXIT();
@@ -516,7 +523,10 @@ int TAP_Main(void)
   WriteLogMCf(PROGRAM_NAME, "Firmware: %s", GetApplVer());
   if (HDD_GetHddID(HDDModel, HDDSerial, HDDFirmware))
     WriteLogMCf(PROGRAM_NAME, "Hard disk: %s, FW %s, Serial: %s", HDDModel, HDDFirmware, HDDSerial);
-  if (!HDD_Exist2("jfs_fsck", FSCKPATH))
+  jfs_fsck_present = HDD_Exist2("jfs_fsck", FSCKPATH);
+  if(jfs_fsck_present)
+    system("chmod a+x " FSCKPATH "/jfs_fsck &");
+  else
     WriteLogMC(PROGRAM_NAME, "WARNING! '" FSCKPATH "/jfs_fsck' not found.");
 
   // Load Fonts
@@ -538,28 +548,31 @@ int TAP_Main(void)
   #endif
 
   // Load Language Strings
-  if (TAP_GetSystemVar(SYSVAR_OsdLan) != LAN_German)
-    if(!LangLoadStrings(LNGFILENAME, LS_NrStrings, LAN_English, PROGRAM_NAME))
-    {
-/*      char LogString[512];
-      TAP_SPrint(LogString, sizeof(LogString), "Language file '%s' not found!", LNGFILENAME);
-      WriteLogMCf(PROGRAM_NAME, "%s\r\n", LogString);
-      OSDMenuInfoBoxShow(PROGRAM_NAME " " VERSION, LogString, 500);
-      do
+  #ifdef MC_MULTILANG
+    if (TAP_GetSystemVar(SYSVAR_OsdLan) != LAN_German)
+      if(!LangLoadStrings(LNGFILENAME, LS_NrStrings, LAN_English, PROGRAM_NAME))
       {
-        OSDMenuEvent(NULL, NULL, NULL);
-      } while(OSDMenuInfoBoxIsVisible());
+/*        char LogString[512];
+        TAP_SPrint(LogString, sizeof(LogString), "Language file '%s' not found!", LNGFILENAME);
+        WriteLogMCf(PROGRAM_NAME, "%s\r\n", LogString);
+        OSDMenuInfoBoxShow(PROGRAM_NAME " " VERSION, LogString, 500);
+        do
+        {
+          OSDMenuEvent(NULL, NULL, NULL);
+        } while(OSDMenuInfoBoxIsVisible());
 
-      #ifdef MC_UNICODE
-        FMUC_FreeFontFile(&Calibri_10_FontData);
-        FMUC_FreeFontFile(&Calibri_12_FontData);
-        FMUC_FreeFontFile(&Calibri_14_FontData);
-        FMUC_FreeFontFile(&Courier_New_13_FontData);
-      #endif
+        #ifdef MC_UNICODE
+          FMUC_FreeFontFile(&Calibri_10_FontData);
+          FMUC_FreeFontFile(&Calibri_12_FontData);
+          FMUC_FreeFontFile(&Calibri_14_FontData);
+          FMUC_FreeFontFile(&Courier_New_13_FontData);
+          OSDMenuFreeStdFonts();
+        #endif
 
-      TRACEEXIT();
-      return 0;  */
-    }
+        TRACEEXIT();
+        return 0;  */
+      }
+  #endif
 
   // Check FirmwareTMS.dat and SystemType
   if((GetSystemType() != ST_TMSS) && (GetSystemType() != ST_TMSC) && (GetSystemType() != ST_TMST))
@@ -576,6 +589,7 @@ int TAP_Main(void)
       FMUC_FreeFontFile(&Calibri_12_FontData);
       FMUC_FreeFontFile(&Calibri_14_FontData);
       FMUC_FreeFontFile(&Courier_New_13_FontData);
+      OSDMenuFreeStdFonts();
     #endif
 
     TRACEEXIT();
@@ -596,7 +610,9 @@ int TAP_Main(void)
     TAP_MemFree(UndoStack);
     TAP_MemFree(Bookmarks);
     TAP_MemFree(SegmentMarker);
-    LangUnloadStrings();
+    #ifdef MC_MULTILANG
+      LangUnloadStrings();
+    #endif
     #ifdef MC_UNICODE
       FMUC_FreeFontFile(&Calibri_10_FontData);
       FMUC_FreeFontFile(&Calibri_12_FontData);
@@ -689,7 +705,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
   if((event == EVT_STOP) && (param1 != 2))
   {
-    State = ST_Exit;
+    State = (State==ST_ActiveOSD || State==ST_ActionMenu) ? ST_Exit : ST_ExitNoSave;
   }
 
   // Notfall-AUS
@@ -699,7 +715,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     if (OSDMenuMessageBoxIsVisible()) OSDMenuMessageBoxDestroy();
 
 //    TAP_EnterNormal();
-    State = ST_Exit;
+    State = (State==ST_ActiveOSD || State==ST_ActionMenu) ? ST_Exit : ST_ExitNoSave;
     param1 = 0;
   }
 
@@ -737,7 +753,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 //      /*if (InodeMonitoring)*/ SetSystemTimeToCurrent();
 
       // Fix list of defect inodes
-      if (HDD_Exist2("jfs_fsck", FSCKPATH)) system("chmod a+x " FSCKPATH "/jfs_fsck &");
       if(InodeMonitoring) HDD_FixInodeList(TAPFSROOT, TRUE);  // Problem: NUR für die interne HDD wird die Liste jemals zurückgesetzt!
 
       CleanupCut();
@@ -781,8 +796,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         WriteLogMC(PROGRAM_NAME, "========================================\r\n");
 
         //Identify the file name (.rec or .mpg)
-        strncpy(PlaybackName, PlayInfo.file->name, MAX_FILE_NAME_SIZE);
-        PlaybackName[MAX_FILE_NAME_SIZE] = '\0';
+        TAP_SPrint(PlaybackName, sizeof(PlaybackName), PlayInfo.file->name);
         PlaybackName[strlen(PlaybackName) - 4] = '\0';
 
         //Find out the absolute path to the rec file and check for max length
@@ -1120,7 +1134,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           LastOSDMode = OSDMode;
         JumpRequestedSegment = 0xFFFF;
         JumpRequestedBlock = (dword) -1;
-        CutSaveToBM();
+        CutSaveToBM(FALSE);
         CutFileSave();
         PlaybackRepeatSet(OldRepeatMode);
         State = ST_InactiveModePlaying;
@@ -1250,7 +1264,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             // bei anderen Fernbedienungen (ohne Up/Down) steuert ChUp/ChDown die Up/Down-Tase
             else if (RCUMode != RC_SRP2410 && RCUMode != RC_SRP2401 && RCUMode != RC_NoVolKeys)
             {
-              WriteLogMC("DEBUG", "ChUp/ChDown-Event empfangen, das nicht durch Up/Down gehandelt wurde!");
+//              WriteLogMC("DEBUG", "ChUp/ChDown-Event empfangen, das nicht durch Up/Down gehandelt wurde!");
               if (param1 == RKEY_ChUp)          Playback_SetJumpNavigate(TRUE, FALSE, TRUE);
               else if (param1 == RKEY_ChDown)   Playback_SetJumpNavigate(TRUE, FALSE, FALSE);
             }
@@ -1491,9 +1505,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
           case RKEY_Stop:
           {
-            CutSaveToBM();
-            TAP_Hdd_StopTs();
+            CutSaveToBM(FALSE);
+//            TAP_Hdd_StopTs();
 //            HDD_ChangeDir(PlaybackDir);
+            ReturnKey = TRUE;
             break;
           }
 
@@ -1648,7 +1663,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               }
 
               // PlayInfo prüfen
-              if (!(isPlaybackRunning() && PLAYINFOVALID()) && ActionMenuItem != MI_ExitMC && ActionMenuItem != MI_ScanDelete)   // PlayInfo wird nicht aktualisiert
+              if (!(isPlaybackRunning() && PLAYINFOVALID()) && (ActionMenuItem != MI_ExitMC) && (ActionMenuItem != MI_ScanDelete))   // PlayInfo wird nicht aktualisiert
                 break;
 
               ActionMenuRemove();
@@ -1747,11 +1762,14 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 #ifdef FULLDEBUG
   WriteLogMC(PROGRAM_NAME, "TAP_EventHandler(): State=ST_Exit --> Aufruf von CutFileSave()");
 #endif
-        if (isPlaybackRunning())
-          CutSaveToBM();
+        if (isPlaybackRunning() && (LastTotalBlocks == PlayInfo.totalBlock))
+          CutSaveToBM(TRUE);
         CutFileSave();
       }
+    }  // fortsetzen mit ST_ExitNoSave ...
 
+    case ST_ExitNoSave:
+    {
       // wenn nötig, beim Beenden HDDCheck und/oder Inode-Fix durchführen
       if (SuspectHDDs[0])
       {
@@ -1788,7 +1806,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       TAP_MemFree(UndoStack);
       TAP_MemFree(Bookmarks);
       TAP_MemFree(SegmentMarker);
-      LangUnloadStrings();
+      #ifdef MC_MULTILANG
+        LangUnloadStrings();
+      #endif
       #ifdef MC_UNICODE
         FMUC_FreeFontFile(&Calibri_10_FontData);
         FMUC_FreeFontFile(&Calibri_12_FontData);
@@ -1905,7 +1925,7 @@ dword TMSCommander_handler(dword param1)
 
     case TMSCMDR_Stop:
     {
-      State = ST_Exit;
+      State = (State==ST_ActiveOSD || State==ST_ActionMenu) ? ST_Exit : ST_ExitNoSave;
 
       TRACEEXIT();
       return TMSCMDR_OK;
@@ -2001,7 +2021,7 @@ void CleanupCut(void)
   TRACEENTER();
 
   HDD_TAP_PushDir();
-  HDD_ChangeDir("/DataFiles");
+  TAP_Hdd_ChangeDir("/DataFiles");
   
   // Lösche verweiste .cut-Dateien in /DataFiles (nicht in Unterverzeichnissen)
   NrFiles = TAP_Hdd_FindFirst(&FolderEntry, "cut");
@@ -2009,12 +2029,10 @@ void CleanupCut(void)
   {
     if(FolderEntry.attr == ATTR_NORMAL)
     {
-      strncpy(RecFileName, FolderEntry.name, sizeof(RecFileName));
-      RecFileName[MAX_FILE_NAME_SIZE] = '\0';
+      TAP_SPrint(RecFileName, sizeof(RecFileName), FolderEntry.name);
       RecFileName[strlen(RecFileName) - 4] = '\0';
       strcat(RecFileName, ".rec");
-      strncpy(MpgFileName, FolderEntry.name, sizeof(MpgFileName));
-      MpgFileName[MAX_FILE_NAME_SIZE] = '\0';
+      TAP_SPrint(MpgFileName, sizeof(MpgFileName), FolderEntry.name);
       MpgFileName[strlen(MpgFileName) - 4] = '\0';
       strcat(MpgFileName, ".mpg");
       if(!TAP_Hdd_Exist(RecFileName) && !TAP_Hdd_Exist(MpgFileName))
@@ -2029,10 +2047,8 @@ void CleanupCut(void)
   {
     if(FolderEntry.attr == ATTR_NORMAL)
     {
-      strncpy(RecFileName, FolderEntry.name, sizeof(RecFileName));
-      RecFileName[MAX_FILE_NAME_SIZE] = '\0';
-      strncpy(MpgFileName, FolderEntry.name, sizeof(MpgFileName));
-      MpgFileName[MAX_FILE_NAME_SIZE] = '\0';
+      TAP_SPrint(RecFileName, sizeof(RecFileName), FolderEntry.name);
+      TAP_SPrint(MpgFileName, sizeof(MpgFileName), FolderEntry.name);
       if (StringEndsWith(RecFileName, ".cut.bak"))
       {
         RecFileName[strlen(RecFileName) - 8] = '\0';
@@ -2056,36 +2072,35 @@ void CleanupCut(void)
 void LoadINI(void)
 {
   TRACEENTER();
-
   INILOCATION IniFileState;
 
   HDD_TAP_PushDir();
-  HDD_ChangeDir(LOGDIR);
+  TAP_Hdd_ChangeDir(LOGDIR);
   IniFileState = INIOpenFile(INIFILENAME, PROGRAM_NAME);
   if((IniFileState != INILOCATION_NotFound) && (IniFileState != INILOCATION_NewFile))
   {
-    AutoOSDPolicy     =            INIGetInt("AutoOSDPolicy",              0,   0,    1)   ==   1;
-    DefaultOSDMode    = (tOSDMode) INIGetInt("DefaultOSDMode",    MD_FullOSD,   0,    3);
-    DefaultMinuteJump =            INIGetInt("DefaultMinuteJump",          0,   0,   99);
-    ShowRebootMessage =            INIGetInt("ShowRebootMessage",          1,   0,    1)   !=   0;
-    MaxNavDiscrepancy =            INIGetInt("MaxNavDiscrepancy",       5000,   0,  86400000);       // = 24 Stunden
-    AskBeforeEdit     =            INIGetInt("AskBeforeEdit",              1,   0,    1)   !=   0;
-    CutFileMode       =            INIGetInt("CutFileMode",          CM_Both,   0,    2);
-    SaveCutBak        =            INIGetInt("SaveCutBak",                 1,   0,    1)   !=   0;
-    ForceSpecialEnd   =            INIGetInt("ForceSpecialEnd",            0,   0,    1)   ==   1;
-    DisableSpecialEnd =            INIGetInt("DisableSpecialEnd",          0,   0,    1)   ==   1;
-    DoiCheckTest      =            INIGetInt("DoiCheckTest",        IM_ROEnd,   0,    4);
-    CheckFSAfterCut   =            INIGetInt("CheckFSAfterCut",      FM_Auto,   0,    3);
-    InodeMonitoring   =            INIGetInt("InodeMonitoring",            0,   0,    1)   ==   1;
+    AutoOSDPolicy     =                INIGetInt("AutoOSDPolicy",              0,   0,    1)   ==   1;
+    DefaultOSDMode    =     (tOSDMode) INIGetInt("DefaultOSDMode",    MD_FullOSD,   0,    3);
+    DefaultMinuteJump =                INIGetInt("DefaultMinuteJump",          0,   0,   99);
+    ShowRebootMessage =                INIGetInt("ShowRebootMessage",          1,   0,    1)   !=   0;
+    MaxNavDiscrepancy =                INIGetInt("MaxNavDiscrepancy",       5000,   0,  86400000);       // = 24 Stunden
+    AskBeforeEdit     =                INIGetInt("AskBeforeEdit",              1,   0,    1)   !=   0;
+    CutFileMode       = (tCutSaveMode) INIGetInt("CutFileMode",          CM_Both,   0,    2);
+    SaveCutBak        =                INIGetInt("SaveCutBak",                 1,   0,    1)   !=   0;
+    ForceSpecialEnd   =                INIGetInt("ForceSpecialEnd",            0,   0,    1)   ==   1;
+    DisableSpecialEnd =                INIGetInt("DisableSpecialEnd",          0,   0,    1)   ==   1;
+    DoiCheckTest      =  (tiCheckMode) INIGetInt("DoiCheckTest",        IM_ROEnd,   0,    4);
+    CheckFSAfterCut   = (tCheckFSMode) INIGetInt("CheckFSAfterCut",      FM_Auto,   0,    3);
+    InodeMonitoring   =                INIGetInt("InodeMonitoring",            0,   0,    1)   ==   1;
 
-    Overscan_X        =            INIGetInt("Overscan_X",                50,   0,  100);
-    Overscan_Y        =            INIGetInt("Overscan_Y",                25,   0,  100);
-    SegmentList_X     =            INIGetInt("SegmentList_X",             50,   0,  ScreenWidth - _SegmentList_Background_Gd.width);
-    SegmentList_Y     =            INIGetInt("SegmentList_Y",             82,   0,  ScreenHeight - _SegmentList_Background_Gd.height);
+    Overscan_X        =                INIGetInt("Overscan_X",                50,   0,  100);
+    Overscan_Y        =                INIGetInt("Overscan_Y",                25,   0,  100);
+    SegmentList_X     =                INIGetInt("SegmentList_X",             50,   0,  ScreenWidth - _SegmentList_Background_Gd.width);
+    SegmentList_Y     =                INIGetInt("SegmentList_Y",             82,   0,  ScreenHeight - _SegmentList_Background_Gd.height);
 
-    RCUMode           =            INIGetInt("RCUMode",           RC_SRP2401,   0,    4);
-    DirectSegmentsCut =            INIGetInt("DirectSegmentsCut",          0,   0,    1)   ==   1;
-    DisableSleepKey   =            INIGetInt("DisableSleepKey",            0,   0,    1)   ==   1;
+    RCUMode           =     (tRCUMode) INIGetInt("RCUMode",              RC_auto,   0,    5);
+    DirectSegmentsCut =                INIGetInt("DirectSegmentsCut",          0,   0,    1)   ==   1;
+    DisableSleepKey   =                INIGetInt("DisableSleepKey",            0,   0,    1)   ==   1;
   }
   INICloseFile();
   if (!AutoOSDPolicy && DefaultOSDMode == MD_NoOSD)
@@ -2094,6 +2109,29 @@ void LoadINI(void)
 
   if(IniFileState == INILOCATION_NewFile)
     SaveINI();
+
+  if (RCUMode == RC_auto)
+  {
+    switch(GetSysID())
+    {
+      case 22010:    // TMS-2100
+      case 22121:    // SRP-2410
+      case 22122:    // SRP-2410M
+      case 22570:    // SRP-2401CI+ Eco
+      case 42561:    // CRP-2401CI+ Conax
+        RCUMode = RC_SRP2410;
+        break;
+      case 22120:    // SRP-2401CI+
+      case 22130:    // SRP-2401CI+
+        RCUMode = RC_SRP2401;
+        break;
+      case 42031:    // CRP-2401CI+
+        RCUMode = RC_CRP;
+        break;
+      default:
+        RCUMode = RC_SRP2401;
+    }
+  }
   HDD_TAP_PopDir();
 
   TRACEEXIT();
@@ -2102,34 +2140,33 @@ void LoadINI(void)
 void SaveINI(void)
 {
   TRACEENTER();
+  FILE *f = NULL;
 
-  HDD_TAP_PushDir();
-  HDD_ChangeDir(LOGDIR);
-  INIOpenFile(INIFILENAME, PROGRAM_NAME);
-  INISetInt ("AutoOSDPolicy",       AutoOSDPolicy       ?  1  :  0);
-  INISetInt ("DefaultOSDMode",      DefaultOSDMode);
-  INISetInt ("DefaultMinuteJump",   DefaultMinuteJump);
-  INISetInt ("ShowRebootMessage",   ShowRebootMessage   ?  1  :  0);
-  INISetInt ("MaxNavDiscrepancy",   MaxNavDiscrepancy);
-  INISetInt ("AskBeforeEdit",       AskBeforeEdit       ?  1  :  0);
-  INISetInt ("CutFileMode",         CutFileMode);
-  INISetInt ("SaveCutBak",          SaveCutBak          ?  1  :  0);
-  INISetInt ("ForceSpecialEnd",     ForceSpecialEnd     ?  1  :  0);
-  INISetInt ("DisableSpecialEnd",   DisableSpecialEnd   ?  1  :  0);
-  INISetInt ("DoiCheckTest",        DoiCheckTest);
-  INISetInt ("CheckFSAfterCut",     CheckFSAfterCut);
-  INISetInt ("InodeMonitoring",     InodeMonitoring     ?  1  :  0);
-  INISetInt ("Overscan_X",          Overscan_X);
-  INISetInt ("Overscan_Y",          Overscan_Y);
-  INISetInt ("SegmentList_X",       SegmentList_X);
-  INISetInt ("SegmentList_Y",       SegmentList_Y);
-  INISetInt ("RCUMode",             RCUMode);
-  INISetInt ("DirectSegmentsCut",   DirectSegmentsCut   ?  1  :  0);
-  INISetInt ("DisableSleepKey",     DisableSleepKey     ?  1  :  0);
-  INISaveFile(INIFILENAME, INILOCATION_AtCurrentDir, NULL);
-  INICloseFile();
-  HDD_TAP_PopDir();
-
+  if ((f = fopen(TAPFSROOT LOGDIR "/" INIFILENAME, "wb")) != NULL)
+  {
+//    fprintf(f, "[MovieCutter]\r\n");
+    fprintf(f, "%s=%d\r\n",  "AutoOSDPolicy",       AutoOSDPolicy       ?  1  :  0);
+    fprintf(f, "%s=%d\r\n",  "DefaultOSDMode",      DefaultOSDMode);
+    fprintf(f, "%s=%d\r\n",  "DefaultMinuteJump",   DefaultMinuteJump);
+    fprintf(f, "%s=%d\r\n",  "ShowRebootMessage",   ShowRebootMessage   ?  1  :  0);
+    fprintf(f, "%s=%lu\r\n", "MaxNavDiscrepancy",   MaxNavDiscrepancy);
+    fprintf(f, "%s=%d\r\n",  "AskBeforeEdit",       AskBeforeEdit       ?  1  :  0);
+    fprintf(f, "%s=%d\r\n",  "CutFileMode",         CutFileMode);
+    fprintf(f, "%s=%d\r\n",  "SaveCutBak",          SaveCutBak          ?  1  :  0);
+    fprintf(f, "%s=%d\r\n",  "ForceSpecialEnd",     ForceSpecialEnd     ?  1  :  0);
+    fprintf(f, "%s=%d\r\n",  "DisableSpecialEnd",   DisableSpecialEnd   ?  1  :  0);
+    fprintf(f, "%s=%d\r\n",  "DoiCheckTest",        DoiCheckTest);
+    fprintf(f, "%s=%d\r\n",  "CheckFSAfterCut",     CheckFSAfterCut);
+    fprintf(f, "%s=%d\r\n",  "InodeMonitoring",     InodeMonitoring     ?  1  :  0);
+    fprintf(f, "%s=%lu\r\n", "Overscan_X",          Overscan_X);
+    fprintf(f, "%s=%lu\r\n", "Overscan_Y",          Overscan_Y);
+    fprintf(f, "%s=%lu\r\n", "SegmentList_X",       SegmentList_X);
+    fprintf(f, "%s=%lu\r\n", "SegmentList_Y",       SegmentList_Y);
+    fprintf(f, "%s=%d\r\n",  "RCUMode",             RCUMode);
+    fprintf(f, "%s=%d\r\n",  "DirectSegmentsCut",   DirectSegmentsCut   ?  1  :  0);
+    fprintf(f, "%s=%d\r\n",  "DisableSleepKey",     DisableSleepKey     ?  1  :  0);
+    fclose(f);
+  }
   TRACEEXIT();
 }
 
@@ -2448,9 +2485,9 @@ void ExportSegmentsToBookmarks(void)
     NrBookmarks = 0;
 
     // second, add a bookmark for each SegmentMarker
-    WriteLogMCf(PROGRAM_NAME, "Exporting %d of %d segment markers", min(NrSegmentMarker-2, 70), NrSegmentMarker-2);
+    WriteLogMCf(PROGRAM_NAME, "Exporting %d of %d segment markers", min(NrSegmentMarker-2, 48), NrSegmentMarker-2);
 
-    for(i = 1; i <= min(NrSegmentMarker-2, 70); i++)
+    for(i = 1; i <= min(NrSegmentMarker-2, 48); i++)
     { 
       Bookmarks[NrBookmarks] = SegmentMarker[i].Block;
       NrBookmarks++;
@@ -2482,7 +2519,7 @@ int AddBookmark(dword newBlock, bool RejectSmallScenes)
     return -1;
   }
 
-  if(NrBookmarks >= 70)
+  if(NrBookmarks >= 48)
   {
     WriteLogMC(PROGRAM_NAME, "AddBookmark: Bookmark list is full!");
     TRACEEXIT();
@@ -2827,7 +2864,7 @@ bool CutFileDecode(byte CutBuffer[], dword BufSize, bool *OutRecalcTimeStamps)
     Version = CutHeader->Version;
     SavedSize = CutHeader->RecFileSize;
     NrSegmentMarker = CutHeader->NrSegmentMarker;
-    ActiveSegment = CutHeader->ActiveSegment;
+//    ActiveSegment = CutHeader->ActiveSegment;
     StartSegments = sizeof(tCutHeader1);
   }
   else
@@ -2836,13 +2873,13 @@ bool CutFileDecode(byte CutBuffer[], dword BufSize, bool *OutRecalcTimeStamps)
     Version = CutHeader->Version;
     if (Version > CUTFILEVERSION)
     {
-      WriteLogMC(PROGRAM_NAME, "CutFileLoad: .cut version mismatch!");
+      WriteLogMC(PROGRAM_NAME, "CutFileDecode: .cut version mismatch!");
       TRACEEXIT();
       return FALSE;
     }
     SavedSize = CutHeader->RecFileSize;
     NrSegmentMarker = CutHeader->NrSegmentMarker;
-    ActiveSegment = CutHeader->ActiveSegment;
+//    ActiveSegment = CutHeader->ActiveSegment;
     StartSegments = sizeof(tCutHeader2);
   }
   if (NrSegmentMarker > NRSEGMENTMARKER) NrSegmentMarker = NRSEGMENTMARKER;
@@ -2991,7 +3028,6 @@ bool CutFileLoad(void)
 {
   FILE                 *fCut = NULL;
   char                  AbsCutName[FBLIB_DIR_SIZE];
-  char                 *CutName = NULL;
   byte                 *CutBlock = NULL;
   dword                 CutBlockSize = 0;
   bool                  RecalcTimeStamps = FALSE;  // 0: nicht, 1: alte Version, 2: load from inf
@@ -3000,14 +3036,12 @@ bool CutFileLoad(void)
 
   TRACEENTER();
 
-  // Create name of cut-file
-  TAP_SPrint(AbsCutName, sizeof(AbsCutName), "%s/%s", AbsPlaybackDir, PlaybackName);
-  TAP_SPrint(&AbsCutName[strlen(AbsCutName) - 4], 5, ".cut");
-  CutName = &AbsCutName[strlen(AbsPlaybackDir) + 1];
-
   // Schaue zuerst im Cut-File nach
-  if (CutFileMode != CM_InfOnly)
+//  if (CutFileMode != CM_InfOnly)
   {
+    TAP_SPrint(AbsCutName, sizeof(AbsCutName), "%s/%s", AbsPlaybackDir, PlaybackName);
+    TAP_SPrint(&AbsCutName[strlen(AbsCutName) - 4], 5, ".cut");
+
     fCut = fopen(AbsCutName, "rb");
     if(fCut)
     {
@@ -3051,6 +3085,17 @@ bool CutFileLoad(void)
   {
     // erstes Segment auf 0 setzen?
     
+    // Wenn letzter Segment-Marker ungleich TotalBlock ist -> anpassen
+    if (SegmentMarker[NrSegmentMarker - 1].Block != PlayInfo.totalBlock)
+    {
+      #ifdef FULLDEBUG
+        WriteLogMCf(PROGRAM_NAME, "CutFileLoad: Letzter Segment-Marker %lu ist ungleich TotalBlock %lu!", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
+      #endif
+      SegmentMarker[NrSegmentMarker - 1].Block = PlayInfo.totalBlock;
+      dword newTime = NavGetBlockTimeStamp(SegmentMarker[NrSegmentMarker - 1].Block);
+      SegmentMarker[NrSegmentMarker - 1].Timems = (newTime) ? newTime : (dword)(1000 * (60*PlayInfo.duration + PlayInfo.durationSec));
+    }
+
     // Prozent-Angaben neu berechnen (müssen künftig nicht mehr in der .cut gespeichert werden)
     for (i = NrSegmentMarker-1; i >= 0; i--)
     {
@@ -3067,28 +3112,16 @@ bool CutFileLoad(void)
     if (NrSegmentMarker <= 2)
     {
       NrSegmentMarker = 0;
-      ActiveSegment = 0;
+//      ActiveSegment = 0;
       WriteLogMC(PROGRAM_NAME, "CutFileLoad: Two or less timestamps imported, resetting!"); 
       TRACEEXIT();
       return FALSE;
     }
 
-    // Wenn letzter Segment-Marker ungleich TotalBlock ist -> anpassen
-    if (SegmentMarker[NrSegmentMarker - 1].Block != PlayInfo.totalBlock)
-    {
-      #ifdef FULLDEBUG
-        WriteLogMCf(PROGRAM_NAME, "CutFileLoad: Letzter Segment-Marker %lu ist ungleich TotalBlock %lu!", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
-      #endif
-      SegmentMarker[NrSegmentMarker - 1].Block = PlayInfo.totalBlock;
-      dword newTime = NavGetBlockTimeStamp(SegmentMarker[NrSegmentMarker - 1].Block);
-      SegmentMarker[NrSegmentMarker - 1].Timems = (newTime) ? newTime : (dword)(1000 * (60*PlayInfo.duration + PlayInfo.durationSec));
-      SegmentMarker[NrSegmentMarker - 1].Percent = 100;
-    }
-
     // Markierungen und ActiveSegment prüfen, ggf. korrigieren
     SegmentMarker[NrSegmentMarker - 1].Selected = FALSE;         // the very last marker (no segment)
     if(NrSegmentMarker <= 2) SegmentMarker[0].Selected = FALSE;  // there is only one segment (from start to end)
-    if(ActiveSegment >= NrSegmentMarker - 1) ActiveSegment = NrSegmentMarker - 2;
+//    if(ActiveSegment >= NrSegmentMarker - 1) ActiveSegment = NrSegmentMarker - 2;
   }
   TRACEEXIT();
   return ret;
@@ -3128,13 +3161,141 @@ bool CutFileEncode(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const ch
 
       memcpy(&Buffer[sizeof(tCutHeader2)], SegmentMarker, NrSegmentMarker * sizeof(tSegmentMarker));
       ret = TRUE;
+      *OutCutBuffer = Buffer;
     }
     else
       WriteLogMC(PROGRAM_NAME, "CutFileEncode: Could not detect size of recording!"); 
   }
   else
     WriteLogMC(PROGRAM_NAME, "CutFileEncode: Could not allocate buffer!"); 
-  *OutCutBuffer = Buffer;
+
+
+  FILE*                 fCut = NULL;
+  char                  AbsCutName[FBLIB_DIR_SIZE], TimeStamp[16];
+  int                   i;
+  
+  TAP_SPrint(AbsCutName, sizeof(AbsCutName), "%s/%s.txt", AbsPlaybackDir, RecFileName);
+  fCut = fopen(AbsCutName, "wb");
+  if (fCut)
+  {
+    fprintf(fCut, "[MCCut3]\r\n");
+    fprintf(fCut, "RecFileSize=%llu\r\n", RecFileSize);
+    fprintf(fCut, "NrSegmentMarker=%d\r\n", NrSegmentMarker);
+    fprintf(fCut, "ActiveSegment=%d\r\n\r\n", ActiveSegment);  // sicher!?
+    fprintf(fCut, "[Segments]\r\n");
+    fprintf(fCut, "#Nr. ; Sel ; StartBlock ; StartTime ; Percent\r\n");
+    for (i = 0; i < NrSegmentMarker; i++)
+    {
+      MSecToTimeString(SegmentMarker[i].Timems, TimeStamp);
+      fprintf(fCut, "%3d; %c; %10lu;%-16s; %3.1f%%\r\n", i, (SegmentMarker[i].Selected ? '*' : ' '), SegmentMarker[i].Block, TimeStamp, SegmentMarker[i].Percent);
+    }
+    fclose(fCut);
+  }
+
+/*  size_t                BufSize = 0;
+  char                 *Buffer2 = NULL;
+  __off64_t             SavedSize = 0;
+  bool                  SegmentsStart = FALSE;
+  int                   NrReadSegments = 0;
+//  char                  TimeStamp[16];
+  char                 *c, Selected;
+  int                   p;
+
+  NrSegmentMarker = 0;
+  ActiveSegment = 0;
+  memset(SegmentMarker, 0, NRSEGMENTMARKER * sizeof(tSegmentMarker));
+
+  TAP_SPrint(AbsCutName, sizeof(AbsCutName), "%s/%s.txt", AbsPlaybackDir, RecFileName);
+  fCut = fopen(AbsCutName, "rb");
+  if (fCut)
+  {
+    // Check the first line
+    ret = FALSE;
+    if (getline(&Buffer2, &BufSize, fCut) >= 0)
+      if ((strcmp(Buffer2, "[MCCut3]") == 0) || (strcmp(Buffer2, "ï»¿[MCCut3]") == 0))
+        ret = TRUE;
+    if (!ret)
+      WriteLogMC(PROGRAM_NAME, "CutFileDecode(): Invalid file format (head line)!");
+
+    while (ret && (getline(&Buffer2, &BufSize, fCut) >= 0))
+    {
+      //Interpret the following characters as remarks: //
+      c = strstr(Buffer2, "//");
+      if(c) *c = '\0';
+
+      // Remove line breaks in the end
+      p = strlen(Buffer2);
+      while (p && (Buffer2[p-1] == '\r' || Buffer2[p-1] == '\n' || Buffer2[p-1] == ';'))
+        Buffer2[--p] = '\0';
+
+      // Kommentare und Sektionen
+      switch (Buffer[0])
+      {
+        case '\0':
+          continue;
+
+        case '%':
+        case ';':
+        case '#':
+        case '/':
+          continue;
+
+        // Neue Sektion gefunden
+        case '[':
+        {
+          if (strcmp(Buffer2, "[Segments]") == 0)
+          {
+            // Header überprüfen
+            if (SavedSize != RecFileSize)
+              SegmentsStart = TRUE;
+            else
+            {
+              WriteLogMC(PROGRAM_NAME, "CutFileDecode(): Invalid file size of rec file!");
+              ret = FALSE;
+            }
+          }
+          continue;
+        }
+      }
+
+      // Header einlesen
+      if (!SegmentsStart)
+      {
+        char            Name[50];
+        unsigned long   Value;
+
+        if (sscanf(Buffer2, "%49[^= ] = %lu", Name, &Value) == 2)
+        {
+          if (strcmp(Name, "RecFileSize") == 0)
+            SavedSize = Value;
+          else if (strcmp(Name, "NrSegmentMarker") == 0)
+            NrSegmentMarker = Value;
+//          else if (strcmp(Name, "ActiveSegment") == 0)
+//            ActiveSegment = Value;
+        }
+      }
+
+      // Segmente einlesen
+      else
+      {
+        //[Segments]
+        //#Nr. ; Sel ; StartBlock ; StartTime ; Percent
+        if (sscanf(Buffer2, "%*i ; %c ; %lu ; %16[^;\r\n] ; %f%%", &Selected, &SegmentMarker[NrReadSegments].Block, TimeStamp, &SegmentMarker[NrReadSegments].Percent) == 4)
+        {
+          SegmentMarker[NrReadSegments].Selected = (Selected == '*');
+          SegmentMarker[NrReadSegments].Timems = (TimeStringToMSec(TimeStamp));
+          NrReadSegments++;
+        }
+      }
+    }
+    fclose(fCut);
+
+    if (NrReadSegments != NrSegmentMarker)
+    {
+      WriteLogMCf(PROGRAM_NAME, "CutFileDecode(): Invalid number of segments read (%d of %d)!", NrReadSegments, NrSegmentMarker);
+      NrSegmentMarker = NrReadSegments;
+    }
+  } */
 
   TRACEEXIT();
   return ret;
@@ -3242,18 +3403,24 @@ bool CutEncodeToBM(tSegmentMarker SegmentMarker[], int NrSegmentMarker, dword Bo
   return ret;
 }
 
-bool CutSaveToBM(void)
+bool CutSaveToBM(bool ReadBMBefore)
 {
   TRACEENTER();
-  if (CutEncodeToBM(SegmentMarker, NrSegmentMarker, Bookmarks, NrBookmarks))
+  if (CutFileMode != CM_CutOnly)
   {
-    if (SaveBookmarks(Bookmarks, NrBookmarks, TRUE))
+    if (ReadBMBefore && !ReadBookmarks(Bookmarks, &NrBookmarks))
+      WriteLogMC(PROGRAM_NAME, "CutSaveToBM: ReadBookmarks() failed!");
+
+    if (CutEncodeToBM(SegmentMarker, NrSegmentMarker, Bookmarks, NrBookmarks))
     {
-      TRACEEXIT();
-      return TRUE;
+      if (SaveBookmarks(Bookmarks, NrBookmarks, TRUE))
+      {
+        TRACEEXIT();
+        return TRUE;
+      }
+      else
+        WriteLogMC(PROGRAM_NAME, "CutSaveToBM: SaveBookmarks() failed!");
     }
-    else
-      WriteLogMC(PROGRAM_NAME, "CutSaveToBM: SaveBookmarks() failed!");
   }
   TRACEEXIT();
   return FALSE;
@@ -3339,8 +3506,7 @@ void CutFileDelete(void)
   TRACEENTER();
 
 //  HDD_ChangeDir(PlaybackDir);
-  strncpy(CutName, PlaybackName, sizeof(CutName));
-  CutName[MAX_FILE_NAME_SIZE] = '\0';
+  TAP_SPrint(CutName, sizeof(CutName), PlaybackName);
   CutName[strlen(CutName) - 4] = '\0';
   strcat(CutName, ".cut");
   HDD_Delete2(CutName, AbsPlaybackDir, FALSE);
@@ -3935,12 +4101,11 @@ void OSDInfoDrawRecName(void)
 //    TAP_Osd_FillBox(rgnInfoBar, FrameLeft, FrameTop, FrameWidth, FrameHeight, COLOR_Blue);
 
     // Dateiname in neuen String kopieren und .rec entfernen
-    strncpy(TitleStr, PlaybackName, sizeof(TitleStr));
+    TAP_SPrint(TitleStr, sizeof(TitleStr), PlaybackName);
     #ifndef MC_UNICODE
       if(isUTFToppy()) StrToISO(PlaybackName, TitleStr);
+      TitleStr[MAX_FILE_NAME_SIZE] = '\0';
     #endif
-    TitleStr[MAX_FILE_NAME_SIZE] = '\0';
-//    NameStr[strlen(NameStr) - 4] = '\0';
 
     // Passende Schriftgröße ermitteln
     UseTitleFont = &Calibri_14_FontData;
@@ -4146,16 +4311,6 @@ void OSDInfoDrawCurrentPlayTime(bool Force)
   else
     if (Force || (TrickMode != TRICKMODE_Normal && TrickMode != TRICKMODE_Slow) || (PlayInfo.currentBlock > VisibleBlock) || (PlayInfo.currentBlock + 100 < VisibleBlock) || JumpPerformedTime)
       VisibleBlock = PlayInfo.currentBlock;
-else
-{
-  static double avg=0;
-  static double max=0;
-  static int anz=0;
-  if (VisibleBlock-PlayInfo.currentBlock > max) max = VisibleBlock-PlayInfo.currentBlock;
-  avg = (anz*avg + VisibleBlock-PlayInfo.currentBlock) / (anz+1);
-  anz++;
-//  TAP_PrintNet("Rück: VisBlock=%5lu, curBlock=%5lu, Diff=%5ld, avg=%f, max=%f\n", VisibleBlock, PlayInfo.currentBlock, VisibleBlock-PlayInfo.currentBlock, avg, max);
-}
 
   // Nur neu zeichnen, wenn sich die Sekunden-Zahl geändert hat
   Time = NavGetBlockTimeStamp(VisibleBlock) / 1000;
@@ -4381,6 +4536,7 @@ void ActionMenuDraw(void)
   {
     rgnActionMenu = TAP_Osd_Create(((ScreenWidth - _ActionMenu10_Gd.width) / 2) +25, 70, _ActionMenu10_Gd.width, _ActionMenu10_Gd.height, 0, 0);
 //    ActionMenuItem = 0;
+    jfs_fsck_present = HDD_Exist2("jfs_fsck", FSCKPATH);
   }
   TAP_Osd_PutGd(rgnActionMenu, 0, 0, &_ActionMenu10_Gd, FALSE);
 
@@ -4413,14 +4569,14 @@ void ActionMenuDraw(void)
       case MI_SelectFunction:
       {
         DisplayStr = LangGetString(LS_SelectFunction);
-        #ifndef MC_UNICODE
+/*        #ifndef MC_UNICODE
           char *p = DisplayStr;
           while (p && *p)
           {
             if (p[0] == 'â' || p[0] == '€' || p[0] == '•')  p[0] = '-';
             p++;
           }
-        #endif
+        #endif  */
         break;
       }
       case MI_SaveSegments:
@@ -4462,7 +4618,7 @@ void ActionMenuDraw(void)
         if (NrSegmentMarker == 4)
           DisplayStr = (ActionMenuEvenOdd == 1) ? LangGetString(LS_SelectPadding) : LangGetString(LS_SelectMiddle);
         else
-          DisplayStr = LangGetString(LS_SelectEvOddSegments);
+          DisplayStr = (ActionMenuEvenOdd == 1) ? LangGetString(LS_SelectOddSegments) : LangGetString(LS_SelectEvenSegments);
         if (DirectSegmentsCut)
           DisplayStr = (NrSegmentMarker == 4) ? LangGetString(LS_RemovePadding) : LangGetString(LS_DeleteOddSegments);
         if (NrSegmentMarker <= 2) DisplayColor = Color_Inactive;
@@ -4480,8 +4636,10 @@ void ActionMenuDraw(void)
           if (NrSelectedSegments > 0)
             DisplayStr = LangGetString(LS_UnselectAll);
           else
+          {
             DisplayStr = LangGetString(LS_ClearSegmentList);
-          if (NrSegmentMarker <= 2) DisplayColor = Color_Inactive;
+            if (NrSegmentMarker <= 2) DisplayColor = Color_Inactive;
+          }
         }
         break;
       }
@@ -4490,7 +4648,7 @@ void ActionMenuDraw(void)
         if (!BookmarkMode)
         {
           DisplayStr = LangGetString(LS_FileSystemCheck);
-          DisplayColor = RGB(80, 240, 80);
+          DisplayColor = (jfs_fsck_present) ? RGB(80, 240, 80) : Color_Inactive;
         }
         else
         {
@@ -4530,7 +4688,7 @@ void ActionMenuDraw(void)
 
 bool ActionMenuItemInactive(int MenuItem)
 {
-  return (((MenuItem==MI_SaveSegments||MenuItem==MI_DeleteSegments||MenuItem==MI_SelectEvOddSegments) && NrSegmentMarker<=2) || (MenuItem==MI_SplitMovie && PlayInfo.currentBlock==0) || (MenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && NrSegmentMarker>2))) || (MenuItem==MI_ImportBookmarks && NrBookmarks<=0) || (MenuItem==MI_ExportSegments && NrSegmentMarker<=2));
+  return (((MenuItem==MI_SaveSegments||MenuItem==MI_DeleteSegments||MenuItem==MI_SelectEvOddSegments) && NrSegmentMarker<=2) || (MenuItem==MI_SplitMovie && PlayInfo.currentBlock==0) || (MenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && (NrSegmentMarker>2 || NrSelectedSegments>0)))) || (MenuItem==MI_ImportBookmarks && NrBookmarks<=0) || (MenuItem==MI_ExportSegments && NrSegmentMarker<=2) || (MenuItem==MI_ScanDelete && !BookmarkMode && !jfs_fsck_present));
 }
 
 void ActionMenuDown(void)
@@ -5269,7 +5427,7 @@ void MovieCutterProcess(bool KeepCut, bool SplitMovie)  // Splittet am linken Se
   char                  TempFileName[MAX_FILE_NAME_SIZE + 1];
   char                  MessageString[512];
   tTimeStamp            CutStartPoint, BehindCutPoint;
-  dword                 DeltaBlock; //, DeltaTime;
+  dword                 DeltaBlock, DeltaTime;
   dword                 CurPlayPosition;
   char                  CommandLine[512], InodeNrs[768];
   __ino64_t             InodeNr = 0;
@@ -5280,16 +5438,16 @@ void MovieCutterProcess(bool KeepCut, bool SplitMovie)  // Splittet am linken Se
   TRACEENTER();
 
 //  NoPlaybackCheck = TRUE;
-#ifdef FULLDEBUG
-  char CurDir[FBLIB_DIR_SIZE];
-  HDD_TAP_GetCurrentDir(CurDir);
-  WriteLogMCf(PROGRAM_NAME, "MovieCutterProcess(KeepCut=%d, SplitMovie=%d): CurrentDir='%s'", KeepCut, SplitMovie, CurDir);
-#endif
+  #ifdef FULLDEBUG
+    char CurDir[FBLIB_DIR_SIZE];
+    HDD_TAP_GetCurrentDir(CurDir);
+    WriteLogMCf(PROGRAM_NAME, "MovieCutterProcess(KeepCut=%d, SplitMovie=%d): CurrentDir='%s'", KeepCut, SplitMovie, CurDir);
+  #endif
 //  HDD_ChangeDir(PlaybackDir);
 
   UndoResetStack();
   CutDumpList();
-  CutSaveToBM();
+  CutSaveToBM(FALSE);
   CutFileSave();
 
   // Lege ein Backup der .cut-Datei an
@@ -5378,8 +5536,8 @@ if (HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, &InodeNr, NULL))
         {
           //letztes Segment soll geschnitten werden -> speichere stattdessen den vorderen Teil der Aufnahme und tausche mit dem Original
           CutEnding = TRUE;
-          CutStartPoint.BlockNr  = SegmentMarker[0].Block;
-          CutStartPoint.Timems   = SegmentMarker[0].Timems;
+          CutStartPoint.BlockNr  = 0;
+          CutStartPoint.Timems   = 0;
           BehindCutPoint.BlockNr = SegmentMarker[WorkingSegment].Block;
           BehindCutPoint.Timems  = SegmentMarker[WorkingSegment].Timems;
           WriteLogMC(PROGRAM_NAME, "(* special mode for cut ending *)");
@@ -5394,7 +5552,7 @@ if (HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, &InodeNr, NULL))
       GetNextFreeCutName(PlaybackName, CutFileName, AbsPlaybackDir, NrSelectedSegments - 1);
       if (CutEnding)
       {
-        strncpy(TempFileName, PlaybackName, sizeof(TempFileName));
+        TAP_SPrint(TempFileName, sizeof(TempFileName), PlaybackName);
         TAP_SPrint(&TempFileName[strlen(PlaybackName) - 4], 10, "_temp%s", &PlaybackName[strlen(PlaybackName) - 4]);
         HDD_Delete2(TempFileName, AbsPlaybackDir, TRUE);
       }
@@ -5507,6 +5665,9 @@ if (KeepCut || CutEnding)
         break;
       }
 
+WriteLogMC("DEBUG", "Cut-List VOR Anpassung:");
+CutDumpList();
+
       // Anpassung der verbleibenden Segmente
       SegmentMarker[WorkingSegment].Selected = FALSE;
       if (WorkingSegment > 0)
@@ -5522,30 +5683,42 @@ if (KeepCut || CutEnding)
 //        DeltaBlock = BehindCutPoint.BlockNr - CutStartPoint.BlockNr;
 //        DeltaTime = BehindCutPoint.Timems - CutStartPoint.Timems;
 //      }
+      if (CutEnding)
+        CutStartPoint = BehindCutPoint;
       DeltaBlock = BehindCutPoint.BlockNr - CutStartPoint.BlockNr;
+      DeltaTime = BehindCutPoint.Timems - CutStartPoint.Timems;
 
       if (SplitMovie)
       {
         // nachfolgende Segmente in neues CutFile verschieben
-        tSegmentMarker *CutSegmentMarker = (tSegmentMarker*) TAP_MemAlloc(NRSEGMENTMARKER * sizeof(tSegmentMarker));
-        CutSegmentMarker[0].Block = 0;  CutSegmentMarker[0].Timems = 0;  CutSegmentMarker[0].Percent = 0;
-        CutSegmentMarker[0].Selected = SegmentMarker[WorkingSegment - 1].Selected;
         int CutNrSegmentMarker = 1;
+        tSegmentMarker *CutSegmentMarker = (tSegmentMarker*) TAP_MemAlloc(NRSEGMENTMARKER * sizeof(tSegmentMarker));
+        if (CutSegmentMarker)
+        {
+          CutSegmentMarker[0].Block = 0;  CutSegmentMarker[0].Timems = 0;  CutSegmentMarker[0].Percent = 0;
+          CutSegmentMarker[0].Selected = SegmentMarker[WorkingSegment - 1].Selected;
+        }
 
         for (j = 1; j < NrSegmentMarker; j++)
         {
-          if (SegmentMarker[j].Block + 11 >= BehindCutPoint.BlockNr)
+          if (SegmentMarker[j].Block + 11 >= CutStartPoint.BlockNr)
           {
             if (CutSegmentMarker)
             {
-              CutSegmentMarker[CutNrSegmentMarker].Block    = SegmentMarker[j].Block - BehindCutPoint.BlockNr;
-              CutSegmentMarker[CutNrSegmentMarker].Timems   = SegmentMarker[j].Timems - BehindCutPoint.Timems;
+              CutSegmentMarker[CutNrSegmentMarker].Block    = SegmentMarker[j].Block  - CutStartPoint.BlockNr;
+              CutSegmentMarker[CutNrSegmentMarker].Timems   = SegmentMarker[j].Timems - min(SegmentMarker[j].Timems, CutStartPoint.Timems);
               CutSegmentMarker[CutNrSegmentMarker].Selected = SegmentMarker[j].Selected;
-              CutSegmentMarker[CutNrSegmentMarker].Percent  = ((float)CutSegmentMarker[CutNrSegmentMarker].Block / (SegmentMarker[NrSegmentMarker-1].Block - BehindCutPoint.BlockNr)) * 100.0;
+              CutSegmentMarker[CutNrSegmentMarker].Percent  = ((float)CutSegmentMarker[CutNrSegmentMarker].Block / (SegmentMarker[NrSegmentMarker-1].Block - CutStartPoint.BlockNr)) * 100.0;
               CutNrSegmentMarker++;
             }
-            if (DeleteSegmentMarker(j))  // der letzte wird nicht gelöscht
-              j--;
+            if (j == NrSegmentMarker - 1)
+            {
+              SegmentMarker[j].Block = CutStartPoint.BlockNr;
+              SegmentMarker[j].Timems = CutStartPoint.Timems;
+            }
+            else
+              if (DeleteSegmentMarker(j))  // der letzte wird nicht gelöscht
+                j--;
           }
           else
             SegmentMarker[j].Percent = ((float)SegmentMarker[j].Block / PlayInfo.totalBlock) * 100.0;
@@ -5567,14 +5740,14 @@ if (KeepCut || CutEnding)
           if(j == WorkingSegment)
           {
             // das aktuelle Segment auf die tatsächliche Schnittposition setzen
-            SegmentMarker[WorkingSegment].Block =  ((!CutEnding) ? CutStartPoint : BehindCutPoint).BlockNr;
-            SegmentMarker[WorkingSegment].Timems = ((!CutEnding) ? CutStartPoint : BehindCutPoint).Timems;
+            SegmentMarker[WorkingSegment].Block  = CutStartPoint.BlockNr;
+            SegmentMarker[WorkingSegment].Timems = CutStartPoint.Timems;
           }
           else if(SegmentMarker[j].Block + 11 >= BehindCutPoint.BlockNr)
           {
             // nachfolgende Semente verschieben
             SegmentMarker[j].Block -= DeltaBlock;
-            SegmentMarker[j].Timems = NavGetBlockTimeStamp(SegmentMarker[j].Block);  // -= min(DeltaTime, SegmentMarker[j].Timems);
+            SegmentMarker[j].Timems -= min(DeltaTime, SegmentMarker[j].Timems);  // NavGetBlockTimeStamp(SegmentMarker[j].Block)
           }
           SegmentMarker[j].Percent = ((float)SegmentMarker[j].Block / PlayInfo.totalBlock) * 100.0;
         }
@@ -5584,19 +5757,22 @@ if (KeepCut || CutEnding)
       if(SegmentMarker[NrSegmentMarker-1].Block != PlayInfo.totalBlock)
       {
         #ifdef FULLDEBUG
-          WriteLogMCf(PROGRAM_NAME, "MovieCutterProcess: Letzter Segment-Marker %lu ist ungleich TotalBlock %lu!", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
+          WriteLogMCf(PROGRAM_NAME, "!!! MovieCutterProcess: Letzter Segment-Marker %lu (%lu) ist ungleich TotalBlock %lu (%lu)!", SegmentMarker[NrSegmentMarker-1].Block, SegmentMarker[NrSegmentMarker-1].Timems, PlayInfo.totalBlock, NavGetBlockTimeStamp(PlayInfo.totalBlock));
         #endif
-        SegmentMarker[NrSegmentMarker-1].Block = PlayInfo.totalBlock;
-        dword newTime = NavGetBlockTimeStamp(SegmentMarker[NrSegmentMarker-1].Block);
-        SegmentMarker[NrSegmentMarker-1].Timems = (newTime) ? newTime : (dword)(1000 * (60*PlayInfo.duration + PlayInfo.durationSec));
-        SegmentMarker[NrSegmentMarker-1].Percent = 100;
+        // PROBLEM!! nav ist nicht neu geladen... -> lieber beim Neu-Laden der Aufnahme korrigieren!
+//        SegmentMarker[NrSegmentMarker-1].Block = PlayInfo.totalBlock;
+//        dword newTime = NavGetBlockTimeStamp(SegmentMarker[NrSegmentMarker-1].Block);
+//        SegmentMarker[NrSegmentMarker-1].Timems = (newTime) ? newTime : (dword)(1000 * (60*PlayInfo.duration + PlayInfo.durationSec));
+//        SegmentMarker[NrSegmentMarker-1].Percent = 100;
       }
-      CutSaveToBM();
+
+WriteLogMC("DEBUG", "Cut-List NACH Anpassung:");
+CutDumpList();
 
       // Letzte Playback-Position anpassen
       if(CurPlayPosition)
       {
-        if (!CutEnding)
+//        if (!CutEnding)
         {
           if (CurPlayPosition >= BehindCutPoint.BlockNr)
             CurPlayPosition -= DeltaBlock;
@@ -5606,9 +5782,9 @@ if (KeepCut || CutEnding)
           if (CurPlayPosition > BlockNrLastSecond)
             CurPlayPosition = 0;
         }
-        else
-          if (CurPlayPosition >= BehindCutPoint.BlockNr)
-            CurPlayPosition = 0;
+//        else
+//          if (CurPlayPosition >= BehindCutPoint.BlockNr)
+//            CurPlayPosition = 0;
       }
 
       // Wenn Spezial-Crop-Modus, nochmal testen, ob auch mit der richtigen rec weitergemacht wird
@@ -5633,6 +5809,9 @@ if (KeepCut || CutEnding)
         ShowErrorMessage(LangGetString(LS_CutHasFailed), NULL);
         break;
       }
+
+//      ReadBookmarks(Bookmarks, &NrBookmarks);
+      CutSaveToBM(TRUE);
 
       JumpRequestedSegment = 0xFFFF;
       JumpRequestedBlock = (dword) -1;
@@ -5689,7 +5868,7 @@ WriteLogMCf("DEBUG", "NrAllSuspectInodes=%d, SuspectHDDs='%s'", NrAllSuspectInod
   }
 
   // Check file system consistency and show a warning
-  if (((CheckFSAfterCut == FM_Always) || (CheckFSAfterCut == FM_Auto && icheckErrors)) && HDD_Exist2("jfs_fsck", FSCKPATH))
+  if (((CheckFSAfterCut == FM_Always) || (CheckFSAfterCut == FM_Auto && icheckErrors)) && jfs_fsck_present)
   {
     WriteLogMCf(PROGRAM_NAME, "Inodes-Check mit fsck: %s", InodeNrs);
     if (CheckFSAfterCut == FM_Always)
@@ -5699,7 +5878,7 @@ WriteLogMCf("DEBUG", "NrAllSuspectInodes=%d, SuspectHDDs='%s'", NrAllSuspectInod
 //    if (CurPlayPosition > 0)
 //      TAP_Hdd_ChangePlaybackPos(CurPlayPosition);
   }
-  else if ((DoiCheckTest == IM_Never) || !HDD_Exist2("jfs_fsck", FSCKPATH))
+  else if ((DoiCheckTest == IM_Never) || !jfs_fsck_present)
   {
     WriteLogMC(PROGRAM_NAME, "Cut files have not been verified!");
     if(OSDMenuProgressBarIsVisible()) OSDMenuProgressBarDestroyNoOSDUpdate();

@@ -14,7 +14,7 @@
 //#define TAP_MemSet    memset
 #define TAP_SPrint    snprintf
 
-#define NRBOOKMARKS           177
+#define NRBOOKMARKS        177   // eigentlich werden nur 48 Bookmarks unterstützt!! (CRP2401)
 
 void       HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNav);
 void       HDD_Delete2(const char *FileName, const char *AbsDirectory, bool DeleteInfNav);
@@ -24,6 +24,7 @@ bool       HDD_GetAbsolutePathByTypeFile2(TYPE_File *File, char *OutAbsFileName)
 bool       HDD_GetFileSizeAndInode2(const char *FileName, const char *AbsDirectory, __ino64_t *OutCInode, __off64_t *OutFileSize);
 bool       HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, dword NewDateTime);
 __off64_t  HDD_GetFreeDiscSpace(char *AnyFileName, char *AbsDirectory);
+bool       HDD_TAP_CheckCollisionByID(dword MyTapID);
 bool       HDD_StartPlayback2(char *FileName, char *AbsDirectory);
 bool       ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks);
 bool       SaveBookmarks(dword Bookmarks[], int NrBookmarks, bool OverwriteAll);

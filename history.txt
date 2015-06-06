@@ -1,24 +1,32 @@
-2015-05-?? v3.3  NEU:
+2015-06-?? v3.3  NEU:
                   *** neue Funktion "Aufnahme teilen" (ersetzt "Gerade Segmente löschen")
                   *** neue Behandlung des letzten Segments (truncate) -> verhindert Aufnahmenfresser!
-                   ** Speicherung der Schnittmarker wahlweise in der inf-Datei
-                   ** Nummerierung bei mehrfachem Schnitt jetzt fortlaufend -> '(Cut-2)' statt '(Cut-1)(Cut-1)'
+                  *** fixed 4-byte-offset when cutting on Australian PVRs (?)
+                   ** neues, textbasiertes Format (v3) der cut-Datei (v1 und v2 weiterhin unterstützt)
+                   ** Speicherung der Schnittmarker wahlweise im Bookmark-Bereich der inf-Datei
                    ** neue, bessere Stabilisierung der Zeitanzeige (auch bei Segmentwechsel)
+                   ** bei Nummerierung werden Vorhandene berücksichtigt -> '(Cut-1)' + '(Cut-3)', wenn '(Cut-2)' existiert
                     * deutsche Sprache bereits im TAP enthalten (-> ohne Language-Datei lauffähig)
+                    * Deaktivierung der Dateisystemprüfung, wenn jfs_fsck fehlt (+ Warnung im Log)
+                    * automatische Auswahl des Fernbedienungs-Modus möglich
                     * alle Tasten werden berücksichtigt (auch Front-Keys?)
 
                  INI-FILE:
                     - CutFileMode = Speicherung der Marker: [0] in cut- und inf-Datei, [1] nur cut-Datei, [2] nur inf-Datei.
                     - ForceSpecialEnd = Erzwingen der umgekehrten Endbehandlung. (Default: nur wenn sicher) [0,1]
                     - DisableSpecialEnd=1 überschreibt die Einstellung für ForceSpecialEnd
+                    - RCUMode: mögliche Werte geändert, neu [0] = auto
 
                  BUGFIX:
+                    - Neuberechnung der Zeitangaben in Segmentliste nach Schnitt korrigiert
                     - Undo-Stack wird nach Bookmark-Im/Export nur zurückgesetzt, wenn eine Löschung erfolgte
+                    - bei Abbruch der nav-Warnung und Beenden von MC während Wiedergabe wurde die Schnittliste gelöscht
 
                  INTERNALS:
                     - neue modifizierte FireBirdLib (2013-02-18+)
                     - Zeit-Konvertierung mittels Firmware-Funktion FIS_fwTimeToLinux()
-                    - Warnung im Log, wenn jfs_fsck fehlt
+                    - Optimierungen zur Steigerung der Effizienz
+
 
 2015-03-31 v3.2     * Segment- und Bookmark-Marker nun wieder ohne Anti-Aliasing
                     * direkter Bookmark-Sprung nun zyklisch und inklusive Aufnahmestart

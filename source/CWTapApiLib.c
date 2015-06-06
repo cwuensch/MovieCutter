@@ -79,7 +79,6 @@ bool HDD_TruncateFile(const char *FileName, const char *AbsDirectory, off_t NewF
 bool HDD_GetAbsolutePathByTypeFile2(TYPE_File *File, char *OutAbsFileName)
 {
   dword                *d;
-  char                  AbsFileName[FBLIB_DIR_SIZE];
   bool                  ret = FALSE;
 
   TRACEENTER();
@@ -91,9 +90,7 @@ bool HDD_GetAbsolutePathByTypeFile2(TYPE_File *File, char *OutAbsFileName)
     d = (dword*) File->handle;
     if(d && d[2])
     {
-      strncpy(AbsFileName, (char*)d[2], sizeof(AbsFileName));
-      AbsFileName[sizeof(AbsFileName) - 1] = '\0';
-      strcpy(OutAbsFileName, AbsFileName);
+      TAP_SPrint(OutAbsFileName, FBLIB_DIR_SIZE, "%s", (char*)d[2]);
       ret = TRUE;
     }
   }
@@ -113,7 +110,7 @@ bool HDD_GetFileSizeAndInode2(const char *FileName, const char *AbsDirectory, __
   if(AbsDirectory && FileName)
   {
     TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s", AbsDirectory, FileName);
-    if(!lstat64(AbsFileName, &statbuf))
+    if(lstat64(AbsFileName, &statbuf) == 0)
     {
       if(OutCInode)   *OutCInode = statbuf.st_ino;
       if(OutFileSize) *OutFileSize = statbuf.st_size;
@@ -208,6 +205,30 @@ __off64_t HDD_GetFreeDiscSpace(char *AnyFileName, char *AbsDirectory)
   return ret;
 }
 
+bool HDD_TAP_CheckCollisionByID(dword MyTapID)
+{
+  dword                *pCurrentTAPIndex;
+  dword                 myTAPIndex, i;
+  bool                  ret = FALSE;
+
+  pCurrentTAPIndex = (dword*)FIS_vCurTapTask();
+  if(pCurrentTAPIndex)
+  {
+    //Get the ID of myself
+    myTAPIndex = *pCurrentTAPIndex;
+//    myTAPId = HDD_TAP_GetIDByIndex(myTAPIndex);
+
+    //Check all other TAPs
+    for(i = 0; i < TAP_MAX; i++)
+      if((i != myTAPIndex) && (HDD_TAP_GetIDByIndex(i) == MyTapID))
+      {
+        ret = TRUE;
+        break;
+      }
+  }
+  return ret;
+}
+
 
 // ----------------------------------------------------------------------------
 //                        Playback-Operationen
@@ -218,7 +239,7 @@ bool HDD_StartPlayback2(char *FileName, char *AbsDirectory)
   bool                  ret = FALSE;
 
   TRACEENTER();
-  HDD_TAP_PushDir();
+//  HDD_TAP_PushDir();
 
   //Initialize the directory structure
   memset(&FolderStruct, 0, sizeof(tDirEntry));
@@ -234,7 +255,7 @@ bool HDD_StartPlayback2(char *FileName, char *AbsDirectory)
     ret = (Appl_StartPlayback(FileName, 0, TRUE, FALSE) == 0);
   }
   ApplHdd_RestoreWorkFolder();
-  HDD_TAP_PopDir();
+//  HDD_TAP_PopDir();
 
   TRACEEXIT();
   return ret;
@@ -383,19 +404,15 @@ bool HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint, char
         {
           if((strncmp(AbsPath, x, strlen(x)) == 0) && (strlen(x) > strlen(MountPoint)))
           {
-            strncpy(MountPoint, x, sizeof(MountPoint));
-            MountPoint[sizeof(MountPoint) - 1] = '\0';
-            strncpy(DeviceNode, ent->mnt_fsname, sizeof(DeviceNode));
-            DeviceNode[sizeof(DeviceNode) - 1] = '\0';
+            TAP_SPrint(MountPoint, sizeof(MountPoint), x);
+            TAP_SPrint(DeviceNode, sizeof(DeviceNode), ent->mnt_fsname);
           }
           TAP_MemFree(x);
         }
         else if((strncmp(AbsPath, ent->mnt_dir, strlen(ent->mnt_dir)) == 0) && (strlen(ent->mnt_dir) > strlen(MountPoint)))
         {
-          strncpy(MountPoint, ent->mnt_dir, sizeof(MountPoint));
-          MountPoint[sizeof(MountPoint) - 1] = '\0';
-          strncpy(DeviceNode, ent->mnt_fsname, sizeof(DeviceNode));
-          DeviceNode[sizeof(DeviceNode) - 1] = '\0';
+          TAP_SPrint(MountPoint, sizeof(MountPoint), ent->mnt_dir);
+          TAP_SPrint(DeviceNode, sizeof(DeviceNode), ent->mnt_fsname);
         }
       }
       endmntent(aFile);
@@ -445,21 +462,21 @@ void LogEntry2(char *AbsFileName, char *ProgramName, bool Console, eTimeStampFor
 {
   FILE                 *f;
   char                 *TS;
-  char                  CRLF[] = {'\r', '\n'};
+//  char                  CRLF[] = {'\r', '\n'};
   byte                  Sec;
   struct utimbuf        times;
 
-  TS = TimeFormat(Now (&Sec), Sec, TimeStampFormat);
-  if (TS [0]) strcat (TS, " ");
+  TS = TimeFormat(Now(&Sec), Sec, TimeStampFormat);
+//  if (TS[0]) strcat (TS, " ");
 
-  if (AbsFileName && AbsFileName [0])
+  if (AbsFileName && AbsFileName[0])
   {
-    f = fopen(AbsFileName, "a");
+    f = fopen(AbsFileName, "ab");
     if(f)
     {
-      fwrite(TS, strlen(TS), 1, f);
-      if(Text && Text[0]) fwrite(Text, strlen(Text), 1, f);
-      fwrite(CRLF, 2, 1, f);
+//      fwrite(TS, strlen(TS), 1, f);
+      fprintf(f, "%s %s\r\n", TS, (Text!=NULL) ? Text : "");
+//      fwrite(CRLF, 2, 1, f);
       fclose(f);
 
       //As the log would receive the Linux time stamp (01.01.2000), adjust to the PVR's time
@@ -471,8 +488,8 @@ void LogEntry2(char *AbsFileName, char *ProgramName, bool Console, eTimeStampFor
 
   if (Console)
   {
-    if (TimeStampFormat != TIMESTAMP_NONE) TAP_PrintNet (TS);
-    if (ProgramName && ProgramName [0]) TAP_PrintNet ("%s: ", ProgramName);
+    if (TimeStampFormat != TIMESTAMP_NONE) TAP_PrintNet("%s ", TS);
+    if (ProgramName && ProgramName[0]) TAP_PrintNet ("%s: ", ProgramName);
 
     //Max length is 512. If above, a buffer overflow may occur
     if(Text && Text [0])

@@ -2,6 +2,7 @@
 #define __MOVIECUTTERLIB__
 
 //#define MC_UNICODE      TRUE
+#define MC_MULTILANG    TRUE
                                       // MinEncode   Header   MinInf    NormInf    MaxInf
 #define INFSIZE                 2128  //    8192  // 2128  // 3320   // 132636  // 499572
 #define NAVRECS_SD              2000
@@ -72,9 +73,10 @@ void        WriteLogMCf(char *ProgramName, const char *format, ...);
 //void        WriteDebugLog(const char *format, ...);
 tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirectory, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepCut, bool isHD);
 void        GetNextFreeCutName(const char *SourceFileName, char *const OutCutFileName, const char *AbsDirectory, int LeaveNamesOut);
-void        SecToTimeString(dword Time, char *const TimeString);     // needs max. 4 + 1 + 2 + 1 + 2 + 1 = 11 chars
-void        MSecToTimeString(dword Timems, char *const TimeString);  // needs max. 4 + 1 + 2 + 1 + 2 + 1 + 3 + 1 = 15 chars
-void        Print64BitLong(long64 Number, char *const OutString);    // needs max. 2 + 2*9 + 1 = 19 chars
+void        SecToTimeString(dword Time, char *const OutTimeString);     // needs max. 4 + 1 + 2 + 1 + 2 + 1 = 11 chars
+void        MSecToTimeString(dword Timems, char *const OutTimeString);  // needs max. 4 + 1 + 2 + 1 + 2 + 1 + 3 + 1 = 15 chars
+dword       TimeStringToMSec(char *const TimeString);
+void        Print64BitLong(long64 Number, char *const OutString);       // needs max. 2 + 2*9 + 1 = 19 chars
 int         GetPacketSize(const char *RecFileName);
 bool        isCrypted(const char *RecFileName, const char *AbsDirectory);
 bool        isHDVideo(const char *RecFileName, const char *AbsDirectory, bool *const isHD);

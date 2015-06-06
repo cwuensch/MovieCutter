@@ -56,7 +56,7 @@ static bool  CutFileEncode(tSegmentMarker SegmentMarker[], int NrSegmentMarker, 
 static bool  CutFileLoad(void);
 static bool  CutFileSave(void);
 static bool  CutFileSave2(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const char* RecFileName);
-static bool  CutSaveToBM(void);
+static bool  CutSaveToBM(bool ReadBMBefore);
 static bool  CutSaveToInf(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const char* RecFileName);
 static bool  DeleteBookmark(int BookmarkIndex);
 static bool  DeleteAllBookmarks(void);
@@ -115,6 +115,6 @@ static bool  UndoLastAction(void);
 static void  UndoResetStack(void);
 static bool  PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isHD);
 
-extern void OSDMenuFreeStdFonts(void);
+extern void  OSDMenuFreeStdFonts(void);
 
 #endif

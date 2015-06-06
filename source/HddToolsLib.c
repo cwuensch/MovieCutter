@@ -16,10 +16,10 @@
 #include                "HddToolsLib.h"
 #include                "../jfsutils/icheck/jfs_icheck.h"
 
-bool                    fsck_Cancelled;
-word                    RegionToSave;
-char*                   LS_Dummy = "< Dummy >";
-char                   *LS_Warning, *LS_CheckingFileSystem;
+static bool             fsck_Cancelled;
+static word             RegionToSave;
+static char*            LS_Dummy = "< Dummy >";
+static char            *LS_Warning, *LS_CheckingFileSystem;
 
 
 /*static void         HDDCheck_ProgBarHandler(bool ShowProgBar, dword CurrentValue, dword pProgressStart, dword pProgressEnd, dword pProgressMax, dword pRegionToSave);
@@ -296,8 +296,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
   if (PlayInfo.playMode == PLAYMODE_Playing)
   {
     // Get infos about the playback file
-    strncpy(PlaybackName, PlayInfo.file->name, sizeof(PlaybackName));
-    PlaybackName[MAX_FILE_NAME_SIZE] = '\0';
+    TAP_SPrint(PlaybackName, sizeof(PlaybackName), PlayInfo.file->name);
     PlaybackName[strlen(PlaybackName) - 4] = '\0';
 
     //Extract the absolute path to the rec file
@@ -341,7 +340,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
 //-    system(CommandLine);
 
     //Get the PID of the fsck-Process
-//    fPidFile = fopen("/tmp/fsck.pid", "r");
+//    fPidFile = fopen("/tmp/fsck.pid", "rb");
     fPidFile = popen(CommandLine, "r");
     if(fPidFile)
     {
@@ -373,7 +372,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
         RefreshProgBar(TRUE, 100 * i / 600);
     }
     TAP_SystemProc();
-    if(fsck_Cancelled && !(DoFix || Quick || InodeNrs))
+    if(fsck_Cancelled && !(DoFix==2 || Quick || InodeNrs))
     {
       char KillCommand[16];
       TAP_SPrint(KillCommand, sizeof(KillCommand), "kill %lu", fsck_Pid);
@@ -412,7 +411,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
 
   // --- 7.) Open and analyse the generated log file ---
   fsck_Cancelled = TRUE;
-  fLogFileOut = fopen(ABSLOGDIR "/fsck.log", "a");
+  fLogFileOut = fopen(ABSLOGDIR "/fsck.log", "ab");
 
   if(fLogFileOut)
   {
@@ -420,7 +419,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
     fprintf(fLogFileOut, "*** File system check started %s\r\n", ctime(&StartTime));
   }
 
-  fLogFileIn = fopen("/tmp/fsck.log", "r");
+  fLogFileIn = fopen("/tmp/fsck.log", "rb");
   if(fLogFileIn)
   {
     FirstErrorFile[0] = '\0';
@@ -697,7 +696,7 @@ static tReturnCode RunIcheckWithLog(const char *DeviceNode, const char *ParamStr
         FullLog[len+2] = '\0';
       }
 //      if (strlen(FullLog) < sizeof(FullLog) - 1)
-        strncpy(&FullLog[strlen(FullLog)], LastLine, sizeof(FullLog) - strlen(FullLog) - 1);
+        TAP_SPrint(&FullLog[strlen(FullLog)], sizeof(FullLog) - strlen(FullLog) - 1, LastLine);
       FullLog[sizeof(FullLog) - 1] = '\0';
       RemoveEndLineBreak(CurLine);
       strcpy(LastLine, CurLine);
@@ -726,8 +725,7 @@ static tReturnCode RunIcheckWithLog(const char *DeviceNode, const char *ParamStr
   if (OutLastLine)
   {
     OutLastLine[0] = '\0';
-    strncpy(OutLastLine, LastLine, 511);
-    OutLastLine[511] = '\0';
+    strcpy(OutLastLine, LastLine);
   }
 
   TRACEEXIT();
