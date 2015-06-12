@@ -2882,7 +2882,7 @@ bool CutFileDecodeBin(FILE *fCut, __off64_t *OutSavedSize)
         break;
       }
       default:
-        WriteLogMC(PROGRAM_NAME, "CutFileDecode: .cut version mismatch!");
+        WriteLogMC(PROGRAM_NAME, "CutFileDecodeBin: .cut version mismatch!");
     }
 
     if (ret)
@@ -2890,7 +2890,7 @@ bool CutFileDecodeBin(FILE *fCut, __off64_t *OutSavedSize)
       SavedNrSegments = min(SavedNrSegments, NRSEGMENTMARKER);
       NrSegmentMarker = fread(SegmentMarker, sizeof(tSegmentMarker), SavedNrSegments, fCut);
       if (NrSegmentMarker < SavedNrSegments)
-        WriteLogMC(PROGRAM_NAME, "CutFileDecode: Unexpected end of file!");
+        WriteLogMC(PROGRAM_NAME, "CutFileDecodeBin: Unexpected end of file!");
     }
   }
 
@@ -2939,10 +2939,10 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
   {
     // Check the first line
     if (getline(&Buffer, &BufSize, fCut) >= 0)
-      if ((strcmp(Buffer, "[MCCut3]") == 0) || (strcmp(Buffer, "ï»¿[MCCut3]") == 0))
+      if ((strncmp(Buffer, "[MCCut3]", 8) == 0) || (strncmp(Buffer, "ï»¿[MCCut3]", 11) == 0))
         ret = TRUE;
     if (!ret)
-      WriteLogMC(PROGRAM_NAME, "CutFileDecode(): Invalid file format (head line)!");
+      WriteLogMC(PROGRAM_NAME, "CutFileDecodeTxt(): Invalid file format (head line)!");
 
     while (ret && (getline(&Buffer, &BufSize, fCut) >= 0))
     {
@@ -2973,13 +2973,8 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
           if (strcmp(Buffer, "[Segments]") == 0)
           {
             // Header überprüfen
-            if (SavedSize != RecFileSize)
+            if (SavedSize != 0)
               SegmentsStart = TRUE;
-            else
-            {
-              WriteLogMC(PROGRAM_NAME, "CutFileDecode(): Invalid file size of rec file!");
-              ret = FALSE;
-            }
           }
           continue;
         }
@@ -2994,7 +2989,10 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
         if (sscanf(Buffer, "%49[^= ] = %lu", Name, &Value) == 2)
         {
           if (strcmp(Name, "RecFileSize") == 0)
+          {
             SavedSize = Value;
+            if (OutSavedSize) *OutSavedSize = SavedSize;
+          }
           else if (strcmp(Name, "NrSegmentMarker") == 0)
             SavedNrSegments = Value;
 //          else if (strcmp(Name, "ActiveSegment") == 0)
@@ -3018,8 +3016,10 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
     fclose(fCut);
 
     if (NrSegmentMarker != SavedNrSegments)
-      WriteLogMCf(PROGRAM_NAME, "CutFileDecode(): Invalid number of segments read (%d of %d)!", NrSegmentMarker, SavedNrSegments);
+      WriteLogMCf(PROGRAM_NAME, "CutFileDecodeTxt(): Invalid number of segments read (%d of %d)!", NrSegmentMarker, SavedNrSegments);
   }
+  TRACEEXIT();
+  return ret;
 }
 
 bool CutDecodeFromBM(void)
@@ -3283,7 +3283,7 @@ bool CutFileSave2(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
         for (i = 0; i < NrSegmentMarker; i++)
         {
           MSecToTimeString(SegmentMarker[i].Timems, TimeStamp);
-          fprintf(fCut, "%3d ;  %c  ; %10lu ;%14s ;  %3.1f%%\r\n", i, (SegmentMarker[i].Selected ? '*' : ' '), SegmentMarker[i].Block, TimeStamp, SegmentMarker[i].Percent);
+          fprintf(fCut, "%3d ;  %c  ; %10lu ;%14s ;  %3.1f%%\r\n", i, (SegmentMarker[i].Selected ? '*' : '-'), SegmentMarker[i].Block, TimeStamp, SegmentMarker[i].Percent);
         }
         fclose(fCut);
         HDD_SetFileDateTime(&AbsCutName[1], "", Now(NULL));
