@@ -1115,7 +1115,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         if (LastTotalBlocks > 0)
         {
 #ifdef FULLDEBUG
-  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler(): State=ST_ActiveOSD, !isPlaybackRunning --> Aufruf von CutFileSave()");
+  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_ActiveOSD, !isPlaybackRunning --> Aufruf von CutFileSave()");
 #endif
           CutFileSave();
         }
@@ -1128,7 +1128,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       if((event == EVT_KEY) && ((param1==RKEY_Exit && OSDMode==MD_NoOSD && !rgnInfoBarMini) || param1==FKEY_Exit || param1==RKEY_Stop || param1==RKEY_Info || param1==RKEY_Teletext || param1==RKEY_PlayList || param1==RKEY_AudioTrk || param1==RKEY_Subt))
       {
 #ifdef FULLDEBUG
-  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler(): State=ST_ActiveOSD, Key=RKEY_Exit --> Aufruf von CutFileSave()");
+  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_ActiveOSD, Key=RKEY_Exit --> Aufruf von CutFileSave()");
 #endif
         if (OSDMode != MD_NoOSD)
           LastOSDMode = OSDMode;
@@ -1760,7 +1760,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       if (LastTotalBlocks > 0)
       {
 #ifdef FULLDEBUG
-  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler(): State=ST_Exit --> Aufruf von CutFileSave()");
+  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_Exit --> Aufruf von CutFileSave()");
 #endif
         if (isPlaybackRunning() && (LastTotalBlocks == PlayInfo.totalBlock))
           CutSaveToBM(TRUE);
@@ -2942,7 +2942,7 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
       if ((strncmp(Buffer, "[MCCut3]", 8) == 0) || (strncmp(Buffer, "ï»¿[MCCut3]", 11) == 0))
         ret = TRUE;
     if (!ret)
-      WriteLogMC(PROGRAM_NAME, "CutFileDecodeTxt(): Invalid file format (head line)!");
+      WriteLogMC(PROGRAM_NAME, "CutFileDecodeTxt: Invalid file format (head line)!");
 
     while (ret && (getline(&Buffer, &BufSize, fCut) >= 0))
     {
@@ -3016,7 +3016,7 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
     fclose(fCut);
 
     if (NrSegmentMarker != SavedNrSegments)
-      WriteLogMCf(PROGRAM_NAME, "CutFileDecodeTxt(): Invalid number of segments read (%d of %d)!", NrSegmentMarker, SavedNrSegments);
+      WriteLogMCf(PROGRAM_NAME, "CutFileDecodeTxt: Invalid number of segments read (%d of %d)!", NrSegmentMarker, SavedNrSegments);
   }
   TRACEEXIT();
   return ret;
@@ -3071,7 +3071,12 @@ bool CutFileLoad(void)
     if(fCut)
     {
       Version = fgetc(fCut);
+      if (Version == '[') Version = 3;
       rewind(fCut);
+
+      #ifdef FULLDEBUG
+        WriteLogMCf(PROGRAM_NAME, "CutFileLoad: Importing cut-file version %hhu", Version); 
+      #endif
       switch (Version)
       {
         case 1:
@@ -3080,19 +3085,19 @@ bool CutFileLoad(void)
           ret = CutFileDecodeBin(fCut, &SavedSize);
           break;
         }
-        case '[':
+        case 3:
         default:
         {
-          Version = 3;
           ret = CutFileDecodeTxt(fCut, &SavedSize);
           break;
         }
       }
       if (!ret)
-        WriteLogMC(PROGRAM_NAME, "CutFileLoad: failed to read cut-info from .cut!"); 
+        WriteLogMC(PROGRAM_NAME, "CutFileLoad: Failed to read cut-info from .cut!"); 
     }
     else
-      WriteLogMC(PROGRAM_NAME, "CutFileLoad: failed to open .cut!");
+      if (CutFileMode == CM_CutOnly)
+        WriteLogMC(PROGRAM_NAME, "CutFileLoad: Failed to open .cut!");
 
     // Check, if size of rec-File has been changed
     if (ret && (RecFileSize != SavedSize))
@@ -3178,7 +3183,12 @@ bool CutFileLoad(void)
   // sonst schaue in der inf
   if (!ret && (CutFileMode != CM_CutOnly))
   {
+    #ifdef FULLDEBUG
+      WriteLogMCf(PROGRAM_NAME, "CutFileLoad: Importing segments from Bookmark-area"); 
+    #endif
     ret = CutDecodeFromBM();
+    if (!ret && CutFileMode == CM_InfOnly)
+      WriteLogMC(PROGRAM_NAME, "CutFileLoad: Failed to read segments from RAM!");
 
 /*    if (!ret)
     {
@@ -3232,11 +3242,12 @@ bool CutFileLoad(void)
   }
 
   // Wenn zu wenig Segmente -> auf Standard zurücksetzen
-  if (!ret || NrSegmentMarker <= 2)
+  if (NrSegmentMarker <= 2)
   {
+    if(ret) WriteLogMC(PROGRAM_NAME, "CutFileLoad: Two or less timestamps imported -> resetting!"); 
     NrSegmentMarker = 0;
 //    ActiveSegment = 0;
-    WriteLogMC(PROGRAM_NAME, "CutFileLoad: Two or less timestamps imported -> resetting!"); 
+    ret = FALSE;
   }
 
   TRACEEXIT();
@@ -3388,7 +3399,7 @@ bool CutSaveToInf(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
       memset(Buffer, 0, 8192);
     else
     {
-      WriteLogMC(PROGRAM_NAME, "CutSaveToInf(): Failed to allocate the memory!");
+      WriteLogMC(PROGRAM_NAME, "CutSaveToInf: Failed to allocate the memory!");
       TRACEEXIT();
       return FALSE;
     }
@@ -3398,7 +3409,7 @@ bool CutSaveToInf(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
     fInf = fopen(AbsInfName, "r+b");
     if(!fInf)
     {
-      WriteLogMC(PROGRAM_NAME, "CutSaveToInf(): Failed to open the inf file!");
+      WriteLogMC(PROGRAM_NAME, "CutSaveToInf: Failed to open the inf file!");
       TAP_MemFree(Buffer);
       TRACEEXIT();
       return FALSE;
@@ -3408,7 +3419,7 @@ bool CutSaveToInf(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
     //decode inf
     if(!HDD_DecodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN))
     {
-      WriteLogMC(PROGRAM_NAME, "CutSaveToInf(): Decoding of rec-header failed.");
+      WriteLogMC(PROGRAM_NAME, "CutSaveToInf: Decoding of rec-header failed.");
       fclose(fInf);
       TAP_MemFree(Buffer);
       TRACEEXIT();
@@ -3425,7 +3436,7 @@ bool CutSaveToInf(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
           ret = TRUE;
       }
       else
-        WriteLogMC(PROGRAM_NAME, "CutSaveToInf(): Failed to encode the new inf header!");
+        WriteLogMC(PROGRAM_NAME, "CutSaveToInf: Failed to encode the new inf header!");
     }
 
     fclose(fInf);
