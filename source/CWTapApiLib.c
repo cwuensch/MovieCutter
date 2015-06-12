@@ -110,7 +110,7 @@ bool HDD_GetFileSizeAndInode2(const char *FileName, const char *AbsDirectory, __
   if(AbsDirectory && FileName)
   {
     TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s", AbsDirectory, FileName);
-    if(lstat64(AbsFileName, &statbuf) == 0)
+    if (lstat64(AbsFileName, &statbuf) == 0)
     {
       if(OutCInode)   *OutCInode = statbuf.st_ino;
       if(OutFileSize) *OutFileSize = statbuf.st_size;
@@ -157,7 +157,7 @@ bool HDD_GetFileSizeAndInode2(const char *FileName, const char *AbsDirectory, __
 } */
 
 
-bool HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, dword NewDateTime)
+/*bool HDD_GetFileDateTime(char const *FileName, char const *AbsDirectory, dword *OutDateTime)
 {
   char                  AbsFileName[FBLIB_DIR_SIZE];
   tstat64               statbuf;
@@ -165,23 +165,37 @@ bool HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, dword N
 
   TRACEENTER();
 
-  TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s", AbsDirectory, FileName);
-  if(lstat64(AbsFileName, &statbuf))
+  if(FileName && AbsDirectory && OutDateTime)
   {
-    TRACEEXIT();
-    return FALSE;
+    TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s", AbsDirectory, FileName);
+    if(lstat64(AbsFileName, &statbuf) == 0)
+    {
+      *OutDateTime = Unix2TFTime(statbuf.st_mtime);
+      TRACEEXIT();
+      return TRUE;
+    }
   }
+  TRACEEXIT();
+  return FALSE;
+} */
+bool HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, dword NewDateTime)
+{
+  char                  AbsFileName[FBLIB_DIR_SIZE];
+  tstat64               statbuf;
+  struct utimbuf        utimebuf;
 
-  if(NewDateTime > 0xd0790000)
+  if(FileName && AbsDirectory && (NewDateTime > 0xd0790000))
   {
-    utimebuf.actime = statbuf.st_atime;
-    utimebuf.modtime = PvrTimeToLinux(NewDateTime);
-    utime(AbsFileName, &utimebuf);
-
-    TRACEEXIT();
-    return TRUE;
+    TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s", AbsDirectory, FileName);
+    if(lstat64(AbsFileName, &statbuf) == 0)
+    {
+      utimebuf.actime = statbuf.st_atime;
+      utimebuf.modtime = PvrTimeToLinux(NewDateTime);
+      utime(AbsFileName, &utimebuf);
+      TRACEEXIT();
+      return TRUE;
+    }
   }
-
   TRACEEXIT();
   return FALSE;
 }

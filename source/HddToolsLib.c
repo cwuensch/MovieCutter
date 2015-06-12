@@ -175,6 +175,7 @@ static bool WriteListFile(const char *AbsListFileName, const tInodeData InodeLis
         ret = TRUE;
     }
     fclose(fInodeList);
+    HDD_SetFileDateTime(&AbsListFileName[1], "", Now(NULL));
   }
   TRACEEXIT();
   return ret;

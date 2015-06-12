@@ -361,7 +361,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
   CutStartGuessed  = FindCutPointOffset2(CutPointArea1, ReqCutStartPos, FALSE, &GuessedCutStartOffset);
   BehindCutGuessed = FindCutPointOffset2(CutPointArea2, ReqBehindCutPos, FALSE, &GuessedBehindCutOffset);
 
-  if (CutStartGuessed && BehindCutGuessed && (CutStartPos == ReqCutStartPos + GuessedCutStartOffset) && (BehindCutPos == ReqBehindCutPos + GuessedBehindCutOffset))
+  if (CutStartGuessed && (CutStartPos == ReqCutStartPos + GuessedCutStartOffset) && ((BehindCutGuessed && (BehindCutPos == ReqBehindCutPos + GuessedBehindCutOffset)) || (TruncateEnding && !KeepCut)))
     WriteLogMC("MovieCutterLib", "--> Real cutting points guessed correctly!");
   else
     WriteLogMCf("MovieCutterLib", "!! -- Real cutting points NOT correctly guessed: GuessedStart = %llu, GuessedBehind = %llu", (CutStartGuessed ? ReqCutStartPos + GuessedCutStartOffset : 0), (BehindCutGuessed ? ReqBehindCutPos + GuessedBehindCutOffset : 0));
@@ -717,7 +717,7 @@ bool WriteByteToFile(const char *FileName, const char *AbsDirectory, off_t ByteP
 
   TRACEENTER();
   #ifdef FULLDEBUG
-    WriteLogMCf("MovieCutterLib", "WriteByteToFile(file=%s, position=%llu, old=%c, new=%c).", FileName, BytePosition, OldValue, NewValue);
+    WriteLogMCf("MovieCutterLib", "WriteByteToFile(file='%s', position=%llu, old=%#4hhx, new=%#4hhx).", FileName, BytePosition, OldValue, NewValue);
   #endif
 
   // Open the file for write access
@@ -742,8 +742,8 @@ bool WriteByteToFile(const char *FileName, const char *AbsDirectory, off_t ByteP
   // Check, if the old value is correct
   char old = (char)fgetc(f);
   #ifdef FULLDEBUG
-    if (NewValue == 'G')
-      WriteLogMCf("MovieCutterLib", "UnpatchRecFile(): value read from cache: '%c' (expected 'F').", old);
+    if ((NewValue == 'G') && (old != OldValue))
+      WriteLogMCf("MovieCutterLib", "Restore Sync-Byte: value read from cache=%#4hhx (expected %#4hhx).", old, OldValue);
   #endif
   if ((old != OldValue) && (old != 'G'))
   {
@@ -767,9 +767,9 @@ bool WriteByteToFile(const char *FileName, const char *AbsDirectory, off_t ByteP
 
   // Print to log
   if (NewValue != 'G')
-    WriteLogMCf("MovieCutterLib", "PatchRecFile(): Replaced Sync-Byte in file %s at position %llu.", FileName, BytePosition);
+    WriteLogMCf("MovieCutterLib", "Remove Sync-Byte: Changed value in file '%s' at position %llu from %#4hhx to %#4hhx.", FileName, BytePosition, OldValue, NewValue);
   else
-    WriteLogMCf("MovieCutterLib", "UnpatchRecFile(): Restored Sync-Byte in file %s at position %llu.", FileName, BytePosition);
+    WriteLogMCf("MovieCutterLib", "Restore Sync-Byte: Changed value in file '%s' at position %llu from %#4hhx to %#4hhx.", FileName, BytePosition, OldValue, NewValue);
 
   TRACEEXIT();
   return TRUE;
@@ -790,10 +790,16 @@ bool PatchRecFile(const char *SourceFileName, const char *AbsDirectory, off_t Re
 
   byte *const           MidArray = &CutPointArray[CUTPOINTSEARCHRADIUS];
 
+  if (!OutPatchedBytes || !CutPointArray)
+  {
+    TRACEEXIT();
+    return FALSE;
+  }
+  memset(OutPatchedBytes, 0, 2*CUTPOINTSECTORRADIUS);
+
   // For each of the 4 (Austr: 48) possible cut positions
   for (i = -(CUTPOINTSECTORRADIUS-1); i <= CUTPOINTSECTORRADIUS; i++)
   {
-    OutPatchedBytes[i + (CUTPOINTSECTORRADIUS-1)] = 0;
     pos = ((RequestedCutPosition >> 12) << 12) + (i * 4096);
     ArrayPos = (int)(pos-RequestedCutPosition);
 
@@ -1050,11 +1056,9 @@ bool FindCutPointOffset2(const byte CutPointArray[], off_t RequestedCutPosition,
   *OutOffset = 0;
 
   // For each of the 4 (Austr: 48) possible cut positions
-//  for (i = -(CUTPOINTSECTORRADIUS-1); i <= CUTPOINTSECTORRADIUS; i++)
   for (i = 0; i < CUTPOINTSECTORRADIUS; i++)
   {
     ret = TRUE;
-//    ArrayPos = (int)(((RequestedCutPosition >> 12) << 12) + (i * 4096) - RequestedCutPosition);
     ArrayPos = (int)(((RequestedCutPosition >> 12) << 12) - (i * 4096) - RequestedCutPosition);
     if (!CheckPacketStart) {
       if (MidArray[ArrayPos+4] == 'G') break;
@@ -1074,6 +1078,8 @@ bool FindCutPointOffset2(const byte CutPointArray[], off_t RequestedCutPosition,
     *OutOffset = ArrayPos;
 
   TRACEEXIT();
+  if (PACKETSIZE==188 && !CheckPacketStart && RequestedCutPosition==0)
+    return TRUE;
   return ret;
 }
 /*bool FindCutPointOffset2(const byte CutPointArray[], off_t RequestedCutPosition, bool CheckPacketStart, long *const OutOffset)

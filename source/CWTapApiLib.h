@@ -22,6 +22,7 @@ bool       HDD_Exist2(const char *FileName, const char *AbsDirectory);
 bool       HDD_TruncateFile(const char *FileName, const char *AbsDirectory, off_t NewFileSize);
 bool       HDD_GetAbsolutePathByTypeFile2(TYPE_File *File, char *OutAbsFileName);    // OutAbsFileName: mind. FBLIB_DIR_SIZE Zeichen (inkl. Nullchar)
 bool       HDD_GetFileSizeAndInode2(const char *FileName, const char *AbsDirectory, __ino64_t *OutCInode, __off64_t *OutFileSize);
+//bool       HDD_GetFileDateTime(char const *FileName, char const *AbsDirectory, dword *OutDateTime);
 bool       HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, dword NewDateTime);
 __off64_t  HDD_GetFreeDiscSpace(char *AnyFileName, char *AbsDirectory);
 bool       HDD_TAP_CheckCollisionByID(dword MyTapID);

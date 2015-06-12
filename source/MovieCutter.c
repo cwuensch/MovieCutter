@@ -2166,6 +2166,7 @@ void SaveINI(void)
     fprintf(f, "%s=%d\r\n",  "DirectSegmentsCut",   DirectSegmentsCut   ?  1  :  0);
     fprintf(f, "%s=%d\r\n",  "DisableSleepKey",     DisableSleepKey     ?  1  :  0);
     fclose(f);
+    HDD_SetFileDateTime(INIFILENAME, TAPFSROOT LOGDIR, Now(NULL));
   }
   TRACEEXIT();
 }
@@ -2836,145 +2837,65 @@ void UndoResetStack(void)
 // ----------------------------------------------------------------------------
 //                           CutFile-Funktionen
 // ----------------------------------------------------------------------------
-bool CutFileDecode(byte CutBuffer[], dword BufSize, bool *OutRecalcTimeStamps)
+bool CutFileDecodeBin(FILE *fCut, __off64_t *OutSavedSize)
 {
-  char                  LogString[512];
-  word                  Version;
-  __off64_t             SavedSize;
-  int                   StartSegments;
-  dword                 Offsetms;
-  int                   i;
-  tTimeStamp           *CurTimeStamp;
+  byte                  Version;
+  int                   SavedNrSegments = 0;
+  bool                  ret = FALSE;
 
   TRACEENTER();
-  if (!CutBuffer)
-  {
-    TRACEEXIT();
-    return FALSE;
-  }
-
   NrSegmentMarker = 0;
   ActiveSegment = 0;
-  if (OutRecalcTimeStamps) *OutRecalcTimeStamps = FALSE;
+  memset(SegmentMarker, 0, NRSEGMENTMARKER * sizeof(tSegmentMarker));
+  if (OutSavedSize) *OutSavedSize = 0;
 
-  // Check correct version of cut-file
-  if(CutBuffer[0] == 1)    // read only one byte for compatibility with V.1  [COMPATIBILITY LAYER]
+  if (fCut)
   {
-    tCutHeader1* CutHeader = (tCutHeader1*) CutBuffer;
-    Version = CutHeader->Version;
-    SavedSize = CutHeader->RecFileSize;
-    NrSegmentMarker = CutHeader->NrSegmentMarker;
-//    ActiveSegment = CutHeader->ActiveSegment;
-    StartSegments = sizeof(tCutHeader1);
-  }
-  else
-  {
-    tCutHeader2* CutHeader = (tCutHeader2*) CutBuffer;
-    Version = CutHeader->Version;
-    if (Version > CUTFILEVERSION)
+    // Check correct version of cut-file
+    Version = fgetc(fCut);
+    switch (Version)
     {
-      WriteLogMC(PROGRAM_NAME, "CutFileDecode: .cut version mismatch!");
-      TRACEEXIT();
-      return FALSE;
-    }
-    SavedSize = CutHeader->RecFileSize;
-    NrSegmentMarker = CutHeader->NrSegmentMarker;
-//    ActiveSegment = CutHeader->ActiveSegment;
-    StartSegments = sizeof(tCutHeader2);
-  }
-  if (NrSegmentMarker > NRSEGMENTMARKER) NrSegmentMarker = NRSEGMENTMARKER;
-  if (StartSegments + NrSegmentMarker * sizeof(tSegmentMarker) <= BufSize)
-    memcpy(SegmentMarker, &CutBuffer[StartSegments], NrSegmentMarker * sizeof(tSegmentMarker));
-  else
-  {
-    WriteLogMC(PROGRAM_NAME, "CutFileDecode: Unexpected end of file!");
-    TRACEEXIT();
-    return FALSE;
-  }
-
-  // Check, if size of rec-File has been changed
-  if(RecFileSize != SavedSize)
-  {
-    WriteLogMC(PROGRAM_NAME, "CutFileDecode: .cut file size mismatch!");
-/*    TRACEEXIT();
-    return FALSE; */
-  }
-
-  // Sonderfunktion: Import von Cut-Files mit unpassender Aufnahme-Größe
-  if (RecFileSize != SavedSize)
-  {
-    if ((NrSegmentMarker > 2) && (TimeStamps != NULL))
-    {
-      char curTimeStr[16];
-      WriteLogMC(PROGRAM_NAME, "CutFileDecode: Importing timestamps only, recalculating block numbers..."); 
-
-      SegmentMarker[0].Block = 0;
-      SegmentMarker[0].Timems = NavGetBlockTimeStamp(0);
-//      SegmentMarker[0].Selected = FALSE;
-      SegmentMarker[NrSegmentMarker - 1].Block = 0xFFFFFFFF;
-
-      Offsetms = 0;
-      CurTimeStamp = TimeStamps;
-      for (i = 1; i <= NrSegmentMarker-2; i++)
+      case 1:
       {
-        if (Version == 1)
-          SegmentMarker[i].Timems = SegmentMarker[i].Timems * 1000;
-
-        // Wenn ein Bookmark gesetzt ist, dann verschiebe die SegmentMarker so, dass der erste auf dem Bookmark steht
-        if (i == 1 && NrBookmarks > 0)
+        rewind(fCut);
+        tCutHeader1 CutHeader;
+        ret = (fread(&CutHeader, sizeof(CutHeader), 1, fCut) == 1);
+        if (ret)
         {
-          Offsetms = NavGetBlockTimeStamp(Bookmarks[0]) - SegmentMarker[1].Timems;
-          MSecToTimeString(SegmentMarker[i].Timems + Offsetms, curTimeStr);
-          WriteLogMCf(PROGRAM_NAME, "Bookmark found! - First segment marker will be moved to time %s. (Offset=%d ms)", curTimeStr, (int)Offsetms);
+          *OutSavedSize = CutHeader.RecFileSize;
+          SavedNrSegments = CutHeader.NrSegmentMarker;
+//          ActiveSegment = CutHeader.ActiveSegment;
         }
-
-        MSecToTimeString(SegmentMarker[i].Timems, curTimeStr);
-        TAP_SPrint(LogString, sizeof(LogString), "%2u.)  oldTimeStamp=%s   oldBlock=%lu", i, curTimeStr, SegmentMarker[i].Block);
-        if (Offsetms > 0)
-        {
-          SegmentMarker[i].Timems += Offsetms;
-          MSecToTimeString(SegmentMarker[i].Timems, curTimeStr);
-          TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "  -  movedTimeStamp=%s", curTimeStr);
-        }
-
-        if ((SegmentMarker[i].Timems <= CurTimeStamp->Timems) || (CurTimeStamp >= TimeStamps + NrTimeStamps-1))
-        {
-          if (DeleteSegmentMarker(i)) i--;
-          TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "  -->  Smaller than previous TimeStamp or end of nav reached. Deleted!");
-        }
-        else
-        {
-          while ((CurTimeStamp->Timems < SegmentMarker[i].Timems) && (CurTimeStamp < TimeStamps + NrTimeStamps-1))
-            CurTimeStamp++;
-          if (CurTimeStamp->Timems > SegmentMarker[i].Timems)
-            CurTimeStamp--;
-        
-          if (CurTimeStamp->BlockNr < PlayInfo.totalBlock)
-          {
-            SegmentMarker[i].Block = CurTimeStamp->BlockNr;
-            SegmentMarker[i].Timems = NavGetBlockTimeStamp(SegmentMarker[i].Block);
-//            SegmentMarker[i].Selected = FALSE;
-            MSecToTimeString(SegmentMarker[i].Timems, curTimeStr);
-            TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "  -->  newBlock=%lu   newTimeStamp=%s", SegmentMarker[i].Block, curTimeStr);
-          }
-          else
-          {
-            if (DeleteSegmentMarker(i)) i--;
-            TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "  -->  TotalBlocks exceeded. Deleted!");
-          }
-        }
-        WriteLogMC(PROGRAM_NAME, LogString);
+        break;
       }
+      case 2:
+      {
+        rewind(fCut);
+        tCutHeader2 CutHeader;
+        ret = (fread(&CutHeader, sizeof(CutHeader), 1, fCut) == 1);
+        if (ret)
+        {
+          *OutSavedSize = CutHeader.RecFileSize;
+          SavedNrSegments = CutHeader.NrSegmentMarker;
+//          ActiveSegment = CutHeader.ActiveSegment;
+        }
+        break;
+      }
+      default:
+        WriteLogMC(PROGRAM_NAME, "CutFileDecode: .cut version mismatch!");
     }
-    else
+
+    if (ret)
     {
-      WriteLogMC(PROGRAM_NAME, "CutFileDecode: Two or less timestamps imported, or NavTimeStamps=NULL!"); 
-      NrSegmentMarker = 0;
+      SavedNrSegments = min(SavedNrSegments, NRSEGMENTMARKER);
+      NrSegmentMarker = fread(SegmentMarker, sizeof(tSegmentMarker), SavedNrSegments, fCut);
+      if (NrSegmentMarker < SavedNrSegments)
+        WriteLogMC(PROGRAM_NAME, "CutFileDecode: Unexpected end of file!");
     }
   }
 
   // Wenn cut-File Version 1 hat, dann ermittle neue TimeStamps und vergleiche diese mit den alten (DEBUG)  [COMPATIBILITY LAYER]
-  else if ((Version == 1) && !LinearTimeMode)
+  if (ret && (Version == 1) && (RecFileSize == *OutSavedSize) && !LinearTimeMode)
   {
     int i;
     dword oldTime, newTime;
@@ -2993,7 +2914,112 @@ bool CutFileDecode(byte CutBuffer[], dword BufSize, bool *OutRecalcTimeStamps)
   }
 
   TRACEEXIT();
-  return TRUE;
+  return ret;
+}
+
+bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
+{
+  char                 *Buffer = NULL;
+  size_t                BufSize = 0;
+  __off64_t             SavedSize = 0;
+  int                   SavedNrSegments = 0;
+  bool                  SegmentsStart = FALSE;
+  char                  TimeStamp[16];
+  char                 *c, Selected;
+  int                   p;
+  bool                  ret = FALSE;
+
+  TRACEENTER();
+  NrSegmentMarker = 0;
+  ActiveSegment = 0;
+  memset(SegmentMarker, 0, NRSEGMENTMARKER * sizeof(tSegmentMarker));
+  if (OutSavedSize) *OutSavedSize = 0;
+
+  if (fCut)
+  {
+    // Check the first line
+    if (getline(&Buffer, &BufSize, fCut) >= 0)
+      if ((strcmp(Buffer, "[MCCut3]") == 0) || (strcmp(Buffer, "ï»¿[MCCut3]") == 0))
+        ret = TRUE;
+    if (!ret)
+      WriteLogMC(PROGRAM_NAME, "CutFileDecode(): Invalid file format (head line)!");
+
+    while (ret && (getline(&Buffer, &BufSize, fCut) >= 0))
+    {
+      //Interpret the following characters as remarks: //
+      c = strstr(Buffer, "//");
+      if(c) *c = '\0';
+
+      // Remove line breaks in the end
+      p = strlen(Buffer);
+      while (p && (Buffer[p-1] == '\r' || Buffer[p-1] == '\n' || Buffer[p-1] == ';'))
+        Buffer[--p] = '\0';
+
+      // Kommentare und Sektionen
+      switch (Buffer[0])
+      {
+        case '\0':
+          continue;
+
+        case '%':
+        case ';':
+        case '#':
+        case '/':
+          continue;
+
+        // Neue Sektion gefunden
+        case '[':
+        {
+          if (strcmp(Buffer, "[Segments]") == 0)
+          {
+            // Header überprüfen
+            if (SavedSize != RecFileSize)
+              SegmentsStart = TRUE;
+            else
+            {
+              WriteLogMC(PROGRAM_NAME, "CutFileDecode(): Invalid file size of rec file!");
+              ret = FALSE;
+            }
+          }
+          continue;
+        }
+      }
+
+      // Header einlesen
+      if (!SegmentsStart)
+      {
+        char            Name[50];
+        unsigned long   Value;
+
+        if (sscanf(Buffer, "%49[^= ] = %lu", Name, &Value) == 2)
+        {
+          if (strcmp(Name, "RecFileSize") == 0)
+            SavedSize = Value;
+          else if (strcmp(Name, "NrSegmentMarker") == 0)
+            SavedNrSegments = Value;
+//          else if (strcmp(Name, "ActiveSegment") == 0)
+//            ActiveSegment = Value;
+        }
+      }
+
+      // Segmente einlesen
+      else
+      {
+        //[Segments]
+        //#Nr. ; Sel ; StartBlock ; StartTime ; Percent
+        if (sscanf(Buffer, "%*i ; %c ; %lu ; %16[^;\r\n] ; %f%%", &Selected, &SegmentMarker[NrSegmentMarker].Block, TimeStamp, &SegmentMarker[NrSegmentMarker].Percent) == 4)
+        {
+          SegmentMarker[NrSegmentMarker].Selected = (Selected == '*');
+          SegmentMarker[NrSegmentMarker].Timems = (TimeStringToMSec(TimeStamp));
+          NrSegmentMarker++;
+        }
+      }
+    }
+    fclose(fCut);
+
+    if (NrSegmentMarker != SavedNrSegments)
+      WriteLogMCf(PROGRAM_NAME, "CutFileDecode(): Invalid number of segments read (%d of %d)!", NrSegmentMarker, SavedNrSegments);
+  }
 }
 
 bool CutDecodeFromBM(void)
@@ -3006,9 +3032,9 @@ bool CutDecodeFromBM(void)
   NrSegmentMarker = 0;
   if (Bookmarks[NRBOOKMARKS - 1] == TAPID)
   {
-    ret = TRUE;
     NrSegmentMarker = Bookmarks[NRBOOKMARKS - 2];
     if (NrSegmentMarker > NRSEGMENTMARKER) NrSegmentMarker = NRSEGMENTMARKER;
+    ret = TRUE;
 
     Start = NRBOOKMARKS - NrSegmentMarker - 6;
     for (i = 0; i < NrSegmentMarker; i++)
@@ -3028,11 +3054,10 @@ bool CutFileLoad(void)
 {
   FILE                 *fCut = NULL;
   char                  AbsCutName[FBLIB_DIR_SIZE];
-  byte                 *CutBlock = NULL;
-  dword                 CutBlockSize = 0;
-  bool                  RecalcTimeStamps = FALSE;  // 0: nicht, 1: alte Version, 2: load from inf
-  bool                  ret = FALSE;
+  byte                  Version;
+  __off64_t             SavedSize;
   int                   i;
+  bool                  ret = FALSE;
 
   TRACEENTER();
 
@@ -3045,45 +3070,137 @@ bool CutFileLoad(void)
     fCut = fopen(AbsCutName, "rb");
     if(fCut)
     {
-      fseek(fCut, 0, SEEK_END);
-      CutBlockSize = ftell(fCut);
+      Version = fgetc(fCut);
       rewind(fCut);
-
-      CutBlock = (byte*) TAP_MemAlloc(CutBlockSize);
-      if (CutBlock)
+      switch (Version)
       {
-        if (fread(CutBlock, CutBlockSize, 1, fCut))
-          ret = CutFileDecode(CutBlock, CutBlockSize, &RecalcTimeStamps);
-        else
-          WriteLogMC(PROGRAM_NAME, "CutFileLoad: failed to read cut-info from .cut!"); 
-        TAP_MemFree(CutBlock);
+        case 1:
+        case 2:
+        {
+          ret = CutFileDecodeBin(fCut, &SavedSize);
+          break;
+        }
+        case '[':
+        default:
+        {
+          Version = 3;
+          ret = CutFileDecodeTxt(fCut, &SavedSize);
+          break;
+        }
       }
-      else
-        WriteLogMC(PROGRAM_NAME, "CutFileLoad: Could not allocate buffer!"); 
+      if (!ret)
+        WriteLogMC(PROGRAM_NAME, "CutFileLoad: failed to read cut-info from .cut!"); 
     }
     else
       WriteLogMC(PROGRAM_NAME, "CutFileLoad: failed to open .cut!");
+
+    // Check, if size of rec-File has been changed
+    if (ret && (RecFileSize != SavedSize))
+    {
+      WriteLogMC(PROGRAM_NAME, "CutFileLoad: .cut file size mismatch!");
+/*      TRACEEXIT();
+      return FALSE; */
+
+      // Sonderfunktion: Import von Cut-Files mit unpassender Aufnahme-Größe
+      if ((NrSegmentMarker > 2) && (TimeStamps != NULL))
+      {
+        char            LogString[512], curTimeStr[16];
+        dword           Offsetms;
+        tTimeStamp     *CurTimeStamp;
+
+        WriteLogMC(PROGRAM_NAME, "CutFileLoad: Importing timestamps only, recalculating block numbers..."); 
+        SegmentMarker[0].Block = 0;
+        SegmentMarker[0].Timems = NavGetBlockTimeStamp(0);
+//        SegmentMarker[0].Selected = FALSE;
+        SegmentMarker[NrSegmentMarker - 1].Block = 0xFFFFFFFF;
+
+        Offsetms = 0;
+        CurTimeStamp = TimeStamps;
+        for (i = 1; i <= NrSegmentMarker-2; i++)
+        {
+          if (Version == 1)
+            SegmentMarker[i].Timems = SegmentMarker[i].Timems * 1000;
+
+          // Wenn ein Bookmark gesetzt ist, dann verschiebe die SegmentMarker so, dass der erste auf dem Bookmark steht
+          if (i == 1 && NrBookmarks > 0)
+          {
+            Offsetms = NavGetBlockTimeStamp(Bookmarks[0]) - SegmentMarker[1].Timems;
+            MSecToTimeString(SegmentMarker[i].Timems + Offsetms, curTimeStr);
+            WriteLogMCf(PROGRAM_NAME, "Bookmark found! - First segment marker will be moved to time %s. (Offset=%d ms)", curTimeStr, (int)Offsetms);
+          }
+
+          MSecToTimeString(SegmentMarker[i].Timems, curTimeStr);
+          TAP_SPrint(LogString, sizeof(LogString), "%2u.)  oldTimeStamp=%s   oldBlock=%lu", i, curTimeStr, SegmentMarker[i].Block);
+          if (Offsetms > 0)
+          {
+            SegmentMarker[i].Timems += Offsetms;
+            MSecToTimeString(SegmentMarker[i].Timems, curTimeStr);
+            TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "  -  movedTimeStamp=%s", curTimeStr);
+          }
+
+          if ((SegmentMarker[i].Timems <= CurTimeStamp->Timems) || (CurTimeStamp >= TimeStamps + NrTimeStamps-1))
+          {
+            if (DeleteSegmentMarker(i)) i--;
+            TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "  -->  Smaller than previous TimeStamp or end of nav reached. Deleted!");
+          }
+          else
+          {
+            while ((CurTimeStamp->Timems < SegmentMarker[i].Timems) && (CurTimeStamp < TimeStamps + NrTimeStamps-1))
+              CurTimeStamp++;
+            if (CurTimeStamp->Timems > SegmentMarker[i].Timems)
+              CurTimeStamp--;
+        
+            if (CurTimeStamp->BlockNr < PlayInfo.totalBlock)
+            {
+              SegmentMarker[i].Block = CurTimeStamp->BlockNr;
+              SegmentMarker[i].Timems = NavGetBlockTimeStamp(SegmentMarker[i].Block);
+//              SegmentMarker[i].Selected = FALSE;
+              MSecToTimeString(SegmentMarker[i].Timems, curTimeStr);
+              TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "  -->  newBlock=%lu   newTimeStamp=%s", SegmentMarker[i].Block, curTimeStr);
+            }
+            else
+            {
+              if (DeleteSegmentMarker(i)) i--;
+              TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "  -->  TotalBlocks exceeded. Deleted!");
+            }
+          }
+          WriteLogMC(PROGRAM_NAME, LogString);
+        }
+      }
+      else
+      {
+//        WriteLogMC(PROGRAM_NAME, "CutFileLoad: Two or less timestamps imported, or NavTimeStamps=NULL!"); 
+        NrSegmentMarker = 0;
+      }
+    }
   }
 
   // sonst schaue in der inf
   if (!ret && (CutFileMode != CM_CutOnly))
   {
-    RecalcTimeStamps = 2;
     ret = CutDecodeFromBM();
 
 /*    if (!ret)
     {
       if (infData_Get2(PlaybackName, AbsPlaybackDir, INFFILETAG, &CutBlockSize, &CutBlock))
-        ret = CutFileDecode(CutBlock, CutBlockSize, &RecalcTimeStamps);
+        ret = CutFileDecode(CutBlock, CutBlockSize, &SavedSize);
       else
         WriteLogMC(PROGRAM_NAME, "CutFileLoad: failed to read cut-info from .inf!");
       TAP_MemFree(CutBlock);
     }  */
   }
 
-  if (ret)
+  if (ret && NrSegmentMarker > 0)
   {
     // erstes Segment auf 0 setzen?
+    if (SegmentMarker[0].Block != 0)
+    {
+      #ifdef FULLDEBUG
+        WriteLogMCf(PROGRAM_NAME, "CutFileLoad: Erster Segment-Marker %lu ist ungleich 0!", SegmentMarker[0].Block);
+      #endif
+      SegmentMarker[0].Block = 0;
+      SegmentMarker[0].Timems = 0;
+    }
     
     // Wenn letzter Segment-Marker ungleich TotalBlock ist -> anpassen
     if (SegmentMarker[NrSegmentMarker - 1].Block != PlayInfo.totalBlock)
@@ -3108,199 +3225,24 @@ bool CutFileLoad(void)
         SegmentMarker[i].Percent = ((float)SegmentMarker[i].Block / PlayInfo.totalBlock) * 100.0;
     }
 
-    // Wenn zu wenig Segmente -> auf Standard zurücksetzen
-    if (NrSegmentMarker <= 2)
-    {
-      NrSegmentMarker = 0;
-//      ActiveSegment = 0;
-      WriteLogMC(PROGRAM_NAME, "CutFileLoad: Two or less timestamps imported, resetting!"); 
-      TRACEEXIT();
-      return FALSE;
-    }
-
     // Markierungen und ActiveSegment prüfen, ggf. korrigieren
     SegmentMarker[NrSegmentMarker - 1].Selected = FALSE;         // the very last marker (no segment)
     if(NrSegmentMarker <= 2) SegmentMarker[0].Selected = FALSE;  // there is only one segment (from start to end)
 //    if(ActiveSegment >= NrSegmentMarker - 1) ActiveSegment = NrSegmentMarker - 2;
   }
+
+  // Wenn zu wenig Segmente -> auf Standard zurücksetzen
+  if (!ret || NrSegmentMarker <= 2)
+  {
+    NrSegmentMarker = 0;
+//    ActiveSegment = 0;
+    WriteLogMC(PROGRAM_NAME, "CutFileLoad: Two or less timestamps imported -> resetting!"); 
+  }
+
   TRACEEXIT();
   return ret;
 }
   
-bool CutFileEncode(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const char* RecFileName, byte **OutCutBuffer, dword *OutBufSize)
-{
-  byte                 *Buffer = NULL;
-  tCutHeader2          *CutHeader = NULL;
-  bool                  ret = FALSE;
-
-  TRACEENTER();
-  if (!SegmentMarker)
-  {
-    TRACEEXIT();
-    return FALSE;
-  }
-
-  if (OutBufSize)
-    *OutBufSize = sizeof(tCutHeader2) + NrSegmentMarker * sizeof(tSegmentMarker);
-  Buffer = (byte*) TAP_MemAlloc(sizeof(tCutHeader2) + NrSegmentMarker * sizeof(tSegmentMarker));
-  memset(Buffer, 0, sizeof(tCutHeader2) + NrSegmentMarker * sizeof(tSegmentMarker));
-  CutHeader = (tCutHeader2*) Buffer;
-
-  if(OutCutBuffer && Buffer)
-  {
-    if(HDD_GetFileSizeAndInode2(RecFileName, AbsPlaybackDir, NULL, &RecFileSize))
-    {
-      SegmentMarker[NrSegmentMarker - 1].Selected = FALSE;
-      if(NrSegmentMarker <= 2) SegmentMarker[0].Selected = FALSE;
-
-      CutHeader->Version = CUTFILEVERSION;
-      CutHeader->RecFileSize = RecFileSize;
-      CutHeader->NrSegmentMarker = NrSegmentMarker;
-      CutHeader->ActiveSegment = ActiveSegment;
-      CutHeader->Padding = 0;
-
-      memcpy(&Buffer[sizeof(tCutHeader2)], SegmentMarker, NrSegmentMarker * sizeof(tSegmentMarker));
-      ret = TRUE;
-      *OutCutBuffer = Buffer;
-    }
-    else
-      WriteLogMC(PROGRAM_NAME, "CutFileEncode: Could not detect size of recording!"); 
-  }
-  else
-    WriteLogMC(PROGRAM_NAME, "CutFileEncode: Could not allocate buffer!"); 
-
-
-  FILE*                 fCut = NULL;
-  char                  AbsCutName[FBLIB_DIR_SIZE], TimeStamp[16];
-  int                   i;
-  
-  TAP_SPrint(AbsCutName, sizeof(AbsCutName), "%s/%s.txt", AbsPlaybackDir, RecFileName);
-  fCut = fopen(AbsCutName, "wb");
-  if (fCut)
-  {
-    fprintf(fCut, "[MCCut3]\r\n");
-    fprintf(fCut, "RecFileSize=%llu\r\n", RecFileSize);
-    fprintf(fCut, "NrSegmentMarker=%d\r\n", NrSegmentMarker);
-    fprintf(fCut, "ActiveSegment=%d\r\n\r\n", ActiveSegment);  // sicher!?
-    fprintf(fCut, "[Segments]\r\n");
-    fprintf(fCut, "#Nr. ; Sel ; StartBlock ; StartTime ; Percent\r\n");
-    for (i = 0; i < NrSegmentMarker; i++)
-    {
-      MSecToTimeString(SegmentMarker[i].Timems, TimeStamp);
-      fprintf(fCut, "%3d; %c; %10lu;%-16s; %3.1f%%\r\n", i, (SegmentMarker[i].Selected ? '*' : ' '), SegmentMarker[i].Block, TimeStamp, SegmentMarker[i].Percent);
-    }
-    fclose(fCut);
-  }
-
-/*  size_t                BufSize = 0;
-  char                 *Buffer2 = NULL;
-  __off64_t             SavedSize = 0;
-  bool                  SegmentsStart = FALSE;
-  int                   NrReadSegments = 0;
-//  char                  TimeStamp[16];
-  char                 *c, Selected;
-  int                   p;
-
-  NrSegmentMarker = 0;
-  ActiveSegment = 0;
-  memset(SegmentMarker, 0, NRSEGMENTMARKER * sizeof(tSegmentMarker));
-
-  TAP_SPrint(AbsCutName, sizeof(AbsCutName), "%s/%s.txt", AbsPlaybackDir, RecFileName);
-  fCut = fopen(AbsCutName, "rb");
-  if (fCut)
-  {
-    // Check the first line
-    ret = FALSE;
-    if (getline(&Buffer2, &BufSize, fCut) >= 0)
-      if ((strcmp(Buffer2, "[MCCut3]") == 0) || (strcmp(Buffer2, "ï»¿[MCCut3]") == 0))
-        ret = TRUE;
-    if (!ret)
-      WriteLogMC(PROGRAM_NAME, "CutFileDecode(): Invalid file format (head line)!");
-
-    while (ret && (getline(&Buffer2, &BufSize, fCut) >= 0))
-    {
-      //Interpret the following characters as remarks: //
-      c = strstr(Buffer2, "//");
-      if(c) *c = '\0';
-
-      // Remove line breaks in the end
-      p = strlen(Buffer2);
-      while (p && (Buffer2[p-1] == '\r' || Buffer2[p-1] == '\n' || Buffer2[p-1] == ';'))
-        Buffer2[--p] = '\0';
-
-      // Kommentare und Sektionen
-      switch (Buffer[0])
-      {
-        case '\0':
-          continue;
-
-        case '%':
-        case ';':
-        case '#':
-        case '/':
-          continue;
-
-        // Neue Sektion gefunden
-        case '[':
-        {
-          if (strcmp(Buffer2, "[Segments]") == 0)
-          {
-            // Header überprüfen
-            if (SavedSize != RecFileSize)
-              SegmentsStart = TRUE;
-            else
-            {
-              WriteLogMC(PROGRAM_NAME, "CutFileDecode(): Invalid file size of rec file!");
-              ret = FALSE;
-            }
-          }
-          continue;
-        }
-      }
-
-      // Header einlesen
-      if (!SegmentsStart)
-      {
-        char            Name[50];
-        unsigned long   Value;
-
-        if (sscanf(Buffer2, "%49[^= ] = %lu", Name, &Value) == 2)
-        {
-          if (strcmp(Name, "RecFileSize") == 0)
-            SavedSize = Value;
-          else if (strcmp(Name, "NrSegmentMarker") == 0)
-            NrSegmentMarker = Value;
-//          else if (strcmp(Name, "ActiveSegment") == 0)
-//            ActiveSegment = Value;
-        }
-      }
-
-      // Segmente einlesen
-      else
-      {
-        //[Segments]
-        //#Nr. ; Sel ; StartBlock ; StartTime ; Percent
-        if (sscanf(Buffer2, "%*i ; %c ; %lu ; %16[^;\r\n] ; %f%%", &Selected, &SegmentMarker[NrReadSegments].Block, TimeStamp, &SegmentMarker[NrReadSegments].Percent) == 4)
-        {
-          SegmentMarker[NrReadSegments].Selected = (Selected == '*');
-          SegmentMarker[NrReadSegments].Timems = (TimeStringToMSec(TimeStamp));
-          NrReadSegments++;
-        }
-      }
-    }
-    fclose(fCut);
-
-    if (NrReadSegments != NrSegmentMarker)
-    {
-      WriteLogMCf(PROGRAM_NAME, "CutFileDecode(): Invalid number of segments read (%d of %d)!", NrReadSegments, NrSegmentMarker);
-      NrSegmentMarker = NrReadSegments;
-    }
-  } */
-
-  TRACEEXIT();
-  return ret;
-}
-
 bool CutFileSave(void)
 {
   return CutFileSave2(SegmentMarker, NrSegmentMarker, PlaybackName);
@@ -3308,9 +3250,8 @@ bool CutFileSave(void)
 bool CutFileSave2(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const char* RecFileName)
 {
   FILE                 *fCut = NULL;
-  char                  AbsCutName[FBLIB_DIR_SIZE];
-  byte                 *CutBlock = NULL;
-  dword                 CutBlockSize = 0;
+  char                  AbsCutName[FBLIB_DIR_SIZE], TimeStamp[16];
+  int                   i;
   bool                  ret = TRUE;
 
   TRACEENTER();
@@ -3319,44 +3260,39 @@ bool CutFileSave2(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
   if ((CutFileMode == CM_InfOnly) || (NrSegmentMarker <= 2))
     CutFileDelete();
 
-/*  if ((CutFileMode == CM_CutOnly) || (NrSegmentMarker <= 2))
-    infData_Delete2(RecFileName, AbsPlaybackDir, INFFILETAG);  */
-
   // neues CutFile speichern
   if (SegmentMarker && (NrSegmentMarker > 2))
   {
-    ret = CutFileEncode(SegmentMarker, NrSegmentMarker, RecFileName, &CutBlock, &CutBlockSize);
-    if (CutBlock)
+    if (!HDD_GetFileSizeAndInode2(RecFileName, AbsPlaybackDir, NULL, &RecFileSize))
+      WriteLogMC(PROGRAM_NAME, "CutFileSave: Could not detect size of recording!"); 
+
+    if (CutFileMode != CM_InfOnly)
     {
-      if (CutFileMode != CM_InfOnly)
-      {
-        TAP_SPrint(AbsCutName, sizeof(AbsCutName), "%s/%s", AbsPlaybackDir, RecFileName);
-        TAP_SPrint(&AbsCutName[strlen(AbsCutName) - 4], 5, ".cut");
+      TAP_SPrint(AbsCutName, sizeof(AbsCutName), "%s/%s", AbsPlaybackDir, RecFileName);
+      TAP_SPrint(&AbsCutName[strlen(AbsCutName) - 4], 5, ".cut");
 
-        fCut = fopen(AbsCutName, "wb");
-        if(fCut)
+      fCut = fopen(AbsCutName, "wb");
+      if(fCut)
+      {
+        fprintf(fCut, "[MCCut3]\r\n");
+        fprintf(fCut, "RecFileSize=%llu\r\n", RecFileSize);
+        fprintf(fCut, "NrSegmentMarker=%d\r\n", NrSegmentMarker);
+        fprintf(fCut, "ActiveSegment=%d\r\n\r\n", ActiveSegment);  // sicher!?
+        fprintf(fCut, "[Segments]\r\n");
+        fprintf(fCut, "#Nr ; Sel ; StartBlock ;     StartTime ; Percent\r\n");
+        for (i = 0; i < NrSegmentMarker; i++)
         {
-          if (!fwrite(CutBlock, CutBlockSize, 1, fCut))
-            WriteLogMC(PROGRAM_NAME, "CutFileSave: failed to write cut-info into .cut!");
-          fclose(fCut);
-          HDD_SetFileDateTime(&AbsCutName[strlen(AbsPlaybackDir)+1], AbsPlaybackDir, Now(NULL));
+          MSecToTimeString(SegmentMarker[i].Timems, TimeStamp);
+          fprintf(fCut, "%3d ;  %c  ; %10lu ;%14s ;  %3.1f%%\r\n", i, (SegmentMarker[i].Selected ? '*' : ' '), SegmentMarker[i].Block, TimeStamp, SegmentMarker[i].Percent);
         }
-        else
-        {
-          WriteLogMC(PROGRAM_NAME, "CutFileSave: failed to open .cut!");
-          ret = FALSE;
-        }
+        fclose(fCut);
+        HDD_SetFileDateTime(&AbsCutName[1], "", Now(NULL));
       }
-
-/*      if (CutFileMode != CM_CutOnly)
+      else
       {
-        if (!infData_Set2(RecFileName, AbsPlaybackDir, INFFILETAG, CutBlockSize, CutBlock))
-        {
-          WriteLogMC(PROGRAM_NAME, "CutFileSave: failed to write cut-info into .inf!");
-          ret = FALSE;
-        }
-      }  */
-      TAP_MemFree(CutBlock);
+        WriteLogMC(PROGRAM_NAME, "CutFileSave: failed to open .cut!");
+        ret = FALSE;
+      }
     }
   }
   TRACEEXIT();
@@ -3493,6 +3429,7 @@ bool CutSaveToInf(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
     }
 
     fclose(fInf);
+    HDD_SetFileDateTime(&AbsInfName[1], "", Now(NULL));
     TAP_MemFree(Buffer);
   }
   TRACEEXIT();
@@ -5532,7 +5469,9 @@ if (HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, &InodeNr, NULL))
       CutEnding = FALSE;
       if (SplitMovie || (WorkingSegment == NrSegmentMarker - 2))
       {
-        if (!DisableSpecialEnd && (ForceSpecialEnd || (KeepCut && CutStartPoint.BlockNr + 11 <= 475949) || (KeepCut && CutStartPoint.BlockNr + 475949 + 11 < BehindCutPoint.BlockNr)))
+//        if (!DisableSpecialEnd && (ForceSpecialEnd || (KeepCut && CutStartPoint.BlockNr + 11 <= 475949) || (KeepCut && CutStartPoint.BlockNr + 475949 + 11 < BehindCutPoint.BlockNr)))
+//        if (!DisableSpecialEnd && (ForceSpecialEnd || (KeepCut && ((CutStartPoint.BlockNr + 11 <= 475949) || (CutStartPoint.BlockNr + 475949 + 11 < BehindCutPoint.BlockNr)))))
+        if (!DisableSpecialEnd && (ForceSpecialEnd || (KeepCut && (CutStartPoint.BlockNr + 11 <= 475949) && (CutStartPoint.BlockNr + 475949 - 11 < BehindCutPoint.BlockNr))))
         {
           //letztes Segment soll geschnitten werden -> speichere stattdessen den vorderen Teil der Aufnahme und tausche mit dem Original
           CutEnding = TRUE;
