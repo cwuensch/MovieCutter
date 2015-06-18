@@ -1,7 +1,7 @@
-2015-06-?? v3.3  NEU:
+2015-06-20 v3.3  NEU:
                   *** neue Funktion "Aufnahme teilen" (ersetzt "Gerade Segmente löschen")
                   *** neue Behandlung des letzten Segments (truncate) -> verhindert Aufnahmenfresser!
-                  *** fixed 4-byte-offset when cutting on Australian PVRs (?)
+                  *** fixed 4-byte-offset when cutting on Australian PVRs
                    ** neues, textbasiertes Format (v3) der cut-Datei (v1 und v2 weiterhin unterstützt)
                    ** Speicherung der Schnittmarker wahlweise im Bookmark-Bereich der inf-Datei
                    ** neue, bessere Stabilisierung der Zeitanzeige (auch bei Segmentwechsel)
