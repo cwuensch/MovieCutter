@@ -52,7 +52,7 @@ static bool  CutDecodeFromBM(void);
 static bool  CutEncodeToBM(tSegmentMarker SegmentMarker[], int NrSegmentMarker, dword Bookmarks[], int NrBookmarks);
 static void  CutFileDelete(void);
 static bool  CutFileDecodeBin(FILE *fCut, __off64_t *OutSavedSize);
-static bool  CutIniDecodeTxtFile(FILE *fCut, __off64_t *OutSavedSize, bool CutFile);
+static bool  CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize);
 static bool  CutFileLoad(void);
 static bool  CutFileSave(void);
 static bool  CutFileSave2(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const char* RecFileName);

@@ -2072,18 +2072,42 @@ void CleanupCut(void)
 void LoadINI(void)
 {
   TRACEENTER();
-  FILE *f = NULL;
+  INILOCATION IniFileState;
 
-  if ((f = fopen(TAPFSROOT LOGDIR "/" INIFILENAME, "r")) != NULL)
+  HDD_TAP_PushDir();
+  TAP_Hdd_ChangeDir(LOGDIR);
+  IniFileState = INIOpenFile(INIFILENAME, PROGRAM_NAME);
+  if((IniFileState != INILOCATION_NotFound) && (IniFileState != INILOCATION_NewFile))
   {
-    CutIniDecodeTxtFile(f, NULL, FALSE);
+    AutoOSDPolicy     =                INIGetInt("AutoOSDPolicy",              0,   0,    1)   ==   1;
+    DefaultOSDMode    =     (tOSDMode) INIGetInt("DefaultOSDMode",    MD_FullOSD,   0,    3);
+    DefaultMinuteJump =                INIGetInt("DefaultMinuteJump",          0,   0,   99);
+    ShowRebootMessage =                INIGetInt("ShowRebootMessage",          1,   0,    1)   !=   0;
+    MaxNavDiscrepancy =                INIGetInt("MaxNavDiscrepancy",       5000,   0,  86400000);       // = 24 Stunden
+    AskBeforeEdit     =                INIGetInt("AskBeforeEdit",              1,   0,    1)   !=   0;
+    CutFileMode       = (tCutSaveMode) INIGetInt("CutFileMode",          CM_Both,   0,    2);
+    SaveCutBak        =                INIGetInt("SaveCutBak",                 1,   0,    1)   !=   0;
+    ForceSpecialEnd   =                INIGetInt("ForceSpecialEnd",            0,   0,    1)   ==   1;
+    DisableSpecialEnd =                INIGetInt("DisableSpecialEnd",          0,   0,    1)   ==   1;
+    DoiCheckTest      =  (tiCheckMode) INIGetInt("DoiCheckTest",        IM_ROEnd,   0,    4);
+    CheckFSAfterCut   = (tCheckFSMode) INIGetInt("CheckFSAfterCut",      FM_Auto,   0,    3);
+    InodeMonitoring   =                INIGetInt("InodeMonitoring",            0,   0,    1)   ==   1;
 
-    if (!AutoOSDPolicy && DefaultOSDMode == MD_NoOSD)
-      DefaultOSDMode = MD_FullOSD;
-    if (DisableSpecialEnd) ForceSpecialEnd = FALSE;
-    fclose(f);
+    Overscan_X        =                INIGetInt("Overscan_X",                50,   0,  100);
+    Overscan_Y        =                INIGetInt("Overscan_Y",                25,   0,  100);
+    SegmentList_X     =                INIGetInt("SegmentList_X",             50,   0,  ScreenWidth - _SegmentList_Background_Gd.width);
+    SegmentList_Y     =                INIGetInt("SegmentList_Y",             82,   0,  ScreenHeight - _SegmentList_Background_Gd.height);
+
+    RCUMode           =     (tRCUMode) INIGetInt("RCUMode",              RC_auto,   0,    5);
+    DirectSegmentsCut =                INIGetInt("DirectSegmentsCut",          0,   0,    1)   ==   1;
+    DisableSleepKey   =                INIGetInt("DisableSleepKey",            0,   0,    1)   ==   1;
   }
-  else
+  INICloseFile();
+  if (!AutoOSDPolicy && DefaultOSDMode == MD_NoOSD)
+    DefaultOSDMode = MD_FullOSD;
+  if (DisableSpecialEnd) ForceSpecialEnd = FALSE;
+
+  if(IniFileState == INILOCATION_NewFile)
     SaveINI();
 
   if (RCUMode == RC_auto)
@@ -2108,6 +2132,8 @@ void LoadINI(void)
         RCUMode = RC_SRP2401;
     }
   }
+  HDD_TAP_PopDir();
+
   TRACEEXIT();
 }
 
@@ -2891,7 +2917,7 @@ bool CutFileDecodeBin(FILE *fCut, __off64_t *OutSavedSize)
   return ret;
 }
 
-bool CutIniDecodeTxtFile(FILE *fCut, __off64_t *OutSavedSize, bool CutFile)
+bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
 {
   char                 *Buffer = NULL;
   size_t                BufSize = 0;
@@ -2904,24 +2930,22 @@ bool CutIniDecodeTxtFile(FILE *fCut, __off64_t *OutSavedSize, bool CutFile)
   bool                  ret = FALSE;
 
   TRACEENTER();
-  if (CutFile)
-  {
-    NrSegmentMarker = 0;
-    ActiveSegment = 0;
-    memset(SegmentMarker, 0, NRSEGMENTMARKER * sizeof(tSegmentMarker));
-    if (OutSavedSize) *OutSavedSize = 0;
-  }
+  NrSegmentMarker = 0;
+  ActiveSegment = 0;
+  memset(SegmentMarker, 0, NRSEGMENTMARKER * sizeof(tSegmentMarker));
+  if (OutSavedSize) *OutSavedSize = 0;
 
   if (fCut)
   {
     // Check the first line
     if (getline(&Buffer, &BufSize, fCut) >= 0)
-      if( ( CutFile && ((strncmp(Buffer, "[MCCut3]", 8) == 0) || (strncmp(Buffer, "﻿[MCCut3]", 11) == 0)))
-       || (!CutFile && ((strncmp(Buffer, "[MovieCutter]", 13) == 0) || (strncmp(Buffer, "﻿[MovieCutter]", 16) == 0))))
+    {
+      if ((strncmp(Buffer, "[MCCut3]", 8) == 0) || (strncmp(Buffer, "﻿[MCCut3]", 11) == 0))
       {
         HeaderMode = TRUE;
         ret = TRUE;
       }
+    }
 
     while (ret && (getline(&Buffer, &BufSize, fCut) >= 0))
     {
@@ -2970,64 +2994,15 @@ bool CutIniDecodeTxtFile(FILE *fCut, __off64_t *OutSavedSize, bool CutFile)
 
         if (sscanf(Buffer, "%49[^= ] = %lu", Name, &Value) == 2)
         {
-          if (CutFile)
+          if (strcmp(Name, "RecFileSize") == 0)
           {
-            if (strcmp(Name, "RecFileSize") == 0)
-            {
-              SavedSize = Value;
-              if (OutSavedSize) *OutSavedSize = SavedSize;
-            }
-            else if (strcmp(Name, "NrSegmentMarker") == 0)
-              SavedNrSegments = Value;
-//            else if (strcmp(Name, "ActiveSegment") == 0)
-//              ActiveSegment = Value;
+            SavedSize = Value;
+            if (OutSavedSize) *OutSavedSize = SavedSize;
           }
-          else
-          {
-            if (Value < 0) Value = 0;
-            if (strcmp(Name, "AutoOSDPolicy")     == 0)
-                              AutoOSDPolicy        = (Value == 1);
-            if (strcmp(Name, "DefaultOSDMode")    == 0)
-                              DefaultOSDMode       = (tOSDMode) min(Value, 3);
-            if (strcmp(Name, "DefaultMinuteJump") == 0)
-                              DefaultMinuteJump    = min(Value, 99);
-            if (strcmp(Name, "ShowRebootMessage") == 0)
-                              ShowRebootMessage    = (Value != 0);
-            if (strcmp(Name, "MaxNavDiscrepancy") == 0)
-                              MaxNavDiscrepancy    = min(Value, 86400000);  // = 24 Stunden
-            if (strcmp(Name, "AskBeforeEdit")     == 0)
-                              AskBeforeEdit        = (Value != 0);
-            if (strcmp(Name, "CutFileMode")       == 0)
-                              CutFileMode          = (tCutSaveMode) min(Value, 2);
-            if (strcmp(Name, "SaveCutBak")        == 0)
-                              SaveCutBak           = (Value != 0);
-            if (strcmp(Name, "ForceSpecialEnd")   == 0)
-                              ForceSpecialEnd      = (Value == 1);
-            if (strcmp(Name, "DisableSpecialEnd") == 0)
-                              DisableSpecialEnd    = (Value == 1);
-            if (strcmp(Name, "DoiCheckTest")      == 0)
-                              DoiCheckTest         = (tiCheckMode) min(Value, 4);
-            if (strcmp(Name, "CheckFSAfterCut")   == 0)
-                              CheckFSAfterCut      = (tCheckFSMode) min(Value, 3);
-            if (strcmp(Name, "InodeMonitoring")   == 0)
-                              InodeMonitoring      = (Value == 1);
-
-            if (strcmp(Name, "Overscan_X")        == 0)
-                              Overscan_X           = min(Value, 100);
-            if (strcmp(Name, "Overscan_Y")        == 0)
-                              Overscan_Y           = min(Value, 100);
-            if (strcmp(Name, "SegmentList_X")     == 0)
-                              SegmentList_X        = min(Value, ScreenWidth - _SegmentList_Background_Gd.width);
-            if (strcmp(Name, "SegmentList_Y")     == 0)
-                              SegmentList_Y        = min(Value, ScreenHeight - _SegmentList_Background_Gd.height);
-
-            if (strcmp(Name, "RCUMode")           == 0)
-                              RCUMode              = (tRCUMode) min(Value, 5);
-            if (strcmp(Name, "DirectSegmentsCut") == 0)
-                              DirectSegmentsCut    = (Value == 1);
-            if (strcmp(Name, "DisableSleepKey")   == 0)
-                              DisableSleepKey      = (Value == 1);
-          }
+          else if (strcmp(Name, "NrSegmentMarker") == 0)
+            SavedNrSegments = Value;
+//          else if (strcmp(Name, "ActiveSegment") == 0)
+//            ActiveSegment = Value;
         }
       }
 
@@ -3048,10 +3023,10 @@ bool CutIniDecodeTxtFile(FILE *fCut, __off64_t *OutSavedSize, bool CutFile)
     if (ret)
     {
       if (NrSegmentMarker != SavedNrSegments)
-        WriteLogMCf(PROGRAM_NAME, "CutIniDecodeTxtFile: Invalid number of segments read (%d of %d)!", NrSegmentMarker, SavedNrSegments);
+        WriteLogMCf(PROGRAM_NAME, "CutFileDecodeTxt: Invalid number of segments read (%d of %d)!", NrSegmentMarker, SavedNrSegments);
     }
     else
-      WriteLogMC(PROGRAM_NAME, "CutIniDecodeTxtFile: Invalid file format!");
+      WriteLogMC(PROGRAM_NAME, "CutFileDecodeTxt: Invalid cut file format!");
   }
   TRACEEXIT();
   return ret;
@@ -3123,7 +3098,7 @@ bool CutFileLoad(void)
         case 3:
         default:
         {
-          ret = CutIniDecodeTxtFile(fCut, &SavedSize, TRUE);
+          ret = CutFileDecodeTxt(fCut, &SavedSize);
           break;
         }
       }
