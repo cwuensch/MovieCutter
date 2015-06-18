@@ -802,6 +802,7 @@ bool PatchRecFile(const char *SourceFileName, const char *AbsDirectory, off_t Re
   {
     pos = ((RequestedCutPosition >> 12) << 12) + (i * 4096);
     ArrayPos = (int)(pos-RequestedCutPosition);
+    if ((PACKETSIZE==188) && (i == CUTPOINTSECTORRADIUS)) break;
 
     // Check, if the current position is a sync-byte
     if ((MidArray[ArrayPos+4] == 'G'))
@@ -820,7 +821,7 @@ bool PatchRecFile(const char *SourceFileName, const char *AbsDirectory, off_t Re
     }
 
     // If Australian PVR, write a sync-Byte at the desired cut position + 4
-    if ((PACKETSIZE==188) && (i < CUTPOINTSECTORRADIUS))
+    if (PACKETSIZE==188)
     {
       if (MidArray[ArrayPos+0] == 'G')
       {
