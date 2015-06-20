@@ -43,7 +43,7 @@ bool       infData_Delete2(const char *RecFileName, const char *AbsDirectory, co
 
 //These will prevent the compiler from complaining
 //We've to use the 64-bit version of lstat() else it will fail with files >= 4GB
-typedef struct
+/*typedef struct
 {
   __dev_t               st_dev;
   long int              st_pad1[2];
@@ -86,5 +86,5 @@ typedef struct
 
 extern int lstat64(__const char *__restrict __file, tstat64 *__restrict __buf) __THROW;
 extern int statvfs64 (__const char *__restrict __file, tstatvfs64 *__restrict __buf) __THROW;
-
+*/
 #endif

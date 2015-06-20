@@ -1,5 +1,7 @@
-#define _FILE_OFFSET_BITS  64
+#define _LARGEFILE_SOURCE
+#define _LARGEFILE64_SOURCE
 #define __USE_LARGEFILE64  1
+#define _FILE_OFFSET_BITS  64
 #ifdef _MSC_VER
   #define __const const
 #endif
@@ -43,7 +45,7 @@ void CreateSettingsDir(void)
 {
   TRACEENTER();
 
-//  tstat64 st;
+//  struct stat64 st;
 //  if (lstat64(TAPFSROOT "/ProgramFiles/Settings", &st) == -1)
     mkdir(TAPFSROOT "/ProgramFiles/Settings", 666);
 //  if (lstat64(TAPFSROOT "/ProgramFiles/Settings/MovieCutter", &st) == -1)

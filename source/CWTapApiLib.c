@@ -1,5 +1,7 @@
-#define _FILE_OFFSET_BITS  64
+#define _LARGEFILE_SOURCE
+#define _LARGEFILE64_SOURCE
 #define __USE_LARGEFILE64  1
+#define _FILE_OFFSET_BITS  64
 #ifdef _MSC_VER
   #define __const const
 #endif
@@ -102,7 +104,7 @@ bool HDD_GetAbsolutePathByTypeFile2(TYPE_File *File, char *OutAbsFileName)
 bool HDD_GetFileSizeAndInode2(const char *FileName, const char *AbsDirectory, __ino64_t *OutCInode, __off64_t *OutFileSize)
 {
   char                  AbsFileName[FBLIB_DIR_SIZE];
-  tstat64               statbuf;
+  struct stat64         statbuf;
   bool                  ret = FALSE;
 
   TRACEENTER();
@@ -160,7 +162,7 @@ bool HDD_GetFileSizeAndInode2(const char *FileName, const char *AbsDirectory, __
 /*bool HDD_GetFileDateTime(char const *FileName, char const *AbsDirectory, dword *OutDateTime)
 {
   char                  AbsFileName[FBLIB_DIR_SIZE];
-  tstat64               statbuf;
+  struct stat64         statbuf;
   struct utimbuf        utimebuf;
 
   TRACEENTER();
@@ -181,7 +183,7 @@ bool HDD_GetFileSizeAndInode2(const char *FileName, const char *AbsDirectory, __
 bool HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, dword NewDateTime)
 {
   char                  AbsFileName[FBLIB_DIR_SIZE];
-  tstat64               statbuf;
+  struct stat64         statbuf;
   struct utimbuf        utimebuf;
 
   if(FileName && AbsDirectory && (NewDateTime > 0xd0790000))
@@ -203,7 +205,7 @@ bool HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, dword N
 __off64_t HDD_GetFreeDiscSpace(char *AnyFileName, char *AbsDirectory)
 {
   char                  AbsFileName[FBLIB_DIR_SIZE];
-  tstatvfs64            statbuf;
+  struct statvfs64      statbuf;
   __off64_t             ret = 0;
 
   TRACEENTER();

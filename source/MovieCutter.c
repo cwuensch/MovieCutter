@@ -1,5 +1,7 @@
-#define _FILE_OFFSET_BITS  64
+#define _LARGEFILE_SOURCE
+#define _LARGEFILE64_SOURCE
 #define __USE_LARGEFILE64  1
+#define _FILE_OFFSET_BITS  64
 #ifdef _MSC_VER
   #define __const const
 #endif
@@ -2940,7 +2942,7 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
     // Check the first line
     if (getline(&Buffer, &BufSize, fCut) >= 0)
     {
-      if ((strncmp(Buffer, "[MCCut3]", 8) == 0) || (strncmp(Buffer, "﻿[MCCut3]", 11) == 0))
+      if (strncmp(Buffer, "[MCCut3]", 8) == 0)
       {
         HeaderMode = TRUE;
         ret = TRUE;
@@ -3011,7 +3013,7 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
       {
         //[Segments]
         //#Nr. ; Sel ; StartBlock ; StartTime ; Percent
-        if (sscanf(Buffer, "%*i %c %lu %16s %f%%", &Selected, &SegmentMarker[NrSegmentMarker].Block, TimeStamp, &SegmentMarker[NrSegmentMarker].Percent) >= 3)
+        if (sscanf(Buffer, "%*i ; %c ; %lu ; %16[^;\r\n] ; %f%%", &Selected, &SegmentMarker[NrSegmentMarker].Block, TimeStamp, &SegmentMarker[NrSegmentMarker].Percent) >= 3)
         {
           SegmentMarker[NrSegmentMarker].Selected = (Selected == '*');
           SegmentMarker[NrSegmentMarker].Timems = (TimeStringToMSec(TimeStamp));
@@ -3301,11 +3303,11 @@ bool CutFileSave2(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
         fprintf(fCut, "NrSegmentMarker=%d\r\n", NrSegmentMarker);
         fprintf(fCut, "ActiveSegment=%d\r\n\r\n", ActiveSegment);  // sicher!?
         fprintf(fCut, "[Segments]\r\n");
-        fprintf(fCut, "#Nr\tSel\tStartBlock\t     StartTime\tPercent\r\n");
+        fprintf(fCut, "#Nr ; Sel ; StartBlock ;     StartTime ; Percent\r\n");
         for (i = 0; i < NrSegmentMarker; i++)
         {
           MSecToTimeString(SegmentMarker[i].Timems, TimeStamp);
-          fprintf(fCut, "%3d\t %c \t%10lu\t%14s\t %5.1f%%\r\n", i, (SegmentMarker[i].Selected ? '*' : '-'), SegmentMarker[i].Block, TimeStamp, SegmentMarker[i].Percent);
+          fprintf(fCut, "%3d ;  %c  ; %10lu ;%14s ;  %5.1f%%\r\n", i, (SegmentMarker[i].Selected ? '*' : '-'), SegmentMarker[i].Block, TimeStamp, SegmentMarker[i].Percent);                        
         }
         fclose(fCut);
         HDD_SetFileDateTime(&AbsCutName[1], "", Now(NULL));
