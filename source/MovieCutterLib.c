@@ -531,9 +531,10 @@ bool FileCut(char *SourceFileName, char *CutFileName, char *AbsDirectory, dword 
 //    TAP_SystemProc();
     TAP_Sleep(10);
   }
-  system("/mnt/hd/ProgramFiles/busybox hdparm -f /dev/sda");
-  system("/mnt/hd/ProgramFiles/busybox hdparm -f /dev/sdb");
-  system("/mnt/hd/ProgramFiles/busybox hdparm -f /dev/sdc");  */
+  char DeviceNode[FBLIB_DIR_SIZE], CommandLine[FBLIB_DIR_SIZE];
+  HDD_FindMountPointDev2(AbsDirectory, NULL, DeviceNode);
+  TAP_SPrint(CommandLine, sizeof(CommandLine), "/mnt/hd/ProgramFiles/busybox hdparm -f %s", DeviceNode);
+  system(CommandLine); */
 
   if(ret != 0)
   {
