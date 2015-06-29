@@ -99,6 +99,7 @@ Options in the MovieCutter.ini
 ==============================
 [since V. 3.3]
   - CutFileMode:		0: Save the cut markers in cut- and inf-file. - 1: cut-file only. - 2: inf-file only.
+  - DeleteCutFiles:		0: Never delete useless cut files. - 1: only in /DataFiles. - 2: recursively in subdirectories (needs TMSTelnet).
   - ForceSpecialEnd:		1: Force the inverse handling of last segment. (Default: only when safe) [0,1]
   - RCUMode:		(new)	0: auto - 1: SRP-2401 - 2: SRP-2410 - 3: CRP-2401 - 4: TF5000 (identical with 2) - 5: No use of the VolKeys
 [since V. 3.1b]

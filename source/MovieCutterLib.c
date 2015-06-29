@@ -131,7 +131,7 @@ void MSecToTimeString(dword Timems, char *const OutTimeString)  // needs max. 4 
     Min  = (Timems / 60000) % 60;
     Sec  = (Timems / 1000) % 60;
     Millisec = Timems % 1000;
-    TAP_SPrint(OutTimeString, 15, "%lu:%02lu:%02lu.%03lu", Hour, Min, Sec, Millisec);
+    TAP_SPrint(OutTimeString, 15, "%lu:%02lu:%02lu,%03lu", Hour, Min, Sec, Millisec);
   }
   TRACEEXIT();
 }
@@ -143,7 +143,7 @@ dword TimeStringToMSec(char *const TimeString)
 
   if(TimeString)
   {
-    if (sscanf(TimeString, "%lu:%lu:%lu.%lu", &Hour, &Min, &Sec, &Millisec) == 4)
+    if (sscanf(TimeString, "%lu:%lu:%lu[,.]%lu", &Hour, &Min, &Sec, &Millisec) == 4)
       ret = 1000*(60*(60*Hour + Min) + Sec) + Millisec;
   }
   TRACEEXIT();
@@ -1621,9 +1621,9 @@ bool PatchNavFiles(const char *SourceFileName, const char *CutFileName, const ch
 
         if (PictureHeaderOffset >= BehindCutPos)
         {
-          if (IgnoreRecordsAfterCut) break;
           if (FirstSourceTime == 0) FirstSourceTime = navOld[i].Timems; 
           LastSourceTime = navOld[i].Timems;
+          if (IgnoreRecordsAfterCut) break;
         }
 
         if((navOld[i].SHOffset >> 24) == 1) IFrameSource = TRUE;

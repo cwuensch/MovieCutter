@@ -2,7 +2,7 @@
 #define __MOVIECUTTERH__
 
 #define PROGRAM_NAME          "MovieCutter"
-#define VERSION               "V3.3 beta"  // alpha = α,  beta = β, � = ü
+#define VERSION               "V3.3"  // alpha = α,  beta = β, � = ü
 #define TAPID                 0x8E0A4247
 //#define AUTHOR                "FireBird / Christian W�nsch"
 #define AUTHOR                "FireBird / C. Wünsch"
@@ -30,7 +30,7 @@ int fseeko64 (FILE *__stream, __off64_t __off, int __whence);
 
 int   TAP_Main(void);
 dword TAP_EventHandler(word event, dword param1, dword param2);
-dword TMSCommander_handler(dword param1);
+static dword TMSCommander_handler(dword param1);
 
 static bool  ActionMenuItemInactive(int MenuItem);
 static void  ActionMenuDown(void);

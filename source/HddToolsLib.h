@@ -4,8 +4,8 @@
 #define FSCKPATH              TAPFSROOT "/ProgramFiles"
 #define ABSLOGDIR             TAPFSROOT "/ProgramFiles/Settings/MovieCutter"
 
-typedef void (*TProgBarHandler)(bool, dword);  // 0 - 100
-typedef void (*TMessageHandler)(char*, char*);
+typedef void (*TProgBarHandler)(bool, dword);   // bool ShowProgBar, dword CurrentValue (0-100)
+typedef void (*TMessageHandler)(char*, char*);  // char *MessageStr, char *TitleStr
 
 //bool  SetSystemTimeToCurrent();
 //bool  AddInodeToFixingList(tInodeData curInode, const char *AbsListFile);
@@ -15,7 +15,6 @@ bool  HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProg
 void  HDD_CancelCheckFS(void);
 bool  HDD_CheckInode(const char *FileName, const char *AbsDirectory, bool DoFix, bool InodeMonitoring);
 int   HDD_CheckInodes(const char *InodeNrs, const char *AbsMountPath, bool DoFix, bool InodeMonitoring);
-bool  HDD_FixInodeList2(const char *ListFile, const char *DeviceNode, bool DeleteOldEntries);
 bool  HDD_FixInodeList(const char *AbsMountPath, bool DeleteOldEntries);
 
 #endif

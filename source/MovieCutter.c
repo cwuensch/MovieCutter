@@ -420,6 +420,7 @@ static dword            MaxNavDiscrepancy  = 5000;
 static bool             AskBeforeEdit      = TRUE;
 static tCutSaveMode     CutFileMode        = CM_Both;   // [0] in cut- und inf-Datei, [1] nur cut-Datei, [2] nur inf-Datei
 static bool             SaveCutBak         = TRUE;
+static int              DeleteCutFiles     = 1;         // Verweiste .cut-Files löschen: [0] nie, [1] in /DataFiles, [2] auch rekursiv in Unterverzeichnissen
 static bool             ForceSpecialEnd    = FALSE;     // TRUE = immer umgekehrte Endbehandlung, FALSE = nur, wenn ungefährlich (< 4 GB)
 static bool             DisableSpecialEnd  = FALSE;     // TRUE = niemals umgekehrte Endbehandlung, überschreibt ForceSpecialEnd
 static tiCheckMode      DoiCheckTest       = IM_ROEnd;  // [0] nie, [1] gesammelt am Ende (ro), [2] gesammelt am Ende (fix), [3] nach jedem Schnitt (ro), [4] nach jedem Schnitt (fix)
@@ -754,12 +755,12 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       // Set the system time to current time
 //      /*if (InodeMonitoring)*/ SetSystemTimeToCurrent();
 
+      State = AutoOSDPolicy ? ST_WaitForPlayback : ST_InactiveMode;
+
       // Fix list of defect inodes
       if(InodeMonitoring) HDD_FixInodeList(TAPFSROOT, TRUE);  // Problem: NUR für die interne HDD wird die Liste jemals zurückgesetzt!
 
       CleanupCut();
-
-      State = AutoOSDPolicy ? ST_WaitForPlayback : ST_InactiveMode;
       break;
     }
 
@@ -1127,30 +1128,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         break;
       }
 
-      if((event == EVT_KEY) && ((param1==RKEY_Exit && OSDMode==MD_NoOSD && !rgnInfoBarMini) || param1==FKEY_Exit || param1==RKEY_Stop || param1==RKEY_Info || param1==RKEY_Teletext || param1==RKEY_PlayList || param1==RKEY_AudioTrk || param1==RKEY_Subt))
-      {
-#ifdef FULLDEBUG
-  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_ActiveOSD, Key=RKEY_Exit --> Aufruf von CutFileSave()");
-#endif
-        if (OSDMode != MD_NoOSD)
-          LastOSDMode = OSDMode;
-        JumpRequestedSegment = 0xFFFF;
-        JumpRequestedBlock = (dword) -1;
-        CutSaveToBM(FALSE);
-        CutFileSave();
-        PlaybackRepeatSet(OldRepeatMode);
-        State = ST_InactiveModePlaying;
-        ClearOSD(TRUE);
-        if ((param1 == RKEY_Exit) || (param1 == FKEY_Exit)) param1 = 0;
-//        else if (param1 == RKEY_Info) TAP_GenerateEvent(EVT_KEY, RKEY_Info, 0);
-
-/*        //Exit immediately so that other cases can not interfere with the cleanup
-        DoNotReenter = FALSE;
-        TRACEEXIT();
-        return ((param1 != RKEY_Exit) ? param1 : 0);  */
-        break;
-      }
-
       if ((int)PlayInfo.currentBlock < 0)
         break;  // *** kritisch ***
 
@@ -1168,6 +1145,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         
           case RKEY_Exit:
           {
+            // Wenn Segmentsprung geplant -> diesen abbrechen
             if ((JumpRequestedSegment != 0xFFFF) || (JumpRequestedBlock != (dword) -1))
             {
               JumpRequestedSegment = 0xFFFF;
@@ -1179,11 +1157,49 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               break;
             }
 
+            // Wenn echtes OSD aktiv -> in NoOSD-Modus wechseln
+            if (OSDMode != MD_NoOSD || rgnInfoBarMini)
+            {
+              if (OSDMode != MD_NoOSD)
+                LastOSDMode = OSDMode;
+              OSDMode = MD_NoOSD;
+              OSDRedrawEverything();
+              OSDTextStateWindow(LS_MovieCutterActive);
+              break;
+            }
+          }  // Wenn NoOSD-Modus, fortsetzen mit Deaktivierung...
+
+          case FKEY_Exit:
+          case RKEY_Info:
+          case RKEY_Teletext:
+          case RKEY_PlayList:
+          case RKEY_AudioTrk:
+          case RKEY_Subt:
+          {        
+            // MC deaktivieren
+#ifdef FULLDEBUG
+  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_ActiveOSD, Key=RKEY_Exit --> Aufruf von CutFileSave()");
+#endif
             if (OSDMode != MD_NoOSD)
               LastOSDMode = OSDMode;
-            OSDMode = MD_NoOSD;
-            OSDRedrawEverything();
-            OSDTextStateWindow(LS_MovieCutterActive);
+            JumpRequestedSegment = 0xFFFF;
+            JumpRequestedBlock = (dword) -1;
+            CutSaveToBM(FALSE);
+            CutFileSave();
+            PlaybackRepeatSet(OldRepeatMode);
+            State = ST_InactiveModePlaying;
+            ClearOSD(TRUE);
+            if ((param1 != RKEY_Exit) && (param1 != FKEY_Exit)) ReturnKey = TRUE;
+//            else if (param1 == RKEY_Info) TAP_GenerateEvent(EVT_KEY, RKEY_Info, 0);
+            break;
+          }
+
+          case RKEY_Stop:
+          {
+            CutSaveToBM(FALSE);
+//            TAP_Hdd_StopTs();
+//            HDD_ChangeDir(PlaybackDir);
+            ReturnKey = TRUE;
             break;
           }
 
@@ -1505,15 +1521,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             break;
           }
 
-          case RKEY_Stop:
-          {
-            CutSaveToBM(FALSE);
-//            TAP_Hdd_StopTs();
-//            HDD_ChangeDir(PlaybackDir);
-            ReturnKey = TRUE;
-            break;
-          }
-
           case RKEY_0:
           case RKEY_1:
           case RKEY_2:
@@ -1700,7 +1707,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 case MI_ScanDelete:
                 {
                   if (!BookmarkMode)
+                  {
+                    WriteLogMC(PROGRAM_NAME, "[Action 'Check file system' started...]");
                     CheckFileSystem(AbsPlaybackDir, 0, 1, 1, TRUE, FALSE, FALSE, TRUE, 0, NULL);
+                  }
                   else
                     MovieCutterDeleteFile();
                   break;
@@ -2022,48 +2032,51 @@ void CleanupCut(void)
 
   TRACEENTER();
 
-  HDD_TAP_PushDir();
-  TAP_Hdd_ChangeDir("/DataFiles");
+  if (DeleteCutFiles)
+  {
+    HDD_TAP_PushDir();
+    TAP_Hdd_ChangeDir("/DataFiles");
   
-  // Lösche verweiste .cut-Dateien in /DataFiles (nicht in Unterverzeichnissen)
-  NrFiles = TAP_Hdd_FindFirst(&FolderEntry, "cut");
-  for (i = 0; i < NrFiles; i++)
-  {
-    if(FolderEntry.attr == ATTR_NORMAL)
+    // Lösche verweiste .cut-Dateien in /DataFiles (nicht in Unterverzeichnissen)
+    NrFiles = TAP_Hdd_FindFirst(&FolderEntry, "cut");
+    for (i = 0; i < NrFiles; i++)
     {
-      TAP_SPrint(RecFileName, sizeof(RecFileName), FolderEntry.name);
-      RecFileName[strlen(RecFileName) - 4] = '\0';
-      strcat(RecFileName, ".rec");
-      TAP_SPrint(MpgFileName, sizeof(MpgFileName), FolderEntry.name);
-      MpgFileName[strlen(MpgFileName) - 4] = '\0';
-      strcat(MpgFileName, ".mpg");
-      if(!TAP_Hdd_Exist(RecFileName) && !TAP_Hdd_Exist(MpgFileName))
-        TAP_Hdd_Delete(FolderEntry.name);
-    }
-    TAP_Hdd_FindNext(&FolderEntry);
-  }
-
-  // Lösche verweiste .cut.bak-Dateien in /DataFiles
-  NrFiles = TAP_Hdd_FindFirst(&FolderEntry, "bak");
-  for (i = 0; i < NrFiles; i++)
-  {
-    if(FolderEntry.attr == ATTR_NORMAL)
-    {
-      TAP_SPrint(RecFileName, sizeof(RecFileName), FolderEntry.name);
-      TAP_SPrint(MpgFileName, sizeof(MpgFileName), FolderEntry.name);
-      if (StringEndsWith(RecFileName, ".cut.bak"))
+      if(FolderEntry.attr == ATTR_NORMAL)
       {
-        RecFileName[strlen(RecFileName) - 8] = '\0';
-        MpgFileName[strlen(MpgFileName) - 8] = '\0';
+        TAP_SPrint(RecFileName, sizeof(RecFileName), FolderEntry.name);
+        RecFileName[strlen(RecFileName) - 4] = '\0';
         strcat(RecFileName, ".rec");
+        TAP_SPrint(MpgFileName, sizeof(MpgFileName), FolderEntry.name);
+        MpgFileName[strlen(MpgFileName) - 4] = '\0';
         strcat(MpgFileName, ".mpg");
         if(!TAP_Hdd_Exist(RecFileName) && !TAP_Hdd_Exist(MpgFileName))
           TAP_Hdd_Delete(FolderEntry.name);
       }
+      TAP_Hdd_FindNext(&FolderEntry);
     }
-    TAP_Hdd_FindNext(&FolderEntry);
+
+    // Lösche verweiste .cut.bak-Dateien in /DataFiles
+    NrFiles = TAP_Hdd_FindFirst(&FolderEntry, "bak");
+    for (i = 0; i < NrFiles; i++)
+    {
+      if(FolderEntry.attr == ATTR_NORMAL)
+      {
+        TAP_SPrint(RecFileName, sizeof(RecFileName), FolderEntry.name);
+        TAP_SPrint(MpgFileName, sizeof(MpgFileName), FolderEntry.name);
+        if (StringEndsWith(RecFileName, ".cut.bak"))
+        {
+          RecFileName[strlen(RecFileName) - 8] = '\0';
+          MpgFileName[strlen(MpgFileName) - 8] = '\0';
+          strcat(RecFileName, ".rec");
+          strcat(MpgFileName, ".mpg");
+          if(!TAP_Hdd_Exist(RecFileName) && !TAP_Hdd_Exist(MpgFileName))
+            TAP_Hdd_Delete(FolderEntry.name);
+        }
+      }
+      TAP_Hdd_FindNext(&FolderEntry);
+    }
+    HDD_TAP_PopDir();
   }
-  HDD_TAP_PopDir();
 
   TRACEEXIT();
 }
@@ -2089,6 +2102,7 @@ void LoadINI(void)
     AskBeforeEdit     =                INIGetInt("AskBeforeEdit",              1,   0,    1)   !=   0;
     CutFileMode       = (tCutSaveMode) INIGetInt("CutFileMode",          CM_Both,   0,    2);
     SaveCutBak        =                INIGetInt("SaveCutBak",                 1,   0,    1)   !=   0;
+    DeleteCutFiles    =                INIGetInt("DeleteCutFiles",             1,   0,    2);
     ForceSpecialEnd   =                INIGetInt("ForceSpecialEnd",            0,   0,    1)   ==   1;
     DisableSpecialEnd =                INIGetInt("DisableSpecialEnd",          0,   0,    1)   ==   1;
     DoiCheckTest      =  (tiCheckMode) INIGetInt("DoiCheckTest",        IM_ROEnd,   0,    4);
@@ -2155,6 +2169,7 @@ void SaveINI(void)
     fprintf(f, "%s=%d\r\n",  "AskBeforeEdit",       AskBeforeEdit       ?  1  :  0);
     fprintf(f, "%s=%d\r\n",  "CutFileMode",         CutFileMode);
     fprintf(f, "%s=%d\r\n",  "SaveCutBak",          SaveCutBak          ?  1  :  0);
+    fprintf(f, "%s=%d\r\n",  "DeleteCutFiles",      DeleteCutFiles);
     fprintf(f, "%s=%d\r\n",  "ForceSpecialEnd",     ForceSpecialEnd     ?  1  :  0);
     fprintf(f, "%s=%d\r\n",  "DisableSpecialEnd",   DisableSpecialEnd   ?  1  :  0);
     fprintf(f, "%s=%d\r\n",  "DoiCheckTest",        DoiCheckTest);
@@ -3196,10 +3211,11 @@ bool CutFileLoad(void)
   // sonst schaue in der inf
   if (!ret && (CutFileMode != CM_CutOnly))
   {
-    #ifdef FULLDEBUG
-      WriteLogMCf(PROGRAM_NAME, "CutFileLoad: Importing segments from Bookmark-area"); 
-    #endif
     ret = CutDecodeFromBM();
+    #ifdef FULLDEBUG
+    if (ret)
+      WriteLogMCf(PROGRAM_NAME, "CutFileLoad: Imported segments from Bookmark-area.");
+    #endif
     if (!ret && CutFileMode == CM_InfOnly)
       WriteLogMC(PROGRAM_NAME, "CutFileLoad: Failed to read segments from RAM!");
 
@@ -5628,8 +5644,8 @@ if (KeepCut || CutEnding)
         break;
       }
 
-WriteLogMC("DEBUG", "Cut-List VOR Anpassung:");
-CutDumpList();
+//WriteLogMC("DEBUG", "Cut-List VOR Anpassung:");
+//CutDumpList();
 
       // Anpassung der verbleibenden Segmente
       SegmentMarker[WorkingSegment].Selected = FALSE;
@@ -5716,17 +5732,26 @@ CutDumpList();
         }
       }
 
-      // das letzte Segment auf den gemeldeten TotalBlock-Wert setzen
+      // das letzte Segment auf den gemeldeten TotalBlock-Wert prüfen
       if(SegmentMarker[NrSegmentMarker-1].Block != PlayInfo.totalBlock)
       {
-        #ifdef FULLDEBUG
-          WriteLogMCf(PROGRAM_NAME, "!!! MovieCutterProcess: Letzter Segment-Marker %lu (%lu) ist ungleich TotalBlock %lu (%lu)!", SegmentMarker[NrSegmentMarker-1].Block, SegmentMarker[NrSegmentMarker-1].Timems, PlayInfo.totalBlock, NavGetBlockTimeStamp(PlayInfo.totalBlock));
-        #endif
-        // PROBLEM!! nav ist nicht neu geladen... -> lieber beim Neu-Laden der Aufnahme korrigieren!
-//        SegmentMarker[NrSegmentMarker-1].Block = PlayInfo.totalBlock;
-//        dword newTime = NavGetBlockTimeStamp(SegmentMarker[NrSegmentMarker-1].Block);
-//        SegmentMarker[NrSegmentMarker-1].Timems = (newTime) ? newTime : (dword)(1000 * (60*PlayInfo.duration + PlayInfo.durationSec));
-//        SegmentMarker[NrSegmentMarker-1].Percent = 100;
+        // PROBLEM!! nav ist nicht neu geladen... -> darf nur beim letzten Segment aus der nav gelesen werden. (eigentlich sowieso unnötig)
+        if (SplitMovie || (WorkingSegment == NrSegmentMarker - 1))
+        {
+          #ifdef FULLDEBUG
+            WriteLogMCf(PROGRAM_NAME, "MovieCutterProcess: Korrigiere letzten Segment-Marker von %lu (%lu) zu TotalBlock %lu (%lu)!", SegmentMarker[NrSegmentMarker-1].Block, SegmentMarker[NrSegmentMarker-1].Timems, PlayInfo.totalBlock, NavGetBlockTimeStamp(PlayInfo.totalBlock));
+          #endif
+          SegmentMarker[NrSegmentMarker-1].Block = PlayInfo.totalBlock;
+          dword newTime = NavGetBlockTimeStamp(SegmentMarker[NrSegmentMarker-1].Block);
+          SegmentMarker[NrSegmentMarker-1].Timems = (newTime) ? newTime : (dword)(1000 * (60*PlayInfo.duration + PlayInfo.durationSec));
+          SegmentMarker[NrSegmentMarker-1].Percent = 100.0;
+        }
+        else
+        {
+          #ifdef FULLDEBUG
+            WriteLogMCf(PROGRAM_NAME, "!!! MovieCutterProcess: Letzter Segment-Marker %lu (%lu) ist ungleich TotalBlock %lu (%lu)!", SegmentMarker[NrSegmentMarker-1].Block, SegmentMarker[NrSegmentMarker-1].Timems, PlayInfo.totalBlock, NavGetBlockTimeStamp(PlayInfo.totalBlock));
+          #endif
+        }
       }
 
 WriteLogMC("DEBUG", "Cut-List NACH Anpassung:");
@@ -5793,7 +5818,7 @@ CutDumpList();
       break;
   }
   CutFileSave();
-  CutDumpList();
+//  CutDumpList();
 //  TAP_Osd_Sync();
 //  ClearOSD(FALSE);
 //  OSDRedrawEverything();

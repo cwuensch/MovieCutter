@@ -36,9 +36,9 @@ bool       HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint
 char*      RemoveEndLineBreak (char *const Text);
 char       SysTypeToStr(void);
 void       LogEntry2(char *AbsFileName, char *ProgramName, bool Console, eTimeStampFormat TimeStampFormat, char *Text);
-bool       infData_Get2(const char *RecFileName, const char *AbsDirectory, const char *NameTag, dword *const PayloadSize, byte **Payload);
-bool       infData_Set2(const char *RecFileName, const char *AbsDirectory, const char *NameTag, dword PayloadSize, byte Payload[]);
-bool       infData_Delete2(const char *RecFileName, const char *AbsDirectory, const char *NameTag);
+//bool       infData_Get2(const char *RecFileName, const char *AbsDirectory, const char *NameTag, dword *const PayloadSize, byte **Payload);
+//bool       infData_Set2(const char *RecFileName, const char *AbsDirectory, const char *NameTag, dword PayloadSize, byte Payload[]);
+//bool       infData_Delete2(const char *RecFileName, const char *AbsDirectory, const char *NameTag);
 
 
 //These will prevent the compiler from complaining

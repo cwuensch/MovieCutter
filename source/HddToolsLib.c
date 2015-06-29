@@ -31,6 +31,7 @@ static tInodeData*  ReadListFileAlloc(const char *AbsListFileName, int *OutNrIno
 static bool         WriteListFile(const char *AbsListFileName, const tInodeData InodeList[], const int NrInodes);
 static bool         AddTempListToDevice(const char *AbsDeviceList, const char *AbsTempList, int *const OutMarkedFiles, int *const OutNewMarkedFiles);
 static tReturnCode  RunIcheckWithLog(const char *DeviceNode, const char *ParamString, char *const OutLastLine);
+static bool         HDD_FixInodeList2(const char *ListFile, const char *DeviceNode, bool DeleteOldEntries);
 */
 
 static void HDDCheck_ProgBarHandler(bool ShowProgBar, dword CurrentValue, dword pProgressStart, dword pProgressEnd, dword pProgressMax, dword pRegionToSave)
@@ -829,7 +830,7 @@ int HDD_CheckInodes(const char *InodeNrs, const char *AbsMountPath, bool DoFix, 
 }
 
 
-bool HDD_FixInodeList2(const char *ListFile, const char *DeviceNode, bool DeleteOldEntries)
+static bool HDD_FixInodeList2(const char *ListFile, const char *DeviceNode, bool DeleteOldEntries)
 {
   char                  ParamString[512];
   tReturnCode           ret = rc_UNKNOWN;
