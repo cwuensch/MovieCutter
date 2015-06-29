@@ -3059,9 +3059,9 @@ bool CutDecodeFromBM(void)
   NrSegmentMarker = 0;
   if (Bookmarks[NRBOOKMARKS - 1] == TAPID)
   {
+    ret = TRUE;
     NrSegmentMarker = Bookmarks[NRBOOKMARKS - 2];
     if (NrSegmentMarker > NRSEGMENTMARKER) NrSegmentMarker = NRSEGMENTMARKER;
-    ret = TRUE;
 
     Start = NRBOOKMARKS - NrSegmentMarker - 6;
     for (i = 0; i < NrSegmentMarker; i++)
@@ -3102,7 +3102,7 @@ bool CutFileLoad(void)
       rewind(fCut);
 
       #ifdef FULLDEBUG
-        WriteLogMCf(PROGRAM_NAME, "CutFileLoad: Importing cut-file version %hhu", Version); 
+        WriteLogMCf(PROGRAM_NAME, "CutFileLoad: Importing cut-file version %hhu", Version);
       #endif
       switch (Version)
       {
@@ -3122,9 +3122,9 @@ bool CutFileLoad(void)
       if (!ret)
         WriteLogMC(PROGRAM_NAME, "CutFileLoad: Failed to read cut-info from .cut!"); 
     }
-    else
-      if (CutFileMode == CM_CutOnly)
-        WriteLogMC(PROGRAM_NAME, "CutFileLoad: Failed to open .cut!");
+//    else
+//      if (CutFileMode == CM_CutOnly)
+//        WriteLogMC(PROGRAM_NAME, "CutFileLoad: Failed to open .cut!");
 
     // Check, if size of rec-File has been changed
     if (ret && (RecFileSize != SavedSize))
@@ -3216,8 +3216,8 @@ bool CutFileLoad(void)
     if (ret)
       WriteLogMCf(PROGRAM_NAME, "CutFileLoad: Imported segments from Bookmark-area.");
     #endif
-    if (!ret && CutFileMode == CM_InfOnly)
-      WriteLogMC(PROGRAM_NAME, "CutFileLoad: Failed to read segments from RAM!");
+//    if (!ret && CutFileMode == CM_InfOnly)
+//      WriteLogMC(PROGRAM_NAME, "CutFileLoad: Failed to read segments from RAM!");
 
 /*    if (!ret)
     {
