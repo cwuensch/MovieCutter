@@ -143,7 +143,7 @@ dword TimeStringToMSec(char *const TimeString)
 
   if(TimeString)
   {
-    if (sscanf(TimeString, "%lu:%lu:%lu[,.]%lu", &Hour, &Min, &Sec, &Millisec) == 4)
+    if (sscanf(TimeString, "%lu:%lu:%lu%*1[.,]%lu", &Hour, &Min, &Sec, &Millisec) == 4)
       ret = 1000*(60*(60*Hour + Min) + Sec) + Millisec;
   }
   TRACEEXIT();

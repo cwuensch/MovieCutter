@@ -1170,6 +1170,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           }  // Wenn NoOSD-Modus, fortsetzen mit Deaktivierung...
 
           case FKEY_Exit:
+          case RKEY_Stop:
           case RKEY_Info:
           case RKEY_Teletext:
           case RKEY_PlayList:
@@ -1194,14 +1195,14 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             break;
           }
 
-          case RKEY_Stop:
+/*          case RKEY_Stop:
           {
             CutSaveToBM(FALSE);
-//            TAP_Hdd_StopTs();
+            TAP_Hdd_StopTs();
 //            HDD_ChangeDir(PlaybackDir);
-            ReturnKey = TRUE;
+//            ReturnKey = TRUE;
             break;
-          }
+          }  */
 
           case RKEY_Ab:
           case RKEY_Option:
@@ -2078,6 +2079,15 @@ void CleanupCut(void)
     HDD_TAP_PopDir();
   }
 
+/*  if (DeleteCutFiles)
+  {
+    system("chmod a+x " TAPFSROOT LOGDIR "/test1.sh &");
+    system("chmod a+x " TAPFSROOT LOGDIR "/test2.sh &");
+    if (DeleteCutFiles == 2)
+      system(TAPFSROOT LOGDIR "/test1.sh " TAPFSROOT "/DataFiles");
+    else
+      system(TAPFSROOT LOGDIR "/test2.sh " TAPFSROOT "/DataFiles");
+  } */
   TRACEEXIT();
 }
 
@@ -3007,9 +3017,9 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
       if (HeaderMode)
       {
         char            Name[50];
-        long            Value;
+        __off64_t       Value;
 
-        if (sscanf(Buffer, "%49[^= ] = %lu", Name, &Value) == 2)
+        if (sscanf(Buffer, "%49[^= ] = %llu", Name, &Value) == 2)
         {
           if (strcmp(Name, "RecFileSize") == 0)
           {
@@ -3037,6 +3047,8 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
       }
     }
     fclose(fCut);
+    free(Buffer);
+
     if (ret)
     {
       if (NrSegmentMarker != SavedNrSegments)
@@ -5852,7 +5864,9 @@ CutDumpList();
     if (strstr(SuspectHDDs, MountPoint) == 0)
       TAP_SPrint(&SuspectHDDs[strlen(SuspectHDDs)], SIZESUSPECTHDDS-strlen(SuspectHDDs), MountPoint);
     NrAllSuspectInodes += max(icheckErrors, 0);
-WriteLogMCf("DEBUG", "NrAllSuspectInodes=%d, SuspectHDDs='%s'", NrAllSuspectInodes, SuspectHDDs);
+    #ifdef FULLDEBUG
+      WriteLogMCf(PROGRAM_NAME, "NrAllSuspectInodes=%d, SuspectHDDs='%s'", NrAllSuspectInodes, SuspectHDDs);
+    #endif
   }
 
   // Check file system consistency and show a warning
