@@ -1485,7 +1485,7 @@ bool PatchNavFiles(const char *SourceFileName, const char *CutFileName, const ch
   char                  AbsFileName[FBLIB_DIR_SIZE];
   FILE                 *fOldNav = NULL, *fSourceNav = NULL, *fCutNav = NULL;
   tnavSD               *navOld = NULL, *navSource = NULL, *navCut=NULL;
-  off_t                 PictureHeaderOffset;
+  off_t                 PictureHeaderOffset = 0;
   size_t                navsRead, navRecsSource, navRecsCut, i;
   bool                  IFrameCut, IFrameSource;
   dword                 FirstCutTime, LastCutTime, FirstSourceTime, LastSourceTime;
@@ -1621,7 +1621,7 @@ bool PatchNavFiles(const char *SourceFileName, const char *CutFileName, const ch
 
         if (PictureHeaderOffset >= BehindCutPos)
         {
-          if (FirstSourceTime == 0) FirstSourceTime = navOld[i].Timems; 
+          if (FirstSourceTime == 0) FirstSourceTime = navOld[i].Timems;
           LastSourceTime = navOld[i].Timems;
           if (IgnoreRecordsAfterCut) break;
         }
@@ -1650,6 +1650,8 @@ bool PatchNavFiles(const char *SourceFileName, const char *CutFileName, const ch
         IFrameCut = FALSE;
       }
     }
+    if (IgnoreRecordsAfterCut && (PictureHeaderOffset >= BehindCutPos))
+      break;
   }
 
   if(navRecsCut > 0) fwrite(navCut, sizeof(tnavSD), navRecsCut, fCutNav);

@@ -1810,7 +1810,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           i++;
         }
       }
-      else if(InodeMonitoring)
+      if(InodeMonitoring)
         HDD_FixInodeList(((AbsPlaybackDir[0]) ? AbsPlaybackDir : TAPFSROOT), TRUE);
 
       if(isPlaybackRunning()) PlaybackRepeatSet(OldRepeatMode);
@@ -2081,12 +2081,10 @@ void CleanupCut(void)
 
 /*  if (DeleteCutFiles)
   {
-    system("chmod a+x " TAPFSROOT LOGDIR "/test1.sh &");
-    system("chmod a+x " TAPFSROOT LOGDIR "/test2.sh &");
     if (DeleteCutFiles == 2)
-      system(TAPFSROOT LOGDIR "/test1.sh " TAPFSROOT "/DataFiles");
+      system("sh " TAPFSROOT LOGDIR "/DeleteCutFiles.sh");
     else
-      system(TAPFSROOT LOGDIR "/test2.sh " TAPFSROOT "/DataFiles");
+      system("sh " TAPFSROOT LOGDIR "/DeleteCutFiles.sh --recursive");
   } */
   TRACEEXIT();
 }
@@ -3426,14 +3424,6 @@ bool CutSaveToInf(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
   TRACEENTER();
   if (CutFileMode != CM_CutOnly)
   {
-    #ifdef FULLDEBUG
-      int i;
-      TAP_PrintNet("CutSaveToInf()\n");
-      for (i = 0; i < NrSegmentMarker; i++) {
-        TAP_PrintNet("%lu\n", SegmentMarker[i].Block);
-      }
-    #endif
-
     //Allocate and clear the buffer
     Buffer = (byte*) TAP_MemAlloc(8192);
     if(Buffer) 
