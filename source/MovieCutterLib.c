@@ -1588,7 +1588,13 @@ bool PatchNavFiles(const char *SourceFileName, const char *CutFileName, const ch
           navRecsCut = 0;
         }
 
-        if (FirstCutTime == 0xFFFFFFFF) FirstCutTime = navOld[i].Timems;
+        if (FirstCutTime == 0xFFFFFFFF) 
+        {
+          if (CutStartPos == 0)
+            FirstCutTime = 0;
+          else
+            FirstCutTime = navOld[i].Timems;
+        }
         LastCutTime = navOld[i].Timems;
 
         //Subtract CutStartPos from the cut .nav PH address

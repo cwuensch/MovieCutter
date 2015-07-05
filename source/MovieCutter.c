@@ -510,7 +510,7 @@ int TAP_Main(void)
 
   if(HDD_TAP_CheckCollisionByID(TAPID))
   {
-    TAP_PrintNet("MovieCutter: Duplicate instance of the same TAP already started!\n");
+    TAP_PrintNet("MovieCutter: Duplicate instance of the same TAP already started!\r\n");
     TRACEEXIT();
     return 0;
   }
@@ -979,7 +979,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               WriteLogMC(PROGRAM_NAME, "Warning! Firmware function FIS_fwTimeToLinux() not found!");
             if (RecDateTime > 0xd0790000)
               RecDateTime = PvrTimeToLinux(RecDateTime);
-            TAP_PrintNet("Reboot-Check (%s): TimeSinceRec=%lu, UpTime=%lu, RecDateTime=%s", (TimeSinceRec <= UpTime + 1) ? "TRUE" : "FALSE", TimeSinceRec, UpTime, ctime((time_t*) &RecDateTime));
+            TAP_PrintNet("Reboot-Check (%s): TimeSinceRec=%lu, UpTime=%lu, RecDateTime=%s", (TimeSinceRec <= UpTime + 1) ? "true" : "false", TimeSinceRec, UpTime, ctime((time_t*) &RecDateTime));
           #endif
 
           if (TimeSinceRec <= UpTime + 1)
@@ -2082,9 +2082,9 @@ void CleanupCut(void)
 /*  if (DeleteCutFiles)
   {
     if (DeleteCutFiles == 2)
-      system("sh " TAPFSROOT LOGDIR "/DeleteCutFiles.sh");
+      system("sh " TAPFSROOT LOGDIR "/DeleteCutFiles.sh &");
     else
-      system("sh " TAPFSROOT LOGDIR "/DeleteCutFiles.sh --recursive");
+      system("sh " TAPFSROOT LOGDIR "/DeleteCutFiles.sh --recursive &");
   } */
   TRACEEXIT();
 }
@@ -5627,7 +5627,7 @@ if (KeepCut || CutEnding)
           j++;
         }
         #ifdef FULLDEBUG        
-          WriteLogMCf(PROGRAM_NAME, "Playback re-started (j=%d, isPlaybackRunning=%s, TotalBlock=%lu, CurrentBlock=%lu)", j, ((isPlaybackRunning()) ? "true" : "false"), PlayInfo.totalBlock, PlayInfo.currentBlock);
+          WriteLogMCf(PROGRAM_NAME, "Playback re-started (j=%d, isPlaybackRunning=%d, TotalBlock=%lu, CurrentBlock=%lu)", j, isPlaybackRunning(), PlayInfo.totalBlock, PlayInfo.currentBlock);
         #endif
         if (PlayInfo.playMode == PLAYMODE_Playing)
           PlaybackRepeatSet(TRUE);
@@ -5751,12 +5751,12 @@ if (KeepCut || CutEnding)
         else
         {
           #ifdef FULLDEBUG
-            WriteLogMCf(PROGRAM_NAME, "!!! MovieCutterProcess: Letzter Segment-Marker %lu (%lu) ist ungleich TotalBlock %lu (%lu)!", SegmentMarker[NrSegmentMarker-1].Block, SegmentMarker[NrSegmentMarker-1].Timems, PlayInfo.totalBlock, NavGetBlockTimeStamp(PlayInfo.totalBlock));
+            WriteLogMCf(PROGRAM_NAME, "MovieCutterProcess: Letzter Segment-Marker %lu (%lu) ist ungleich TotalBlock %lu!", SegmentMarker[NrSegmentMarker-1].Block, SegmentMarker[NrSegmentMarker-1].Timems, PlayInfo.totalBlock);
           #endif
         }
       }
 
-WriteLogMC("DEBUG", "Cut-List NACH Anpassung:");
+//WriteLogMC("DEBUG", "Cut-List NACH Anpassung:");
 CutDumpList();
 
       // Letzte Playback-Position anpassen
