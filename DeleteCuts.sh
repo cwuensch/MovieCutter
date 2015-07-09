@@ -10,7 +10,7 @@ function DeleteCuts() {
     do
         f="${f%%.bak}"
         f="${f%%.cut}"
-        [ "$f" = '*' ] || [ -f "$f.mpg.inf" ] || [ -f "$f.rec.inf" ] || echo rm -f -- "$f.cut" "$f.cut.bak"
+        [ "$f" = '*' ] || [ -f "$f.mpg.inf" ] || [ -f "$f.rec.inf" ] || rm -f -- "$f.cut" "$f.cut.bak"
     done
 
     # Extended version: also look into subdirectories
