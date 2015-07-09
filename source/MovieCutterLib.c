@@ -186,23 +186,18 @@ void GetNextFreeCutName(const char *SourceFileName, char *const OutCutFileName, 
 tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirectory, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepCut, bool isHD)
 {
   char                  FileName[MAX_FILE_NAME_SIZE + 1];
-  byte                 *CutPointArea1=NULL, *CutPointArea2=NULL;
   off_t                 SourceFileSize, CutFileSize;
   __ino64_t             InodeNr;
   dword                 MaxBehindCutBlock;
   off_t                 CutStartPos, BehindCutPos;
-  long                  CutStartPosOffset, BehindCutPosOffset;
   dword                 SourcePlayTime = 0;
   bool                  TruncateEnding = FALSE;
   bool                  SuppressNavGeneration = FALSE;
   dword                 RecDate;
-  int                   i;
 //  char                  TimeStr[16];
 
   TRACEENTER();
   GetPacketSize(SourceFileName);
-  byte                  FirstCutPacket[PACKETSIZE], LastCutPacket[PACKETSIZE];
-  off_t                 PatchedBytes[4 * CUTPOINTSECTORRADIUS];
 
   // LOG file printing
   WriteLogMC ("MovieCutterLib", "----------------------------------------");
@@ -233,44 +228,50 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
   WriteLogMCf("MovieCutterLib", "CutStartBlock = %lu,\tBehindCutBlock = %lu", CutStartPoint->BlockNr, BehindCutPoint->BlockNr);
   WriteLogMCf("MovieCutterLib", "CutStartPos   = %llu,\tBehindCutPos = %llu", CutStartPos, BehindCutPos);
 
-  // Read the two blocks surrounding the cut points from the recording
-  CutPointArea1 = (byte*) TAP_MemAlloc(CUTPOINTSEARCHRADIUS * 2);
-  CutPointArea2 = (byte*) TAP_MemAlloc(CUTPOINTSEARCHRADIUS * 2);
-  if (!CutPointArea1 || !CutPointArea2)
-  {
-    WriteLogMC("MovieCutterLib", "MovieCutter() W0001: nav creation suppressed.");
-    SuppressNavGeneration = TRUE;
-  }
-  if(CutPointArea1)
-  {
-    if (!ReadCutPointArea(SourceFileName, AbsDirectory, CutStartPos, CutPointArea1))
-    {
-      WriteLogMC("MovieCutterLib", "MovieCutter() W0002: nav creation suppressed.");
-      SuppressNavGeneration = TRUE;
-      TAP_MemFree(CutPointArea1); CutPointArea1 = NULL;
-    }
-  }
-  if(CutPointArea2)
-  {
-    if(!ReadCutPointArea(SourceFileName, AbsDirectory, BehindCutPos, CutPointArea2))
-    {
-      WriteLogMC("MovieCutterLib", "MovieCutter() W0003: nav creation suppressed.");
-      SuppressNavGeneration = TRUE;
-      TAP_MemFree(CutPointArea2); CutPointArea2 = NULL;
-    }
-  }
-
   if (TruncateEnding && !KeepCut)
   {
-    FindCutPointOffset2(CutPointArea1, CutStartPos, TRUE, &CutStartPosOffset);         // unnötig?
-    CutStartPos = CutStartPos + CutStartPosOffset;                                     // unnötig?
+//    FindCutPointOffset2(CutPointArea1, CutStartPos, TRUE, &CutStartPosOffset);         // unnötig?
+    CutStartPos = CutStartPos + 9024;
     BehindCutPos = SourceFileSize;
-    BehindCutPosOffset = BehindCutPos - ((off_t)BehindCutPoint->BlockNr * BLOCKSIZE);  // unnötig!
-    WriteLogMCf("MovieCutterLib", "Cut start offset: %ld Bytes (=%ld packets and %ld Bytes), Cut end offset: %ld Bytes (=%ld packets and %ld Bytes)", CutStartPosOffset, CutStartPosOffset/PACKETSIZE, labs(CutStartPosOffset%PACKETSIZE), BehindCutPosOffset, BehindCutPosOffset/PACKETSIZE, labs(BehindCutPosOffset%PACKETSIZE));
-    WriteLogMCf("MovieCutterLib", "Estimated cut positions:  Cut Start = %llu, Behind Cut: %llu", CutStartPos, BehindCutPos);
+//    BehindCutPosOffset = BehindCutPos - ((off_t)BehindCutPoint->BlockNr * BLOCKSIZE);  // unnötig!
+//    WriteLogMCf("MovieCutterLib", "Cut start offset: %ld Bytes (=%ld packets and %ld Bytes), Cut end offset: %ld Bytes (=%ld packets and %ld Bytes)", CutStartPosOffset, CutStartPosOffset/PACKETSIZE, labs(CutStartPosOffset%PACKETSIZE), BehindCutPosOffset, BehindCutPosOffset/PACKETSIZE, labs(BehindCutPosOffset%PACKETSIZE));
+    WriteLogMCf("MovieCutterLib", "Expected cut positions:  Cut Start = %llu, Behind Cut: %llu", CutStartPos, BehindCutPos);
   }
   else
   {
+    byte                FirstCutPacket[PACKETSIZE], LastCutPacket[PACKETSIZE];
+    off_t               PatchedBytes[4 * CUTPOINTSECTORRADIUS];
+    byte               *CutPointArea1=NULL, *CutPointArea2=NULL;
+    long                CutStartPosOffset, BehindCutPosOffset;
+    int                 i;
+
+    // Read the two blocks surrounding the cut points from the recording
+    CutPointArea1 = (byte*) TAP_MemAlloc(CUTPOINTSEARCHRADIUS * 2);
+    CutPointArea2 = (byte*) TAP_MemAlloc(CUTPOINTSEARCHRADIUS * 2);
+    if (!CutPointArea1 || !CutPointArea2)
+    {
+      WriteLogMC("MovieCutterLib", "MovieCutter() W0001: nav creation suppressed.");
+      SuppressNavGeneration = TRUE;
+    }
+    if(CutPointArea1)
+    {
+      if (!ReadCutPointArea(SourceFileName, AbsDirectory, CutStartPos, CutPointArea1))
+      {
+        WriteLogMC("MovieCutterLib", "MovieCutter() W0002: nav creation suppressed.");
+        SuppressNavGeneration = TRUE;
+        TAP_MemFree(CutPointArea1); CutPointArea1 = NULL;
+      }
+    }
+    if(CutPointArea2)
+    {
+      if(!ReadCutPointArea(SourceFileName, AbsDirectory, BehindCutPos, CutPointArea2))
+      {
+        WriteLogMC("MovieCutterLib", "MovieCutter() W0003: nav creation suppressed.");
+        SuppressNavGeneration = TRUE;
+        TAP_MemFree(CutPointArea2); CutPointArea2 = NULL;
+      }
+    }
+
     // Patch the rec-File to prevent the firmware from cutting in the middle of a packet
     for (i = 0; i < 4 * CUTPOINTSECTORRADIUS; i++)
       PatchedBytes[i] = 0;
@@ -352,7 +353,6 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
       WriteLogMCf("MovieCutterLib", "Cut start offset: %ld Bytes (=%ld packets and %ld Bytes), Cut end offset: %ld Bytes (=%ld packets and %ld Bytes)", CutStartPosOffset, CutStartPosOffset/PACKETSIZE, labs(CutStartPosOffset%PACKETSIZE), BehindCutPosOffset, BehindCutPosOffset/PACKETSIZE, labs(BehindCutPosOffset%PACKETSIZE));
       WriteLogMCf("MovieCutterLib", "Real cut positions:  Cut Start = %llu, Behind Cut: %llu", CutStartPos, BehindCutPos);
     }
-  }
 
 #ifdef FULLDEBUG
   bool  CutStartGuessed, BehindCutGuessed;
@@ -363,14 +363,19 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
   CutStartGuessed  = FindCutPointOffset2(CutPointArea1, ReqCutStartPos, FALSE, &GuessedCutStartOffset);
   BehindCutGuessed = FindCutPointOffset2(CutPointArea2, ReqBehindCutPos, FALSE, &GuessedBehindCutOffset);
 
-  if (CutStartGuessed && (CutStartPos == ReqCutStartPos + GuessedCutStartOffset) && ((BehindCutGuessed && (BehindCutPos == ReqBehindCutPos + GuessedBehindCutOffset)) || (TruncateEnding && !KeepCut)))
+  if ((CutStartGuessed && (CutStartPos == ReqCutStartPos + GuessedCutStartOffset)) && (BehindCutGuessed && (BehindCutPos == ReqBehindCutPos + GuessedBehindCutOffset)))
     WriteLogMC("MovieCutterLib", "--> Real cutting points guessed correctly!");
   else
     WriteLogMCf("MovieCutterLib", "!! -- Real cutting points NOT correctly guessed: GuessedStart = %llu, GuessedBehind = %llu", (CutStartGuessed ? ReqCutStartPos + GuessedCutStartOffset : 0), (BehindCutGuessed ? ReqBehindCutPos + GuessedBehindCutOffset : 0));
 #endif
 
-  TAP_MemFree(CutPointArea1); CutPointArea1 = NULL;
-  TAP_MemFree(CutPointArea2); CutPointArea2 = NULL;
+    TAP_MemFree(CutPointArea1); CutPointArea1 = NULL;
+    TAP_MemFree(CutPointArea2); CutPointArea2 = NULL;
+
+    // Unpatch the rec-Files
+    if (!SuppressNavGeneration)
+      UnpatchRecFile(SourceFileName, CutFileName, AbsDirectory, CutStartPos, BehindCutPos, PatchedBytes, 4 * CUTPOINTSECTORRADIUS);
+  }
 
   // Copy the real cutting positions into the cut point parameters to be returned
   if (!SuppressNavGeneration)
@@ -378,10 +383,6 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
     CutStartPoint->BlockNr = CalcBlockSize(CutStartPos + BLOCKSIZE-1);  // erster vollständiger Block des CutFile
     BehindCutPoint->BlockNr = CutStartPoint->BlockNr + CalcBlockSize(BehindCutPos - CutStartPos + BLOCKSIZE/2);
   }
-
-  // Unpatch the rec-Files
-  if (!SuppressNavGeneration && !(TruncateEnding && !KeepCut))
-    UnpatchRecFile(SourceFileName, CutFileName, AbsDirectory, CutStartPos, BehindCutPos, PatchedBytes, 4 * CUTPOINTSECTORRADIUS);
 
   // Truncate the source rec-File
   if(!SuppressNavGeneration && TruncateEnding)

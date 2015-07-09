@@ -977,9 +977,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           #ifdef FULLDEBUG
             if ((void*)FIS_fwTimeToLinux() == NULL)
               WriteLogMC(PROGRAM_NAME, "Warning! Firmware function FIS_fwTimeToLinux() not found!");
-            if (RecDateTime > 0xd0790000)
-              RecDateTime = PvrTimeToLinux(RecDateTime);
-            TAP_PrintNet("Reboot-Check (%s): TimeSinceRec=%lu, UpTime=%lu, RecDateTime=%s", (TimeSinceRec <= UpTime + 1) ? "true" : "false", TimeSinceRec, UpTime, ctime((time_t*) &RecDateTime));
+            #if STACKTRACE == TRUE
+              if (RecDateTime > 0xd0790000)
+                RecDateTime = PvrTimeToLinux(RecDateTime);
+              TAP_PrintNet("Reboot-Check (%s): TimeSinceRec=%lu, UpTime=%lu, RecDateTime=%s", (TimeSinceRec <= UpTime + 1) ? "true" : "false", TimeSinceRec, UpTime, ctime((time_t*) &RecDateTime));
+            #endif
           #endif
 
           if (TimeSinceRec <= UpTime + 1)
