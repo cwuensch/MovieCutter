@@ -73,5 +73,8 @@
     <None Include="..\source\build_TMS.bat">
       <Filter>Ressourcendateien</Filter>
     </None>
+    <None Include="..\DeleteCuts.sh">
+      <Filter>Ressourcendateien</Filter>
+    </None>
   </ItemGroup>
 </Project>

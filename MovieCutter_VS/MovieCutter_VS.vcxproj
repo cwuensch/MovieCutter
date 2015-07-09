@@ -27,6 +27,7 @@
     <ClCompile Include="..\source\MovieCutterLib.c" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\DeleteCuts.sh" />
     <None Include="..\MovieCutter.ini" />
     <None Include="..\MovieCutter.lng" />
     <None Include="..\source\build_TMS.bat" />

@@ -2027,65 +2027,14 @@ void Cleanup(bool DoClearOSD)
 
 void CleanupCut(void)
 {
-  int                   NrFiles, i;
-  TYPE_FolderEntry      FolderEntry;
-  char                  RecFileName[MAX_FILE_NAME_SIZE + 1], MpgFileName[MAX_FILE_NAME_SIZE + 1];
-
   TRACEENTER();
-
   if (DeleteCutFiles)
   {
-    HDD_TAP_PushDir();
-    TAP_Hdd_ChangeDir("/DataFiles");
-  
-    // Lösche verweiste .cut-Dateien in /DataFiles (nicht in Unterverzeichnissen)
-    NrFiles = TAP_Hdd_FindFirst(&FolderEntry, "cut");
-    for (i = 0; i < NrFiles; i++)
-    {
-      if(FolderEntry.attr == ATTR_NORMAL)
-      {
-        TAP_SPrint(RecFileName, sizeof(RecFileName), FolderEntry.name);
-        RecFileName[strlen(RecFileName) - 4] = '\0';
-        strcat(RecFileName, ".rec");
-        TAP_SPrint(MpgFileName, sizeof(MpgFileName), FolderEntry.name);
-        MpgFileName[strlen(MpgFileName) - 4] = '\0';
-        strcat(MpgFileName, ".mpg");
-        if(!TAP_Hdd_Exist(RecFileName) && !TAP_Hdd_Exist(MpgFileName))
-          TAP_Hdd_Delete(FolderEntry.name);
-      }
-      TAP_Hdd_FindNext(&FolderEntry);
-    }
-
-    // Lösche verweiste .cut.bak-Dateien in /DataFiles
-    NrFiles = TAP_Hdd_FindFirst(&FolderEntry, "bak");
-    for (i = 0; i < NrFiles; i++)
-    {
-      if(FolderEntry.attr == ATTR_NORMAL)
-      {
-        TAP_SPrint(RecFileName, sizeof(RecFileName), FolderEntry.name);
-        TAP_SPrint(MpgFileName, sizeof(MpgFileName), FolderEntry.name);
-        if (StringEndsWith(RecFileName, ".cut.bak"))
-        {
-          RecFileName[strlen(RecFileName) - 8] = '\0';
-          MpgFileName[strlen(MpgFileName) - 8] = '\0';
-          strcat(RecFileName, ".rec");
-          strcat(MpgFileName, ".mpg");
-          if(!TAP_Hdd_Exist(RecFileName) && !TAP_Hdd_Exist(MpgFileName))
-            TAP_Hdd_Delete(FolderEntry.name);
-        }
-      }
-      TAP_Hdd_FindNext(&FolderEntry);
-    }
-    HDD_TAP_PopDir();
-  }
-
-/*  if (DeleteCutFiles)
-  {
-    if (DeleteCutFiles == 2)
-      system("sh " TAPFSROOT LOGDIR "/DeleteCutFiles.sh &");
+    if (DeleteCutFiles != 2)
+      system("sh " TAPFSROOT LOGDIR "/DeleteCuts.sh &");
     else
-      system("sh " TAPFSROOT LOGDIR "/DeleteCutFiles.sh --recursive &");
-  } */
+      system("sh " TAPFSROOT LOGDIR "/DeleteCuts.sh --recursive &");
+  }
   TRACEEXIT();
 }
 

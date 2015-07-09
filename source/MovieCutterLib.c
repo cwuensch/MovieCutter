@@ -817,7 +817,7 @@ bool PatchRecFile(const char *SourceFileName, const char *AbsDirectory, off_t Re
         {
           OutPatchedBytes[i + (CUTPOINTSECTORRADIUS-1)] = pos+4;
           MidArray[ArrayPos+4] = 'F';    // ACHTUNG! Nötig, damit die neue Schätzung der CutPosition korrekt funktioniert.
-        }                                         // Könnte aber ein Problem geben bei der (alten) CutPoint-Identifikation (denn hier wird der noch ungepatchte Wert aus dem Cache gelesen)!
+        }                                // Könnte aber ein Problem geben bei der (alten) CutPoint-Identifikation (denn hier wird der noch ungepatchte Wert aus dem Cache gelesen)!
         else
           ret = FALSE;
       }
@@ -835,7 +835,7 @@ bool PatchRecFile(const char *SourceFileName, const char *AbsDirectory, off_t Re
           {
             OutPatchedBytes[2*CUTPOINTSECTORRADIUS - 1] = ((pos+4) << 8) + oldVal;  // missbrauche die letzte Position für den Schnitt-Patch
             MidArray[ArrayPos+4] = 'G';    // ACHTUNG! Nötig, damit die neue Schätzung der CutPosition korrekt funktioniert.
-          }                                         // Könnte aber ein Problem geben bei der (alten) CutPoint-Identifikation (denn hier wird der noch ungepatchte Wert aus dem Cache gelesen)!
+          }                                // Könnte aber ein Problem geben bei der (alten) CutPoint-Identifikation (denn hier wird der noch ungepatchte Wert aus dem Cache gelesen)!
           else
             ret = FALSE;
         }
