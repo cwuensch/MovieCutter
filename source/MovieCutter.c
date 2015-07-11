@@ -5472,7 +5472,7 @@ if (HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, &InodeNr, NULL))
       {
 //        if (!DisableSpecialEnd && (ForceSpecialEnd || (KeepCut && CutStartPoint.BlockNr + 11 <= 475949) || (KeepCut && CutStartPoint.BlockNr + 475949 + 11 < BehindCutPoint.BlockNr)))
 //        if (!DisableSpecialEnd && (ForceSpecialEnd || (KeepCut && ((CutStartPoint.BlockNr + 11 <= 475949) || (CutStartPoint.BlockNr + 475949 + 11 < BehindCutPoint.BlockNr)))))
-        if (!DisableSpecialEnd && (ForceSpecialEnd || (KeepCut && (CutStartPoint.BlockNr + 11 <= 475949) && (CutStartPoint.BlockNr + 475949 - 11 < BehindCutPoint.BlockNr))))
+        if (!DisableSpecialEnd && (ForceSpecialEnd || (KeepCut && (CutStartPoint.BlockNr + 11 <= 475949) && (CutStartPoint.BlockNr + 475949 - 11 < BehindCutPoint.BlockNr))))  // (statt -11 eigentlich -2*CUTPOINTSEARCHRADIUS/9024)
         {
           //letztes Segment soll geschnitten werden -> speichere stattdessen den vorderen Teil der Aufnahme und tausche mit dem Original
           CutEnding = TRUE;
