@@ -100,7 +100,8 @@ Options in the MovieCutter.ini
 [since V. 3.3]
   - CutFileMode:		0: Save the cut markers in cut- and inf-file. - 1: cut-file only. - 2: inf-file only.
   - DeleteCutFiles:		0: Never delete orphaned cut files. - 1: only in /DataFiles. - 2: recursively in subdirectories.
-  - ForceSpecialEnd:		1: Force the inverse handling of last segment. (Default: only when safe) [0,1]
+  - SpecialEndMode:		1: Inverse handling of the last segment only when necessary. - 0: never. - 2: always.
+  - DisableSpecialEnd	(no longer supported)
   - RCUMode:		(new)	0: auto - 1: SRP-2401 - 2: SRP-2410 - 3: CRP-2401 - 4: TF5000 (identical with 2) - 5: No use of the VolKeys
 [since V. 3.1b]
   - MaxNavDiscrepancy:		Maximum tolerated discrepancy of the nav-file, without showing a warning message (in milliseconds). - 0: Never show a message.
@@ -120,7 +121,7 @@ Options in the MovieCutter.ini
   - SegmentList_X:		Display position of the segment list (x-coordinate, possible values: 0-719)
   - SegmentList_Y:		Display position of the segment list (y-coordinate, possible values: 0-575)
   - DisableSleepKey:		1: Disables Exit of MovieCutter by pressing the Sleep key.
-  - DisableSpecialEnd:		Debugging-Option (Standard: 0).
+  - DisableSpecialEnd:	(old!)	Debugging-Option (Standard: 0).
 [since V. 2.0i]
   - SaveCutBak			1: Creates a backup of the cut file. - 0: Create no .cut.bak files.
   - ShowRebootMessage		1: Reminds the user to reboot the system before doing a cut. - 0: No reboot warning.

@@ -101,7 +101,8 @@ Optionen in der MovieCutter.ini
 [seit V. 3.3]
   - CutFileMode:		Speicherung der Schnittmarker: [0] in cut- und inf-Datei, [1] nur cut-Datei, [2] nur inf-Datei.
   - DeleteCutFiles:		Löschen verwaister .cut-Files: [0] nie, [1] nur in /DataFiles, [2] rekursiv in Unterverzeichnissen.
-  - ForceSpecialEnd:		Erzwingen der umgekehrten Endbehandlung. (Default: nur wenn sicher) [0,1]
+  - SpecialEndMode:		Umgekehrte Endbehandlung: [1] nur wenn notwendig, [2] immer, [0] deaktivieren.
+  - DisableSpecialEnd	(nicht mehr unterstützt)
   - RCUMode:		(neu)	Fernbedienungs-Modus: [0] auto, [1] SRP-2401, [2] SRP-2410, [3] CRP-2401, [4] TF5000 (=CRP), [5] VolKeys nicht belegen.
 [seit V. 3.1b]
   - MaxNavDiscrepancy:		Maximal zulässige Abweichung der nav-Datei (in Millisekunden), [0] Meldung niemals anzeigen.
@@ -121,7 +122,7 @@ Optionen in der MovieCutter.ini
   - SegmentList_X:		Anzeigeposition der Segmentliste von links [0-556]
   - SegmentList_Y:		Anzeigeposition der Segmentliste von oben [0-246]
   - DisableSleepKey:		Deaktiviert die MC-Beendigung durch Drücken der Sleep-Taste. [0,1]
-  - DisableSpecialEnd:		Deaktivieren der umgekehrten Endbehandlung. (Debugging!) [0,1]
+  - DisableSpecialEnd:	(alt!)	Deaktivieren der umgekehrten Endbehandlung. (Debugging!) [0,1]
 [seit V. 2.0i]
   - SaveCutBak			Beim Schneiden ein Backup des CutFiles (.cut.bak) anlegen. [0,1]
   - ShowRebootMessage		Beim Laden einer zu frischen Aufnahme zum Neustart auffordern. [0,1]

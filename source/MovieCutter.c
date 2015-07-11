@@ -2045,6 +2045,7 @@ void CleanupCut(void)
 // ----------------------------------------------------------------------------
 void LoadINI(void)
 {
+  long                  SpecialEndMode;
   TRACEENTER();
   INILOCATION IniFileState;
 
@@ -2053,20 +2054,21 @@ void LoadINI(void)
   IniFileState = INIOpenFile(INIFILENAME, PROGRAM_NAME);
   if((IniFileState != INILOCATION_NotFound) && (IniFileState != INILOCATION_NewFile))
   {
-    AutoOSDPolicy     =                INIGetInt("AutoOSDPolicy",              0,   0,    1)   ==   1;
-    DefaultOSDMode    =     (tOSDMode) INIGetInt("DefaultOSDMode",    MD_FullOSD,   0,    3);
-    DefaultMinuteJump =                INIGetInt("DefaultMinuteJump",          0,   0,   99);
-    ShowRebootMessage =                INIGetInt("ShowRebootMessage",          1,   0,    1)   !=   0;
-    MaxNavDiscrepancy =                INIGetInt("MaxNavDiscrepancy",       5000,   0,  86400000);       // = 24 Stunden
-    AskBeforeEdit     =                INIGetInt("AskBeforeEdit",              1,   0,    1)   !=   0;
-    CutFileMode       = (tCutSaveMode) INIGetInt("CutFileMode",          CM_Both,   0,    2);
-    SaveCutBak        =                INIGetInt("SaveCutBak",                 1,   0,    1)   !=   0;
-    DeleteCutFiles    =                INIGetInt("DeleteCutFiles",             1,   0,    2);
-    ForceSpecialEnd   =                INIGetInt("ForceSpecialEnd",            0,   0,    1)   ==   1;
-    DisableSpecialEnd =                INIGetInt("DisableSpecialEnd",          0,   0,    1)   ==   1;
-    DoiCheckTest      =  (tiCheckMode) INIGetInt("DoiCheckTest",        IM_ROEnd,   0,    4);
-    CheckFSAfterCut   = (tCheckFSMode) INIGetInt("CheckFSAfterCut",      FM_Auto,   0,    3);
-    InodeMonitoring   =                INIGetInt("InodeMonitoring",            0,   0,    1)   ==   1;
+    AutoOSDPolicy       =                INIGetInt("AutoOSDPolicy",              0,   0,    1)   ==   1;
+    DefaultOSDMode      =     (tOSDMode) INIGetInt("DefaultOSDMode",    MD_FullOSD,   0,    3);
+    DefaultMinuteJump   =                INIGetInt("DefaultMinuteJump",          0,   0,   99);
+    ShowRebootMessage   =                INIGetInt("ShowRebootMessage",          1,   0,    1)   !=   0;
+    MaxNavDiscrepancy   =                INIGetInt("MaxNavDiscrepancy",       5000,   0,  86400000);       // = 24 Stunden
+    AskBeforeEdit       =                INIGetInt("AskBeforeEdit",              1,   0,    1)   !=   0;
+    CutFileMode         = (tCutSaveMode) INIGetInt("CutFileMode",          CM_Both,   0,    2);
+    SaveCutBak          =                INIGetInt("SaveCutBak",                 1,   0,    1)   !=   0;
+    DeleteCutFiles      =                INIGetInt("DeleteCutFiles",             1,   0,    2);
+    SpecialEndMode      =                INIGetInt("SpecialEndMode",             1,   0,    2);
+      DisableSpecialEnd =                (SpecialEndMode == 0);
+      ForceSpecialEnd   =                (SpecialEndMode == 2);
+    DoiCheckTest        =  (tiCheckMode) INIGetInt("DoiCheckTest",        IM_ROEnd,   0,    4);
+    CheckFSAfterCut     = (tCheckFSMode) INIGetInt("CheckFSAfterCut",      FM_Auto,   0,    3);
+    InodeMonitoring     =                INIGetInt("InodeMonitoring",            0,   0,    1)   ==   1;
 
     Overscan_X        =                INIGetInt("Overscan_X",                50,   0,  100);
     Overscan_Y        =                INIGetInt("Overscan_Y",                25,   0,  100);
@@ -2080,7 +2082,7 @@ void LoadINI(void)
   INICloseFile();
   if (!AutoOSDPolicy && DefaultOSDMode == MD_NoOSD)
     DefaultOSDMode = MD_FullOSD;
-  if (DisableSpecialEnd) ForceSpecialEnd = FALSE;
+//  if (DisableSpecialEnd) ForceSpecialEnd = FALSE;
 
   if(IniFileState == INILOCATION_NewFile)
     SaveINI();
@@ -2129,8 +2131,7 @@ void SaveINI(void)
     fprintf(f, "%s=%d\r\n",  "CutFileMode",         CutFileMode);
     fprintf(f, "%s=%d\r\n",  "SaveCutBak",          SaveCutBak          ?  1  :  0);
     fprintf(f, "%s=%d\r\n",  "DeleteCutFiles",      DeleteCutFiles);
-    fprintf(f, "%s=%d\r\n",  "ForceSpecialEnd",     ForceSpecialEnd     ?  1  :  0);
-    fprintf(f, "%s=%d\r\n",  "DisableSpecialEnd",   DisableSpecialEnd   ?  1  :  0);
+    fprintf(f, "%s=%d\r\n",  "SpecialEndMode",      DisableSpecialEnd ? 0 : (ForceSpecialEnd ? 2 : 1));
     fprintf(f, "%s=%d\r\n",  "DoiCheckTest",        DoiCheckTest);
     fprintf(f, "%s=%d\r\n",  "CheckFSAfterCut",     CheckFSAfterCut);
     fprintf(f, "%s=%d\r\n",  "InodeMonitoring",     InodeMonitoring     ?  1  :  0);
@@ -3552,6 +3553,15 @@ void OSDRedrawEverything(void)
   TRACEEXIT();
 }
 
+bool isLargeSegment(int Seg)
+{
+  return(
+    ((Seg < NrSegmentMarker-2 || DisableSpecialEnd) && (SegmentMarker[Seg+1].Block - SegmentMarker[Seg].Block + 22 > 475949))
+  || ((Seg == NrSegmentMarker-2) && ForceSpecialEnd && (SegmentMarker[Seg].Block + 11 > 475949))
+  || ((Seg == NrSegmentMarker-2) && (SegmentMarker[Seg+1].Block - SegmentMarker[Seg].Block + 22 > 475949) && (SegmentMarker[Seg].Block + 11 > 475949))
+  );
+}
+
 // Segment-Liste
 // -------------
 void OSDSegmentListDrawList(bool DoSync)
@@ -3627,8 +3637,7 @@ void OSDSegmentListDrawList(bool DoSync)
         PosX = TextFieldStart_X;
         PosY = TextFieldStart_Y + i*(TextFieldHeight+TextFieldDist) + 3;
         UseColor = (SegmentMarker[Start + i].Selected) ? COLOR_Yellow : COLOR_White;
-        if( ((Start+i < NrSegmentMarker-2 || !ForceSpecialEnd)  &&  (SegmentMarker[Start+i + 1].Block - SegmentMarker[Start+i].Block + 22 > 475949))
-         || (ForceSpecialEnd && (Start+i == NrSegmentMarker-2)  &&  (SegmentMarker[Start+i].Block + 11 > 475949)) )
+        if(isLargeSegment(Start + i))
           if (SegmentMarker[Start + i].Selected)
             UseColor = RGB(250, 139, 18);
         TAP_SPrint(OutStr, sizeof(OutStr), "%d.", Start + i + 1);
@@ -3814,8 +3823,7 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
         UseSelectionColor = ColorSegmentSelection;
         if (NrSegmentMarker > 2)
         {
-          if( ((i < NrSegmentMarker-2 || !ForceSpecialEnd) && (SegmentMarker[i+1].Block - SegmentMarker[i].Block + 22 > 475949))
-           || (ForceSpecialEnd && (i == NrSegmentMarker-2) && (SegmentMarker[i].Block + 11 > 475949)) )
+          if (isLargeSegment(i))
           {
 //            if ((SegmentMarker[i].Block <= SegmentMarker[i+1].Block) && (SegmentMarker[i+1].Block <= PlayInfo.totalBlock))
 //            {
