@@ -5,13 +5,16 @@ In contrast to the integrated cutting tool of the receiver, this TAP automatical
 
 Installation
 ============
-The easiest way to install the TAP is using TAPtoDate.
-IMPORTANT!!! To run the MovieCutters you must have installed the packets "SmartEPG FontPack" and "FirmwareTMS.dat" by Firebird. They can easily be obtained via TAPtoDate.
+The easiest way to install the TAP is using TAPtoDate. This way, all required files are being copied.
 
 Alternative:
-- To install the TAP manually, just copy "MovieCutter.tap" and "jfs_fsck" into the folder "/ProgramFiles" and "MovieCutter.lng" and "MovieCutter.ini" into "/ProgramFiles/Settings/MovieCutter".
-- Make sure the fonts "Calibri_10.ufnt", "Calibri_12.ufnt", "Calibri_14.ufnt" and "Courier_New_13.ufnt" are present in the folder "/ProgramFiles/Settings/Fonts".
-- And the file "FirmwareTMS.dat" has to be in "/ProgramFiles".
+For manual installation, just copy the file "MovieCutter.tap" via USB or FTP into the directory "/Program Files" on the Toppy.
+
+In addition, the following (optional) features can be installed:
+- For file system check (!):	Copy the program "jfs_fsck" (specially modified version 1.1.15-TF) into the directory "/ProgramFiles". (highly recommended!)
+- Cleanup orphaned .cut-Files:	Copy the file "DeleteCuts.sh" to folder "/ProgramFiles/Settings/MovieCutter".
+- Multilanguage support:	Copy The language file "MovieCutter.lng" to folder "/ProgramFiles/Settings/MovieCutter".
+- Support additional devices:	Should your Toppy not be natively supported, then please install the "FirmwareTMS.dat" by FireBird.
 
 Starting / Stopping
 ===================

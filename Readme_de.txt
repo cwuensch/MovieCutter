@@ -5,13 +5,16 @@ Im Gegensatz zur integrierten Schnittfunktion des Receivers passt das TAP hierbe
 
 Installation
 ============
-Am einfachsten erfolgt die Installation über TAPtoDate.
-WICHTIG!!! Zum Ausführen des MovieCutters müssen die Pakete "SmartEPG FontPack" und "FirmwareTMS.dat" von Firebird installiert sein. Bei Installation über TAPtoDate werden diese automatisch mit installiert.
+Am einfachsten erfolgt die Installation über TAPtoDate. Dabei werden sämtliche benötigte Dateien aufgespielt.
 
 Alternative:
-- Zur manuellen Installation müssen "MovieCutter.tap" und "jfs_fsck" ins Verzeichnis "/ProgramFiles" kopiert werden und "MovieCutter.lng" und "MovieCutter.ini" ins Verzeichnis "/ProgramFiles/Settings/MovieCutter".
-- Zusätzlich müssen die Schriftarten "Calibri_10.ufnt", "Calibri_12.ufnt", "Calibri_14.ufnt" und "Courier_New_13.ufnt" im Verzeichnis "/ProgramFiles/Settings/Fonts" liegen.
-- Und es wird die Datei "FirmwareTMS.dat" unter "/ProgramFiles" benötigt.
+Zur manuellen Installation genügt es (im Normalfall), die Datei "MovieCutter.tap" per USB oder FTP ins Verzeichnis "/ProgramFiles" auf dem Topf zu kopieren.
+
+Zusätzlich können folgende (optionale) Features installiert werden:
+- Für Dateisystemüberprüfung (!):	Das Programm "jfs_fsck" (speziell modifizierte Version 1.1.15-TF) ins Verzeichnis "/ProgramFiles" kopieren. (dringend empfohlen!)
+- Bereinigung verwaister .cut-Files:	Die Datei "DeleteCuts.sh" ins Verzeichnis "/ProgramFiles/Settings/MovieCutter" kopieren.
+- Multilanguage-Unterstützung:		Die Sprach-Datei "MovieCutter.lng" ins Verzeichnis "/ProgramFiles/Settings/MovieCutter" kopieren.
+- Unterstützung weiterer Geräte:	Sollte Ihr Gerät nicht von Haus aus unterstützt werden, bitte die "FirmwareTMS.dat" von FireBird aufspielen.
 
 Starten / Beenden
 =================
