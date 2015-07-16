@@ -1,8 +1,11 @@
-#define _FILE_OFFSET_BITS  64
+#define _LARGEFILE_SOURCE
+#define _LARGEFILE64_SOURCE
 #define __USE_LARGEFILE64  1
+#define _FILE_OFFSET_BITS  64
 #ifdef _MSC_VER
   #define __const const
 #endif
+//#define STACKTRACE      TRUE
 
 #include                <stdio.h>
 #include                <stdlib.h>
@@ -71,7 +74,7 @@ int TAP_Main(void)
 
   if (system("mount -o remount,rw,integrity /dev/sda2") == 0)
   {
-    TAP_PrintNet("Integrity-Modus aktiviert.")
+    TAP_PrintNet("Integrity-Modus aktiviert.\n")
     if ((GetUptime() / 6000) >= 1)
     {
       OSDMenuInfoBoxShow(PROGRAM_NAME " " VERSION, "Integrity-Modus aktiviert.", 500);
@@ -85,7 +88,7 @@ int TAP_Main(void)
   }
   else
   {
-    TAP_PrintNet("Fehler! Integrity-Modus NICHT aktiviert!");
+    TAP_PrintNet("Fehler! Integrity-Modus NICHT aktiviert!\n");
     ShowErrorMessage("Fehler! Integrity-Modus NICHT aktiviert!", PROGRAM_NAME " " VERSION);
   }
 

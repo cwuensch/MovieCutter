@@ -2,7 +2,7 @@
 #define __SETUPTAPH__
 
 #define PROGRAM_NAME          "jfs_fsck"
-#define PROGRAM_DATE          "2015-07-01 12:00:00"
+#define PROGRAM_DATE          "2015-07-01 12:00:00"  //0xDF740C00
 #define INSTALLDIR            "/ProgramFiles"
 
 #define VERSION               "v1.1.15 (0.3b)"

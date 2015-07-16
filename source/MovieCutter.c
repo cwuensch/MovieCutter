@@ -12,6 +12,7 @@
 #include                <stdlib.h>
 #include                <string.h>
 #include                <unistd.h>
+#include                <sys/stat.h>
 #include                <tap.h>
 #include                "libFireBird.h"   // <libFireBird.h>
 #include                "CWTapApiLib.h"
@@ -528,7 +529,8 @@ int TAP_Main(void)
     WriteLogMCf(PROGRAM_NAME, "Hard disk: %s, FW %s, Serial: %s", HDDModel, HDDFirmware, HDDSerial);
   jfs_fsck_present = HDD_Exist2("jfs_fsck", FSCKPATH);
   if(jfs_fsck_present)
-    system("chmod a+x " FSCKPATH "/jfs_fsck &");
+    chmod(FSCKPATH "/jfs_fsck", 0777);
+//    system("chmod a+x " FSCKPATH "/jfs_fsck &");
   else
     WriteLogMC(PROGRAM_NAME, "WARNING! '" FSCKPATH "/jfs_fsck' not found.");
 
@@ -2070,14 +2072,14 @@ void LoadINI(void)
     CheckFSAfterCut     = (tCheckFSMode) INIGetInt("CheckFSAfterCut",      FM_Auto,   0,    3);
     InodeMonitoring     =                INIGetInt("InodeMonitoring",            0,   0,    1)   ==   1;
 
-    Overscan_X        =                INIGetInt("Overscan_X",                50,   0,  100);
-    Overscan_Y        =                INIGetInt("Overscan_Y",                25,   0,  100);
-    SegmentList_X     =                INIGetInt("SegmentList_X",             50,   0,  ScreenWidth - _SegmentList_Background_Gd.width);
-    SegmentList_Y     =                INIGetInt("SegmentList_Y",             82,   0,  ScreenHeight - _SegmentList_Background_Gd.height);
+    Overscan_X          =                INIGetInt("Overscan_X",                50,   0,  100);
+    Overscan_Y          =                INIGetInt("Overscan_Y",                25,   0,  100);
+    SegmentList_X       =                INIGetInt("SegmentList_X",             50,   0,  ScreenWidth - _SegmentList_Background_Gd.width);
+    SegmentList_Y       =                INIGetInt("SegmentList_Y",             82,   0,  ScreenHeight - _SegmentList_Background_Gd.height);
 
-    RCUMode           =     (tRCUMode) INIGetInt("RCUMode",              RC_auto,   0,    5);
-    DirectSegmentsCut =                INIGetInt("DirectSegmentsCut",          0,   0,    1)   ==   1;
-    DisableSleepKey   =                INIGetInt("DisableSleepKey",            0,   0,    1)   ==   1;
+    RCUMode             =     (tRCUMode) INIGetInt("RCUMode",              RC_auto,   0,    5);
+    DirectSegmentsCut   =                INIGetInt("DirectSegmentsCut",          0,   0,    1)   ==   1;
+    DisableSleepKey     =                INIGetInt("DisableSleepKey",            0,   0,    1)   ==   1;
   }
   INICloseFile();
   if (!AutoOSDPolicy && DefaultOSDMode == MD_NoOSD)

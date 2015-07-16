@@ -5,7 +5,7 @@ Im Gegensatz zur integrierten Schnittfunktion des Receivers passt das TAP hierbe
 
 Installation
 ============
-Am einfachsten erfolgt die Installation über TAPtoDate. Dabei werden sämtliche benötigte Dateien aufgespielt.
+Am einfachsten erfolgt die Installation über TAPtoDate. Dabei werden sämtliche benötigten Dateien aufgespielt.
 
 Alternative:
 Zur manuellen Installation genügt es (im Normalfall), die Datei "MovieCutter.tap" per USB oder FTP ins Verzeichnis "/ProgramFiles" auf dem Topf zu kopieren.

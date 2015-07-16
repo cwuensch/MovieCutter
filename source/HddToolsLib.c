@@ -749,7 +749,7 @@ bool HDD_CheckInode(const char *FileName, const char *AbsDirectory, bool DoFix, 
   // Get the device and list file name
   HDD_FindMountPointDev2(AbsDirectory, ListFile, DeviceNode);
   strcat(ListFile, "/FixInodes.lst");
-  WriteLogMCf("HddToolsLib", "Checking file inodes for wrong di_nblocks (Device=%s):", DeviceNode);
+  WriteLogMCf("HddToolsLib", "Checking file inode for wrong di_nblocks (Device=%s):", DeviceNode);
 
   // Set the system time to current time
 //  if(DoFix) SetSystemTimeToCurrent();

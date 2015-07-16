@@ -7,15 +7,16 @@
 #endif
 //#define STACKTRACE      TRUE
 
+#define                 _GNU_SOURCE
+#include                <time.h>
 #include                <stdio.h>
 #include                <stdlib.h>
 #include                <string.h>
-#include                <unistd.h>
+#include                <sys/stat.h>
+#include                <utime.h>
 #include                <tap.h>
 #include                <libFireBird.h>
-//#include                "../source/CWTapApiLib.h"
 #include                "SetupTAP.h"
-
 
 TAP_ID                  (TAPID);
 TAP_PROGRAM_NAME        (PROGRAM_NAME " Setup " VERSION);
@@ -26,8 +27,8 @@ TAP_ETCINFO             (__DATE__);
 
 
 extern byte data_start[] asm("_binary_jfs_fsck_start");
-extern byte *data_end    asm("_binary_jfs_fsck_end");
-extern size_t *data_size asm("_binary_jfs_fsck_size");
+extern byte data_end[]   asm("_binary_jfs_fsck_end");
+extern byte data_size[]  asm("_binary_jfs_fsck_size");
 
 bool                    STShowMessageBox = FALSE;
 dword                   LastMessageBoxKey;
@@ -37,6 +38,28 @@ dword                   LastMessageBoxKey;
 // ============================================================================
 //                              IMPLEMENTIERUNG
 // ============================================================================
+
+bool HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, dword NewLinuxDateTime)
+{
+  char                  AbsFileName[FBLIB_DIR_SIZE];
+  struct stat64         statbuf;
+  struct utimbuf        utimebuf;
+
+  if(FileName && AbsDirectory && NewLinuxDateTime)
+  {
+    snprintf(AbsFileName, sizeof(AbsFileName), "%s/%s", AbsDirectory, FileName);
+    if(lstat64(AbsFileName, &statbuf) == 0)
+    {
+      utimebuf.actime = statbuf.st_atime;
+      utimebuf.modtime = NewLinuxDateTime;
+      utime(AbsFileName, &utimebuf);
+      TRACEEXIT();
+      return TRUE;
+    }
+  }
+  TRACEEXIT();
+  return FALSE;
+}
 
 // ----------------------------------------------------------------------------
 //                           MessageBox-Funktionen
@@ -82,34 +105,35 @@ int TAP_Main(void)
   FILE *f = NULL;
   if ((f = fopen(TAPFSROOT INSTALLDIR "/" PROGRAM_NAME, "wb")))
   {
-    if (fwrite(data_start, 1, (data_end - data_start), f) == *data_size)
-      ret = TRUE;
+    ret = fwrite(data_start, (data_end - data_start), 1, f);
     fclose(f);
-    
-    system("chmod a+x " TAPFSROOT INSTALLDIR "/" PROGRAM_NAME);
-    system("touch -c -d " PROGRAM_DATE " " TAPFSROOT INSTALLDIR "/" PROGRAM_NAME);
-//    HDD_SetFileDateTime(PROGRAM_NAME, TAPFSROOT INSTALLDIR, PROGRAM_DATE);
+
+    struct tm TimeStruc;
+    strptime(PROGRAM_DATE, "%Y-%m-%d %H:%M:%S", &TimeStruc);
+    time_t LinuxTime = mktime(&TimeStruc);
+    //dword TopfTime = Unix2TFTime(LinuxTime);
+
+    chmod (TAPFSROOT INSTALLDIR "/" PROGRAM_NAME, 0777);
+    HDD_SetFileDateTime(PROGRAM_NAME, TAPFSROOT INSTALLDIR, LinuxTime);
   }
 
   if (ret)
   {
-    TAP_PrintNet(PROGRAM_NAME " erfolgreich installiert.")
-    if ((GetUptime() / 6000) >= 1)
+    TAP_PrintNet(PROGRAM_NAME " erfolgreich installiert.\n")
+    OSDMenuInfoBoxShow(PROGRAM_NAME " Setup", PROGRAM_NAME " wurde installiert.", 500);
+    do
     {
-      OSDMenuInfoBoxShow(PROGRAM_NAME " Setup", PROGRAM_NAME " wurde installiert.", 500);
-      do
-      {
-        TAP_SystemProc();
-        OSDMenuEvent(NULL, NULL, NULL);
-      } while(OSDMenuInfoBoxIsVisible());
-      OSDMenuInfoBoxDestroy();
-    }
-    else
-    {
-      TAP_PrintNet("Fehler! " PROGRAM_NAME " konnte NICHT installiert werden!");
-      ShowErrorMessage("Fehler! " PROGRAM_NAME " NICHT installiert!", PROGRAM_NAME " Setup");
-    }
+      TAP_SystemProc();
+      OSDMenuEvent(NULL, NULL, NULL);
+    } while(OSDMenuInfoBoxIsVisible());
+    OSDMenuInfoBoxDestroy();
   }
+  else
+  {
+    TAP_PrintNet("Fehler! " PROGRAM_NAME " konnte NICHT installiert werden!\n");
+    ShowErrorMessage("Fehler! " PROGRAM_NAME " NICHT installiert!", PROGRAM_NAME " Setup");
+  }
+
   TRACEEXIT();
   return 0;
 }
