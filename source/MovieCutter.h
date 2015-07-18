@@ -68,7 +68,7 @@ static int   FindNearestBookmark(dword curBlock);
 static int   FindNearestSegmentMarker(dword curBlock);
 static int   FindSegmentWithBlock(dword curBlock);
 static void  ImportBookmarksToSegments(void);
-static bool  isLargeSegment(dword SegStartBlock, dword SegEndBlock, bool isLastSegment);
+static bool  isLargeSegment(dword SegStartBlock, dword SegEndBlock, bool isLastSegment, bool KeepCut);
 static bool  isPlaybackRunning(void);
 static void  LoadINI(void);
 static bool  MoveBookmark(int BookmarkIndex, dword newBlock, bool RejectSmallScenes);

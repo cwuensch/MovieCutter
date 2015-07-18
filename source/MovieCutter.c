@@ -782,7 +782,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 //        OSDMode = DefaultOSDMode;  // unnötig
         BookmarkMode = FALSE;
         NrSegmentMarker = 0;
-        NrSelectedSegments = 0;
         ActiveSegment = 0;
         MinuteJump = DefaultMinuteJump;
         JumpRequestedSegment = 0xFFFF;    // eigentlich unnötig
@@ -2195,7 +2194,6 @@ void ImportBookmarksToSegments(void)
       WriteLogMC(PROGRAM_NAME, LogString);
     }
 
-    CountSelectedSegments();
     SetCurrentSegment();
     OSDSegmentListDrawList(FALSE);
     OSDInfoDrawProgressbar(TRUE, TRUE);
@@ -2210,7 +2208,6 @@ bool AddDefaultSegmentMarker(void)
   TRACEENTER();
 
   NrSegmentMarker = 0;
-  NrSelectedSegments = 0;
   ret = (AddSegmentMarker(0, TRUE) >= 0);
   ret = ret && (AddSegmentMarker(PlayInfo.totalBlock, TRUE) >= 0);
 
@@ -2405,8 +2402,6 @@ bool DeleteSegmentMarker(int MarkerIndex)
 
   if((MarkerIndex > 0) && (MarkerIndex < NrSegmentMarker - 1))
   {
-    if (SegmentMarker[MarkerIndex].Selected)
-      NrSelectedSegments--;
     for(i = MarkerIndex; i < NrSegmentMarker - 1; i++)
       memcpy(&SegmentMarker[i], &SegmentMarker[i + 1], sizeof(tSegmentMarker));
 
@@ -2435,7 +2430,6 @@ void DeleteAllSegmentMarkers(void)
     memcpy(&SegmentMarker[1], &SegmentMarker[NrSegmentMarker-1], sizeof(tSegmentMarker));
 //    memset(&SegmentMarker[2], 0, (NrSegmentMarker-2) * sizeof(tSegmentMarker));
     NrSegmentMarker = 2;
-    NrSelectedSegments = 0;
   }
   SegmentMarker[0].Selected = FALSE;
   ActiveSegment = 0;
@@ -2461,11 +2455,7 @@ bool SelectSegmentMarker(void)
 
     SegmentMarker[VisibleSegment].Selected = !SegmentMarker[VisibleSegment].Selected;
     ret = SegmentMarker[VisibleSegment].Selected;
-    (ret) ? NrSelectedSegments++ : NrSelectedSegments--;
   }
-
-TAP_PrintNet("*DEBUG* NrSelectedSegments = %d\n", NrSelectedSegments);
-
   TRACEEXIT();
   return ret;
 }
@@ -3266,7 +3256,6 @@ bool CutFileLoad(void)
 //    ActiveSegment = 0;
     ret = FALSE;
   }
-  CountSelectedSegments();
 
   TRACEEXIT();
   return ret;
@@ -3588,12 +3577,12 @@ void OSDRedrawEverything(void)
   || ((Seg == NrSegmentMarker-2) && (SegmentMarker[Seg+1].Block - SegmentMarker[Seg].Block + 22 > 475949) && (SegmentMarker[Seg].Block + 11 > 475949))
   );
 } */
-bool isLargeSegment(dword SegStartBlock, dword SegEndBlock, bool isLastSegment)
+bool isLargeSegment(dword SegStartBlock, dword SegEndBlock, bool isLastSegment, bool KeepCut)
 {
   return(
-    ((!isLastSegment || DisableSpecialEnd) && (SegEndBlock - SegStartBlock + 22 > 475949))
-  || ( isLastSegment && ForceSpecialEnd    && (SegStartBlock + 11 > 475949))
-  || ( isLastSegment                       && (SegEndBlock - SegStartBlock + 22 > 475949) && (SegStartBlock + 11 > 475949))
+    ((!isLastSegment || (DisableSpecialEnd && KeepCut)) && (SegEndBlock - SegStartBlock + 22 > 475949))
+  || ( isLastSegment && ForceSpecialEnd && KeepCut      && (SegStartBlock + 11 > 475949))
+  || ( isLastSegment && KeepCut                         && (SegEndBlock - SegStartBlock + 22 > 475949) && (SegStartBlock + 11 > 475949))
   );
 }
 
@@ -3655,6 +3644,7 @@ void OSDSegmentListDrawList(bool DoSync)
 //      if(CurrentSegment >= 10)                          TAP_Osd_PutGd(rgnSegmentList, 62, 23, &_Button_Up2_Gd, TRUE);
 //      if((CurrentSegment < 10) && (NrSegmentMarker>11)) TAP_Osd_PutGd(rgnSegmentList, 88, 23, &_Button_Down2_Gd, TRUE);
 
+      CountSelectedSegments();
       Start = (CurrentSegment / 10) * 10;
       for(i = 0; i < min(10, (NrSegmentMarker - Start) - 1); i++)
       {
@@ -3672,8 +3662,8 @@ void OSDSegmentListDrawList(bool DoSync)
         PosX = TextFieldStart_X;
         PosY = TextFieldStart_Y + i*(TextFieldHeight+TextFieldDist) + 3;
         UseColor = (SegmentMarker[Start + i].Selected) ? COLOR_Yellow : COLOR_White;
-        if(isLargeSegment(SegmentMarker[Start+i].Block, SegmentMarker[Start+i+1].Block, (Start+i == NrSegmentMarker-2)))
-          if (SegmentMarker[Start+i].Selected || ((Start+i == CurrentSegment) && (NrSelectedSegments == 0)))
+        if (SegmentMarker[Start+i].Selected || ((NrSelectedSegments == 0) && (Start+i == CurrentSegment)))
+          if(isLargeSegment(SegmentMarker[Start+i].Block, SegmentMarker[Start+i+1].Block, (Start+i == NrSegmentMarker-2), TRUE))
             UseColor = RGB(250, 139, 18);
         TAP_SPrint(OutStr, sizeof(OutStr), "%d.", Start + i + 1);
         if (Start + i + 1 >= 100) TAP_SPrint(OutStr, sizeof(OutStr), "00.");
@@ -3858,7 +3848,7 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
         UseSelectionColor = ColorSegmentSelection;
         if (NrSegmentMarker > 2)
         {
-          if (isLargeSegment(SegmentMarker[i].Block, SegmentMarker[i+1].Block, (i == NrSegmentMarker-2)))
+          if (isLargeSegment(SegmentMarker[i].Block, SegmentMarker[i+1].Block, (i == NrSegmentMarker-2), TRUE))
           {
 //            if ((SegmentMarker[i].Block <= SegmentMarker[i+1].Block) && (SegmentMarker[i+1].Block <= PlayInfo.totalBlock))
 //            {
@@ -4487,6 +4477,7 @@ void ActionMenuDraw(void)
   const int             TextFieldHeight   =  26,   TextFieldDist     = 2;
   const int             ShortButtonLeft   =  _ActionMenu10_Gd.width - TextFieldStart_X - _Button_Sleep_small_Gd.width - 5;
   const dword           Color_Inactive    =  RGB(120, 120, 120);
+  const dword           Color_Warning     =  RGB(250, 139, 18);
   TYPE_GrData*          ShortButtons[]    =  {&_Button_1_small_Gd, &_Button_2_small_Gd, &_Button_3_small_Gd, &_Button_4_small_Gd, &_Button_5_small_Gd, &_Button_6_small_Gd, &_Button_7_small_Gd, &_Button_8_small_Gd, &_Button_Sleep_small_Gd};
   TYPE_GrData*          LowerButtons[]    =  {&_Button_Down_Gd, &_Button_Up_Gd, &_Button_VF_Gd, &_Button_Ok_Gd, &_Button_Exit_Gd};
 
@@ -4494,10 +4485,9 @@ void ActionMenuDraw(void)
   char                 *DisplayStr;
   dword                 DisplayColor;
   dword                 PosX, PosY;
-  int                   i;
+  int                   i, j;
 
   TRACEENTER();
-
   CountSelectedSegments();
 
   // Region erzeugen und Hintergrund zeichnen
@@ -4549,31 +4539,47 @@ void ActionMenuDraw(void)
         break;
       }
       case MI_SaveSegments:
-      {
-        if (NrSelectedSegments == 0)
-          DisplayStr = LangGetString(LS_SaveCurSegment);
-        else if (NrSelectedSegments == 1)
-          DisplayStr = LangGetString(LS_Save1Segment);
-        else
-        {
-          TAP_SPrint(TempStr, sizeof(TempStr), LangGetString(LS_SaveNrSegments), NrSelectedSegments);
-          DisplayStr = TempStr;
-        }
-        if (NrSegmentMarker <= 2) DisplayColor = Color_Inactive;
-        break;
-      }
       case MI_DeleteSegments:
       {
-        if (NrSelectedSegments == 0)
-          DisplayStr = LangGetString(LS_DeleteCurSegment);
-        else if (NrSelectedSegments == 1)
-          DisplayStr = LangGetString(LS_Delete1Segment);
+        if (i == MI_SaveSegments)
+        {
+          if (NrSelectedSegments == 0)
+            DisplayStr = LangGetString(LS_SaveCurSegment);
+          else if (NrSelectedSegments == 1)
+            DisplayStr = LangGetString(LS_Save1Segment);
+          else
+          {
+            TAP_SPrint(TempStr, sizeof(TempStr), LangGetString(LS_SaveNrSegments), NrSelectedSegments);
+            DisplayStr = TempStr;
+          }
+        }
         else
         {
-          TAP_SPrint(TempStr, sizeof(TempStr), LangGetString(LS_DeleteNrSegments), NrSelectedSegments);
-          DisplayStr = TempStr;
+          if (NrSelectedSegments == 0)
+            DisplayStr = LangGetString(LS_DeleteCurSegment);
+          else if (NrSelectedSegments == 1)
+            DisplayStr = LangGetString(LS_Delete1Segment);
+          else
+          {
+            TAP_SPrint(TempStr, sizeof(TempStr), LangGetString(LS_DeleteNrSegments), NrSelectedSegments);
+            DisplayStr = TempStr;
+          }
         }
-        if (NrSegmentMarker <= 2) DisplayColor = Color_Inactive;
+
+        if (NrSegmentMarker <= 2)
+          DisplayColor = Color_Inactive;
+        else
+        {
+          for(j = 0; j < NrSegmentMarker - 1; j++)
+          {
+            if (SegmentMarker[j].Selected || ((NrSelectedSegments == 0) && (j == ActiveSegment)))
+              if (isLargeSegment(SegmentMarker[j].Block, SegmentMarker[j+1].Block, (j==NrSegmentMarker-2), (i==MI_SaveSegments)))
+              {
+                DisplayColor = Color_Warning;
+                break;
+              }
+          }
+        }
         break;
       }
       case MI_SplitMovie:
@@ -4581,8 +4587,8 @@ void ActionMenuDraw(void)
         DisplayStr = LangGetString(LS_SplitMovie);
         if (PlayInfo.currentBlock == 0)
           DisplayColor = Color_Inactive;
-        else if (isLargeSegment(PlayInfo.currentBlock, SegmentMarker[NrSegmentMarker-1].Block, TRUE))
-          DisplayColor = RGB(255, 100, 100);
+        else if (isLargeSegment(PlayInfo.currentBlock, SegmentMarker[NrSegmentMarker-1].Block, TRUE, TRUE))
+          DisplayColor = Color_Warning;
         break;
       }
       case MI_SelectEvOddSegments:
@@ -5499,8 +5505,8 @@ if (HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, &InodeNr, NULL))
       if (SplitMovie || (WorkingSegment == NrSegmentMarker - 2))
       {
 //        if (!DisableSpecialEnd && (ForceSpecialEnd || (KeepCut && CutStartPoint.BlockNr + 11 <= 475949) || (KeepCut && CutStartPoint.BlockNr + 475949 + 11 < BehindCutPoint.BlockNr)))
-//        if (!DisableSpecialEnd && (ForceSpecialEnd || (KeepCut && ((CutStartPoint.BlockNr + 11 <= 475949) || (CutStartPoint.BlockNr + 475949 + 11 < BehindCutPoint.BlockNr)))))
-        if (!DisableSpecialEnd && (ForceSpecialEnd || (KeepCut && (CutStartPoint.BlockNr + 11 <= 475949) && (CutStartPoint.BlockNr + 475949 - 11 < BehindCutPoint.BlockNr))))  // (statt -11 eigentlich -2*CUTPOINTSEARCHRADIUS/9024)
+//        if (!DisableSpecialEnd && KeepCut && (ForceSpecialEnd ||  (CutStartPoint.BlockNr + 11 <= 475949) || (CutStartPoint.BlockNr + 475949 + 11 < BehindCutPoint.BlockNr) ))
+        if (!DisableSpecialEnd && KeepCut && (ForceSpecialEnd || ((CutStartPoint.BlockNr + 11 <= 475949) && (CutStartPoint.BlockNr + 475949 - 11 < BehindCutPoint.BlockNr))))  // (statt -11 eigentlich -2*CUTPOINTSEARCHRADIUS/9024)
         {
           //letztes Segment soll geschnitten werden -> speichere stattdessen den vorderen Teil der Aufnahme und tausche mit dem Original
           CutEnding = TRUE;
