@@ -754,7 +754,7 @@ bool HDD_CheckInode(const char *FileName, const char *AbsDirectory, bool DoFix, 
   // Set the system time to current time
 //  if(DoFix) SetSystemTimeToCurrent();
 
-  // Delete old list file (if present)
+  // Delete old temp list file (if present)
   if(InodeMonitoring && DoFix) remove("/tmp/FixInodes.tmp");
 
   // Execute jfs_icheck and read its output
@@ -795,7 +795,7 @@ int HDD_CheckInodes(const char *InodeNrs, const char *AbsMountPath, bool DoFix, 
   // Set the system time to current time
 //  if(DoFix) SetSystemTimeToCurrent();
 
-  // Delete old list file (if present)
+  // Delete old temp list file (if present)
   if(InodeMonitoring && DoFix) remove("/tmp/FixInodes.tmp");
 
   // Execute jfs_icheck and read its output (last line separately)

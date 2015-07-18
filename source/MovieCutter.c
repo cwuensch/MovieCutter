@@ -782,6 +782,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 //        OSDMode = DefaultOSDMode;  // unnötig
         BookmarkMode = FALSE;
         NrSegmentMarker = 0;
+        NrSelectedSegments = 0;
         ActiveSegment = 0;
         MinuteJump = DefaultMinuteJump;
         JumpRequestedSegment = 0xFFFF;    // eigentlich unnötig
@@ -2154,6 +2155,19 @@ void SaveINI(void)
 // ----------------------------------------------------------------------------
 //                         SegmentMarker-Funktionen
 // ----------------------------------------------------------------------------
+void CountSelectedSegments()
+{
+  int i;
+  TRACEENTER();
+
+  NrSelectedSegments = 0;
+  for(i = 0; i < NrSegmentMarker - 1; i++)
+  {
+    if(SegmentMarker[i].Selected) NrSelectedSegments++;
+  }
+  TRACEEXIT();
+}
+  
 void ImportBookmarksToSegments(void)
 {
   char LogString[512];
@@ -2181,6 +2195,7 @@ void ImportBookmarksToSegments(void)
       WriteLogMC(PROGRAM_NAME, LogString);
     }
 
+    CountSelectedSegments();
     SetCurrentSegment();
     OSDSegmentListDrawList(FALSE);
     OSDInfoDrawProgressbar(TRUE, TRUE);
@@ -2195,6 +2210,7 @@ bool AddDefaultSegmentMarker(void)
   TRACEENTER();
 
   NrSegmentMarker = 0;
+  NrSelectedSegments = 0;
   ret = (AddSegmentMarker(0, TRUE) >= 0);
   ret = ret && (AddSegmentMarker(PlayInfo.totalBlock, TRUE) >= 0);
 
@@ -2389,6 +2405,8 @@ bool DeleteSegmentMarker(int MarkerIndex)
 
   if((MarkerIndex > 0) && (MarkerIndex < NrSegmentMarker - 1))
   {
+    if (SegmentMarker[MarkerIndex].Selected)
+      NrSelectedSegments--;
     for(i = MarkerIndex; i < NrSegmentMarker - 1; i++)
       memcpy(&SegmentMarker[i], &SegmentMarker[i + 1], sizeof(tSegmentMarker));
 
@@ -2417,6 +2435,7 @@ void DeleteAllSegmentMarkers(void)
     memcpy(&SegmentMarker[1], &SegmentMarker[NrSegmentMarker-1], sizeof(tSegmentMarker));
 //    memset(&SegmentMarker[2], 0, (NrSegmentMarker-2) * sizeof(tSegmentMarker));
     NrSegmentMarker = 2;
+    NrSelectedSegments = 0;
   }
   SegmentMarker[0].Selected = FALSE;
   ActiveSegment = 0;
@@ -2442,7 +2461,11 @@ bool SelectSegmentMarker(void)
 
     SegmentMarker[VisibleSegment].Selected = !SegmentMarker[VisibleSegment].Selected;
     ret = SegmentMarker[VisibleSegment].Selected;
+    (ret) ? NrSelectedSegments++ : NrSelectedSegments--;
   }
+
+TAP_PrintNet("*DEBUG* NrSelectedSegments = %d\n", NrSelectedSegments);
+
   TRACEEXIT();
   return ret;
 }
@@ -3021,6 +3044,7 @@ bool CutDecodeFromBM(void)
   TRACEENTER();
 
   NrSegmentMarker = 0;
+  ActiveSegment = 0;
   if (Bookmarks[NRBOOKMARKS - 1] == TAPID)
   {
     ret = TRUE;
@@ -3242,6 +3266,7 @@ bool CutFileLoad(void)
 //    ActiveSegment = 0;
     ret = FALSE;
   }
+  CountSelectedSegments();
 
   TRACEEXIT();
   return ret;
@@ -3555,12 +3580,20 @@ void OSDRedrawEverything(void)
   TRACEEXIT();
 }
 
-bool isLargeSegment(int Seg)
+/* bool isLargeSegment(int Seg)
 {
   return(
     ((Seg < NrSegmentMarker-2 || DisableSpecialEnd) && (SegmentMarker[Seg+1].Block - SegmentMarker[Seg].Block + 22 > 475949))
   || ((Seg == NrSegmentMarker-2) && ForceSpecialEnd && (SegmentMarker[Seg].Block + 11 > 475949))
   || ((Seg == NrSegmentMarker-2) && (SegmentMarker[Seg+1].Block - SegmentMarker[Seg].Block + 22 > 475949) && (SegmentMarker[Seg].Block + 11 > 475949))
+  );
+} */
+bool isLargeSegment(dword SegStartBlock, dword SegEndBlock, bool isLastSegment)
+{
+  return(
+    ((!isLastSegment || DisableSpecialEnd) && (SegEndBlock - SegStartBlock + 22 > 475949))
+  || ( isLastSegment && ForceSpecialEnd    && (SegStartBlock + 11 > 475949))
+  || ( isLastSegment                       && (SegEndBlock - SegStartBlock + 22 > 475949) && (SegStartBlock + 11 > 475949))
   );
 }
 
@@ -3639,8 +3672,8 @@ void OSDSegmentListDrawList(bool DoSync)
         PosX = TextFieldStart_X;
         PosY = TextFieldStart_Y + i*(TextFieldHeight+TextFieldDist) + 3;
         UseColor = (SegmentMarker[Start + i].Selected) ? COLOR_Yellow : COLOR_White;
-        if(isLargeSegment(Start + i))
-          if (SegmentMarker[Start + i].Selected)
+        if(isLargeSegment(SegmentMarker[Start+i].Block, SegmentMarker[Start+i+1].Block, (Start+i == NrSegmentMarker-2)))
+          if (SegmentMarker[Start+i].Selected || ((Start+i == CurrentSegment) && (NrSelectedSegments == 0)))
             UseColor = RGB(250, 139, 18);
         TAP_SPrint(OutStr, sizeof(OutStr), "%d.", Start + i + 1);
         if (Start + i + 1 >= 100) TAP_SPrint(OutStr, sizeof(OutStr), "00.");
@@ -3825,7 +3858,7 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
         UseSelectionColor = ColorSegmentSelection;
         if (NrSegmentMarker > 2)
         {
-          if (isLargeSegment(i))
+          if (isLargeSegment(SegmentMarker[i].Block, SegmentMarker[i+1].Block, (i == NrSegmentMarker-2)))
           {
 //            if ((SegmentMarker[i].Block <= SegmentMarker[i+1].Block) && (SegmentMarker[i+1].Block <= PlayInfo.totalBlock))
 //            {
@@ -4465,11 +4498,7 @@ void ActionMenuDraw(void)
 
   TRACEENTER();
 
-  NrSelectedSegments = 0;
-  for(i = 0; i < NrSegmentMarker - 1; i++)
-  {
-    if(SegmentMarker[i].Selected) NrSelectedSegments++;
-  }
+  CountSelectedSegments();
 
   // Region erzeugen und Hintergrund zeichnen
   if(!rgnActionMenu)
@@ -4550,7 +4579,10 @@ void ActionMenuDraw(void)
       case MI_SplitMovie:
       {
         DisplayStr = LangGetString(LS_SplitMovie);
-        if (PlayInfo.currentBlock == 0) DisplayColor = Color_Inactive;
+        if (PlayInfo.currentBlock == 0)
+          DisplayColor = Color_Inactive;
+        else if (isLargeSegment(PlayInfo.currentBlock, SegmentMarker[NrSegmentMarker-1].Block, TRUE))
+          DisplayColor = RGB(255, 100, 100);
         break;
       }
       case MI_SelectEvOddSegments:
@@ -5401,13 +5433,7 @@ void MovieCutterProcess(bool KeepCut, bool SplitMovie)  // Splittet am linken Se
   }
 
   // Zähle die ausgewählten Segmente
-  isMultiSelect = FALSE;
-  NrSelectedSegments = 0;
-  for(i = 0; i < NrSegmentMarker - 1; i++)
-  {
-    if(SegmentMarker[i].Selected)
-      NrSelectedSegments++;
-  }
+  CountSelectedSegments();
   isMultiSelect = (!SplitMovie && (NrSelectedSegments > 0));
   if (!isMultiSelect) NrSelectedSegments = 1;
 
