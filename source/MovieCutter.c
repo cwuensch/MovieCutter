@@ -328,7 +328,7 @@ static char* DefaultStrings[LS_NrStrings] =
   "Die Aufnahme ist (teilweise) verschlüsselt.",
   "Schneide Aufnahme...\n(Schnitt %d von %d)",
   "Ungerade Segmente löschen",
-  "",   // Gerade Segmente löschen
+  "Gerade Segmente löschen",   // Gerade Segmente löschen
   "Markierte %d Segmente speichern",
   "Markiertes Segment speichern",
   "Aktuelles Segment speichern",
@@ -979,11 +979,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           #ifdef FULLDEBUG
             if ((void*)FIS_fwTimeToLinux() == NULL)
               WriteLogMC(PROGRAM_NAME, "Warning! Firmware function FIS_fwTimeToLinux() not found!");
-            #if STACKTRACE == TRUE
+//            #if STACKTRACE == TRUE
               if (RecDateTime > 0xd0790000)
                 RecDateTime = PvrTimeToLinux(RecDateTime);
               TAP_PrintNet("Reboot-Check (%s): TimeSinceRec=%lu, UpTime=%lu, RecDateTime=%s", (TimeSinceRec <= UpTime + 1) ? "true" : "false", TimeSinceRec, UpTime, ctime((time_t*) &RecDateTime));
-            #endif
+//            #endif
           #endif
 
           if (TimeSinceRec <= UpTime + 1)
@@ -3825,56 +3825,24 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
           TAP_Osd_PutPixel(OSDRegion, ProgBarLeft + ((i * (ProgBarWidth-1))/10), FrameTop + FrameHeight - j, COLOR_White);
         }
       }
-      FM_PutString (OSDRegion, FrameLeft + 1, FrameTop - 2,                                                                                   ProgBarLeft, LangGetString(LS_S), ((BookmarkMode) ? COLOR_Gray : RGB(255,180,30)), COLOR_None, &Calibri_10_FontData, FALSE, ALIGN_LEFT);
+      FM_PutString (OSDRegion, FrameLeft + 1, FrameTop - 2,                                                                               ProgBarLeft, LangGetString(LS_S), ((BookmarkMode) ? COLOR_Gray : RGB(255,180,30)), COLOR_None, &Calibri_10_FontData, FALSE, ALIGN_LEFT);
       FM_PutString (OSDRegion, FrameLeft,     FrameTop + FrameHeight + 1 - FM_GetStringHeight(LangGetString(LS_B), &Calibri_10_FontData), ProgBarLeft, LangGetString(LS_B), ((BookmarkMode) ? RGB(60,255,60) : COLOR_Gray),  COLOR_None, &Calibri_10_FontData, FALSE, ALIGN_LEFT);
-
-      // Fill the active segment
-      if ((NrSegmentMarker > 2) && (ActiveSegment < NrSegmentMarker-1))
-      {
-//        if ((SegmentMarker[ActiveSegment].Block <= SegmentMarker[ActiveSegment+1].Block) && (SegmentMarker[ActiveSegment+1].Block <= PlayInfo.totalBlock))
-//        {
-          curPos     = min((dword)((float)SegmentMarker[ActiveSegment].Block          * ProgBarWidth / PlayInfo.totalBlock), (dword)ProgBarWidth);
-          curWidth   = min((dword)((float)SegmentMarker[ActiveSegment + 1].Block      * ProgBarWidth / PlayInfo.totalBlock) - curPos, (dword)ProgBarWidth + 1 - curPos);
-          TAP_Osd_FillBox(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, ColorActiveSegment);
-//        }
-      }
 
       NearestMarker = (BookmarkMode) ? FindNearestBookmark(currentVisibleBlock()) : FindNearestSegmentMarker(currentVisibleBlock());
 
       // For each Segment
       for(i = 0; i < NrSegmentMarker - 1; i++)
       {
-        // Fill too large segements with warning color
-        UseSelectionColor = ColorSegmentSelection;
-        if (NrSegmentMarker > 2)
-        {
-          if (isLargeSegment(SegmentMarker[i].Block, SegmentMarker[i+1].Block, (i == NrSegmentMarker-2), TRUE))
-          {
-//            if ((SegmentMarker[i].Block <= SegmentMarker[i+1].Block) && (SegmentMarker[i+1].Block <= PlayInfo.totalBlock))
-//            {
-              curPos   = min((dword)((float)SegmentMarker[i].Block                    * ProgBarWidth / PlayInfo.totalBlock), (dword)ProgBarWidth);
-              curWidth = min((dword)((float)SegmentMarker[i + 1].Block                * ProgBarWidth / PlayInfo.totalBlock) - curPos, (dword)ProgBarWidth + 1 - curPos);
-              TAP_Osd_FillBox(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, ((i == ActiveSegment) ? ColorActiveSegWarning : ColorWarnedSegment));
-//            }
-            UseSelectionColor = ColorSelectionWarning;
-          }
-        }
+//        if ((SegmentMarker[i].Block > SegmentMarker[i+1].Block) || (SegmentMarker[i+1].Block > PlayInfo.totalBlock))
+//          continue;
 
-        // Draw the selection
-        if(SegmentMarker[i].Selected)
-        {
-//          if ((SegmentMarker[i].Block <= SegmentMarker[i+1].Block) && (SegmentMarker[i+1].Block <= PlayInfo.totalBlock))
-//          {
-            curPos   = min((dword)((float)SegmentMarker[i].Block                      * ProgBarWidth / PlayInfo.totalBlock), (dword)ProgBarWidth);
-            curWidth = min((dword)((float)SegmentMarker[i+1].Block                    * ProgBarWidth / PlayInfo.totalBlock) - curPos, (dword)ProgBarWidth + 1 - curPos);
-            TAP_Osd_DrawRectangle(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, 2, UseSelectionColor);
-//          }
-        }
+        // Calculate segment position and width
+        curPos = min((dword)((float)SegmentMarker[i].Block       * ProgBarWidth / PlayInfo.totalBlock), (dword)ProgBarWidth + 1);
+        curWidth = min((dword)((float)SegmentMarker[i+1].Block   * ProgBarWidth / PlayInfo.totalBlock) - curPos, (dword)ProgBarWidth + 1 - curPos);
 
         // Draw the segment marker
         if((i >= 1) /* && (SegmentMarker[i].Block <= PlayInfo.totalBlock) */)
         {
-          curPos     = min((dword)((float)SegmentMarker[i].Block                      * ProgBarWidth / PlayInfo.totalBlock), (dword)ProgBarWidth + 1);
           if (!BookmarkMode)
           {
             if (i == NearestMarker)
@@ -3885,24 +3853,40 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
           else
             TAP_Osd_PutGd(OSDRegion,   ProgBarLeft + curPos - _SegmentMarker_gray_Gd.width/2,    ProgBarTop - _SegmentMarker_gray_Gd.height, &_SegmentMarker_gray_Gd, TRUE);
         }
-      }
 
-      // Draw requested jump
-      if (JumpRequestedSegment != 0xFFFF)
-      {
-//        if ((SegmentMarker[JumpRequestedSegment].Block <= SegmentMarker[JumpRequestedSegment+1].Block) && (SegmentMarker[JumpRequestedSegment+1].Block <= PlayInfo.totalBlock))
-//        {
-          curPos     = min((dword)((float)SegmentMarker[JumpRequestedSegment].Block   * ProgBarWidth / PlayInfo.totalBlock), (dword)ProgBarWidth);
-          curWidth   = min((dword)((float)SegmentMarker[JumpRequestedSegment+1].Block * ProgBarWidth / PlayInfo.totalBlock) - curPos, (dword)ProgBarWidth + 1 - curPos);
-          if (SegmentMarker[JumpRequestedSegment].Selected)
+        curPos = min(curPos, (dword)ProgBarWidth);
+
+        // Fill the active segment
+        if ((NrSegmentMarker > 2) && (i == ActiveSegment))
+          TAP_Osd_FillBox(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, ColorActiveSegment);
+
+        // Fill too large segements with warning color
+        UseSelectionColor = ColorSegmentSelection;
+        if (NrSegmentMarker > 2)
+        {
+          if (isLargeSegment(SegmentMarker[i].Block, SegmentMarker[i+1].Block, (i == NrSegmentMarker-2), TRUE))
+          {
+            TAP_Osd_FillBox(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, ((i == ActiveSegment) ? ColorActiveSegWarning : ColorWarnedSegment));
+            UseSelectionColor = ColorSelectionWarning;
+          }
+        }
+
+        // Draw the selection
+        if(SegmentMarker[i].Selected)
+          TAP_Osd_DrawRectangle(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, 2, UseSelectionColor);
+
+        // Draw requested jump
+        if ((JumpRequestedSegment != 0xFFFF) && (i == JumpRequestedSegment))
+        {
+          if (SegmentMarker[i].Selected)
             TAP_Osd_DrawRectangle(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, 1, ColorActiveSegment);
           else
           {
-            TAP_Osd_DrawRectangle(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, 2, ((JumpRequestedSegment!=ActiveSegment) ? ColorActiveSegment : RGB(50, 150, 190)));
+            TAP_Osd_DrawRectangle(OSDRegion, ProgBarLeft + curPos, ProgBarTop, curWidth, ProgBarHeight, 2, ((i!=ActiveSegment) ? ColorActiveSegment : RGB(50, 150, 190)));
 //            if ((JumpRequestedSegment == ActiveSegment) && (curWidth > 2))
 //              TAP_Osd_DrawRectangle(OSDRegion, ProgBarLeft + curPos + 1, ProgBarTop + 1, curWidth - 2, ProgBarHeight - 2, 1, COLOR_Gray);
           }
-//        }
+        }
       }
 
       // Draw the Bookmarks
@@ -4593,12 +4577,17 @@ void ActionMenuDraw(void)
       }
       case MI_SelectEvOddSegments:
       {
-        if (NrSegmentMarker == 4)
-          DisplayStr = (ActionMenuEvenOdd == 1) ? LangGetString(LS_SelectPadding) : LangGetString(LS_SelectMiddle);
+        if (ActionMenuEvenOdd == 1)
+          DisplayStr = (NrSegmentMarker == 4) ? LangGetString(LS_SelectPadding) : LangGetString(LS_SelectOddSegments);
         else
-          DisplayStr = (ActionMenuEvenOdd == 1) ? LangGetString(LS_SelectOddSegments) : LangGetString(LS_SelectEvenSegments);
+          DisplayStr = (NrSegmentMarker == 4) ? LangGetString(LS_SelectMiddle) : LangGetString(LS_SelectEvenSegments);
         if (DirectSegmentsCut)
-          DisplayStr = (NrSegmentMarker == 4) ? LangGetString(LS_RemovePadding) : LangGetString(LS_DeleteOddSegments);
+        {
+          if (ActionMenuEvenOdd == 1)
+            DisplayStr = (NrSegmentMarker == 4) ? LangGetString(LS_RemovePadding) : LangGetString(LS_DeleteOddSegments);
+          else
+            DisplayStr = LangGetString(LS_DeleteEvenSegments);
+        }
         if (NrSegmentMarker <= 2) DisplayColor = Color_Inactive;
         break;
       }
@@ -5323,7 +5312,7 @@ void MovieCutterSelectEvOddSegments(void)
 
   int i;
   for(i = 0; i < NrSegmentMarker-1; i++)
-    SegmentMarker[i].Selected = ((i & 1) == !(ActionMenuEvenOdd || DirectSegmentsCut));
+    SegmentMarker[i].Selected = ((i & 1) == !ActionMenuEvenOdd);
 
   OSDSegmentListDrawList(FALSE);
   OSDInfoDrawProgressbar(TRUE, TRUE);
@@ -5331,25 +5320,20 @@ void MovieCutterSelectEvOddSegments(void)
 
   if (DirectSegmentsCut)
   {
-    WriteLogMC(PROGRAM_NAME, "[Action 'Delete odd segments' selected...]");
+    WriteLogMC(PROGRAM_NAME, "[Action 'Delete even/odd segments' selected...]");
     ActionMenuDraw();
     if (!AskBeforeEdit || ShowConfirmationDialog(LangGetString(LS_AskConfirmation)))
     {
       ActionMenuRemove();
       MovieCutterDeleteSegments();
-    }
-    else
-    {
-      State = ST_ActionMenu;
-      ActionMenuDraw();
+      TRACEEXIT();
+      return;
     }
   }
-  else
-  {
-    State = ST_ActionMenu;
-    ActionMenuEvenOdd = !ActionMenuEvenOdd;
-    ActionMenuDraw();
-  }
+
+  State = ST_ActionMenu;
+  ActionMenuEvenOdd = !ActionMenuEvenOdd;
+  ActionMenuDraw();
   TRACEEXIT();
 }
 

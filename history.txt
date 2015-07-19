@@ -1,4 +1,4 @@
-2015-07-12 v3.3  NEU:
+2015-07-20 v3.3  NEU:
                   *** neue Funktion "Aufnahme teilen" (ersetzt "Gerade Segmente löschen")
                   *** neue Behandlung des letzten Segments (truncate) -> verhindert Aufnahmenfresser!
                   *** fixed 4-byte-offset when cutting on Australian PVRs
@@ -6,6 +6,7 @@
                    ** Speicherung der Schnittmarker wahlweise im Bookmark-Bereich der inf-Datei
                    ** neue, bessere Stabilisierung der Zeitanzeige (auch bei Segmentwechsel)
                    ** bei Nummerierung werden Vorhandene berücksichtigt -> '(Cut-1)' + '(Cut-3)', wenn '(Cut-2)' existiert
+                    * farbliche Warn-Markierung im Menü bei Auswahl sehr großer Segmente (> 4 GB)
                     * deutsche Sprache bereits im TAP enthalten (-> ohne Language-Datei lauffähig)
                     * Deaktivierung der Dateisystemprüfung, wenn jfs_fsck fehlt (+ Warnung im Log)
                     * automatische Auswahl des Fernbedienungs-Modus möglich
