@@ -979,11 +979,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           #ifdef FULLDEBUG
             if ((void*)FIS_fwTimeToLinux() == NULL)
               WriteLogMC(PROGRAM_NAME, "Warning! Firmware function FIS_fwTimeToLinux() not found!");
-//            #if STACKTRACE == TRUE
+            #if STACKTRACE == TRUE
               if (RecDateTime > 0xd0790000)
                 RecDateTime = PvrTimeToLinux(RecDateTime);
               TAP_PrintNet("Reboot-Check (%s): TimeSinceRec=%lu, UpTime=%lu, RecDateTime=%s", (TimeSinceRec <= UpTime + 1) ? "true" : "false", TimeSinceRec, UpTime, ctime((time_t*) &RecDateTime));
-//            #endif
+            #endif
           #endif
 
           if (TimeSinceRec <= UpTime + 1)
@@ -3774,7 +3774,7 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
   static dword          LastDraw = 0;
   static dword          LastPos = 999;
   dword                 pos;
-  dword                 curPos, curWidth;
+  dword                 curPos, curWidth, nextPos;
   int                   NearestMarker;
   int                   i, j;
 
@@ -3831,14 +3831,14 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
       NearestMarker = (BookmarkMode) ? FindNearestBookmark(currentVisibleBlock()) : FindNearestSegmentMarker(currentVisibleBlock());
 
       // For each Segment
+      nextPos = (dword)((float)SegmentMarker[0].Block * ProgBarWidth / PlayInfo.totalBlock);  // Idealfall: 0
       for(i = 0; i < NrSegmentMarker - 1; i++)
       {
 //        if ((SegmentMarker[i].Block > SegmentMarker[i+1].Block) || (SegmentMarker[i+1].Block > PlayInfo.totalBlock))
 //          continue;
 
-        // Calculate segment position and width
-        curPos = min((dword)((float)SegmentMarker[i].Block       * ProgBarWidth / PlayInfo.totalBlock), (dword)ProgBarWidth + 1);
-        curWidth = min((dword)((float)SegmentMarker[i+1].Block   * ProgBarWidth / PlayInfo.totalBlock) - curPos, (dword)ProgBarWidth + 1 - curPos);
+        // Calculate marker position
+        curPos = min(nextPos, (dword)ProgBarWidth + 1);
 
         // Draw the segment marker
         if((i >= 1) /* && (SegmentMarker[i].Block <= PlayInfo.totalBlock) */)
@@ -3854,7 +3854,10 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
             TAP_Osd_PutGd(OSDRegion,   ProgBarLeft + curPos - _SegmentMarker_gray_Gd.width/2,    ProgBarTop - _SegmentMarker_gray_Gd.height, &_SegmentMarker_gray_Gd, TRUE);
         }
 
-        curPos = min(curPos, (dword)ProgBarWidth);
+        // Calculate segment position and witdh
+        curPos = min(nextPos, (dword)ProgBarWidth);
+        nextPos = (dword)((float)SegmentMarker[i+1].Block * ProgBarWidth / PlayInfo.totalBlock);
+        curWidth = min(nextPos - curPos, (dword)ProgBarWidth + 1 - curPos);
 
         // Fill the active segment
         if ((NrSegmentMarker > 2) && (i == ActiveSegment))
