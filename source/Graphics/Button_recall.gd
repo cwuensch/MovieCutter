@@ -1,6 +1,6 @@
 #include "tap.h"
 
-byte _Button_Recall_Cpm[] =
+byte _Button_recall_Cpm[] =
 {
   0x00, 0x08, 0x1B, 0x90, 0xFF, 0xFF, 0x00, 0x01, 0x00, 0x01, 
   0x01, 0xC7, 0xFD, 0x80, 0xFF, 0xFF, 0x07, 0x80, 
@@ -35,13 +35,13 @@ byte _Button_Recall_Cpm[] =
   0xD8, 
 };
 
-TYPE_GrData _Button_Recall_Gd =
+TYPE_GrData _Button_recall_Gd =
 {
   1,                              //version
   0,                              //reserved
   OSD_8888,                       //data format
   COMPRESS_Tfp,                   //compressed method
-  _Button_Recall_Cpm,       
+  _Button_recall_Cpm,       
   1920,                           //size
     24,                           //width
     20                            //height

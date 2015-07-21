@@ -1,6 +1,6 @@
 #include "tap.h"
 
-byte _Button_Red_Cpm[] =
+byte _Button_red_Cpm[] =
 {
   0x00, 0x08, 0x1B, 0x90, 0xFF, 0xFF, 0x00, 0x01, 0x00, 0x01, 
   0x02, 0x40, 0x26, 0xDB, 0xFF, 0xFF, 0x05, 0x10, 
@@ -42,13 +42,13 @@ byte _Button_Red_Cpm[] =
   0xF6, 0x4E, 0xFF, 0xA0, 0x62, 0x9E, 0xF6, 0xA7, 0xE6, 0x38, 
 };
 
-TYPE_GrData _Button_Red_Gd =
+TYPE_GrData _Button_red_Gd =
 {
   1,                              //version
   0,                              //reserved
   OSD_8888,                       //data format
   COMPRESS_Tfp,                   //compressed method
-  _Button_Red_Cpm,                //data
+  _Button_red_Cpm,          
   1296,                           //size
     18,                           //width
     18                            //height

@@ -43,11 +43,11 @@
 #include                "Graphics/Button_Up_small.gd"
 #include                "Graphics/Button_Down.gd"
 #include                "Graphics/Button_Down_small.gd"
-#include                "Graphics/Button_Red.gd"
-#include                "Graphics/Button_Green.gd"
-#include                "Graphics/Button_Yellow.gd"
-#include                "Graphics/Button_Blue.gd"
-#include                "Graphics/Button_White.gd"
+#include                "Graphics/Button_red.gd"
+#include                "Graphics/Button_green.gd"
+#include                "Graphics/Button_yellow.gd"
+#include                "Graphics/Button_blue.gd"
+#include                "Graphics/Button_white.gd"
 #include                "Graphics/Button_Recall.gd"
 #include                "Graphics/Button_VF.gd"
 #include                "Graphics/Button_Menu.gd"
@@ -60,6 +60,7 @@
 #include                "Graphics/SegmentMarker.gd"
 #include                "Graphics/SegmentMarker_current.gd"
 #include                "Graphics/SegmentMarker_gray.gd"
+//#include                "Graphics/PositionMarker.gd"
 #include                "Graphics/PlayState_Background.gd"
 #include                "Graphics/Icon_Ffwd.gd"
 #include                "Graphics/Icon_Pause.gd"
@@ -76,6 +77,8 @@
 #include                "Graphics/Button_7_small.gd"
 #include                "Graphics/Button_8_small.gd"
 #include                "TMSCommander.h"
+//extern TYPE_GrData      _Button_red_Gd, _Button_green_Gd, _Button_yellow_Gd, _Button_blue_Gd, _Button_white_Gd;
+//extern TYPE_GrData      _Button_recall_Gd, _Button_menu_Gd, _Button_vf_Gd;
 
 
 TAP_ID                  (TAPID);
@@ -1575,6 +1578,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         // VORSICHT!!! Das hier wird interaktiv ausgeführt
 //        if(labs(TAP_GetTick() - LastDraw) > 10)
 //        {
+          bool JumpPerformed = FALSE;
           if (JumpRequestedTime && (labs(TAP_GetTick() - JumpRequestedTime) >= 100))
           {
             if ((JumpRequestedSegment != 0xFFFF) || (JumpRequestedBlock != (dword) -1))
@@ -1591,6 +1595,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               JumpPerformedTime = TAP_GetTick();    if(!JumpPerformedTime) JumpPerformedTime = 1;
               LastPlayStateChange = TAP_GetTick();  if(!LastPlayStateChange) LastPlayStateChange = 1;
               JumpRequestedSegment = 0xFFFF;
+              JumpPerformed = TRUE;
             }
             JumpRequestedTime = 0;
           }
@@ -1615,11 +1620,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           }
           CheckLastSeconds();
           SetCurrentSegment();
-          OSDInfoDrawProgressbar(FALSE, FALSE);
+          OSDInfoDrawProgressbar(JumpPerformed, FALSE);
 //          if(!LastPlayStateChange || (labs(TAP_GetTick() - LastPlayStateChange) > 20))
             OSDInfoDrawPlayIcons(FALSE, FALSE);
 
-          if ((JumpRequestedBlock != (dword) -1) && !JumpRequestedTime)  // nach Sprung den grauen Balken aktualisieren
+          if ((JumpRequestedBlock != (dword) -1) && !JumpRequestedTime)  // nach FastNav-Sprung den grauen Balken aktualisieren
             OSDInfoDrawCurrentPlayTime(TRUE);
           else
             OSDInfoDrawCurrentPlayTime(FALSE);
@@ -1847,7 +1852,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 // ----------------------------------------------------------------------------
 //                           MessageBox-Funktionen
 // ----------------------------------------------------------------------------
-// Die Funktionen zeigt eine Bestätigungsfrage (Ja/Nein) an, und wartet auf die Bestätigung des Benutzers.
+// Die Funktion zeigt eine Bestätigungsfrage (Ja/Nein) an, und wartet auf die Bestätigung des Benutzers.
 // Nach Beendigung der Message kehrt das TAP in den Normal-Mode zurück, FALLS dieser zuvor aktiv war.
 // Beim Beenden wird das entsprechende OSDRange gelöscht. Überdeckte Bereiche anderer OSDs werden NICHT wiederhergestellt.
 bool ShowConfirmationDialog(char *MessageStr)
@@ -1884,7 +1889,7 @@ bool ShowConfirmationDialog(char *MessageStr)
   return ret;
 }
 
-// Die Funktionen zeigt einen Informationsdialog (OK) an, und wartet auf die Bestätigung des Benutzers.
+// Die Funktion zeigt einen Informationsdialog (OK) an, und wartet auf die Bestätigung des Benutzers.
 void ShowErrorMessage(char *MessageStr, char *TitleStr)
 {
   dword OldSysState, OldSysSubState;
@@ -3717,7 +3722,7 @@ void SetCurrentSegment()
     ActiveSegment = VisibleSegment;
   }
 
-  if (!JumpPerformedTime || (labs(TAP_GetTick() - JumpPerformedTime) >= 200))
+  if (!JumpPerformedTime || (labs(TAP_GetTick() - JumpPerformedTime) >= 100))
   {
     if (JumpPerformedTime) DoDraw = TRUE;
     JumpPerformedTime = 0;
@@ -3733,7 +3738,7 @@ void SetCurrentSegment()
       if(NrSegmentMarker > 2)
       {
         // Stabilisierung der springenden Segment-Anzeige beim Segment-Wechsel während Wiedergabe (neu)
-        if (DoDraw || (TrickMode != TRICKMODE_Normal && TrickMode != TRICKMODE_Slow) || (PlayInfo.currentBlock > VisibleBlock) || (PlayInfo.currentBlock + 100 < VisibleBlock))
+        if (DoDraw || (TrickMode!=TRICKMODE_Normal && TrickMode!=TRICKMODE_Forward && TrickMode!=TRICKMODE_Slow) || (PlayInfo.currentBlock > VisibleBlock) || (PlayInfo.currentBlock + 100 < VisibleBlock))
           VisibleBlock = PlayInfo.currentBlock;
         VisibleSegment = FindSegmentWithBlock(VisibleBlock);
         if(ActiveSegment != VisibleSegment)
@@ -3773,6 +3778,7 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
 
   static dword          LastDraw = 0;
   static dword          LastPos = 999;
+  static dword          VisibleBlock = 0;
   dword                 pos;
   dword                 curPos, curWidth, nextPos;
   int                   NearestMarker;
@@ -3780,7 +3786,7 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
 
   TRACEENTER();
 
-  if((labs(TAP_GetTick() - LastDraw) > 20) || Force)
+  if(Force || (labs(TAP_GetTick() - LastDraw) > ((TrickMode == TRICKMODE_Rewind || TrickMode == TRICKMODE_Forward) ? 10 : 20)))
   {
     if((int)PlayInfo.totalBlock <= 0)  // für die Anzeige der Progressbar reicht es, wenn totalBlock gesetzt ist, currentBlock wird später geprüft!
     {
@@ -3814,7 +3820,14 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
 //    if (!JumpRequestedTime && !JumpPerformedTime)
 //      JumpRequestedBlock = (dword) -1;
 
-    pos = (dword)((float)currentVisibleBlock() * ProgBarWidth / PlayInfo.totalBlock);
+    // Stabilisierung der vor- und zurückspringenden Abspielposition bei kurzen Wiedergaben (nicht unbedingt nötig)
+    if ((JumpRequestedBlock != (dword) -1))
+      VisibleBlock = JumpRequestedBlock;
+    else
+      if (Force || (TrickMode!=TRICKMODE_Normal && TrickMode!=TRICKMODE_Forward && TrickMode!=TRICKMODE_Slow) || (PlayInfo.currentBlock > VisibleBlock) || (PlayInfo.currentBlock + 100 < VisibleBlock))
+        VisibleBlock = PlayInfo.currentBlock;
+
+    pos = (dword)((float)VisibleBlock * ProgBarWidth / PlayInfo.totalBlock);
     if(Force || (pos != LastPos))
     {
       // Draw the background
@@ -3828,7 +3841,7 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
       FM_PutString (OSDRegion, FrameLeft + 1, FrameTop - 2,                                                                               ProgBarLeft, LangGetString(LS_S), ((BookmarkMode) ? COLOR_Gray : RGB(255,180,30)), COLOR_None, &Calibri_10_FontData, FALSE, ALIGN_LEFT);
       FM_PutString (OSDRegion, FrameLeft,     FrameTop + FrameHeight + 1 - FM_GetStringHeight(LangGetString(LS_B), &Calibri_10_FontData), ProgBarLeft, LangGetString(LS_B), ((BookmarkMode) ? RGB(60,255,60) : COLOR_Gray),  COLOR_None, &Calibri_10_FontData, FALSE, ALIGN_LEFT);
 
-      NearestMarker = (BookmarkMode) ? FindNearestBookmark(currentVisibleBlock()) : FindNearestSegmentMarker(currentVisibleBlock());
+      NearestMarker = (BookmarkMode) ? FindNearestBookmark(VisibleBlock) : FindNearestSegmentMarker(VisibleBlock);
 
       // For each Segment
       nextPos = (dword)((float)SegmentMarker[0].Block * ProgBarWidth / PlayInfo.totalBlock);  // Idealfall: 0
@@ -3854,7 +3867,7 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
             TAP_Osd_PutGd(OSDRegion,   ProgBarLeft + curPos - _SegmentMarker_gray_Gd.width/2,    ProgBarTop - _SegmentMarker_gray_Gd.height, &_SegmentMarker_gray_Gd, TRUE);
         }
 
-        // Calculate segment position and witdh
+        // Calculate segment position and width
         curPos = min(nextPos, (dword)ProgBarWidth);
         nextPos = (dword)((float)SegmentMarker[i+1].Block * ProgBarWidth / PlayInfo.totalBlock);
         curWidth = min(nextPos - curPos, (dword)ProgBarWidth + 1 - curPos);
@@ -3916,6 +3929,7 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
         curPos = ProgBarLeft + min(pos, (dword)ProgBarWidth + 1);
         for(j = 0; j <= ProgBarHeight; j++)
           TAP_Osd_PutPixel(OSDRegion, curPos,     ProgBarTop + j,                 ColorCurrentPos);
+//        TAP_Osd_PutGd(OSDRegion, curPos - _PositionMarker_Gd.width/2, ProgBarTop + ProgBarHeight + 1, &_PositionMarker_Gd, TRUE);
         TAP_Osd_PutPixel  (OSDRegion, curPos,     ProgBarTop + ProgBarHeight + 1, ColorCurrentPosMark);
         for(j = -1; j <= 1; j++)
           TAP_Osd_PutPixel(OSDRegion, curPos + j, ProgBarTop + ProgBarHeight + 2, ColorCurrentPosMark);
@@ -3935,10 +3949,10 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
 // ------------
 void OSDInfoDrawBackground(void)
 {
-  TYPE_GrData*          ColorButtons[]       = {&_Button_Red_Gd,          &_Button_Green_Gd,     &_Button_Yellow_Gd,     &_Button_Blue_Gd};
+  TYPE_GrData*          ColorButtons[]       = {&_Button_red_Gd,          &_Button_green_Gd,     &_Button_yellow_Gd,     &_Button_blue_Gd};
   char*                 ColorButtonStrings[] = {LangGetString(LS_Delete), LangGetString(LS_Add), LangGetString(LS_Move), LangGetString(LS_Select)};
   int                   ColorButtonLengths[4];
-  TYPE_GrData*          BelowButtons[]       = {&_Button_Recall_Gd,     &_Button_VF_Gd,               &_Button_ProgPlusMinus_Gd,  &_Button_Menu_Gd,            &_Button_Exit_Gd,       &_Button_White_Gd};
+  TYPE_GrData*          BelowButtons[]       = {&_Button_recall_Gd,     &_Button_vf_Gd,               &_Button_ProgPlusMinus_Gd,  &_Button_menu_Gd,            &_Button_Exit_Gd,       &_Button_white_Gd};
   char*                 BelowButtonStrings[] = {LangGetString(LS_Undo), LangGetString(LS_ChangeMode), LangGetString(LS_FastNav),  LangGetString(LS_PauseMenu), LangGetString(LS_Exit), LangGetString(LS_OSD)};
   int                   BelowButtonLengths[6];
 
@@ -3976,7 +3990,7 @@ void OSDInfoDrawBackground(void)
     for (i = 0; i < 4; i++)
     {
       TAP_Osd_PutGd(rgnInfoBar, PosX, PosY + 1, ColorButtons[i], TRUE);
-      PosX += _Button_Red_Gd.width + 3;
+      PosX += _Button_red_Gd.width + 3;
       FM_PutString(rgnInfoBar, PosX, PosY, PosX + max(ColorButtonLengths[i] + ButtonDist, 0), ColorButtonStrings[i], COLOR_White, ColorInfoBarDarkSub, &Calibri_12_FontData, TRUE, ALIGN_LEFT);
       PosX += max(ColorButtonLengths[i] + ButtonDist, 0);
     }
@@ -4138,7 +4152,7 @@ void OSDInfoDrawPlayIcons(bool Force, bool DoSync)
 
   TRACEENTER();
 
-  if((Force && rgnInfoBar) || (TrickMode != LastTrickMode) || (TrickModeSpeed != LastTrickModeSpeed))
+  if((Force /*&& rgnInfoBar*/) || (TrickMode != LastTrickMode) || (TrickModeSpeed != LastTrickModeSpeed))
   {
     if(rgnInfoBar)
     {
@@ -4240,7 +4254,7 @@ void OSDInfoDrawPlayIcons(bool Force, bool DoSync)
 
 void OSDInfoDrawCurrentPlayTime(bool Force)
 {
-  static byte           LastSec = 99;
+  static dword          LastSec = (dword)-1;
   static dword          VisibleBlock = 0;
   dword                 Time;
   float                 Percent;
@@ -4256,15 +4270,15 @@ void OSDInfoDrawCurrentPlayTime(bool Force)
   }
 
   // Stabilisierung der vor- und zurückspringenden Zeit-Anzeige während Wiedergabe (neu)
-  if ((JumpRequestedBlock != (dword) -1))
+  if (JumpRequestedBlock != (dword) -1)
     VisibleBlock = JumpRequestedBlock;
   else
-    if (Force || (TrickMode != TRICKMODE_Normal && TrickMode != TRICKMODE_Slow) || (PlayInfo.currentBlock > VisibleBlock) || (PlayInfo.currentBlock + 100 < VisibleBlock) || JumpPerformedTime)
+    if (Force || (TrickMode!=TRICKMODE_Normal && TrickMode!=TRICKMODE_Forward && TrickMode!=TRICKMODE_Slow) || (PlayInfo.currentBlock > VisibleBlock) || (PlayInfo.currentBlock + 100 < VisibleBlock) || JumpPerformedTime)
       VisibleBlock = PlayInfo.currentBlock;
 
   // Nur neu zeichnen, wenn sich die Sekunden-Zahl geändert hat
   Time = NavGetBlockTimeStamp(VisibleBlock) / 1000;
-  if(((Time % 60) != LastSec) || Force)
+  if (Force || (Time != LastSec))
   {
     SecToTimeString(Time, TimeString);
     Percent = ((float)VisibleBlock / PlayInfo.totalBlock) * 100.0;
@@ -4313,7 +4327,7 @@ void OSDInfoDrawCurrentPlayTime(bool Force)
       TAP_Osd_FillBox(rgnPlayState, ProgBarLeft, ProgBarTop, PercentWidth, ProgBarHeight, RGB(250,0,0));
     }
 
-    LastSec = Time % 60;
+    LastSec = Time;
   }
   TRACEEXIT();
 }
@@ -4466,7 +4480,7 @@ void ActionMenuDraw(void)
   const dword           Color_Inactive    =  RGB(120, 120, 120);
   const dword           Color_Warning     =  RGB(250, 139, 18);
   TYPE_GrData*          ShortButtons[]    =  {&_Button_1_small_Gd, &_Button_2_small_Gd, &_Button_3_small_Gd, &_Button_4_small_Gd, &_Button_5_small_Gd, &_Button_6_small_Gd, &_Button_7_small_Gd, &_Button_8_small_Gd, &_Button_Sleep_small_Gd};
-  TYPE_GrData*          LowerButtons[]    =  {&_Button_Down_Gd, &_Button_Up_Gd, &_Button_VF_Gd, &_Button_Ok_Gd, &_Button_Exit_Gd};
+  TYPE_GrData*          LowerButtons[]    =  {&_Button_Down_Gd, &_Button_Up_Gd, &_Button_vf_Gd, &_Button_Ok_Gd, &_Button_Exit_Gd};
 
   char                  TempStr[128];
   char                 *DisplayStr;
@@ -5064,7 +5078,7 @@ void Playback_SetJumpNavigate(bool pJumpRequest, bool pNavRequest, bool pBackwar
         LastDirection = max(LastDirection - 1, -NrFastNavSteps);
       else
         LastDirection = min(-LastDirection + 1, -1);
-      BlockJumpWidth = (PlayInfo.totalBlock) / 100 * FastNavSteps[LastDirection + NrFastNavSteps];
+      BlockJumpWidth = (((float)PlayInfo.totalBlock / 100.0) * FastNavSteps[LastDirection + NrFastNavSteps]);
 
       if (JumpRequestedBlock >= BlockJumpWidth)
         JumpRequestedBlock = JumpRequestedBlock - BlockJumpWidth;
@@ -5077,7 +5091,7 @@ void Playback_SetJumpNavigate(bool pJumpRequest, bool pNavRequest, bool pBackwar
         LastDirection = min(LastDirection + 1, NrFastNavSteps);
       else
         LastDirection = max(-LastDirection - 1, 1);
-      BlockJumpWidth = (PlayInfo.totalBlock) / 100 * FastNavSteps[LastDirection + NrFastNavSteps];
+      BlockJumpWidth = (((float)PlayInfo.totalBlock / 100.0) * FastNavSteps[LastDirection + NrFastNavSteps]);
 
       if (JumpRequestedBlock + BlockJumpWidth <= BlockNrLast10Seconds)
         JumpRequestedBlock = JumpRequestedBlock + BlockJumpWidth;
@@ -5122,6 +5136,8 @@ void Playback_JumpForward(void)
     TAP_Hdd_ChangePlaybackPos(JumpToBlock);
     JumpRequestedSegment = 0xFFFF;
     JumpRequestedBlock = (dword) -1;
+    if (OSDMode == MD_NoOSD)
+      OSDInfoDrawPlayIcons(TRUE, TRUE);
   }
   TRACEEXIT();
 }
@@ -5141,6 +5157,8 @@ void Playback_JumpBackward(void)
     TAP_Hdd_ChangePlaybackPos(JumpToBlock);
     JumpRequestedSegment = 0xFFFF;
     JumpRequestedBlock = (dword) -1;
+    if (OSDMode == MD_NoOSD)
+      OSDInfoDrawPlayIcons(TRUE, TRUE);
   }
   TRACEEXIT();
 }
@@ -5163,7 +5181,10 @@ void Playback_JumpNextSegment(void)
 //    JumpRequestedTime = 0;
     JumpPerformedTime = TAP_GetTick();
     if(!JumpPerformedTime) JumpPerformedTime = 1;
+
     OSDSegmentListDrawList(TRUE);
+    if (OSDMode == MD_NoOSD)
+      OSDInfoDrawPlayIcons(TRUE, TRUE);
   }
 
   TRACEEXIT();
@@ -5192,7 +5213,10 @@ void Playback_JumpPrevSegment(void)
 //    JumpRequestedTime = 0;
     JumpPerformedTime = TAP_GetTick();
     if(!JumpPerformedTime) JumpPerformedTime = 1;
+
     OSDSegmentListDrawList(TRUE);
+    if (OSDMode == MD_NoOSD)
+      OSDInfoDrawPlayIcons(TRUE, TRUE);
   }
 
   TRACEEXIT();
@@ -5210,6 +5234,8 @@ void Playback_JumpNextBookmark(void)
     TAP_Hdd_ChangePlaybackPos(0);   // Bookmarks[0]
     JumpRequestedSegment = 0xFFFF;
     JumpRequestedBlock = (dword) -1;
+    if (OSDMode == MD_NoOSD)
+      OSDInfoDrawPlayIcons(TRUE, TRUE);
     TRACEEXIT();
     return;
   }
@@ -5222,6 +5248,8 @@ void Playback_JumpNextBookmark(void)
       TAP_Hdd_ChangePlaybackPos(Bookmarks[i]);
       JumpRequestedSegment = 0xFFFF;
       JumpRequestedBlock = (dword) -1;
+      if (OSDMode == MD_NoOSD)
+        OSDInfoDrawPlayIcons(TRUE, TRUE);
       TRACEEXIT();
       return;
     }
@@ -5260,6 +5288,8 @@ void Playback_JumpPrevBookmark(void)
   TAP_Hdd_ChangePlaybackPos(JumpToBlock);
   JumpRequestedSegment = 0xFFFF;
   JumpRequestedBlock = (dword) -1;
+  if (OSDMode == MD_NoOSD)
+    OSDInfoDrawPlayIcons(TRUE, TRUE);
 
   TRACEEXIT();
 }
@@ -5946,8 +5976,8 @@ void CalcLastSeconds(void)
   if((int)PlayInfo.totalBlock > 0  /*PLAYINFOVALID()*/)  // wenn nur totalBlock gesetzt ist, kann (und muss!) die Berechnung stattfinden
   {
     BlocksOneSecond      = PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec);
-    BlockNrLastSecond    = PlayInfo.totalBlock - BlocksOneSecond;
-    BlockNrLast10Seconds = PlayInfo.totalBlock - (10 * PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec));
+    BlockNrLastSecond    = PlayInfo.totalBlock - min(PlayInfo.totalBlock, BlocksOneSecond);
+    BlockNrLast10Seconds = PlayInfo.totalBlock - min(PlayInfo.totalBlock, (10 * PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec)));
   }
   TRACEEXIT();
 }
