@@ -1240,13 +1240,14 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   char                  LogString[512];
   FILE                 *fSourceInf = NULL, *fCutInf = NULL;
   byte                 *Buffer = NULL;
-  tRECHeaderInfo        RECHeaderInfo;
-  dword                 BytesRead;
+  TYPE_RecHeader_Info  *RecHeaderInfo = NULL;
+  TYPE_Bookmark_Info   *BookmarkInfo = NULL;
+  dword                 InfSize, BytesRead;
   dword                 Bookmarks[NRBOOKMARKS];
   dword                 NrBookmarks;
   dword                 CutPlayTime;
   dword                 OrigHeaderStartTime;
-  word                  i;
+  dword                 i;
   bool                  SetCutBookmark;
   bool                  Result = TRUE;
 
@@ -1255,10 +1256,13 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
 //    WriteLogMC("MovieCutterLib", "PatchInfFiles()");
   #endif
 
+  //Calculate inf header size
+  InfSize = ((GetSystemType()==ST_TMSC) ? sizeof(TYPE_RecHeader_TMSC) : sizeof(TYPE_RecHeader_TMSS));
+
   //Allocate and clear the buffer
-  Buffer = (byte*) TAP_MemAlloc(8192);
+  Buffer = (byte*) TAP_MemAlloc(max(InfSize, 8192));
   if(Buffer) 
-    memset(Buffer, 0, 8192);
+    memset(Buffer, 0, InfSize);
   else
   {
     WriteLogMC("MovieCutterLib", "PatchInfFiles() E0901: source inf not patched, cut inf not created.");
@@ -1267,8 +1271,6 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   }
 
   //Read the source .inf
-//  TAP_SPrint(SourceInfName, sizeof(SourceInfName), "%s.inf", SourceFileName);
-//  tf = TAP_Hdd_Fopen(SourceInfName);
   TAP_SPrint(AbsSourceInfName, sizeof(AbsSourceInfName), "%s/%s.inf", AbsDirectory, SourceFileName);
   fSourceInf = fopen(AbsSourceInfName, "rb");
   if(!fSourceInf)
@@ -1279,25 +1281,44 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
     return FALSE;
   }
 
-//  fs = TAP_Hdd_Flen(tf);
-//  ret = TAP_Hdd_Fread(Buffer, min(fs, INFSIZE), 1, tf);
-//  TAP_Hdd_Fclose(tf);
-  BytesRead = fread(Buffer, 1, INFSIZE, fSourceInf);
+  BytesRead = fread(Buffer, 1, InfSize, fSourceInf);
   #ifdef FULLDEBUG
     fseek(fSourceInf, 0, SEEK_END);
     dword fs = ftell(fSourceInf);
-    fclose(fSourceInf);
     WriteLogMCf("MovieCutterLib", "PatchInfFiles(): %lu / %lu Bytes read.", BytesRead, fs);
   #endif
+  fclose(fSourceInf);
 
   //Decode the source .inf
-  if(!HDD_DecodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN))
+  switch (GetSystemType())
   {
-    WriteLogMC("MovieCutterLib", "PatchInfFiles() E0903: source inf not patched, cut inf not created.");
-    TAP_MemFree(Buffer);
-    TRACEEXIT();
-    return FALSE;
+    case ST_TMSS:
+      RecHeaderInfo = &(((TYPE_RecHeader_TMSS*)Buffer)->RecHeaderInfo);
+      BookmarkInfo  = &(((TYPE_RecHeader_TMSS*)Buffer)->BookmarkInfo);
+      break;
+    case ST_TMSC:
+      RecHeaderInfo = &(((TYPE_RecHeader_TMSC*)Buffer)->RecHeaderInfo);
+      BookmarkInfo  = &(((TYPE_RecHeader_TMSC*)Buffer)->BookmarkInfo);
+      break;
+    case ST_TMST:
+      RecHeaderInfo = &(((TYPE_RecHeader_TMST*)Buffer)->RecHeaderInfo);
+      BookmarkInfo  = &(((TYPE_RecHeader_TMST*)Buffer)->BookmarkInfo);
+      break;
+    default:
+      WriteLogMC("MovieCutterLib", "PatchInfFiles() E0903: source inf not patched, cut inf not created.");
+      TAP_MemFree(Buffer);
+      TRACEEXIT();
+      return FALSE;
   }
+
+  //Event-Strings von Datenmüll reinigen (unnötig, kosmetisch)
+  TYPE_RecHeader_TMSC *RecHeader = (TYPE_RecHeader_TMSC*)Buffer;
+  dword p = strlen(RecHeader->EventInfo.EventNameDescription);
+  if (p < sizeof(RecHeader->EventInfo.EventNameDescription))
+    memset(&RecHeader->EventInfo.EventNameDescription[p], 0, sizeof(RecHeader->EventInfo.EventNameDescription) - p);
+  p = strlen(RecHeader->ExtEventInfo.ExtEventText);
+  if (p < sizeof(RecHeader->ExtEventInfo.ExtEventText))
+    memset(&RecHeader->ExtEventInfo.ExtEventText[p], 0, sizeof(RecHeader->ExtEventInfo.ExtEventText) - p);
 
   //Calculate the new play times
   CutPlayTime = BehindCutPoint->Timems - CutStartPoint->Timems;
@@ -1312,7 +1333,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   }
   else
   {
-    SourcePlayTime = 60 * RECHeaderInfo.HeaderDuration + RECHeaderInfo.HeaderDurationSec;
+    SourcePlayTime = 60 * RecHeaderInfo->HeaderDuration + RecHeaderInfo->HeaderDurationSec;
     SecToTimeString(SourcePlayTime, T1);
     CutPlayTime    = (dword)((SourcePlayTime + 500) / 1000);
     SourcePlayTime -= min(CutPlayTime, SourcePlayTime);
@@ -1321,17 +1342,17 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   WriteLogMCf("MovieCutterLib", "Playtimes: Orig = %s, Cut = %s, New = %s", T1, T2, T3);
 
   //Change the new source play time
-  RECHeaderInfo.HeaderDuration = (word)(SourcePlayTime / 60);
-  RECHeaderInfo.HeaderDurationSec = SourcePlayTime % 60;
+  RecHeaderInfo->HeaderDuration = (word)(SourcePlayTime / 60);
+  RecHeaderInfo->HeaderDurationSec = SourcePlayTime % 60;
 
   //Set recording time of the source file
-  OrigHeaderStartTime = RECHeaderInfo.HeaderStartTime;
+  OrigHeaderStartTime = RecHeaderInfo->HeaderStartTime;
   if (CutStartPoint->BlockNr == 0)
-    RECHeaderInfo.HeaderStartTime = AddTime(OrigHeaderStartTime, BehindCutPoint->Timems / 60000);
+    RecHeaderInfo->HeaderStartTime = AddTime(OrigHeaderStartTime, BehindCutPoint->Timems / 60000);
 
   //Save all bookmarks to a temporary array
-  memcpy(Bookmarks, RECHeaderInfo.Bookmark, NRBOOKMARKS * sizeof(dword));
-  NrBookmarks = RECHeaderInfo.NrBookmarks;
+  memcpy(Bookmarks, BookmarkInfo->Bookmarks, NRBOOKMARKS * sizeof(dword));
+  NrBookmarks = BookmarkInfo->NrBookmarks;
   TAP_SPrint(LogString, sizeof(LogString), "Bookmarks: ");
   for(i = 0; i < NrBookmarks; i++)
   {
@@ -1341,9 +1362,9 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   WriteLogMC("MovieCutterLib", LogString);
 
   //Clear all source Bookmarks
-  memset(RECHeaderInfo.Bookmark, 0, NRBOOKMARKS * sizeof(dword));
-  RECHeaderInfo.NrBookmarks = 0;
-  RECHeaderInfo.Resume = 0;
+  memset(BookmarkInfo->Bookmarks, 0, NRBOOKMARKS * sizeof(dword));
+  BookmarkInfo->NrBookmarks = 0;
+  BookmarkInfo->Resume = 0;
 
   //Copy all bookmarks which are < CutPointA or >= CutPointB
   //Move the second group by (CutPointB - CutPointA)
@@ -1357,51 +1378,43 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
     if(((Bookmarks[i] >= 100) && (Bookmarks[i] + 100 < CutStartPoint->BlockNr)) || (Bookmarks[i] >= BehindCutPoint->BlockNr + 100))
     {
       if(Bookmarks[i] < BehindCutPoint->BlockNr)
-        RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks] = Bookmarks[i];
+        BookmarkInfo->Bookmarks[BookmarkInfo->NrBookmarks] = Bookmarks[i];
       else
       {
         if (SetCutBookmark)
         {
-          RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks] = CutStartPoint->BlockNr;
+          BookmarkInfo->Bookmarks[BookmarkInfo->NrBookmarks] = CutStartPoint->BlockNr;
           TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "*%lu ", CutStartPoint->BlockNr);
-          RECHeaderInfo.NrBookmarks++;
+          BookmarkInfo->NrBookmarks++;
           SetCutBookmark = FALSE;
         }
-        RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks] = Bookmarks[i] - (BehindCutPoint->BlockNr - CutStartPoint->BlockNr);
+        BookmarkInfo->Bookmarks[BookmarkInfo->NrBookmarks] = Bookmarks[i] - (BehindCutPoint->BlockNr - CutStartPoint->BlockNr);
       }
-      TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "%lu ", RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks]);
-      if (RECHeaderInfo.NrBookmarks < 48)
-        RECHeaderInfo.NrBookmarks++;
+      TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "%lu ", BookmarkInfo->Bookmarks[BookmarkInfo->NrBookmarks]);
+      if (BookmarkInfo->NrBookmarks < 48)
+        BookmarkInfo->NrBookmarks++;
     }
 //    if(Bookmarks[i+1] == 0) break;
   }
   // Setzt automatisch ein Bookmark an die Schnittstelle
   if (SetCutBookmark)
   {
-    RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks] = CutStartPoint->BlockNr;
+    BookmarkInfo->Bookmarks[BookmarkInfo->NrBookmarks] = CutStartPoint->BlockNr;
     TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "*%lu ", CutStartPoint->BlockNr);
-    if (RECHeaderInfo.NrBookmarks < 48)
-      RECHeaderInfo.NrBookmarks++;
+    if (BookmarkInfo->NrBookmarks < 48)
+      BookmarkInfo->NrBookmarks++;
   }
   WriteLogMC("MovieCutterLib", LogString);
 
   //Encode and write the modified source inf
-  if(HDD_EncodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN))
+//  TAP_SPrint(AbsSourceInfName, sizeof(AbsSourceInfName), "%s/%s.inf", AbsDirectory, SourceFileName);
+  fSourceInf = fopen(AbsSourceInfName, "r+b");
+  if(fSourceInf != 0)
   {
-//    TAP_SPrint(AbsSourceInfName, sizeof(AbsSourceInfName), "%s/%s.inf", AbsDirectory, SourceFileName);
-    fSourceInf = fopen(AbsSourceInfName, "r+b");
-    if(fSourceInf != 0)
-    {
-      fseek(fSourceInf, 0, SEEK_SET);
-      fwrite(Buffer, 1, INFSIZE, fSourceInf);
-      fclose(fSourceInf);
-//      infData_Delete2(SourceFileName, AbsDirectory, INFFILETAG);
-    }
-    else
-    {
-      WriteLogMC("MovieCutterLib", "PatchInfFiles() W0902: source inf not patched.");
-      Result = FALSE;
-    }
+    fseek(fSourceInf, 0, SEEK_SET);
+    Result = (fwrite(Buffer, 1, InfSize, fSourceInf) == InfSize) && Result;
+    fclose(fSourceInf);
+//    infData_Delete2(SourceFileName, AbsDirectory, INFFILETAG);
   }
   else
   {
@@ -1411,15 +1424,15 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
 
   // --- Patch the cut inf ---
   //Set the length of the cut file
-  RECHeaderInfo.HeaderDuration = (word)(CutPlayTime / 60);
-  RECHeaderInfo.HeaderDurationSec = CutPlayTime % 60;
+  RecHeaderInfo->HeaderDuration = (word)(CutPlayTime / 60);
+  RecHeaderInfo->HeaderDurationSec = CutPlayTime % 60;
 
   //Set recording time of the cut file
-  RECHeaderInfo.HeaderStartTime = AddTime(OrigHeaderStartTime, CutStartPoint->Timems / 60000);
+  RecHeaderInfo->HeaderStartTime = AddTime(OrigHeaderStartTime, CutStartPoint->Timems / 60000);
 
   //Clear all source Bookmarks
-  memset(RECHeaderInfo.Bookmark, 0, NRBOOKMARKS * sizeof(dword));
-  RECHeaderInfo.NrBookmarks = 0;
+  memset(BookmarkInfo->Bookmarks, 0, NRBOOKMARKS * sizeof(dword));
+  BookmarkInfo->NrBookmarks = 0;
 
   //Copy all bookmarks which are >= CutPointA and < CutPointB
   //Move them by CutPointA
@@ -1428,47 +1441,39 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   {
     if((Bookmarks[i] >= CutStartPoint->BlockNr + 100) && (Bookmarks[i] + 100 < BehindCutPoint->BlockNr))
     {
-      RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks] = Bookmarks[i] - CutStartPoint->BlockNr;
-      TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "%lu ", RECHeaderInfo.Bookmark[RECHeaderInfo.NrBookmarks]);
-      RECHeaderInfo.NrBookmarks++;
+      BookmarkInfo->Bookmarks[BookmarkInfo->NrBookmarks] = Bookmarks[i] - CutStartPoint->BlockNr;
+      TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "%lu ", BookmarkInfo->Bookmarks[BookmarkInfo->NrBookmarks]);
+      BookmarkInfo->NrBookmarks++;
     }
 //    if(Bookmarks[i+1] == 0) break;
   }
   WriteLogMC("MovieCutterLib", LogString);
 
   //Encode the cut inf and write it to the disk
-  if(HDD_EncodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN))
+  TAP_SPrint(AbsCutInfName, sizeof(AbsCutInfName), "%s/%s.inf", AbsDirectory, CutFileName);
+  fCutInf = fopen(AbsCutInfName, "wb");
+  if(fCutInf != 0)
   {
-    TAP_SPrint(AbsCutInfName, sizeof(AbsCutInfName), "%s/%s.inf", AbsDirectory, CutFileName);
-    fCutInf = fopen(AbsCutInfName, "wb");
-    if(fCutInf != 0)
-    {
-      fseek(fCutInf, 0, SEEK_SET);
-      fwrite(Buffer, 1, INFSIZE, fCutInf);
+    fseek(fCutInf, 0, SEEK_SET);
+    Result = (fwrite(Buffer, 1, InfSize, fCutInf) == InfSize) && Result;
 
-      // Kopiere den Rest der Source-inf (falls vorhanden) in die neue inf hinein
-//      TAP_SPrint(AbsSourceInfName, sizeof(AbsSourceInfName), "%s/%s.inf", AbsDirectory, SourceFileName);
-      fSourceInf = fopen(AbsSourceInfName, "rb");
-      if(fSourceInf)
-      {
-        fseek(fSourceInf, INFSIZE, SEEK_SET);
-        do {
-          BytesRead = fread(Buffer, 1, 8192, fSourceInf);
-          if (BytesRead > 0) fwrite(Buffer, BytesRead, 1, fCutInf);
-        } while(BytesRead > 0);
-        fclose(fSourceInf);
-      }
-      fclose(fCutInf);
-    }
-    else
+    // Kopiere den Rest der Source-inf (falls vorhanden) in die neue inf hinein
+//    TAP_SPrint(AbsSourceInfName, sizeof(AbsSourceInfName), "%s/%s.inf", AbsDirectory, SourceFileName);
+    fSourceInf = fopen(AbsSourceInfName, "rb");
+    if(fSourceInf)
     {
-      WriteLogMC("MovieCutterLib", "PatchInfFiles() E0905: cut inf not created.");
-      Result = FALSE;
+      fseek(fSourceInf, InfSize, SEEK_SET);
+      do {
+        BytesRead = fread(Buffer, 1, 8192, fSourceInf);
+        if (BytesRead > 0) fwrite(Buffer, BytesRead, 1, fCutInf);
+      } while(BytesRead > 0);
+      fclose(fSourceInf);
     }
+    fclose(fCutInf);
   }
   else
   {
-    WriteLogMC("MovieCutterLib", "PatchInfFiles() E0904: cut inf not created.");
+    WriteLogMC("MovieCutterLib", "PatchInfFiles() E0905: cut inf not created.");
     Result = FALSE;
   }
 

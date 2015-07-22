@@ -4,7 +4,7 @@
 //#define MC_UNICODE      TRUE
 #define MC_MULTILANG    TRUE
                                       // MinEncode   Header   MinInf    NormInf    MaxInf
-#define INFSIZE                 2128  //    8192  // 2128  // 3320   // 132636  // 499572
+//#define INFSIZE                 2128  //    8192  // 2128  // 3320   // 132636  // 499572
 #define NAVRECS_SD              2000
 #define NAVRECS_HD              1000
 #define BLOCKSIZE               9024
@@ -86,7 +86,7 @@ bool        GetRecDateFromInf(const char *RecFileName, const char *AbsDirectory,
 tTimeStamp* NavLoad(const char *RecFileName, const char *AbsDirectory, int *const OutNrTimeStamps, bool isHD);
 
 
-int fseeko64 (FILE *__stream, __off64_t __off, int __whence);
-__off64_t ftello64(FILE *__stream);
+/* int fseeko64 (FILE *__stream, __off64_t __off, int __whence);
+__off64_t ftello64(FILE *__stream); */
 
 #endif

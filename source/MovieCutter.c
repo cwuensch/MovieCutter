@@ -3388,19 +3388,29 @@ bool CutSaveToBM(bool ReadBMBefore)
 bool CutSaveToInf(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const char* RecFileName)
 {
   char                  AbsInfName[FBLIB_DIR_SIZE];
-  tRECHeaderInfo        RECHeaderInfo;
-  byte                 *Buffer = NULL;
   FILE                 *fInf = NULL;
-  dword                 BytesRead;
+  byte                 *Buffer = NULL;
+  TYPE_Bookmark_Info   *BookmarkInfo = NULL;
+  dword                 InfSize, BytesRead;
   bool                  ret = FALSE;
   
   TRACEENTER();
   if (CutFileMode != CM_CutOnly)
   {
+    //Calculate inf header size
+    InfSize = ((GetSystemType()==ST_TMSC) ? sizeof(TYPE_RecHeader_TMSC) : sizeof(TYPE_RecHeader_TMSS));
+/*    switch (GetSystemType())
+    {
+      case ST_TMSS:  InfSize = sizeof(TYPE_RecHeader_TMSS); break;
+      case ST_TMSC:  InfSize = sizeof(TYPE_RecHeader_TMSC); break;
+      case ST_TMST:  InfSize = sizeof(TYPE_RecHeader_TMST); break;
+      default:       InfSize = 0; break;
+    } */
+
     //Allocate and clear the buffer
-    Buffer = (byte*) TAP_MemAlloc(8192);
+    Buffer = (byte*) TAP_MemAlloc(InfSize);
     if(Buffer) 
-      memset(Buffer, 0, 8192);
+      memset(Buffer, 0, InfSize);
     else
     {
       WriteLogMC(PROGRAM_NAME, "CutSaveToInf: Failed to allocate the memory!");
@@ -3418,34 +3428,31 @@ bool CutSaveToInf(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
       TRACEEXIT();
       return FALSE;
     }
-    BytesRead = fread(Buffer, 1, INFSIZE, fInf);
+    BytesRead = fread(Buffer, 1, InfSize, fInf);
 
-    //decode inf
-    if(!HDD_DecodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN))
+    //Decode inf
+    switch (GetSystemType())
     {
-      WriteLogMC(PROGRAM_NAME, "CutSaveToInf: Decoding of rec-header failed.");
-      fclose(fInf);
-      TAP_MemFree(Buffer);
-      TRACEEXIT();
-      return FALSE;
+      case ST_TMSS:  BookmarkInfo = &(((TYPE_RecHeader_TMSS*)Buffer)->BookmarkInfo); break;
+      case ST_TMSC:  BookmarkInfo = &(((TYPE_RecHeader_TMSC*)Buffer)->BookmarkInfo); break;
+      case ST_TMST:  BookmarkInfo = &(((TYPE_RecHeader_TMST*)Buffer)->BookmarkInfo); break;
+      default:       break;
     }
 
-    if (CutEncodeToBM(SegmentMarker, NrSegmentMarker, RECHeaderInfo.Bookmark, RECHeaderInfo.NrBookmarks))
+    //Calculate the new bookmarks
+    if (BookmarkInfo && CutEncodeToBM(SegmentMarker, NrSegmentMarker, BookmarkInfo->Bookmarks, BookmarkInfo->NrBookmarks))
     {
-      //encode and write inf
-      if(HDD_EncodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN))
-      {
-        fseek(fInf, 0, SEEK_SET);
-        if (fwrite(Buffer, 1, INFSIZE, fInf) == INFSIZE)
-          ret = TRUE;
-      }
-      else
-        WriteLogMC(PROGRAM_NAME, "CutSaveToInf: Failed to encode the new inf header!");
+      //Write the new inf
+      fseek(fInf, 0, SEEK_SET);
+      if (fwrite(Buffer, 1, InfSize, fInf) == InfSize)
+        ret = TRUE;
     }
-
     fclose(fInf);
-    HDD_SetFileDateTime(&AbsInfName[1], "", Now(NULL));
     TAP_MemFree(Buffer);
+    HDD_SetFileDateTime(&AbsInfName[1], "", Now(NULL));
+
+    if (!ret)
+      WriteLogMC(PROGRAM_NAME, "CutSaveToInf: Failed to write the new inf file!");
   }
   TRACEEXIT();
   return ret;
