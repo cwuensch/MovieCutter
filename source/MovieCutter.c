@@ -3670,8 +3670,10 @@ void OSDSegmentListDrawList(bool DoSync)
         if (SegmentMarker[Start+i].Selected || ((NrSelectedSegments == 0) && (Start+i == CurrentSegment)))
           if(isLargeSegment(SegmentMarker[Start+i].Block, SegmentMarker[Start+i+1].Block, (Start+i == NrSegmentMarker-2), TRUE))
             UseColor = RGB(250, 139, 18);
-        TAP_SPrint(OutStr, sizeof(OutStr), "%d.", Start + i + 1);
-        if (Start + i + 1 >= 100) TAP_SPrint(OutStr, sizeof(OutStr), "00.");
+        if (Start + i + 1 < 100)
+          TAP_SPrint(OutStr, sizeof(OutStr), "%d.", Start + i + 1);
+        else
+          TAP_SPrint(OutStr, sizeof(OutStr), "%02d.", (Start + i + 1) % 100);
         FM_PutString(rgnSegmentList, PosX, PosY, PosX + NrWidth,    OutStr,                                                               UseColor, COLOR_None, &Calibri_12_FontData, FALSE, ALIGN_RIGHT);
         PosX += NrWidth;
         FM_PutString(rgnSegmentList, PosX, PosY, PosX + TimeWidth,  (Start+i == 0) ? LangGetString(LS_BeginStr) : StartTime,              UseColor, COLOR_None, &Calibri_12_FontData, FALSE, ALIGN_RIGHT);
@@ -4273,7 +4275,7 @@ void OSDInfoDrawCurrentPlayTime(bool Force)
   if (JumpRequestedBlock != (dword) -1)
     VisibleBlock = JumpRequestedBlock;
   else
-    if (Force || (TrickMode!=TRICKMODE_Normal && TrickMode!=TRICKMODE_Forward && TrickMode!=TRICKMODE_Slow) || (PlayInfo.currentBlock > VisibleBlock) || (PlayInfo.currentBlock + 100 < VisibleBlock) || JumpPerformedTime)
+    if (Force || (TrickMode!=TRICKMODE_Normal && TrickMode!=TRICKMODE_Forward && TrickMode!=TRICKMODE_Slow) || (PlayInfo.currentBlock > VisibleBlock) || (PlayInfo.currentBlock + 100 < VisibleBlock))
       VisibleBlock = PlayInfo.currentBlock;
 
   // Nur neu zeichnen, wenn sich die Sekunden-Zahl geändert hat
