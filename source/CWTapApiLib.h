@@ -27,11 +27,11 @@ typedef struct
   word                  HeaderDuration;
   word                  HeaderDurationSec;
 
+  word                  CryptFlag:2;
+  word                  Flags:6;
   word                  Flags2:6;
   word                  TSFlag:1;  // Reihenfolge??
   word                  CopyFlag:1;
-  word                  CryptFlag:2;
-  word                  Flags:6;
 
   byte                  HeaderUnknown4[10];
 } TYPE_RecHeader_Info;
@@ -41,12 +41,12 @@ typedef struct
   byte                  SatIdx;
   byte                  ServiceType;
 
-  word                  TPIdx:10;
+  word                  TPIdx:10;   // Reihenfolge??
   word                  TunerNum:2;
-  word                  SkipFlag:1;  // Reihenfolge??
-  word                  LockFlag:1;
-  word                  CASFlag:1;
   word                  DelFlag:1;
+  word                  CASFlag:1;
+  word                  LockFlag:1;
+  word                  SkipFlag:1;
 
   word                  SVCID;
   word                  PMTPID;
