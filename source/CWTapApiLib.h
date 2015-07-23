@@ -27,10 +27,10 @@ typedef struct
   word                  HeaderDuration;
   word                  HeaderDurationSec;
 
-  word                  CryptFlag:2;
+  word                  CryptFlag:2;  // Reihenfolge?? - stimmt mit DecodeRecHeader() überein!
   word                  Flags:6;
   word                  Flags2:6;
-  word                  TSFlag:1;  // Reihenfolge??
+  word                  TSFlag:1;
   word                  CopyFlag:1;
 
   byte                  HeaderUnknown4[10];
@@ -41,7 +41,7 @@ typedef struct
   byte                  SatIdx;
   byte                  ServiceType;
 
-  word                  TPIdx:10;   // Reihenfolge??
+  word                  TPIdx:10;   // Reihenfolge?? - stimmt mit DecodeRecHeader() überein!
   word                  TunerNum:2;
   word                  DelFlag:1;
   word                  CASFlag:1;
