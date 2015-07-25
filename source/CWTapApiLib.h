@@ -151,7 +151,10 @@ bool       PlaybackRepeatGet();
 bool       HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint, char *const OutDeviceNode);  // OutMountPoint und OutDeviceNode: max. FBLIB_DIR_SIZE (inkl. Nullchar)
 char*      RemoveEndLineBreak (char *const Text);
 char       SysTypeToStr(void);
-void       LogEntry2(char *AbsFileName, char *ProgramName, bool Console, eTimeStampFormat TimeStampFormat, char *Text);
+void       WriteLogMC(char *ProgramName, char *s);
+void       WriteLogMCf(char *ProgramName, const char *format, ...);
+//void       WriteDebugLog(const char *format, ...);
+void       CloseLogMC();
 //bool       infData_Get2(const char *RecFileName, const char *AbsDirectory, const char *NameTag, dword *const PayloadSize, byte **Payload);
 //bool       infData_Set2(const char *RecFileName, const char *AbsDirectory, const char *NameTag, dword PayloadSize, byte Payload[]);
 //bool       infData_Delete2(const char *RecFileName, const char *AbsDirectory, const char *NameTag);

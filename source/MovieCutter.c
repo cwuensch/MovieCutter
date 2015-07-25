@@ -12,6 +12,7 @@
 #include                <stdlib.h>
 #include                <string.h>
 #include                <unistd.h>
+#include                <fcntl.h>
 #include                <sys/stat.h>
 #include                <tap.h>
 #include                "libFireBird.h"   // <libFireBird.h>
@@ -43,14 +44,14 @@
 #include                "Graphics/Button_Up_small.gd"
 #include                "Graphics/Button_Down.gd"
 #include                "Graphics/Button_Down_small.gd"
-#include                "Graphics/Button_red.gd"
+/*#include                "Graphics/Button_red.gd"
 #include                "Graphics/Button_green.gd"
 #include                "Graphics/Button_yellow.gd"
 #include                "Graphics/Button_blue.gd"
 #include                "Graphics/Button_white.gd"
 #include                "Graphics/Button_recall.gd"
 #include                "Graphics/Button_vf.gd"
-#include                "Graphics/Button_menu.gd"
+#include                "Graphics/Button_menu.gd" */
 #include                "Graphics/Button_ProgPlusMinus.gd"
 #include                "Graphics/Button_Exit.gd"
 #include                "Graphics/Button_Ok.gd"
@@ -77,8 +78,8 @@
 #include                "Graphics/Button_7_small.gd"
 #include                "Graphics/Button_8_small.gd"
 #include                "TMSCommander.h"
-//extern TYPE_GrData      _Button_red_Gd, _Button_green_Gd, _Button_yellow_Gd, _Button_blue_Gd, _Button_white_Gd;
-//extern TYPE_GrData      _Button_recall_Gd, _Button_menu_Gd, _Button_vf_Gd;
+extern TYPE_GrData      _Button_red_Gd, _Button_green_Gd, _Button_yellow_Gd, _Button_blue_Gd, _Button_white_Gd;
+extern TYPE_GrData      _Button_recall_Gd, _Button_menu_Gd, _Button_vf_Gd;
 
 
 TAP_ID                  (TAPID);
@@ -550,6 +551,7 @@ int TAP_Main(void)
       FMUC_FreeFontFile(&Calibri_14_FontData);
       FMUC_FreeFontFile(&Courier_New_13_FontData);
 
+      CloseLogMC();
       TRACEEXIT();
       return 0;
     }
@@ -577,6 +579,7 @@ int TAP_Main(void)
           OSDMenuFreeStdFonts();
         #endif
 
+        CloseLogMC();
         TRACEEXIT();
         return 0;  */
       }
@@ -600,6 +603,7 @@ int TAP_Main(void)
       OSDMenuFreeStdFonts();
     #endif
 
+    CloseLogMC();
     TRACEEXIT();
     return 0;
   }
@@ -628,6 +632,7 @@ int TAP_Main(void)
       FMUC_FreeFontFile(&Courier_New_13_FontData);
     #endif
 
+    CloseLogMC();
     TRACEEXIT();
     return 0;
   }
@@ -1197,6 +1202,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             PlaybackRepeatSet(OldRepeatMode);
             State = ST_InactiveModePlaying;
             ClearOSD(TRUE);
+            CloseLogMC();
             if ((param1 != RKEY_Exit) && (param1 != FKEY_Exit)) ReturnKey = TRUE;
 //            else if (param1 == RKEY_Info) TAP_GenerateEvent(EVT_KEY, RKEY_Info, 0);
             break;
@@ -1839,6 +1845,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         OSDMenuFreeStdFonts();
       #endif
       WriteLogMC(PROGRAM_NAME, "MovieCutter Exit.\r\n");
+      CloseLogMC();
       TAP_Exit();
       break;
     }
@@ -2030,6 +2037,7 @@ void Cleanup(bool DoClearOSD)
   OSDMode = DefaultOSDMode;
   UndoResetStack();
   if (DoClearOSD) ClearOSD(TRUE);
+  CloseLogMC();
 
   TRACEEXIT();
 }
@@ -3388,10 +3396,10 @@ bool CutSaveToBM(bool ReadBMBefore)
 bool CutSaveToInf(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const char* RecFileName)
 {
   char                  AbsInfName[FBLIB_DIR_SIZE];
-  FILE                 *fInf = NULL;
+  int                   fInf = -1;
   byte                 *Buffer = NULL;
   TYPE_Bookmark_Info   *BookmarkInfo = NULL;
-  dword                 InfSize, BytesRead;
+  ssize_t               InfSize, BytesRead;
   bool                  ret = FALSE;
   
   TRACEENTER();
@@ -3420,34 +3428,38 @@ bool CutSaveToInf(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
 
     //Read inf
     TAP_SPrint(AbsInfName, sizeof(AbsInfName), "%s/%s.inf", AbsPlaybackDir, RecFileName);
-    fInf = fopen(AbsInfName, "r+b");
-    if(!fInf)
+    fInf = open(AbsInfName, O_RDWR);
+    if(fInf < 0)
     {
       WriteLogMC(PROGRAM_NAME, "CutSaveToInf: Failed to open the inf file!");
       TAP_MemFree(Buffer);
       TRACEEXIT();
       return FALSE;
     }
-    BytesRead = fread(Buffer, 1, InfSize, fInf);
 
-    //Decode inf
-    switch (GetSystemType())
+    //Read and Decode inf
+    BytesRead = read(fInf, Buffer, InfSize);
+    if (BytesRead > 0)
     {
-      case ST_TMSS:  BookmarkInfo = &(((TYPE_RecHeader_TMSS*)Buffer)->BookmarkInfo); break;
-      case ST_TMSC:  BookmarkInfo = &(((TYPE_RecHeader_TMSC*)Buffer)->BookmarkInfo); break;
-      case ST_TMST:  BookmarkInfo = &(((TYPE_RecHeader_TMST*)Buffer)->BookmarkInfo); break;
-      default:       break;
-    }
+      switch (GetSystemType())
+      {
+        case ST_TMSS:  BookmarkInfo = &(((TYPE_RecHeader_TMSS*)Buffer)->BookmarkInfo); break;
+        case ST_TMSC:  BookmarkInfo = &(((TYPE_RecHeader_TMSC*)Buffer)->BookmarkInfo); break;
+        case ST_TMST:  BookmarkInfo = &(((TYPE_RecHeader_TMST*)Buffer)->BookmarkInfo); break;
+        default:       break;
+      }
 
-    //Calculate the new bookmarks
-    if (BookmarkInfo && CutEncodeToBM(SegmentMarker, NrSegmentMarker, BookmarkInfo->Bookmarks, BookmarkInfo->NrBookmarks))
-    {
-      //Write the new inf
-      fseek(fInf, 0, SEEK_SET);
-      if (fwrite(Buffer, 1, InfSize, fInf) == InfSize)
-        ret = TRUE;
+      //Calculate the new bookmarks
+      if (BookmarkInfo && CutEncodeToBM(SegmentMarker, NrSegmentMarker, BookmarkInfo->Bookmarks, BookmarkInfo->NrBookmarks))
+      {
+        //Write the new inf
+        lseek(fInf, 0, SEEK_SET);
+        if (write(fInf, Buffer, InfSize) == InfSize)
+          ret = TRUE;
+      }
     }
-    fclose(fInf);
+    ret = (fsync(fInf) == 0) && ret;
+    ret = (close(fInf) == 0) && ret;
     TAP_MemFree(Buffer);
     HDD_SetFileDateTime(&AbsInfName[1], "", Now(NULL));
 
@@ -6062,13 +6074,14 @@ dword NavGetBlockTimeStamp(dword PlaybackBlockNr)
 // SOLLTE eine nav-Datei einen Überlauf beinhalten, wird dieser durch PatchOldNavFile korrigiert.
 bool PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isHD)
 {
-  FILE                 *fSourceNav = NULL;
-  FILE                 *fNewNav = NULL;
+  int                   fSourceNav = -1;
+  int                   fNewNav = -1;
   char                  NavFileName[MAX_FILE_NAME_SIZE + 1];
   char                  BakFileName[MAX_FILE_NAME_SIZE + 1];
   tnavSD               *navRecs = NULL;
-  size_t                navsRead, i;
+  ssize_t               navsRead, i;
   char                  AbsFileName[FBLIB_DIR_SIZE];
+  bool                  ret = FALSE;
 
   TRACEENTER();
 
@@ -6099,8 +6112,8 @@ bool PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isH
 
   //Open the original nav
   TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s", AbsDirectory, BakFileName);
-  fSourceNav = fopen(AbsFileName, "rb");
-  if(!fSourceNav)
+  fSourceNav = open(AbsFileName, O_RDONLY);
+  if(fSourceNav < 0)
   {
     WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E1a02.");
     TAP_MemFree(navRecs);
@@ -6110,10 +6123,10 @@ bool PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isH
 
   //Create and open the new source nav
   TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s", AbsDirectory, NavFileName);
-  fNewNav = fopen(AbsFileName, "wb");
-  if(!fNewNav)
+  fNewNav = open(AbsFileName, O_WRONLY | O_TRUNC | O_CREAT | O_APPEND);
+  if(fNewNav < 0)
   {
-    fclose(fSourceNav);
+    close(fSourceNav);
     WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E1a03.");
     TAP_MemFree(navRecs);
     TRACEEXIT();
@@ -6128,7 +6141,7 @@ bool PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isH
 
   while(TRUE)
   {
-    navsRead = fread(navRecs, sizeof(tnavSD), NAVRECS_SD, fSourceNav);
+    navsRead = read(fSourceNav, navRecs, NAVRECS_SD * sizeof(tnavSD)) / sizeof(tnavSD);
     if(navsRead == 0) break;
 
     // Versuche, nav-Dateien aus Timeshift-Aufnahmen zu unterstützen ***experimentell***
@@ -6137,11 +6150,12 @@ bool PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isH
       FirstRun = FALSE;
       if(navRecs[0].SHOffset == 0x72767062)  // 'bpvr'
       {
-        fseek(fSourceNav, 1056, SEEK_SET);
+        lseek(fSourceNav, 1056, SEEK_SET);
         continue;
       }
     }
 
+    ret = TRUE;
     for(i = 0; i < navsRead; i++)
     {
       // Falls HD: Betrachte jeden tnavHD-Record als 2 tnavSD-Records, verwende den ersten und überspringe den zweiten
@@ -6156,12 +6170,23 @@ bool PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isH
       navRecs[i].Timems -= Difference;
       navsCount++;
     }
-    fwrite(navRecs, sizeof(tnavSD), navsRead, fNewNav);
+    ret = (write(fNewNav, navRecs, navsRead * sizeof(tnavSD)) == navsRead * (int)sizeof(tnavSD)) && ret;
   }
 
-  fclose(fSourceNav);
-  fclose(fNewNav);
+  ret = (fsync(fNewNav) == 0) && ret;
+  ret = (close(fNewNav) == 0) && ret;
+  close(fSourceNav);
   TAP_MemFree(navRecs);
+
+  //On error rename the bak file back to original
+  if (!ret)
+  {
+    WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E1a04.");
+    HDD_Delete2(NavFileName, AbsDirectory, FALSE);
+    HDD_Rename2(BakFileName, NavFileName, AbsDirectory, FALSE);
+    TRACEEXIT();
+    return FALSE;
+  }
 
   TRACEEXIT();
   return (Difference > 0);

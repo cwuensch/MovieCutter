@@ -5,8 +5,7 @@
 #define MC_MULTILANG    TRUE
                                       // MinEncode   Header   MinInf    NormInf    MaxInf
 //#define INFSIZE                 2128  //    8192  // 2128  // 3320   // 132636  // 499572
-#define NAVRECS_SD              2000
-#define NAVRECS_HD              1000
+#define NAVRECS_SD              1024
 #define BLOCKSIZE               9024
 #define INFFILETAG              "MCCut"
 //#define TEMPCUTNAME        "__tempcut__.ts"
@@ -68,9 +67,6 @@ typedef struct
 } tnavHD;
 
 void        CreateSettingsDir(void);
-void        WriteLogMC(char *ProgramName, char *s);
-void        WriteLogMCf(char *ProgramName, const char *format, ...);
-//void        WriteDebugLog(const char *format, ...);
 tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirectory, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepCut, bool isHD);
 void        GetNextFreeCutName(const char *SourceFileName, char *const OutCutFileName, const char *AbsDirectory, int LeaveNamesOut);
 void        SecToTimeString(dword Time, char *const OutTimeString);     // needs max. 4 + 1 + 2 + 1 + 2 + 1 = 11 chars

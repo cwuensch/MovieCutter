@@ -11,6 +11,8 @@
 #include                <stdlib.h>
 #include                <string.h>
 #include                <unistd.h>
+#include                <fcntl.h>
+#include                <sys/stat.h>
 #include                <tap.h>
 #include                "libFireBird.h"
 #include                "CWTapApiLib.h"
@@ -85,7 +87,7 @@ static tInodeData* ReadListFileAlloc(const char *AbsListFileName, int *OutNrInod
 {
   tInodeListHeader      InodeListHeader;
   tInodeData           *InodeList  = NULL;
-  FILE                 *fInodeList = NULL;
+  int                   fInodeList = -1;
   int                   NrInodes = 0;
   unsigned long         fs = 0;
 
@@ -95,22 +97,22 @@ static tInodeData* ReadListFileAlloc(const char *AbsListFileName, int *OutNrInod
     TAP_PrintNet("ReadListFileAlloc: OutNrInodes: %d, HeaderNrEntries: %d\n", (OutNrInodes) ? *OutNrInodes : 0, InodeListHeader.NrEntries);
   #endif
 
-  fInodeList = fopen(AbsListFileName, "rb");
-  if(fInodeList)
+  fInodeList = open(AbsListFileName, O_RDONLY);
+  if(fInodeList >= 0)
   {
     // Dateigröße bestimmen um Puffer zu allozieren
-    fseek(fInodeList, 0, SEEK_END);
-    fs = ftell(fInodeList);
-    rewind(fInodeList);
+    struct stat statbuf;
+    if (fstat(fInodeList, &statbuf))
+      fs = statbuf.st_size;
 
     // Header prüfen
-    if (!( (fread(&InodeListHeader, sizeof(tInodeListHeader), 1, fInodeList))
+    if (!( (read(fInodeList, &InodeListHeader, sizeof(tInodeListHeader)) == sizeof(tInodeListHeader))
         && (strncmp(InodeListHeader.Magic, "TFinos", 6) == 0)
         && (InodeListHeader.Version == 1)
         && (InodeListHeader.FileSize == fs)
-        && (InodeListHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == fs)))
+        && (InodeListHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == fs) ))
     {
-      fclose(fInodeList);
+      close(fInodeList);
       WriteLogMC("HddToolsLib", "ReadListFileAlloc: Invalid list file header!");
       TRACEEXIT();
       return NULL;
@@ -133,10 +135,10 @@ static tInodeData* ReadListFileAlloc(const char *AbsListFileName, int *OutNrInod
       memset(InodeList, '\0', (InodeListHeader.NrEntries + AddEntries) * sizeof(tInodeData));
     if (InodeList && fInodeList)
     {
-      NrInodes = fread(InodeList, sizeof(tInodeData), InodeListHeader.NrEntries, fInodeList);
+      NrInodes = read(fInodeList, InodeList, InodeListHeader.NrEntries * sizeof(tInodeData)) / sizeof(tInodeData);
       if (NrInodes != InodeListHeader.NrEntries)
       {
-        fclose(fInodeList);
+        close(fInodeList);
         free(InodeList);
         WriteLogMC("HddToolsLib", "ReadListFileAlloc: Unexpected end of list file.");
         TRACEEXIT();
@@ -149,7 +151,7 @@ static tInodeData* ReadListFileAlloc(const char *AbsListFileName, int *OutNrInod
       TAP_PrintNet("END ReadListFileAlloc: OutNrInodes: %d, HeaderNrEntries: %d\n", (OutNrInodes) ? *OutNrInodes : 0, InodeListHeader.NrEntries);
     #endif
   }
-  if(fInodeList) fclose(fInodeList);
+  if(fInodeList >= 0) close(fInodeList);
   TRACEEXIT();
   return InodeList;
 }
@@ -157,27 +159,28 @@ static tInodeData* ReadListFileAlloc(const char *AbsListFileName, int *OutNrInod
 static bool WriteListFile(const char *AbsListFileName, const tInodeData InodeList[], const int NrInodes)
 {
   tInodeListHeader      InodeListHeader;
-  FILE                 *fInodeList = NULL;
+  int                   fInodeList = -1;
   bool                  ret = FALSE;
 
   TRACEENTER();
 
-  fInodeList = fopen(AbsListFileName, "wb");
-  if(fInodeList)
+  fInodeList = open(AbsListFileName, O_WRONLY | O_TRUNC | O_CREAT | O_APPEND);
+  if(fInodeList >= 0)
   {
     strncpy(InodeListHeader.Magic, "TFinos", 6);
     InodeListHeader.Version   = 1;
     InodeListHeader.NrEntries = NrInodes;
     InodeListHeader.FileSize  = (NrInodes * sizeof(tInodeData)) + sizeof(tInodeListHeader);
 
-    if (fwrite(&InodeListHeader, sizeof(tInodeListHeader), 1, fInodeList))
+    if (write(fInodeList, &InodeListHeader, sizeof(tInodeListHeader)) == sizeof(tInodeListHeader))
     {
       if (NrInodes == 0)
         ret = TRUE;
-      else if (InodeList && (fwrite(InodeList, sizeof(tInodeData), NrInodes, fInodeList) == (size_t) NrInodes))
+      else if (InodeList && (write(fInodeList, InodeList, NrInodes * sizeof(tInodeData)) == NrInodes * (int)sizeof(tInodeData)))
         ret = TRUE;
     }
-    fclose(fInodeList);
+    ret = (fsync(fInodeList) == 0) && ret;
+    ret = (close(fInodeList) == 0) && ret;
     HDD_SetFileDateTime(&AbsListFileName[1], "", Now(NULL));
   }
   TRACEEXIT();
@@ -324,6 +327,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
   // --- 2.) Detect the device node of the partition to be checked ---
   HDD_FindMountPointDev2(AbsMountPath, MountPoint, DeviceNode);
   WriteLogMCf("HddToolsLib", "CheckFileSystem: Checking file system '%s' ('%s')...", MountPoint, DeviceNode);
+  CloseLogMC();
 
   // --- 3.) Try remounting the HDD as read-only first
   if (DoFix)
@@ -750,6 +754,7 @@ bool HDD_CheckInode(const char *FileName, const char *AbsDirectory, bool DoFix, 
   HDD_FindMountPointDev2(AbsDirectory, ListFile, DeviceNode);
   strcat(ListFile, "/FixInodes.lst");
   WriteLogMCf("HddToolsLib", "Checking file inode for wrong di_nblocks (Device=%s):", DeviceNode);
+  CloseLogMC();
 
   // Set the system time to current time
 //  if(DoFix) SetSystemTimeToCurrent();
@@ -791,6 +796,7 @@ int HDD_CheckInodes(const char *InodeNrs, const char *AbsMountPath, bool DoFix, 
   strcat(ListFile, "/FixInodes.lst");
 
   WriteLogMCf("HddToolsLib", "Inodes-Check mit icheck: %s (Device=%s, ListFile=%s):", InodeNrs, DeviceNode, ListFile);
+  CloseLogMC();
 
   // Set the system time to current time
 //  if(DoFix) SetSystemTimeToCurrent();

@@ -10,9 +10,11 @@
 #include                <stdio.h>
 #include                <stdlib.h>
 #include                <string.h>
+#include                <stdarg.h>
 #include                <unistd.h>
 #include                <utime.h>
 #include                <mntent.h>
+#include                <fcntl.h>
 #include                <sys/stat.h>
 #include                <sys/statvfs.h>
 #include                <tap.h>
@@ -474,37 +476,44 @@ char SysTypeToStr(void)
 // ----------------------------------------------------------------------------
 //                         LogFile-Funktionen
 // ----------------------------------------------------------------------------
-void LogEntry2(char *AbsFileName, char *ProgramName, bool Console, eTimeStampFormat TimeStampFormat, char *Text)
+int fLog = -1;
+
+void CloseLogMC()
 {
-  FILE                 *f;
-  char                 *TS;
-//  char                  CRLF[] = {'\r', '\n'};
-  byte                  Sec;
   struct utimbuf        times;
 
-  TS = TimeFormat(Now(&Sec), Sec, TimeStampFormat);
+  if (fLog >= 0) close(fLog);
+  fLog = -1;
+
+  //As the log would receive the Linux time stamp (01.01.2000), adjust to the PVR's time
+  times.actime = PvrTimeToLinux(Now(NULL));
+  times.modtime = times.actime;
+  utime(TAPFSROOT "/ProgramFiles/Settings/MovieCutter/MovieCutter.log", &times);
+}
+
+void WriteLogMC(char *ProgramName, char *Text)
+{
+  char                  Buffer[512];
+  char                 *TS = NULL;
+//  char                  CRLF[] = {'\r', '\n'};
+  byte                  Sec;
+
+  TS = TimeFormat(Now(&Sec), Sec, TIMESTAMP_YMDHMS);
 //  if (TS[0]) strcat (TS, " ");
 
-  if (AbsFileName && AbsFileName[0])
-  {
-    f = fopen(AbsFileName, "ab");
-    if(f)
-    {
-//      fwrite(TS, strlen(TS), 1, f);
-      fprintf(f, "%s %s\r\n", TS, (Text!=NULL) ? Text : "");
-//      fwrite(CRLF, 2, 1, f);
-      fclose(f);
+  if (fLog < 0)
+    fLog = open(TAPFSROOT "/ProgramFiles/Settings/MovieCutter/MovieCutter.log", O_WRONLY | O_APPEND | O_CREAT);
 
-      //As the log would receive the Linux time stamp (01.01.2000), adjust to the PVR's time
-      times.actime = PvrTimeToLinux(Now(NULL));
-      times.modtime = times.actime;
-      utime(AbsFileName, &times);
-    }
+  if (fLog >= 0)
+  {
+    TAP_SPrint(Buffer, sizeof(Buffer), "%s %s\r\n", TS, Text);
+    write(fLog, Buffer, strlen(Buffer));
+//    close(fLog);
   }
 
-  if (Console)
+//  if (Console)
   {
-    if (TimeStampFormat != TIMESTAMP_NONE) TAP_PrintNet("%s ", TS);
+    if (TS) TAP_PrintNet("%s ", TS);
     if (ProgramName && ProgramName[0]) TAP_PrintNet ("%s: ", ProgramName);
 
     //Max length is 512. If above, a buffer overflow may occur
@@ -536,7 +545,42 @@ void LogEntry2(char *AbsFileName, char *ProgramName, bool Console, eTimeStampFor
     }
     TAP_PrintNet ("\n");
   }
+
+  fsync(fLog);
 }
+
+void WriteLogMCf(char *ProgramName, const char *format, ...)
+{
+  char Text[512];
+
+  if(format)
+  {
+    va_list args;
+    va_start(args, format);
+    vsnprintf(Text, sizeof(Text), format, args);
+    va_end(args);
+    WriteLogMC(ProgramName, Text);
+  }
+}
+
+/* void WriteDebugLog(const char *format, ...)
+{
+  char Text[512];
+
+  HDD_TAP_PushDir();
+  TAP_Hdd_ChangeDir("/ProgramFiles/Settings/MovieCutter");
+
+  if(format)
+  {
+    va_list args;
+    va_start(args, format);
+    vsnprintf(Text, sizeof(Text), format, args);
+    va_end(args);
+    LogEntry("Aufnahmenfresser.log", "", FALSE, TIMESTAMP_YMDHMS, Text);
+  }
+
+  HDD_TAP_PopDir();
+} */
 
 
 /*// ----------------------------------------------------------------------------
