@@ -1,4 +1,4 @@
-2015-07-24 v3.3  NEU:
+2015-07-26 v3.3  NEU:
                   *** neue Funktion "Aufnahme teilen" (ersetzt "Gerade Segmente löschen")
                   *** neue Behandlung des letzten Segments (truncate) -> verhindert Aufnahmenfresser!
                   *** fixed 4-byte-offset when cutting on Australian PVRs
@@ -27,6 +27,7 @@
                  INTERNALS:
                     - neue modifizierte FireBirdLib (2013-02-18+)
                     - Zeit-Konvertierung mittels Firmware-Funktion FIS_fwTimeToLinux()
+                    - File-I/O-Zugriffe über SystemCalls (open/close/write) statt C-StandardLib
                     - Optimierungen zur Steigerung der Effizienz
 
 2015-03-31 v3.2     * Segment- und Bookmark-Marker nun wieder ohne Anti-Aliasing

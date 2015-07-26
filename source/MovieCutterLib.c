@@ -622,7 +622,7 @@ bool isHDVideo(const char *RecFileName, const char *AbsDirectory, bool *const is
 
   TAP_SPrint(AbsInfName, sizeof(AbsInfName), "%s/%s.inf", AbsDirectory, RecFileName);
   f = open(AbsInfName, O_RDONLY);
-  if(f)
+  if(f >= 0)
   {
     lseek(f, 0x0042, SEEK_SET);
     read(f, &StreamType, 1);
@@ -1101,7 +1101,7 @@ bool GetRecDateFromInf(const char *RecFileName, const char *AbsDirectory, dword 
 
   TAP_SPrint(AbsInfName, sizeof(AbsInfName), "%s/%s.inf", AbsDirectory, RecFileName);
   f = open(AbsInfName, O_RDONLY);
-  if(f)
+  if(f >= 0)
   {
     lseek(f, 0x08, 0);
     ret = (read(f, DateTime, sizeof(dword)) == sizeof(dword));
@@ -1205,7 +1205,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   byte                 *Buffer = NULL;
   TYPE_RecHeader_Info  *RecHeaderInfo = NULL;
   TYPE_Bookmark_Info   *BookmarkInfo = NULL;
-  int                   InfSize, BytesRead;
+  ssize_t               InfSize, BytesRead;
   dword                 Bookmarks[NRBOOKMARKS];
   dword                 NrBookmarks;
   dword                 CutPlayTime;
@@ -1423,7 +1423,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
     // Kopiere den Rest der Source-inf (falls vorhanden) in die neue inf hinein
 //    TAP_SPrint(AbsSourceInfName, sizeof(AbsSourceInfName), "%s/%s.inf", AbsDirectory, SourceFileName);
     fSourceInf = open(AbsSourceInfName, O_RDONLY);
-    if(fSourceInf)
+    if(fSourceInf >= 0)
     {
       lseek(fSourceInf, InfSize, SEEK_SET);
       do {
@@ -1491,7 +1491,7 @@ bool PatchNavFiles(const char *SourceFileName, const char *CutFileName, const ch
   //Create and open the cut nav
   TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.nav", AbsDirectory, CutFileName);
   fCutNav = open(AbsFileName, O_WRONLY | O_TRUNC | O_CREAT | O_APPEND, 0666);
-  if(!fCutNav)
+  if(fCutNav < 0)
   {
     close(fOldNav);
     close(fSourceNav);
