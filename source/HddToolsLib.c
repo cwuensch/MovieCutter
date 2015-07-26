@@ -321,13 +321,14 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
     if (DoFix)
       TAP_Hdd_StopTs();
   }
-  sync();
-  TAP_Sleep(1);
 
   // --- 2.) Detect the device node of the partition to be checked ---
   HDD_FindMountPointDev2(AbsMountPath, MountPoint, DeviceNode);
   WriteLogMCf("HddToolsLib", "CheckFileSystem: Checking file system '%s' ('%s')...", MountPoint, DeviceNode);
   CloseLogMC();
+
+  sync();
+  TAP_Sleep(1);
 
   // --- 3.) Try remounting the HDD as read-only first
   if (DoFix)

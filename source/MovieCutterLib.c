@@ -448,6 +448,7 @@ bool FileCut(char *SourceFileName, char *CutFileName, char *AbsDirectory, dword 
     Appl_WaitEvt(0xE507, &x, 1, 0xFFFFFFFF, 300);
   }
   HDD_Delete2(CutFileName, AbsDirectory, TRUE);
+  CloseLogMC();
 
   //Flush the caches *experimental*
   sync();
@@ -470,8 +471,8 @@ bool FileCut(char *SourceFileName, char *CutFileName, char *AbsDirectory, dword 
       //Do the cutting
       #ifdef FULLDEBUG
         WriteLogMCf("MovieCutterLib", "ApplHdd_FileCutPaste('%s', %lu, %lu, '%s')", SourceFileName, StartBlock, NrBlocks, CutFileName);
+        CloseLogMC();
       #endif
-      CloseLogMC();
       ret = ApplHdd_FileCutPaste(SourceFileName, StartBlock, NrBlocks, CutFileName);
       #ifdef FULLDEBUG
         WriteLogMCf("MovieCutterLib", "ApplHdd_FileCutPaste() returned: %lu.", ret);
