@@ -486,8 +486,8 @@ bool FileCut(char *SourceFileName, char *CutFileName, char *AbsDirectory, dword 
   //Flush the caches *experimental*
   sync();
   TAP_Sleep(1);
-  sync();
-  TAP_Sleep(1);
+//  sync();
+//  TAP_Sleep(1);
 /*  for (i=0; i < 30; i++)
   {
 //    TAP_SystemProc();
@@ -1248,7 +1248,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   #ifdef FULLDEBUG
     struct stat statbuf;
     fstat(fSourceInf, &statbuf);
-    WriteLogMCf("MovieCutterLib", "PatchInfFiles(): %lu / %lu Bytes read.", BytesRead, statbuf.st_size);
+    WriteLogMCf("MovieCutterLib", "PatchInfFiles(): %lu / %llu Bytes read.", BytesRead, statbuf.st_size);
   #endif
   close(fSourceInf);
 
@@ -1415,7 +1415,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
 
   //Encode the cut inf and write it to the disk
   TAP_SPrint(AbsCutInfName, sizeof(AbsCutInfName), "%s/%s.inf", AbsDirectory, CutFileName);
-  fCutInf = open(AbsCutInfName, O_WRONLY | O_TRUNC | O_CREAT | O_APPEND);
+  fCutInf = open(AbsCutInfName, O_WRONLY | O_TRUNC | O_CREAT | O_APPEND, 0666);
   if(fCutInf >= 0)
   {
     Result = (write(fCutInf, Buffer, InfSize) == InfSize) && Result;
@@ -1479,7 +1479,7 @@ bool PatchNavFiles(const char *SourceFileName, const char *CutFileName, const ch
 
   //Create and open the new source nav
   TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.nav", AbsDirectory, SourceFileName);
-  fSourceNav = open(AbsFileName, O_WRONLY | O_TRUNC | O_CREAT | O_APPEND);
+  fSourceNav = open(AbsFileName, O_WRONLY | O_TRUNC | O_CREAT | O_APPEND, 0666);
   if(fSourceNav < 0)
   {
     close(fOldNav);
@@ -1490,7 +1490,7 @@ bool PatchNavFiles(const char *SourceFileName, const char *CutFileName, const ch
 
   //Create and open the cut nav
   TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.nav", AbsDirectory, CutFileName);
-  fCutNav = open(AbsFileName, O_WRONLY | O_TRUNC | O_CREAT | O_APPEND);
+  fCutNav = open(AbsFileName, O_WRONLY | O_TRUNC | O_CREAT | O_APPEND, 0666);
   if(!fCutNav)
   {
     close(fOldNav);
@@ -1698,7 +1698,7 @@ tTimeStamp* NavLoad(const char *RecFileName, const char *AbsDirectory, int *cons
 
   // Reserve a (temporary) buffer to hold the entire file
   struct stat statbuf;
-  if (fstat(fNav, &statbuf))
+  if (fstat(fNav, &statbuf) == 0)
     NavSize = statbuf.st_size;
   NavRecordsNr = NavSize / (sizeof(tnavSD) * ((isHD) ? 2 : 1));
 

@@ -16,7 +16,9 @@
 //#define TAP_MemSet    memset
 #define TAP_SPrint    snprintf
 
-#define NRBOOKMARKS        177   // eigentlich werden nur 48 Bookmarks unterstützt!! (SRP2401)
+#define LOGDIR          "/ProgramFiles/Settings/MovieCutter"
+#define LOGFILENAME     "MovieCutter.log"
+#define NRBOOKMARKS     177   // eigentlich werden nur 48 Bookmarks unterstützt!! (SRP2401)
 
 typedef struct
 {

@@ -44,14 +44,14 @@
 #include                "Graphics/Button_Up_small.gd"
 #include                "Graphics/Button_Down.gd"
 #include                "Graphics/Button_Down_small.gd"
-/*#include                "Graphics/Button_red.gd"
+#include                "Graphics/Button_red.gd"
 #include                "Graphics/Button_green.gd"
 #include                "Graphics/Button_yellow.gd"
 #include                "Graphics/Button_blue.gd"
 #include                "Graphics/Button_white.gd"
 #include                "Graphics/Button_recall.gd"
 #include                "Graphics/Button_vf.gd"
-#include                "Graphics/Button_menu.gd" */
+#include                "Graphics/Button_menu.gd"
 #include                "Graphics/Button_ProgPlusMinus.gd"
 #include                "Graphics/Button_Exit.gd"
 #include                "Graphics/Button_Ok.gd"
@@ -78,9 +78,8 @@
 #include                "Graphics/Button_7_small.gd"
 #include                "Graphics/Button_8_small.gd"
 #include                "TMSCommander.h"
-extern TYPE_GrData      _Button_red_Gd, _Button_green_Gd, _Button_yellow_Gd, _Button_blue_Gd, _Button_white_Gd;
-extern TYPE_GrData      _Button_recall_Gd, _Button_menu_Gd, _Button_vf_Gd;
-
+//extern TYPE_GrData      _Button_red_Gd, _Button_green_Gd, _Button_yellow_Gd, _Button_blue_Gd, _Button_white_Gd;
+//extern TYPE_GrData      _Button_recall_Gd, _Button_menu_Gd, _Button_vf_Gd;
 
 TAP_ID                  (TAPID);
 TAP_PROGRAM_NAME        (PROGRAM_NAME" "VERSION);
@@ -2158,7 +2157,7 @@ void SaveINI(void)
     fprintf(f, "%s=%d\r\n",  "DirectSegmentsCut",   DirectSegmentsCut   ?  1  :  0);
     fprintf(f, "%s=%d\r\n",  "DisableSleepKey",     DisableSleepKey     ?  1  :  0);
     fclose(f);
-    HDD_SetFileDateTime(INIFILENAME, TAPFSROOT LOGDIR, Now(NULL));
+    HDD_SetFileDateTime(INIFILENAME, TAPFSROOT LOGDIR, 0);
   }
   TRACEEXIT();
 }
@@ -3024,7 +3023,6 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
         }
       }
     }
-    fclose(fCut);
     free(Buffer);
 
     if (ret)
@@ -3110,8 +3108,9 @@ bool CutFileLoad(void)
           break;
         }
       }
+      fclose(fCut);
       if (!ret)
-        WriteLogMC(PROGRAM_NAME, "CutFileLoad: Failed to read cut-info from .cut!"); 
+        WriteLogMC(PROGRAM_NAME, "CutFileLoad: Failed to read cut-info from .cut!");
     }
 //    else
 //      if (CutFileMode == CM_CutOnly)
@@ -3305,19 +3304,19 @@ bool CutFileSave2(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
       fCut = fopen(AbsCutName, "wb");
       if(fCut)
       {
-        fprintf(fCut, "[MCCut3]\r\n");
-        fprintf(fCut, "RecFileSize=%llu\r\n", RecFileSize);
-        fprintf(fCut, "NrSegmentMarker=%d\r\n", NrSegmentMarker);
-        fprintf(fCut, "ActiveSegment=%d\r\n\r\n", ActiveSegment);  // sicher!?
-        fprintf(fCut, "[Segments]\r\n");
-        fprintf(fCut, "#Nr ; Sel ; StartBlock ;     StartTime ; Percent\r\n");
+        ret = (fprintf(fCut, "[MCCut3]\r\n") > 0) && ret;
+        ret = (fprintf(fCut, "RecFileSize=%llu\r\n", RecFileSize) > 0) && ret;
+        ret = (fprintf(fCut, "NrSegmentMarker=%d\r\n", NrSegmentMarker) > 0) && ret;
+        ret = (fprintf(fCut, "ActiveSegment=%d\r\n\r\n", ActiveSegment) > 0) && ret;  // sicher!?
+        ret = (fprintf(fCut, "[Segments]\r\n") > 0) && ret;
+        ret = (fprintf(fCut, "#Nr ; Sel ; StartBlock ;     StartTime ; Percent\r\n") > 0) && ret;
         for (i = 0; i < NrSegmentMarker; i++)
         {
           MSecToTimeString(SegmentMarker[i].Timems, TimeStamp);
-          fprintf(fCut, "%3d ;  %c  ; %10lu ;%14s ;  %5.1f%%\r\n", i, (SegmentMarker[i].Selected ? '*' : '-'), SegmentMarker[i].Block, TimeStamp, SegmentMarker[i].Percent);                        
+          ret = (fprintf(fCut, "%3d ;  %c  ; %10lu ;%14s ;  %5.1f%%\r\n", i, (SegmentMarker[i].Selected ? '*' : '-'), SegmentMarker[i].Block, TimeStamp, SegmentMarker[i].Percent) > 0) && ret;
         }
-        fclose(fCut);
-        HDD_SetFileDateTime(&AbsCutName[1], "", Now(NULL));
+        ret = (fclose(fCut) == 0) && ret;
+        HDD_SetFileDateTime(&AbsCutName[1], "", 0);
       }
       else
       {
@@ -3461,7 +3460,7 @@ bool CutSaveToInf(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
     ret = (fsync(fInf) == 0) && ret;
     ret = (close(fInf) == 0) && ret;
     TAP_MemFree(Buffer);
-    HDD_SetFileDateTime(&AbsInfName[1], "", Now(NULL));
+    HDD_SetFileDateTime(&AbsInfName[1], "", 0);
 
     if (!ret)
       WriteLogMC(PROGRAM_NAME, "CutSaveToInf: Failed to write the new inf file!");
@@ -6123,7 +6122,7 @@ bool PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isH
 
   //Create and open the new source nav
   TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s", AbsDirectory, NavFileName);
-  fNewNav = open(AbsFileName, O_WRONLY | O_TRUNC | O_CREAT | O_APPEND);
+  fNewNav = open(AbsFileName, O_WRONLY | O_TRUNC | O_CREAT | O_APPEND, 0666);
   if(fNewNav < 0)
   {
     close(fSourceNav);
@@ -6177,6 +6176,7 @@ bool PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isH
   ret = (close(fNewNav) == 0) && ret;
   close(fSourceNav);
   TAP_MemFree(navRecs);
+  HDD_SetFileDateTime(&AbsFileName[1], "", 0);
 
   //On error rename the bak file back to original
   if (!ret)

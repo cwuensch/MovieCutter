@@ -102,7 +102,7 @@ static tInodeData* ReadListFileAlloc(const char *AbsListFileName, int *OutNrInod
   {
     // Dateigröße bestimmen um Puffer zu allozieren
     struct stat statbuf;
-    if (fstat(fInodeList, &statbuf))
+    if (fstat(fInodeList, &statbuf) == 0)
       fs = statbuf.st_size;
 
     // Header prüfen
@@ -164,7 +164,7 @@ static bool WriteListFile(const char *AbsListFileName, const tInodeData InodeLis
 
   TRACEENTER();
 
-  fInodeList = open(AbsListFileName, O_WRONLY | O_TRUNC | O_CREAT | O_APPEND);
+  fInodeList = open(AbsListFileName, O_WRONLY | O_TRUNC | O_CREAT | O_APPEND, 0666);
   if(fInodeList >= 0)
   {
     strncpy(InodeListHeader.Magic, "TFinos", 6);
@@ -181,7 +181,7 @@ static bool WriteListFile(const char *AbsListFileName, const tInodeData InodeLis
     }
     ret = (fsync(fInodeList) == 0) && ret;
     ret = (close(fInodeList) == 0) && ret;
-    HDD_SetFileDateTime(&AbsListFileName[1], "", Now(NULL));
+    HDD_SetFileDateTime(&AbsListFileName[1], "", 0);
   }
   TRACEEXIT();
   return ret;
@@ -537,6 +537,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
   else
     WriteLogMC("HddToolsLib", "CheckFileSystem() E1c01.");
   if(fLogFileOut) fclose(fLogFileOut);
+  HDD_SetFileDateTime("fsck.log", ABSLOGDIR, 0);
 
   // Copy the log to MovieCutter folder
   #ifdef FULLDEBUG

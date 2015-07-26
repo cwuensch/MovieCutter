@@ -12,7 +12,6 @@
 //#define NRBOOKMARKS           144
 #define NRUNDOEVENTS          100
 #define SIZESUSPECTHDDS       1024
-#define CUTFILEVERSION        2
 #define LOGDIR                "/ProgramFiles/Settings/MovieCutter"
 #define LNGFILENAME           PROGRAM_NAME ".lng"
 #define INIFILENAME           PROGRAM_NAME ".ini"

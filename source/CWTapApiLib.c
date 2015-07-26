@@ -188,6 +188,13 @@ bool HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, dword N
   struct stat64         statbuf;
   struct utimbuf        utimebuf;
 
+  if(NewDateTime == 0)
+  {
+    byte Sec;
+    NewDateTime = Now(&Sec);
+    NewDateTime += Sec;
+  }
+
   if(FileName && AbsDirectory && (NewDateTime > 0xd0790000))
   {
     TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s", AbsDirectory, FileName);
@@ -482,27 +489,29 @@ void CloseLogMC()
 {
   struct utimbuf        times;
 
-  if (fLog >= 0) close(fLog);
+  if (fLog >= 0)
+  {
+    fsync(fLog);
+    close(fLog);
+  }
   fLog = -1;
 
   //As the log would receive the Linux time stamp (01.01.2000), adjust to the PVR's time
   times.actime = PvrTimeToLinux(Now(NULL));
   times.modtime = times.actime;
-  utime(TAPFSROOT "/ProgramFiles/Settings/MovieCutter/MovieCutter.log", &times);
+  utime(TAPFSROOT LOGDIR "/" LOGFILENAME, &times);
 }
 
 void WriteLogMC(char *ProgramName, char *Text)
 {
   char                  Buffer[512];
   char                 *TS = NULL;
-//  char                  CRLF[] = {'\r', '\n'};
   byte                  Sec;
 
   TS = TimeFormat(Now(&Sec), Sec, TIMESTAMP_YMDHMS);
-//  if (TS[0]) strcat (TS, " ");
 
   if (fLog < 0)
-    fLog = open(TAPFSROOT "/ProgramFiles/Settings/MovieCutter/MovieCutter.log", O_WRONLY | O_APPEND | O_CREAT);
+    fLog = open(TAPFSROOT LOGDIR "/" LOGFILENAME, O_WRONLY | O_APPEND | O_CREAT /*| O_SYNC*/, 0666);
 
   if (fLog >= 0)
   {
@@ -513,37 +522,8 @@ void WriteLogMC(char *ProgramName, char *Text)
 
 //  if (Console)
   {
-    if (TS) TAP_PrintNet("%s ", TS);
-    if (ProgramName && ProgramName[0]) TAP_PrintNet ("%s: ", ProgramName);
-
-    //Max length is 512. If above, a buffer overflow may occur
-    if(Text && Text [0])
-    {
-      if(strlen(Text) < 510)
-      {
-        TAP_PrintNet("%s", Text);
-      }
-      else
-      {
-        char *p = Text;
-
-        while(*p)
-        {
-          int     l;
-          char    q;
-
-          l = strlen(p);
-          if(l > 510) l = 510;
-
-          q = p[l];
-          p[l] = '\0';
-          TAP_PrintNet("%s", p);
-          p[l] = q;
-          p += l;
-        }
-      }
-    }
-    TAP_PrintNet ("\n");
+    TAP_SPrint(Buffer, sizeof(Buffer), "%s %s: %s\n", TS, ((ProgramName && ProgramName[0]) ? ProgramName : ""), Text);
+    TAP_PrintNet(Buffer);
   }
 
   fsync(fLog);
@@ -748,7 +728,7 @@ bool infData_Set2(const char *RecFileName, const char *AbsDirectory, const char 
     if(Payload)
       fwrite(Payload, TFRPlusHdr.PayloadSize, 1, infDatainfFile);
     fclose(infDatainfFile);
-    HDD_SetFileDateTime(InfFileName, AbsDirectory, Now(NULL));
+    HDD_SetFileDateTime(InfFileName, AbsDirectory, 0);
   }
   infDatainfFile = NULL;
 
@@ -826,7 +806,7 @@ bool infData_Delete2(const char *RecFileName, const char *AbsDirectory, const ch
 
     TAP_SPrint(InfFileName, sizeof(InfFileName), "%s.inf", RecFileName);
     HDD_TruncateFile(InfFileName, AbsDirectory, DestPos);
-    HDD_SetFileDateTime(InfFileName, AbsDirectory, Now(NULL));
+    HDD_SetFileDateTime(InfFileName, AbsDirectory, 0));
     ret = TRUE;
   }
   infDatainfFile = NULL;
