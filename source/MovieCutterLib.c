@@ -268,11 +268,12 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
     WriteLogMCf("MovieCutterLib", "Cut file size: %llu Bytes (=%lu blocks) - inode=%llu", CutFileSize, CalcBlockSize(CutFileSize), InodeNr);
 
     // Read the beginning and the ending from the cut file
-    if(!ReadFirstAndLastCutPacket(CutFileName, AbsDirectory, FirstCutPacket, LastCutPacket))
-    {
-      WriteLogMC("MovieCutterLib", "MovieCutter() W0005: nav creation suppressed.");
-      SuppressNavGeneration = TRUE;
-    }
+    if(!SuppressNavGeneration)
+      if(!ReadFirstAndLastCutPacket(CutFileName, AbsDirectory, FirstCutPacket, LastCutPacket))
+      {
+        WriteLogMC("MovieCutterLib", "MovieCutter() W0005: nav creation suppressed.");
+        SuppressNavGeneration = TRUE;
+      }
 
     // Detect the actual cutting positions (differing from requested cut points!) for the nav generation
     if(!SuppressNavGeneration)
@@ -315,13 +316,15 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
     }
 
 #ifdef FULLDEBUG
-  bool  CutStartGuessed, BehindCutGuessed;
+  bool  CutStartGuessed = FALSE,   BehindCutGuessed = FALSE;
   long  GuessedCutStartOffset = 0, GuessedBehindCutOffset = 0;
   off_t ReqCutStartPos  = (off_t)CutStartPoint->BlockNr * BLOCKSIZE;
   off_t ReqBehindCutPos = (off_t)BehindCutPoint->BlockNr * BLOCKSIZE;
 
-  CutStartGuessed  = FindCutPointOffset2(CutPointArea1, ReqCutStartPos, FALSE, &GuessedCutStartOffset);
-  BehindCutGuessed = FindCutPointOffset2(CutPointArea2, ReqBehindCutPos, FALSE, &GuessedBehindCutOffset);
+  if(CutPointArea1)
+    CutStartGuessed  = FindCutPointOffset2(CutPointArea1, ReqCutStartPos, FALSE, &GuessedCutStartOffset);
+  if(CutPointArea2)
+    BehindCutGuessed = FindCutPointOffset2(CutPointArea2, ReqBehindCutPos, FALSE, &GuessedBehindCutOffset);
 
   if ((CutStartGuessed && (CutStartPos == ReqCutStartPos + GuessedCutStartOffset)) && (BehindCutGuessed && (BehindCutPos == ReqBehindCutPos + GuessedBehindCutOffset)))
     WriteLogMC("MovieCutterLib", "--> Real cutting points guessed correctly!");
@@ -591,7 +594,7 @@ bool isCrypted(const char *RecFileName, const char *AbsDirectory)
   int                   f = -1;
   char                  AbsInfName[FBLIB_DIR_SIZE];
   byte                  CryptFlag = 2;  // wieso nicht 0?
-  bool                  ret;
+  bool                  ret = TRUE;
 
   TRACEENTER();
 
@@ -599,13 +602,11 @@ bool isCrypted(const char *RecFileName, const char *AbsDirectory)
   f = open(AbsInfName, O_RDONLY);
   if(f >= 0)
   {
-    lseek(f, 0x0010, SEEK_SET);
-    read(f, &CryptFlag, 1);
+    if (lseek(f, 0x0010, SEEK_SET) == 0x0010)
+      if (read(f, &CryptFlag, 1) > 0)
+        ret = ((CryptFlag & 1) != 0);
     close(f);
-    ret = ((CryptFlag & 1) != 0);
   }
-  else
-    ret = TRUE;
 
   TRACEEXIT();
   return ret;
@@ -617,6 +618,7 @@ bool isHDVideo(const char *RecFileName, const char *AbsDirectory, bool *const is
   int                   f = -1;
   char                  AbsInfName[FBLIB_DIR_SIZE];
   byte                  StreamType = STREAM_UNKNOWN;
+  bool                  ret = FALSE;
 
   if (isHD == NULL) return FALSE;
   TRACEENTER();
@@ -625,10 +627,13 @@ bool isHDVideo(const char *RecFileName, const char *AbsDirectory, bool *const is
   f = open(AbsInfName, O_RDONLY);
   if(f >= 0)
   {
-    lseek(f, 0x0042, SEEK_SET);
-    read(f, &StreamType, 1);
+    if (lseek(f, 0x0042, SEEK_SET) == 0x0042)
+      if (read(f, &StreamType, 1) == 1)
+        ret = TRUE;
     close(f);
-
+  }
+  if (ret)
+  {
     if ((StreamType==STREAM_VIDEO_MPEG4_PART2) || (StreamType==STREAM_VIDEO_MPEG4_H264) || (StreamType==STREAM_VIDEO_MPEG4_H263))
       *isHD = TRUE;
     else if ((StreamType==STREAM_VIDEO_MPEG1) || (StreamType==STREAM_VIDEO_MPEG2))
@@ -636,19 +641,14 @@ bool isHDVideo(const char *RecFileName, const char *AbsDirectory, bool *const is
     else
     {
       WriteLogMC("MovieCutterLib", "isHDVideo() E0102.");
-      TRACEEXIT();
-      return FALSE;
+      ret = FALSE;
     }
   }
   else
-  {
     WriteLogMC("MovieCutterLib", "isHDVideo() E0101.");
-    TRACEEXIT();
-    return FALSE;
-  }
 
   TRACEEXIT();
-  return TRUE;
+  return ret;
 }
 
 
@@ -750,6 +750,7 @@ bool PatchRecFile(const char *SourceFileName, const char *AbsDirectory, off_t Re
   int                   i;
   bool                  ret = TRUE;
 
+  if (CutPointArray == NULL || OutPatchedBytes == NULL) return FALSE;
   TRACEENTER();
 //  #ifdef FULLDEBUG
     WriteLogMC("MovieCutterLib", "PatchRecFile()");
@@ -870,6 +871,7 @@ bool ReadCutPointArea(const char *SourceFileName, const char *AbsDirectory, off_
   int                   f = -1;
   bool                  ret = FALSE;
 
+  if (CutPointArray == NULL) return FALSE;
   TRACEENTER();
   #ifdef FULLDEBUG
     WriteLogMC("MovieCutterLib", "ReadCutPointArea()");
@@ -896,7 +898,7 @@ bool ReadCutPointArea(const char *SourceFileName, const char *AbsDirectory, off_
   {
 //    fseeko64(f, 0, SEEK_SET);
 //    memset(CutPointArray, 0, CUTPOINTSEARCHRADIUS - CutPosition);
-    ret = (read(f, &CutPointArray[CUTPOINTSEARCHRADIUS - CutPosition], CutPosition + CUTPOINTSEARCHRADIUS) == CutPosition + CUTPOINTSEARCHRADIUS) && ret;
+    ret = (read(f, &CutPointArray[CUTPOINTSEARCHRADIUS - CutPosition], CutPosition + CUTPOINTSEARCHRADIUS) == CutPosition + CUTPOINTSEARCHRADIUS);
   }
   close(f);
 
@@ -974,7 +976,7 @@ bool FindCutPointOffset(const byte CutPacket[], const byte CutPointArray[], long
   byte                  FirstByte;
   ptrdiff_t             i;    // negative array indices might be critical on 64-bit systems! (http://www.devx.com/tips/Tip/41349)
 
-  if (OutOffset == NULL) return FALSE;
+  if (CutPointArray == NULL || OutOffset == NULL) return FALSE;
   TRACEENTER();
 
   FirstByte = CutPacket[0];
@@ -1017,7 +1019,7 @@ bool FindCutPointOffset2(const byte CutPointArray[], off_t RequestedCutPosition,
   int                   i;
   bool                  ret = FALSE;
 
-  if (OutOffset == NULL) return FALSE;
+  if (CutPointArray == NULL || OutOffset == NULL) return FALSE;
   TRACEENTER();
 
   MidArray = &CutPointArray[CUTPOINTSEARCHRADIUS];
@@ -1104,16 +1106,12 @@ bool GetRecDateFromInf(const char *RecFileName, const char *AbsDirectory, dword 
   f = open(AbsInfName, O_RDONLY);
   if(f >= 0)
   {
-    lseek(f, 0x08, 0);
-    ret = (read(f, DateTime, sizeof(dword)) == sizeof(dword));
+    if (lseek(f, 0x08, 0) == 0x08)
+      ret = (read(f, DateTime, sizeof(dword)) == sizeof(dword));
     close(f);
   }
   else
-  {
     WriteLogMC("MovieCutterLib", "GetRecDateFromInf() E0601.");
-    TRACEEXIT();
-    return FALSE;
-  }
 
   TRACEEXIT();
   return ret;
