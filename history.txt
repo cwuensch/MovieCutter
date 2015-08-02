@@ -1,4 +1,4 @@
-2015-07-26 v3.3  NEU:
+2015-08-01 v3.3  NEU:
                   *** neue Funktion "Aufnahme teilen" (ersetzt "Gerade Segmente löschen")
                   *** neue Behandlung des letzten Segments (truncate) -> verhindert Aufnahmenfresser!
                   *** fixed 4-byte-offset when cutting on Australian PVRs
