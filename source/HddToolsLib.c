@@ -132,20 +132,22 @@ static tInodeData* ReadListFileAlloc(const char *AbsListFileName, int *OutNrInod
     #endif
     InodeList = (tInodeData*) malloc((InodeListHeader.NrEntries + AddEntries) * sizeof(tInodeData));
     if(InodeList)
-      memset(InodeList, '\0', (InodeListHeader.NrEntries + AddEntries) * sizeof(tInodeData));
-    if (InodeList && fInodeList)
     {
-      NrInodes = read(fInodeList, InodeList, InodeListHeader.NrEntries * sizeof(tInodeData)) / sizeof(tInodeData);
-      if (NrInodes != InodeListHeader.NrEntries)
+      memset(InodeList, '\0', (InodeListHeader.NrEntries + AddEntries) * sizeof(tInodeData));
+      if (fInodeList >= 0)
       {
-        close(fInodeList);
-        free(InodeList);
-        WriteLogMC("HddToolsLib", "ReadListFileAlloc: Unexpected end of list file.");
-        TRACEEXIT();
-        return NULL;
+        NrInodes = read(fInodeList, InodeList, InodeListHeader.NrEntries * sizeof(tInodeData)) / sizeof(tInodeData);
+        if (NrInodes != InodeListHeader.NrEntries)
+        {
+          close(fInodeList);
+          free(InodeList);
+          WriteLogMC("HddToolsLib", "ReadListFileAlloc: Unexpected end of list file.");
+          TRACEEXIT();
+          return NULL;
+        }
       }
     }
-    if (!InodeList)
+    else
       WriteLogMC("HddToolsLib", "ReadListFileAlloc: Not enough memory to store the list file.");
     #if STACKTRACE == TRUE
       TAP_PrintNet("END ReadListFileAlloc: OutNrInodes: %d, HeaderNrEntries: %d\n", (OutNrInodes) ? *OutNrInodes : 0, InodeListHeader.NrEntries);

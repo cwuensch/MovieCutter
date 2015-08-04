@@ -628,7 +628,7 @@ bool isHDVideo(const char *RecFileName, const char *AbsDirectory, bool *const is
   if(f >= 0)
   {
     if (lseek(f, 0x0042, SEEK_SET) == 0x0042)
-      if (read(f, &StreamType, 1) == 1)
+      if (read(f, &StreamType, 1) > 0)
         ret = TRUE;
     close(f);
   }
@@ -721,7 +721,7 @@ bool WriteByteToFile(const char *FileName, const char *AbsDirectory, off_t ByteP
   }
 
   // Write the new byte to the file
-  if (lseek(f, -1, SEEK_CUR) == BytePosition)
+  if (lseek64(f, -1, SEEK_CUR) == BytePosition)
     ret = (write(f, &NewValue, 1) == 1);
   ret = (fsync(f) == 0) && ret;
   ret = (close(f) == 0) && ret;
@@ -953,7 +953,7 @@ bool ReadFirstAndLastCutPacket(const char *CutFileName, const char *AbsDirectory
     lseek64(f, -PACKETSIZE, SEEK_END);
 
     //Read the last TS packet
-    ret = (read(f, &LastCutPacket[0], PACKETSIZE) == PACKETSIZE) && ret;
+    ret = (read(f, &LastCutPacket[0], PACKETSIZE) == PACKETSIZE);
     close(f);
     if(!ret)
     {

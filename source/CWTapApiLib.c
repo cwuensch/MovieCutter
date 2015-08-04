@@ -483,23 +483,22 @@ char SysTypeToStr(void)
 // ----------------------------------------------------------------------------
 //                         LogFile-Funktionen
 // ----------------------------------------------------------------------------
-int fLog = -1;
+int fLogMC = -1;
 
 void CloseLogMC()
 {
-  struct utimbuf        times;
-
-  if (fLog >= 0)
+  if (fLogMC >= 0)
   {
-    fsync(fLog);
-    close(fLog);
-  }
-  fLog = -1;
+    fsync(fLogMC);
+    close(fLogMC);
 
-  //As the log would receive the Linux time stamp (01.01.2000), adjust to the PVR's time
-  times.actime = PvrTimeToLinux(Now(NULL));
-  times.modtime = times.actime;
-  utime(TAPFSROOT LOGDIR "/" LOGFILENAME, &times);
+    //As the log would receive the Linux time stamp (01.01.2000), adjust to the PVR's time
+    struct utimbuf      times;
+    times.actime = PvrTimeToLinux(Now(NULL));
+    times.modtime = times.actime;
+    utime(TAPFSROOT LOGDIR "/" LOGFILENAME, &times);
+  }
+  fLogMC = -1;
 }
 
 void WriteLogMC(char *ProgramName, char *Text)
@@ -510,14 +509,14 @@ void WriteLogMC(char *ProgramName, char *Text)
 
   TS = TimeFormat(Now(&Sec), Sec, TIMESTAMP_YMDHMS);
 
-  if (fLog < 0)
-    fLog = open(TAPFSROOT LOGDIR "/" LOGFILENAME, O_WRONLY | O_APPEND | O_CREAT /*| O_SYNC*/, 0666);
+  if (fLogMC < 0)
+    fLogMC = open(TAPFSROOT LOGDIR "/" LOGFILENAME, O_WRONLY | O_APPEND | O_CREAT /*| O_SYNC*/, 0666);
 
-  if (fLog >= 0)
+  if (fLogMC >= 0)
   {
     TAP_SPrint(Buffer, sizeof(Buffer), "%s %s\r\n", TS, Text);
-    write(fLog, Buffer, strlen(Buffer));
-//    close(fLog);
+    write(fLogMC, Buffer, strlen(Buffer));
+//    close(fLogMC);
   }
 
 //  if (Console)
@@ -526,7 +525,7 @@ void WriteLogMC(char *ProgramName, char *Text)
     TAP_PrintNet(Buffer);
   }
 
-  fsync(fLog);
+  fsync(fLogMC);
 }
 
 void WriteLogMCf(char *ProgramName, const char *format, ...)
