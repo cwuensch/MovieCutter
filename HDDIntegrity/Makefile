@@ -15,8 +15,8 @@ TAP_FLAGS += -g -DDEBUG
 endif
 
 #compile options
-CFLAGS += -DLINUX  -D_REENTRANT -MD -W -Wall -O2 -mips32
-CPPFLAGS += -DLINUX  -MD -W -Wall  -O2 -mips32
+CFLAGS += -DLINUX  -D_REENTRANT -MD -W -Wall -Os -mips32 -static -pipe
+CPPFLAGS += -DLINUX  -MD -W -Wall  -Os -mips32 -static -pipe
 
 INCLUDE_DIRS = ${BASE}/include /opt/crosstool/include/
 TAP_INCLUDE_DIRS = $(addprefix -I, $(INCLUDE_DIRS))
@@ -27,7 +27,7 @@ all: $(APP1).tap clean
 
 $(APP1).tap: $(APP1).o HDDIntegrity.o
 	@echo "[Linking... $@]"
-	@$(LD) -shared --no-undefined --allow-shlib-undefined -o $@ $< $(TAP_LIBS)
+	@$(LD) -shared --no-undefined --allow-shlib-undefined -O1 --gc-sections -o $@ $< $(TAP_LIBS)
 	@$(JB) $@
 
 %.o: %.c ${BASE}/include/libFireBird.h

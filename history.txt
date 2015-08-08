@@ -26,6 +26,7 @@
 
                  INTERNALS:
                     - neue modifizierte FireBirdLib (2013-02-18+)
+                    - neue jfs_fsck (SVN von 2014-05-05)
                     - Zeit-Konvertierung mittels Firmware-Funktion FIS_fwTimeToLinux()
                     - File-I/O-Zugriffe über SystemCalls (open/close/write) statt C-StandardLib
                     - Optimierungen zur Steigerung der Effizienz
