@@ -154,8 +154,8 @@ bool       HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint
 char*      RemoveEndLineBreak (char *const Text);
 char       SysTypeToStr(void);
 void       WriteLogMC(char *ProgramName, char *s);
-void       WriteLogMCf(char *ProgramName, const char *format, ...);
-//void       WriteDebugLog(const char *format, ...);
+void       WriteLogMCf(char *ProgramName, const char *format, ...) __attribute__ ((format(__printf__, 2, 3)));
+//void       WriteDebugLog(const char *format, ...) __attribute__ ((format(__printf__, 1, 2)));
 void       CloseLogMC();
 //bool       infData_Get2(const char *RecFileName, const char *AbsDirectory, const char *NameTag, dword *const PayloadSize, byte **Payload);
 //bool       infData_Set2(const char *RecFileName, const char *AbsDirectory, const char *NameTag, dword PayloadSize, byte Payload[]);

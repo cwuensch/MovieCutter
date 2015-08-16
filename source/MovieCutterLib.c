@@ -1247,7 +1247,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   #ifdef FULLDEBUG
     struct stat statbuf;
     fstat(fSourceInf, &statbuf);
-    WriteLogMCf("MovieCutterLib", "PatchInfFiles(): %lu / %llu Bytes read.", BytesRead, statbuf.st_size);
+    WriteLogMCf("MovieCutterLib", "PatchInfFiles(): %d / %llu Bytes read.", BytesRead, statbuf.st_size);
   #endif
   close(fSourceInf);
 
