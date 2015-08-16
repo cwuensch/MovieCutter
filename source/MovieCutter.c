@@ -389,7 +389,7 @@ static char* DefaultStrings[LS_NrStrings] =
   "Segment markiert",
   "Selektion aufgehoben",
   "Letzte rückgängig",
-  "Minutensprung an: %d'",
+  "Minutensprung ein: %d'",
   "Minutensprung aus",
   "Wenig freier Festplattenspeicher!\nTrotzdem fortfahren?",
   "SystemType ist unbekannt.\nBitte die FirmwareTMS.dat überprüfen!",
@@ -4172,7 +4172,7 @@ void OSDInfoDrawPlayIcons(bool Force, bool DoSync)
 
   TRACEENTER();
 
-  if((Force /*&& rgnInfoBar*/) || (TrickMode != LastTrickMode) || (TrickModeSpeed != LastTrickModeSpeed))
+  if((Force && (rgnInfoBar || DoSync)) || (TrickMode != LastTrickMode) || (TrickModeSpeed != LastTrickModeSpeed))
   {
     if(rgnInfoBar)
     {
