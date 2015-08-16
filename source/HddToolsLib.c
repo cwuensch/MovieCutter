@@ -287,7 +287,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
   char                  CommandLine[1024], Buffer[512]; //, PidStr[13];
   char                  FirstErrorFile[50], *p = NULL;
   dword                 fsck_Pid = 0;
-  unsigned long         StartTime;  byte sec = 0;
+  long                  StartTime;  byte sec = 0;
   int                   NrDefectFiles = 0, NrRepairedFiles = 0, NrMarkedFiles = 0, NrNewMarkedFiles = 0, ActivePhase = 0;
   bool                  fsck_Errors = FALSE;
   int                   i;

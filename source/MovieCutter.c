@@ -2996,7 +2996,7 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
         char            Name[50];
         __off64_t       Value;
 
-        if (sscanf(Buffer, "%49[^= ] = %llu", Name, &Value) == 2)
+        if (sscanf(Buffer, "%49[^= ] = %lld", Name, &Value) == 2)
         {
           if (strcmp(Name, "RecFileSize") == 0)
           {
