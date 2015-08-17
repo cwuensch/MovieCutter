@@ -654,8 +654,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   static dword          LastMinuteKey = 0;
 //  static dword          LastDraw = 0;
 
-  (void) param2;
-
   TRACEENTER();
   #if STACKTRACE == TRUE
     TAP_PrintNet("Status = %u\n", State);
@@ -808,8 +806,13 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         WriteLogMC(PROGRAM_NAME, "========================================\r\n");
 
         //Identify the file name (.rec or .mpg)
+        char *p;
         TAP_SPrint(PlaybackName, sizeof(PlaybackName), PlayInfo.file->name);
-        PlaybackName[strlen(PlaybackName) - 4] = '\0';
+        p = strrchr(PlaybackName, '.');
+        if (p && (strcmp(p, ".inf") == 0))
+          p[0] = '\0';
+        else
+          LinearTimeMode = TRUE;
 
         //Find out the absolute path to the rec file and check for max length
         HDD_GetAbsolutePathByTypeFile2(PlayInfo.file, AbsPlaybackDir);
@@ -824,7 +827,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         }
 
         //Save only the absolute path to rec folder
-        char *p;
         p = strstr(AbsPlaybackDir, PlaybackName);
         if(p) *(p-1) = '\0';
 
@@ -872,7 +874,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         }
 
         //Check if a nav is available
-        if(!isNavAvailable(PlaybackName, AbsPlaybackDir))
+        if (!LinearTimeMode && !isNavAvailable(PlaybackName, AbsPlaybackDir))
         {
           if (ShowConfirmationDialog(LangGetString(LS_NoNavMessage)))
           {
@@ -3081,7 +3083,8 @@ bool CutFileLoad(void)
 //  if (CutFileMode != CM_InfOnly)
   {
     TAP_SPrint(AbsCutName, sizeof(AbsCutName), "%s/%s", AbsPlaybackDir, PlaybackName);
-    TAP_SPrint(&AbsCutName[strlen(AbsCutName) - 4], 5, ".cut");
+    char *p = strrchr(AbsCutName, '.');
+    TAP_SPrint(((p) ? p : &AbsCutName[strlen(AbsCutName)]), 5, ".cut");
 
     fCut = fopen(AbsCutName, "rb");
     if(fCut)
@@ -3299,7 +3302,8 @@ bool CutFileSave2(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
     if (CutFileMode != CM_InfOnly)
     {
       TAP_SPrint(AbsCutName, sizeof(AbsCutName), "%s/%s", AbsPlaybackDir, RecFileName);
-      TAP_SPrint(&AbsCutName[strlen(AbsCutName) - 4], 5, ".cut");
+      char *p = strrchr(AbsCutName, '.');
+      TAP_SPrint(((p) ? p : &AbsCutName[strlen(AbsCutName)]), 5, ".cut");
 
       fCut = fopen(AbsCutName, "wb");
       if(fCut)
@@ -3477,7 +3481,8 @@ void CutFileDelete(void)
 
 //  HDD_ChangeDir(PlaybackDir);
   TAP_SPrint(CutName, sizeof(CutName), PlaybackName);
-  CutName[strlen(CutName) - 4] = '\0';
+  char *p = strrchr(CutName, '.');
+  if (p) p[0] = '\0';
   strcat(CutName, ".cut");
   HDD_Delete2(CutName, AbsPlaybackDir, FALSE);
 
@@ -5470,7 +5475,8 @@ void MovieCutterProcess(bool KeepCut, bool SplitMovie)  // Splittet am linken Se
   {
     char CutName[MAX_FILE_NAME_SIZE + 1];  // , BackupCutName[MAX_FILE_NAME_SIZE + 1];
     TAP_SPrint(CutName, sizeof(CutName), "%s", PlaybackName);
-    TAP_SPrint(&CutName[strlen(CutName) - 4], 5, ".cut");
+    char *p = strrchr(CutName, '.');
+    TAP_SPrint(((p) ? p : &CutName[strlen(CutName)]), 5, ".cut");
     TAP_SPrint(CommandLine, sizeof(CommandLine), "cp \"%s/%s\" \"%s/%s.bak\"", AbsPlaybackDir, CutName, AbsPlaybackDir, CutName);
     system(CommandLine);
   }
@@ -5564,7 +5570,8 @@ if (HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, &InodeNr, NULL))
       if (CutEnding)
       {
         TAP_SPrint(TempFileName, sizeof(TempFileName), PlaybackName);
-        TAP_SPrint(&TempFileName[strlen(PlaybackName) - 4], 10, "_temp%s", &PlaybackName[strlen(PlaybackName) - 4]);
+        char *p = strrchr(TempFileName, '.');
+        TAP_SPrint(((p) ? p : &TempFileName[strlen(TempFileName)]), 10, "_temp%s", ((p) ? &PlaybackName[p-TempFileName] : ""));
         HDD_Delete2(TempFileName, AbsPlaybackDir, TRUE);
       }
 
@@ -5659,7 +5666,7 @@ if (KeepCut || CutEnding)
         #ifdef FULLDEBUG        
           WriteLogMCf(PROGRAM_NAME, "Playback re-started (j=%d, isPlaybackRunning=%d, TotalBlock=%lu, CurrentBlock=%lu)", j, isPlaybackRunning(), PlayInfo.totalBlock, PlayInfo.currentBlock);
         #endif
-        if (PlayInfo.playMode == PLAYMODE_Playing)
+        if (PlayInfo.playMode == PLAYMODE_Playing || PlayInfo.playMode == 8)
           PlaybackRepeatSet(TRUE);
 //        HDD_ChangeDir(PlaybackDir);
 
@@ -5980,14 +5987,14 @@ bool isPlaybackRunning(void)
 
 //  if((int)PlayInfo.currentBlock < 0) PlayInfo.currentBlock = 0;   *** kritisch ***
 
-  if (PlayInfo.playMode == PLAYMODE_Playing)
+  if (PlayInfo.playMode == PLAYMODE_Playing || PlayInfo.playMode == 8)
   {
     TrickMode = (TYPE_TrickMode)PlayInfo.trickMode;
     TrickModeSpeed = PlayInfo.speed;
   }
 
   TRACEEXIT();
-  return (PlayInfo.playMode == PLAYMODE_Playing);
+  return (PlayInfo.playMode == PLAYMODE_Playing || PlayInfo.playMode == 8);
 }
 
 void CalcLastSeconds(void)

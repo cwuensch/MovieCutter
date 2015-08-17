@@ -261,6 +261,7 @@ bool HDD_TAP_CheckCollisionByID(dword MyTapID)
 // ----------------------------------------------------------------------------
 bool HDD_StartPlayback2(char *FileName, char *AbsDirectory)
 {
+  char                  InfFileName[MAX_FILE_NAME_SIZE + 1];
   tDirEntry             FolderStruct;
   bool                  ret = FALSE;
 
@@ -278,7 +279,11 @@ bool HDD_StartPlayback2(char *FileName, char *AbsDirectory)
     ApplHdd_SetWorkFolder(&FolderStruct);
 
     //Start the playback
-    ret = (Appl_StartPlayback(FileName, 0, TRUE, FALSE) == 0);
+    TAP_SPrint(InfFileName, sizeof(InfFileName), "%s.inf", FileName);
+    if (HDD_Exist2(InfFileName, AbsDirectory))
+      ret = (Appl_StartPlaybackMedia(FileName, 0, TRUE, FALSE) == 0);
+    else
+      ret = (Appl_StartPlayback(FileName, 0, TRUE, FALSE) == 0);
   }
   ApplHdd_RestoreWorkFolder();
 //  HDD_TAP_PopDir();
@@ -336,13 +341,12 @@ bool PlaybackRepeatGet()
 
 bool ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks)
 {
-  dword                *PlayInfoBookmarkStruct;
-  byte                 *TempRecSlot;
+  dword                *PlayInfoBookmarkStruct = NULL;
+  byte                 *TempRecSlot = NULL;
   bool                  ret = FALSE;
 
   TRACEENTER();
 
-  PlayInfoBookmarkStruct = NULL;
   TempRecSlot = (byte*)FIS_vTempRecSlot();
   if(TempRecSlot)
     PlayInfoBookmarkStruct = (dword*)HDD_GetPvrRecTsPlayInfoPointer(*TempRecSlot);
@@ -367,6 +371,13 @@ bool ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks)
     ret = FALSE;
   }
 
+// *** DEBUG ***
+char s[128];
+TAP_SPrint(s, sizeof(s), "TempRecSlot=%p", TempRecSlot);
+if(TempRecSlot)
+  TAP_SPrint(&s[strlen(s)], sizeof(s)-strlen(s), ", *TempRecSlot=%d, HDD_NumberOfRECSlots()=%lu", *TempRecSlot, HDD_NumberOfRECSlots());
+WriteLogMC(PROGRAM_NAME, s);
+
   TRACEEXIT();
   return ret;
 }
@@ -374,13 +385,12 @@ bool ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks)
 //Experimentelle Methode, um Bookmarks direkt in der Firmware abzuspeichern.
 bool SaveBookmarks(dword Bookmarks[], int NrBookmarks, bool OverwriteAll)
 {
-  dword                *PlayInfoBookmarkStruct;
-  byte                 *TempRecSlot;
+  dword                *PlayInfoBookmarkStruct = NULL;
+  byte                 *TempRecSlot = NULL;
   bool                  ret = FALSE;
 
   TRACEENTER();
 
-  PlayInfoBookmarkStruct = NULL;
   TempRecSlot = (byte*)FIS_vTempRecSlot();
   if(TempRecSlot)
     PlayInfoBookmarkStruct = (dword*)HDD_GetPvrRecTsPlayInfoPointer(*TempRecSlot);

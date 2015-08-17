@@ -122,7 +122,8 @@ void GetNextFreeCutName(const char *SourceFileName, char *const OutCutFileName, 
 
   if (SourceFileName && OutCutFileName)
   {
-    NameLen = ExtStart = strlen(SourceFileName) - 4;  // ".rec" entfernen
+    ExtStart = strrchr(SourceFileName, '.');  // ".rec" entfernen
+    NameLen = ExtStart = ((ExtStart) ? ExtStart - SourceFileName : strlen(SourceFileName));
 //    if((p = strstr(&SourceFileName[NameLen - 10], " (Cut-")) != NULL)
 //      NameLen = p - SourceFileName;        // wenn schon ein ' (Cut-xxx)' vorhanden ist, entfernen
     strncpy(CheckFileName, SourceFileName, NameLen);
@@ -158,14 +159,14 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
 //  char                  TimeStr[16];
 
   TRACEENTER();
-  GetPacketSize(SourceFileName);
 
   // LOG file printing
   WriteLogMC ("MovieCutterLib", "----------------------------------------");
   WriteLogMCf("MovieCutterLib", "Source        = '%s'", SourceFileName);
   WriteLogMCf("MovieCutterLib", "Cut name      = '%s'", CutFileName);
 
-  if(!HDD_GetFileSizeAndInode2(SourceFileName, AbsDirectory, &InodeNr, &SourceFileSize))
+  if ((!GetPacketSize(SourceFileName, AbsDirectory))
+   || (!HDD_GetFileSizeAndInode2(SourceFileName, AbsDirectory, &InodeNr, &SourceFileSize)))
   {
     WriteLogMC("MovieCutterLib", "MovieCutter() E0001: cut file not created.");
     TRACEEXIT();
@@ -355,7 +356,10 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
     {
       WriteLogMC("MovieCutterLib", "MovieCutter() E0004: Truncate routine failed.");
       if(!KeepCut)
+      {
+        TRACEEXIT();
         return RC_Error;
+      }
     }
   }
 
@@ -446,7 +450,7 @@ bool FileCut(char *SourceFileName, char *CutFileName, char *AbsDirectory, dword 
 
   //If a playback is running, stop it
   TAP_Hdd_GetPlayInfo(&PlayInfo);
-  if(PlayInfo.playMode == PLAYMODE_Playing)
+  if(PlayInfo.playMode == PLAYMODE_Playing || PlayInfo.playMode == 8)
   {
     Appl_StopPlaying();
     Appl_WaitEvt(0xE507, &x, 1, 0xFFFFFFFF, 300);
@@ -525,7 +529,7 @@ bool RecTruncate(char *SourceFileName, char *AbsDirectory, off_t TruncPosition)
 
   //If a playback is running, stop it
   TAP_Hdd_GetPlayInfo(&PlayInfo);
-  if(PlayInfo.playMode == PLAYMODE_Playing)
+  if(PlayInfo.playMode == PLAYMODE_Playing || PlayInfo.playMode == 8)
   {
     Appl_StopPlaying();
     Appl_WaitEvt(0xE507, &x, 1, 0xFFFFFFFF, 300);
@@ -545,27 +549,63 @@ bool RecTruncate(char *SourceFileName, char *AbsDirectory, off_t TruncPosition)
 // ----------------------------------------------------------------------------
 //                         Analyse von REC-Files
 // ----------------------------------------------------------------------------
-int GetPacketSize(const char *RecFileName)
+bool GetPacketSize(const char *RecFileName, const char *AbsDirectory)
 {
+  char                 *p;
+  bool                  ret = FALSE;
   TRACEENTER();
 
-  if (strncmp(&RecFileName[strlen(RecFileName) - 4], ".mpg", 4) == 0)
-  {
-    PACKETSIZE = 188;
-    SYNCBYTEPOS = 0;   // 4 - komisch, aber ist tatsächlich so!!!
-    CUTPOINTSEARCHRADIUS = 99264;
-    CUTPOINTSECTORRADIUS = CUTPOINTSEARCHRADIUS/4096;  // 24
-  }
-  else
+  p = strrchr(RecFileName, '.');
+  if (p && strcmp(p, ".rec") == 0)
   {
     PACKETSIZE = 192;
     SYNCBYTEPOS = 4;
+    ret = TRUE;
+  }
+  else
+  {
+    char                AbsRecName[FBLIB_DIR_SIZE];
+    byte               *RecStartArray = NULL;
+
+    TAP_SPrint(AbsRecName, sizeof(AbsRecName), "%s/%s.inf", AbsDirectory, RecFileName);
+    f = open(AbsRecName, O_RDONLY);
+    if(f >= 0)
+    {
+      RecStartArray = (byte*) TAP_MemAlloc(1733);  // 1733 = 9*192 + 5
+      if (RecStartArray)
+      {
+        if (read(f, RecStartArray, sizeof(RecStartArray) == sizeof(RecStartArray)))
+        {
+          PACKETSIZE = 188;
+          SYNCBYTEPOS = 0;
+          ret = isPacketStart(RecStartArray, sizeof(RecStartArray));
+
+          if (!ret)
+          {
+            PACKETSIZE = 192;
+            SYNCBYTEPOS = 4;
+            ret = isPacketStart(RecStartArray, sizeof(RecStartArray));
+          }
+        }
+        TAP_MemFree(RecStartArray);
+      }
+      close(f);
+    }
+  }
+
+  if (PACKETSIZE == 192)
+  {
     CUTPOINTSEARCHRADIUS = 9024;
     CUTPOINTSECTORRADIUS = CUTPOINTSEARCHRADIUS/4096;  // 2
   }
+  else
+  {
+    CUTPOINTSEARCHRADIUS = 99264;
+    CUTPOINTSECTORRADIUS = CUTPOINTSEARCHRADIUS/4096;  // 24
+  }
 
   TRACEEXIT();
-  return PACKETSIZE;
+  return ret;
 }
 
 bool isNavAvailable(const char *RecFileName, const char *AbsDirectory)
