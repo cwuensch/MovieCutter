@@ -259,9 +259,9 @@ bool HDD_TAP_CheckCollisionByID(dword MyTapID)
 // ----------------------------------------------------------------------------
 //                        Playback-Operationen
 // ----------------------------------------------------------------------------
-bool HDD_StartPlayback2(char *FileName, char *AbsDirectory)
+bool HDD_StartPlayback2(char *FileName, char *AbsDirectory, bool MediaFileMode)
 {
-  char                  InfFileName[MAX_FILE_NAME_SIZE + 1];
+//  char                  InfFileName[MAX_FILE_NAME_SIZE + 1];
   tDirEntry             FolderStruct;
   bool                  ret = FALSE;
 
@@ -279,8 +279,9 @@ bool HDD_StartPlayback2(char *FileName, char *AbsDirectory)
     ApplHdd_SetWorkFolder(&FolderStruct);
 
     //Start the playback
-    TAP_SPrint(InfFileName, sizeof(InfFileName), "%s.inf", FileName);
-    if (HDD_Exist2(InfFileName, AbsDirectory))
+//    TAP_SPrint(InfFileName, sizeof(InfFileName), "%s.inf", FileName);
+//    if (HDD_Exist2(InfFileName, AbsDirectory))
+    if (!MediaFileMode)
       ret = (Appl_StartPlayback(FileName, 0, TRUE, FALSE) == 0);
     else
       ret = (Appl_StartPlaybackMedia(FileName, 0, TRUE, FALSE) == 0);
@@ -341,19 +342,19 @@ bool PlaybackRepeatGet()
 
 bool ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks)
 {
-  TYPE_PlayInfo         PlayInfo;
+//  TYPE_PlayInfo         PlayInfo;
   dword                *PlayInfoBookmarkStruct = NULL;
   byte                 *TempRecSlot = NULL;
   bool                  ret = FALSE;
 
   TRACEENTER();
 
-  TAP_Hdd_GetPlayInfo(&PlayInfo);
+/*  TAP_Hdd_GetPlayInfo(&PlayInfo);
   if (PlayInfo.playMode != PLAYMODE_Playing)
   {
     TRACEEXIT();
     return FALSE;
-  }
+  }  */
 
   TempRecSlot = (byte*)FIS_vTempRecSlot();
   if(TempRecSlot)
@@ -386,19 +387,19 @@ bool ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks)
 //Experimentelle Methode, um Bookmarks direkt in der Firmware abzuspeichern.
 bool SaveBookmarks(dword Bookmarks[], int NrBookmarks, bool OverwriteAll)
 {
-  TYPE_PlayInfo         PlayInfo;
+//  TYPE_PlayInfo         PlayInfo;
   dword                *PlayInfoBookmarkStruct = NULL;
   byte                 *TempRecSlot = NULL;
   bool                  ret = FALSE;
 
   TRACEENTER();
 
-  TAP_Hdd_GetPlayInfo(&PlayInfo);
+/*  TAP_Hdd_GetPlayInfo(&PlayInfo);
   if (PlayInfo.playMode != PLAYMODE_Playing)
   {
     TRACEEXIT();
     return FALSE;
-  }
+  }  */
 
   TempRecSlot = (byte*)FIS_vTempRecSlot();
   if(TempRecSlot)

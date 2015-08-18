@@ -276,7 +276,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
   TMessageHandler       ShowErrorMessage = pShowErrorMessage;
 
   TYPE_PlayInfo         PlayInfo;
-  bool                  PlaybackWasRunning = FALSE, OldRepeatMode = FALSE, DeviceUnmounted = FALSE;
+  bool                  PlaybackWasRunning = FALSE, MediaFileMode = FALSE, OldRepeatMode = FALSE, DeviceUnmounted = FALSE;
   char                  PlaybackName[MAX_FILE_NAME_SIZE + 1];
   char                  AbsPlaybackDir[FBLIB_DIR_SIZE];
   char                  MessageString[512];
@@ -306,12 +306,14 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
   if (PlayInfo.playMode == PLAYMODE_Playing || PlayInfo.playMode == 8)
   {
     // Get infos about the playback file
-    char *p;
     TAP_SPrint(PlaybackName, sizeof(PlaybackName), PlayInfo.file->name);
     if (strcmp(&PlaybackName[strlen(PlaybackName) - 4], ".inf") == 0)
       PlaybackName[strlen(PlaybackName) - 4] = '\0';
+    else
+      MediaFileMode = TRUE;
 
     // Extract the absolute path to the rec file
+    char *p;
     HDD_GetAbsolutePathByTypeFile2(PlayInfo.file, AbsPlaybackDir);
     p = strstr(AbsPlaybackDir, PlaybackName);
     if(p) *(p-1) = '\0';
@@ -403,7 +405,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
   // --- 6.) Restart the playback again ---
   if (DoFix && PlaybackWasRunning)
   {
-    HDD_StartPlayback2(PlaybackName, AbsPlaybackDir);
+    HDD_StartPlayback2(PlaybackName, AbsPlaybackDir, MediaFileMode);
 
     // auf das Starten des Playbacks warten
     i = 0;

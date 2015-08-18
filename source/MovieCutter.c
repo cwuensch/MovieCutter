@@ -443,6 +443,7 @@ static bool             DisableSleepKey    = FALSE;
 static tState           State = ST_Init;
 static tOSDMode         OSDMode = MD_NoOSD;
 static bool             BookmarkMode;
+static bool             MediaFileMode = FALSE;
 static bool             LinearTimeMode = FALSE;
 static bool             MCShowMessageBox = FALSE;
 static bool             OldRepeatMode = FALSE;
@@ -810,7 +811,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         if (strcmp(&PlaybackName[strlen(PlaybackName) - 4], ".inf") == 0)
           PlaybackName[strlen(PlaybackName) - 4] = '\0';
         else
-          LinearTimeMode = TRUE;
+          MediaFileMode = TRUE;
 
         //Find out the absolute path to the rec file and check for max length
         HDD_GetAbsolutePathByTypeFile2(PlayInfo.file, AbsPlaybackDir);
@@ -873,9 +874,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         }
 
         //Check if a nav is available
-        if (!LinearTimeMode && !isNavAvailable(PlaybackName, AbsPlaybackDir))
+        if (MediaFileMode || !isNavAvailable(PlaybackName, AbsPlaybackDir))
         {
-          if (ShowConfirmationDialog(LangGetString(LS_NoNavMessage)))
+          if (MediaFileMode || ShowConfirmationDialog(LangGetString(LS_NoNavMessage)))
           {
             WriteLogMC(PROGRAM_NAME, ".nav file not found! Using linear time mode...");
             LinearTimeMode = TRUE;
@@ -1034,8 +1035,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         }
 
         CalcLastSeconds();
-        if (!ReadBookmarks(Bookmarks, &NrBookmarks))
-          WriteLogMC(PROGRAM_NAME, "Error: ReadBookmarks() failed!");
+        if (!MediaFileMode)
+          if (!ReadBookmarks(Bookmarks, &NrBookmarks))
+            WriteLogMC(PROGRAM_NAME, "Error: ReadBookmarks() failed!");
         if(!CutFileLoad())
         {
           if(!AddDefaultSegmentMarker())
@@ -1070,9 +1072,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       // if playback stopped or changed -> show MovieCutter as soon as next playback is started (ST_WaitForPlayback)
       if (!isPlaybackRunning() || (LastTotalBlocks == 0) || (LastTotalBlocks != PlayInfo.totalBlock))
       {
-        Cleanup(FALSE);
         if(InodeMonitoring) HDD_FixInodeList(AbsPlaybackDir, TRUE);
         State = (AutoOSDPolicy) ? ST_WaitForPlayback : ST_InactiveMode;
+        Cleanup(FALSE);
         break;
       }
 
@@ -1093,8 +1095,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           JumpRequestedSegment = 0xFFFF;    // eigentlich unnötig
           JumpRequestedBlock = (dword) -1;  //   "
 //          JumpRequestedTime = 0;            //   "
-          if (!ReadBookmarks(Bookmarks, &NrBookmarks))
-            WriteLogMC(PROGRAM_NAME, "Error: ReadBookmarks() failed!");
+          if (!MediaFileMode)
+            if (!ReadBookmarks(Bookmarks, &NrBookmarks))
+              WriteLogMC(PROGRAM_NAME, "Error: ReadBookmarks() failed!");
           OldRepeatMode = PlaybackRepeatGet();
           PlaybackRepeatSet(TRUE);
           State = ST_ActiveOSD;
@@ -1134,9 +1137,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 #endif
           CutFileSave();
         }
-        Cleanup(TRUE);
         if(InodeMonitoring) HDD_FixInodeList(AbsPlaybackDir, TRUE);
         State = AutoOSDPolicy ? ST_WaitForPlayback : ST_InactiveMode;
+        Cleanup(TRUE);
         break;
       }
 
@@ -1234,12 +1237,15 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           case RKEY_Fav:
           case RKEY_Guide:
           {
-            BookmarkMode = !BookmarkMode;
-//            OSDRedrawEverything();
-            OSDInfoDrawMinuteJump(FALSE);
-            OSDInfoDrawBookmarkMode(FALSE);
-            OSDInfoDrawProgressbar(TRUE, TRUE);
-            OSDTextStateWindow((BookmarkMode) ? LS_BookmarkMode : LS_SegmentMode);
+            if (!MediaFileMode)
+            {
+              BookmarkMode = !BookmarkMode;
+//              OSDRedrawEverything();
+              OSDInfoDrawMinuteJump(FALSE);
+              OSDInfoDrawBookmarkMode(FALSE);
+              OSDInfoDrawProgressbar(TRUE, TRUE);
+              OSDTextStateWindow((BookmarkMode) ? LS_BookmarkMode : LS_SegmentMode);
+            }
             break;
           }
 
@@ -1758,11 +1764,14 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           case RKEY_Fav:
           case RKEY_Guide:
           {
-            BookmarkMode = !BookmarkMode;
-            OSDInfoDrawMinuteJump(FALSE);
-            OSDInfoDrawBookmarkMode(FALSE);
-            OSDInfoDrawProgressbar(TRUE, TRUE);
-            ActionMenuDraw();
+            if (!MediaFileMode)
+            {
+              BookmarkMode = !BookmarkMode;
+              OSDInfoDrawMinuteJump(FALSE);
+              OSDInfoDrawBookmarkMode(FALSE);
+              OSDInfoDrawProgressbar(TRUE, TRUE);
+              ActionMenuDraw();
+            }
             break;
           }
 
@@ -2022,6 +2031,7 @@ void Cleanup(bool DoClearOSD)
   TRACEENTER();
 
   LastTotalBlocks = 0;
+  MediaFileMode = FALSE;
   LinearTimeMode = FALSE;
   JumpRequestedSegment = 0xFFFF;
   JumpRequestedBlock = (dword) -1;
@@ -2484,7 +2494,7 @@ void ExportSegmentsToBookmarks(void)
 
   TRACEENTER();
 
-  if (NrSegmentMarker > 2)
+  if (NrSegmentMarker > 2 && !MediaFileMode)
   {
     // first, delete all present bookmarks
 //    UndoResetStack();
@@ -3376,7 +3386,7 @@ bool CutEncodeToBM(tSegmentMarker SegmentMarker[], int NrSegmentMarker, dword Bo
 bool CutSaveToBM(bool ReadBMBefore)
 {
   TRACEENTER();
-  if (CutFileMode != CM_CutOnly)
+  if (CutFileMode != CM_CutOnly && !MediaFileMode)
   {
     if (ReadBMBefore && !ReadBookmarks(Bookmarks, &NrBookmarks))
       WriteLogMC(PROGRAM_NAME, "CutSaveToBM: ReadBookmarks() failed!");
@@ -4675,7 +4685,7 @@ void ActionMenuDraw(void)
       case MI_ExportSegments:
       {
         DisplayStr = LangGetString(LS_ExportToBM);
-        if (NrSegmentMarker <= 2) DisplayColor = Color_Inactive;
+        if (NrSegmentMarker <= 2 || MediaFileMode) DisplayColor = Color_Inactive;
         break;
       }
       case MI_ExitMC:
@@ -4697,7 +4707,7 @@ void ActionMenuDraw(void)
 
 bool ActionMenuItemInactive(int MenuItem)
 {
-  return (((MenuItem==MI_SaveSegments||MenuItem==MI_DeleteSegments||MenuItem==MI_SelectEvOddSegments) && NrSegmentMarker<=2) || (MenuItem==MI_SplitMovie && PlayInfo.currentBlock==0) || (MenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && (NrSegmentMarker>2 || NrSelectedSegments>0)))) || (MenuItem==MI_ImportBookmarks && NrBookmarks<=0) || (MenuItem==MI_ExportSegments && NrSegmentMarker<=2) || (MenuItem==MI_ScanDelete && !BookmarkMode && !jfs_fsck_present));
+  return (((MenuItem==MI_SaveSegments||MenuItem==MI_DeleteSegments||MenuItem==MI_SelectEvOddSegments) && NrSegmentMarker<=2) || (MenuItem==MI_SplitMovie && PlayInfo.currentBlock==0) || (MenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && (NrSegmentMarker>2 || NrSelectedSegments>0)))) || (MenuItem==MI_ImportBookmarks && NrBookmarks<=0) || (MenuItem==MI_ExportSegments && (NrSegmentMarker<=2 || MediaFileMode)) || (MenuItem==MI_ScanDelete && !BookmarkMode && !jfs_fsck_present));
 }
 
 void ActionMenuDown(void)
@@ -5655,7 +5665,7 @@ if (KeepCut || CutEnding)
       if (RecFileSize > 0)
       {
 //        TAP_Hdd_PlayTs(PlaybackName);
-        HDD_StartPlayback2(PlaybackName, AbsPlaybackDir);
+        HDD_StartPlayback2(PlaybackName, AbsPlaybackDir, MediaFileMode);
         PlayInfo.totalBlock = 0;
         j = 0;
         while ((j < 2000) && (!isPlaybackRunning() || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0))  // 2000 ~ 30 sek. (750 ~ 10 sek.)
