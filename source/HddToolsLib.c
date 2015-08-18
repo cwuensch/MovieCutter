@@ -308,9 +308,8 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
     // Get infos about the playback file
     char *p;
     TAP_SPrint(PlaybackName, sizeof(PlaybackName), PlayInfo.file->name);
-    p = strrchr(PlaybackName, '.');
-    if (p && (strcmp(p, ".inf") == 0))
-      p[0] = '\0';
+    if (strcmp(&PlaybackName[strlen(PlaybackName) - 4], ".inf") == 0)
+      PlaybackName[strlen(PlaybackName) - 4] = '\0';
 
     // Extract the absolute path to the rec file
     HDD_GetAbsolutePathByTypeFile2(PlayInfo.file, AbsPlaybackDir);

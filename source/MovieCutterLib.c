@@ -113,7 +113,7 @@ dword TimeStringToMSec(char *const TimeString)
 
 void GetNextFreeCutName(const char *SourceFileName, char *const OutCutFileName, const char *AbsDirectory, int LeaveNamesOut)
 {
-  char                  CheckFileName[MAX_FILE_NAME_SIZE + 1];
+  char                  CheckFileName[MAX_FILE_NAME_SIZE + 1], *p;
   size_t                NameLen, ExtStart;
   int                   FreeIndices = 0, i = 0;
 
@@ -122,8 +122,8 @@ void GetNextFreeCutName(const char *SourceFileName, char *const OutCutFileName, 
 
   if (SourceFileName && OutCutFileName)
   {
-    ExtStart = strrchr(SourceFileName, '.');  // ".rec" entfernen
-    NameLen = ExtStart = ((ExtStart) ? ExtStart - SourceFileName : strlen(SourceFileName));
+    p = strrchr(SourceFileName, '.');  // ".rec" entfernen
+    NameLen = ExtStart = ((p) ? (size_t)(p - SourceFileName) : strlen(SourceFileName));
 //    if((p = strstr(&SourceFileName[NameLen - 10], " (Cut-")) != NULL)
 //      NameLen = p - SourceFileName;        // wenn schon ein ' (Cut-xxx)' vorhanden ist, entfernen
     strncpy(CheckFileName, SourceFileName, NameLen);
@@ -566,13 +566,15 @@ bool GetPacketSize(const char *RecFileName, const char *AbsDirectory)
   {
     char                AbsRecName[FBLIB_DIR_SIZE];
     byte               *RecStartArray = NULL;
+    int                 f = -1;
 
     TAP_SPrint(AbsRecName, sizeof(AbsRecName), "%s/%s.inf", AbsDirectory, RecFileName);
-    f = open(AbsRecName, O_RDONLY);
-    if(f >= 0)
+
+    RecStartArray = (byte*) TAP_MemAlloc(1733);  // 1733 = 9*192 + 5
+    if (RecStartArray)
     {
-      RecStartArray = (byte*) TAP_MemAlloc(1733);  // 1733 = 9*192 + 5
-      if (RecStartArray)
+      f = open(AbsRecName, O_RDONLY);
+      if(f >= 0)
       {
         if (read(f, RecStartArray, sizeof(RecStartArray) == sizeof(RecStartArray)))
         {
@@ -587,9 +589,9 @@ bool GetPacketSize(const char *RecFileName, const char *AbsDirectory)
             ret = isPacketStart(RecStartArray, sizeof(RecStartArray));
           }
         }
-        TAP_MemFree(RecStartArray);
+        close(f);
       }
-      close(f);
+      TAP_MemFree(RecStartArray);
     }
   }
 
@@ -635,7 +637,7 @@ bool isCrypted(const char *RecFileName, const char *AbsDirectory)
   int                   f = -1;
   char                  AbsInfName[FBLIB_DIR_SIZE];
   byte                  CryptFlag = 2;  // wieso nicht 0?
-  bool                  ret = TRUE;
+  bool                  ret = FALSE;
 
   TRACEENTER();
 
@@ -643,6 +645,7 @@ bool isCrypted(const char *RecFileName, const char *AbsDirectory)
   f = open(AbsInfName, O_RDONLY);
   if(f >= 0)
   {
+    ret = TRUE;
     if (lseek(f, 0x0010, SEEK_SET) == 0x0010)
       if (read(f, &CryptFlag, 1) > 0)
         ret = ((CryptFlag & 1) != 0);

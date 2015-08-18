@@ -477,7 +477,7 @@ static tSegmentMarker  *SegmentMarker = NULL;       //[0]=Start of file, [x]=End
 static dword           *Bookmarks = NULL;
 static int              NrSegmentMarker;
 static int              ActiveSegment;
-static int              NrBookmarks;
+static int              NrBookmarks = 0;
 static int              NrTimeStamps = 0;
 static tTimeStamp      *TimeStamps = NULL;
 static tTimeStamp      *LastTimeStamp = NULL;
@@ -806,11 +806,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         WriteLogMC(PROGRAM_NAME, "========================================\r\n");
 
         //Identify the file name (.rec or .mpg)
-        char *p;
         TAP_SPrint(PlaybackName, sizeof(PlaybackName), PlayInfo.file->name);
-        p = strrchr(PlaybackName, '.');
-        if (p && (strcmp(p, ".inf") == 0))
-          p[0] = '\0';
+        if (strcmp(&PlaybackName[strlen(PlaybackName) - 4], ".inf") == 0)
+          PlaybackName[strlen(PlaybackName) - 4] = '\0';
         else
           LinearTimeMode = TRUE;
 
@@ -827,6 +825,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         }
 
         //Save only the absolute path to rec folder
+        char *p;
         p = strstr(AbsPlaybackDir, PlaybackName);
         if(p) *(p-1) = '\0';
 
@@ -2028,6 +2027,7 @@ void Cleanup(bool DoClearOSD)
   JumpRequestedBlock = (dword) -1;
   JumpRequestedTime = 0;
   JumpPerformedTime = 0;
+  NrBookmarks = 0;
   if(TimeStamps)
   {
     TAP_MemFree(TimeStamps);
@@ -4089,7 +4089,7 @@ void OSDInfoDrawRecName(void)
   {
 //    TAP_Osd_FillBox(rgnInfoBar, FrameLeft, FrameTop, FrameWidth, FrameHeight, COLOR_Blue);
 
-    // Dateiname in neuen String kopieren und .rec entfernen
+    // Dateiname in neuen String kopieren
     TAP_SPrint(TitleStr, sizeof(TitleStr), PlaybackName);
     #ifndef MC_UNICODE
       if(isUTFToppy()) StrToISO(PlaybackName, TitleStr);
