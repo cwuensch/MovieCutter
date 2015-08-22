@@ -33,7 +33,7 @@ static bool  FindCutPointOffset2(const byte CutPointArray[], off_t RequestedCutP
 static bool  PatchInfFiles(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, dword SourcePlayTime, const tTimeStamp *CutStartPoint, const tTimeStamp *BehindCutPoint);
 static bool  PatchNavFiles(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, off_t CutStartPos, off_t BehindCutPos, bool isHD, bool IgnoreRecordsAfterCut, dword *const OutCutStartTime, dword *const OutBehindCutTime, dword *const OutSourcePlayTime);
 
-int                     PACKETSIZE = 192;
+static int              PACKETSIZE = 192;
 static int              SYNCBYTEPOS = 4;
 static int              CUTPOINTSEARCHRADIUS = 9024;
 static int              CUTPOINTSECTORRADIUS = 2;
@@ -547,7 +547,7 @@ bool RecTruncate(char *SourceFileName, char *AbsDirectory, off_t TruncPosition)
 // ----------------------------------------------------------------------------
 //                         Analyse von REC-Files
 // ----------------------------------------------------------------------------
-bool GetPacketSize(const char *RecFileName, const char *AbsDirectory)
+int GetPacketSize(const char *RecFileName, const char *AbsDirectory)
 {
   char                 *p;
   bool                  ret = FALSE;
@@ -605,7 +605,7 @@ bool GetPacketSize(const char *RecFileName, const char *AbsDirectory)
   }
 
   TRACEEXIT();
-  return ret;
+  return (ret ? PACKETSIZE : 0);
 }
 
 bool isNavAvailable(const char *RecFileName, const char *AbsDirectory)

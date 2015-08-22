@@ -846,11 +846,12 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         NrTimeStamps = 0;
         LastTimeStamp = NULL;
 
-        // Detect size of rec file
+        // Detect rec file size and packet size
         __ino64_t InodeNr = 0;
+        int PacketSize;
         RecFileSize = 0;
         if ( (!HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, &InodeNr, &RecFileSize) || !RecFileSize)
-           || !GetPacketSize(PlaybackName, AbsPlaybackDir) )
+          || ((PacketSize = GetPacketSize(PlaybackName, AbsPlaybackDir)) == 0) )
         {
           State = ST_UnacceptedFile;
           WriteLogMC(PROGRAM_NAME, ".rec size or packet size could not be detected!");
@@ -862,7 +863,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         }
         WriteLogMCf(PROGRAM_NAME, "Inode Nr   = %llu", InodeNr);
         WriteLogMCf(PROGRAM_NAME, "File size  = %llu Bytes (%lu blocks)", RecFileSize, (dword)(RecFileSize / BLOCKSIZE));
-        WriteLogMCf(PROGRAM_NAME, "PacketSize = %d", PACKETSIZE);
+        WriteLogMCf(PROGRAM_NAME, "PacketSize = %d", PacketSize);
         WriteLogMCf(PROGRAM_NAME, "Reported total blocks: %lu", PlayInfo.totalBlock);
 
         //Check if it is crypted

@@ -14,7 +14,6 @@
 //  #define FULLDEBUG             TRUE  // ***
 #endif
 
-extern int PACKETSIZE;
 
 typedef enum
 {
@@ -74,7 +73,7 @@ void        SecToTimeString(dword Time, char *const OutTimeString);     // needs
 void        MSecToTimeString(dword Timems, char *const OutTimeString);  // needs max. 4 + 1 + 2 + 1 + 2 + 1 + 3 + 1 = 15 chars
 dword       TimeStringToMSec(char *const TimeString);
 void        Print64BitLong(long64 Number, char *const OutString);       // needs max. 2 + 2*9 + 1 = 19 chars
-bool        GetPacketSize(const char *RecFileName, const char *AbsDirectory);
+int         GetPacketSize(const char *RecFileName, const char *AbsDirectory);
 bool        isCrypted(const char *RecFileName, const char *AbsDirectory);
 bool        isHDVideo(const char *RecFileName, const char *AbsDirectory, bool *const isHD);
 bool        isNavAvailable(const char *RecFileName, const char *AbsDirectory);
