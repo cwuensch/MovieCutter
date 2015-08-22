@@ -14,6 +14,7 @@
 //  #define FULLDEBUG             TRUE  // ***
 #endif
 
+extern int PACKETSIZE;
 
 typedef enum
 {

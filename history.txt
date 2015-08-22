@@ -1,3 +1,7 @@
+2015-08-16 v3.4  NEU:
+         (beta)    ** es können nun auch TS-Dateien im MediaFiles-Ordner geschnitten werden
+                      (aufgrund fehlender nav-Datei bestehen ggf. Einschränkungen bzgl. Spulen und Springen)
+
 2015-08-01 v3.3  NEU:
                   *** neue Funktion "Aufnahme teilen" (ersetzt "Gerade Segmente löschen")
                   *** neue Behandlung des letzten Segments (truncate) -> verhindert Aufnahmenfresser!

@@ -33,7 +33,7 @@ static bool  FindCutPointOffset2(const byte CutPointArray[], off_t RequestedCutP
 static bool  PatchInfFiles(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, dword SourcePlayTime, const tTimeStamp *CutStartPoint, const tTimeStamp *BehindCutPoint);
 static bool  PatchNavFiles(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, off_t CutStartPos, off_t BehindCutPos, bool isHD, bool IgnoreRecordsAfterCut, dword *const OutCutStartTime, dword *const OutBehindCutTime, dword *const OutSourcePlayTime);
 
-static int              PACKETSIZE = 192;
+int                     PACKETSIZE = 192;
 static int              SYNCBYTEPOS = 4;
 static int              CUTPOINTSEARCHRADIUS = 9024;
 static int              CUTPOINTSECTORRADIUS = 2;
@@ -155,7 +155,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
   dword                 SourcePlayTime = 0;
   bool                  TruncateEnding = FALSE;
   bool                  SuppressNavGeneration = FALSE;
-  dword                 RecDate;
+  dword                 RecDate = 0;
 //  char                  TimeStr[16];
 
   TRACEENTER();
@@ -165,8 +165,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
   WriteLogMCf("MovieCutterLib", "Source        = '%s'", SourceFileName);
   WriteLogMCf("MovieCutterLib", "Cut name      = '%s'", CutFileName);
 
-  if ((!GetPacketSize(SourceFileName, AbsDirectory))
-   || (!HDD_GetFileSizeAndInode2(SourceFileName, AbsDirectory, &InodeNr, &SourceFileSize)))
+  if (!HDD_GetFileSizeAndInode2(SourceFileName, AbsDirectory, &InodeNr, &SourceFileSize))
   {
     WriteLogMC("MovieCutterLib", "MovieCutter() E0001: cut file not created.");
     TRACEEXIT();
@@ -176,7 +175,6 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
   WriteLogMCf("MovieCutterLib", "Inode Nr.     = %llu", InodeNr);
   WriteLogMCf("MovieCutterLib", "File size     = %llu Bytes (%lu blocks)", SourceFileSize, CalcBlockSize(SourceFileSize));
   WriteLogMCf("MovieCutterLib", "AbsDir        = '%s'", AbsDirectory);
-  WriteLogMCf("MovieCutterLib", "PacketSize    = %d", PACKETSIZE);
 
   MaxBehindCutBlock = CalcBlockSize(SourceFileSize - CUTPOINTSEARCHRADIUS);
   if (BehindCutPoint->BlockNr == 0xFFFFFFFF)
@@ -568,7 +566,7 @@ bool GetPacketSize(const char *RecFileName, const char *AbsDirectory)
     byte               *RecStartArray = NULL;
     int                 f = -1;
 
-    TAP_SPrint(AbsRecName, sizeof(AbsRecName), "%s/%s.inf", AbsDirectory, RecFileName);
+    TAP_SPrint(AbsRecName, sizeof(AbsRecName), "%s/%s", AbsDirectory, RecFileName);
 
     RecStartArray = (byte*) TAP_MemAlloc(1733);  // 1733 = 9*192 + 5
     if (RecStartArray)
@@ -576,17 +574,17 @@ bool GetPacketSize(const char *RecFileName, const char *AbsDirectory)
       f = open(AbsRecName, O_RDONLY);
       if(f >= 0)
       {
-        if (read(f, RecStartArray, sizeof(RecStartArray) == sizeof(RecStartArray)))
+        if (read(f, RecStartArray, 1733) == 1733)
         {
           PACKETSIZE = 188;
           SYNCBYTEPOS = 0;
-          ret = isPacketStart(RecStartArray, sizeof(RecStartArray));
+          ret = isPacketStart(RecStartArray, 1733);
 
           if (!ret)
           {
             PACKETSIZE = 192;
             SYNCBYTEPOS = 4;
-            ret = isPacketStart(RecStartArray, sizeof(RecStartArray));
+            ret = isPacketStart(RecStartArray, 1733);
           }
         }
         close(f);

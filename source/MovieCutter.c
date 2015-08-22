@@ -848,18 +848,21 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
         // Detect size of rec file
         __ino64_t InodeNr = 0;
-        if(!HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, &InodeNr, &RecFileSize) || !RecFileSize)
+        RecFileSize = 0;
+        if ( (!HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, &InodeNr, &RecFileSize) || !RecFileSize)
+           || !GetPacketSize(PlaybackName, AbsPlaybackDir) )
         {
           State = ST_UnacceptedFile;
-          WriteLogMC(PROGRAM_NAME, ".rec size could not be detected!");
-          ShowErrorMessage(LangGetString(LS_NoRecSize), NULL);
+          WriteLogMC(PROGRAM_NAME, ".rec size or packet size could not be detected!");
+          if(!RecFileSize)
+            ShowErrorMessage(LangGetString(LS_NoRecSize), NULL);
           PlaybackRepeatSet(OldRepeatMode);
           ClearOSD(TRUE);
           break;
         }
-
-        WriteLogMCf(PROGRAM_NAME, "Inode Nr  = %llu", InodeNr);
-        WriteLogMCf(PROGRAM_NAME, "File size = %llu Bytes (%lu blocks)", RecFileSize, (dword)(RecFileSize / BLOCKSIZE));
+        WriteLogMCf(PROGRAM_NAME, "Inode Nr   = %llu", InodeNr);
+        WriteLogMCf(PROGRAM_NAME, "File size  = %llu Bytes (%lu blocks)", RecFileSize, (dword)(RecFileSize / BLOCKSIZE));
+        WriteLogMCf(PROGRAM_NAME, "PacketSize = %d", PACKETSIZE);
         WriteLogMCf(PROGRAM_NAME, "Reported total blocks: %lu", PlayInfo.totalBlock);
 
         //Check if it is crypted
@@ -911,20 +914,18 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         WriteLogMCf(PROGRAM_NAME, "Type of recording: %s", (HDVideo) ? "HD" : "SD");
 
         // Try to load the nav
+        char TimeStr[16];
         if (!LinearTimeMode)
         {
           TimeStamps = NavLoad(PlaybackName, AbsPlaybackDir, &NrTimeStamps, HDVideo);
           if (TimeStamps)
           {
             // Write duration to log file
-            char TimeStr[16];
             WriteLogMCf(PROGRAM_NAME, ".nav-file loaded: %d different TimeStamps found.", NrTimeStamps);
             MSecToTimeString(TimeStamps[0].Timems, TimeStr);
             WriteLogMCf(PROGRAM_NAME, "First Timestamp: Block=%lu, Time=%s", TimeStamps[0].BlockNr, TimeStr);
             MSecToTimeString(TimeStamps[NrTimeStamps-1].Timems, TimeStr);
             WriteLogMCf(PROGRAM_NAME, "Playback Duration (from nav): %s", TimeStr);
-            SecToTimeString(60*PlayInfo.duration + PlayInfo.durationSec, TimeStr);
-            WriteLogMCf(PROGRAM_NAME, "Playback Duration (from inf): %s", TimeStr);
             LastTimeStamp = &TimeStamps[0];
           }
           else
@@ -937,6 +938,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             break;
           }
         }
+        SecToTimeString(60*PlayInfo.duration + PlayInfo.durationSec, TimeStr);
+        WriteLogMCf(PROGRAM_NAME, "Playback Duration (from inf): %s", TimeStr);
 
         // Check if nav has correct length!
         if(TimeStamps)
@@ -2030,6 +2033,7 @@ void Cleanup(bool DoClearOSD)
 {
   TRACEENTER();
 
+  RecFileSize = 0;
   LastTotalBlocks = 0;
   MediaFileMode = FALSE;
   LinearTimeMode = FALSE;
@@ -5599,7 +5603,7 @@ if (HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, &InodeNr, NULL))
 // Aufnahmenfresser-Test und Ausgabe
 if (DoiCheckTest >= 3)
 {
-  if (KeepCut || CutEnding)
+  if (ret && (KeepCut || CutEnding))
     if (!HDD_CheckInode(((CutEnding) ? TempFileName : CutFileName), AbsPlaybackDir, (DoiCheckTest==IM_RWBetween), InodeMonitoring /*, "CutFile" */))
       icheckErrors++;
   if (!HDD_CheckInode(PlaybackName, AbsPlaybackDir, (DoiCheckTest==IM_RWBetween), InodeMonitoring /*, "RestFile" */))
