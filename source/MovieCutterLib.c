@@ -113,7 +113,7 @@ dword TimeStringToMSec(char *const TimeString)
 
 void GetNextFreeCutName(const char *SourceFileName, char *const OutCutFileName, const char *AbsDirectory, int LeaveNamesOut)
 {
-  char                  CheckFileName[MAX_FILE_NAME_SIZE + 1];
+  char                  CheckFileName[MAX_FILE_NAME_SIZE + 1], *p;
   size_t                NameLen, ExtStart;
   int                   FreeIndices = 0, i = 0;
 
@@ -122,7 +122,8 @@ void GetNextFreeCutName(const char *SourceFileName, char *const OutCutFileName, 
 
   if (SourceFileName && OutCutFileName)
   {
-    NameLen = ExtStart = strlen(SourceFileName) - 4;  // ".rec" entfernen
+    p = strrchr(SourceFileName, '.');  // ".rec" entfernen
+    NameLen = ExtStart = ((p) ? (size_t)(p - SourceFileName) : strlen(SourceFileName));
 //    if((p = strstr(&SourceFileName[NameLen - 10], " (Cut-")) != NULL)
 //      NameLen = p - SourceFileName;        // wenn schon ein ' (Cut-xxx)' vorhanden ist, entfernen
     strncpy(CheckFileName, SourceFileName, NameLen);
@@ -154,18 +155,17 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
   dword                 SourcePlayTime = 0;
   bool                  TruncateEnding = FALSE;
   bool                  SuppressNavGeneration = FALSE;
-  dword                 RecDate;
+  dword                 RecDate = 0;
 //  char                  TimeStr[16];
 
   TRACEENTER();
-  GetPacketSize(SourceFileName);
 
   // LOG file printing
   WriteLogMC ("MovieCutterLib", "----------------------------------------");
   WriteLogMCf("MovieCutterLib", "Source        = '%s'", SourceFileName);
   WriteLogMCf("MovieCutterLib", "Cut name      = '%s'", CutFileName);
 
-  if(!HDD_GetFileSizeAndInode2(SourceFileName, AbsDirectory, &InodeNr, &SourceFileSize))
+  if (!HDD_GetFileSizeAndInode2(SourceFileName, AbsDirectory, &InodeNr, &SourceFileSize))
   {
     WriteLogMC("MovieCutterLib", "MovieCutter() E0001: cut file not created.");
     TRACEEXIT();
@@ -175,7 +175,6 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
   WriteLogMCf("MovieCutterLib", "Inode Nr.     = %llu", InodeNr);
   WriteLogMCf("MovieCutterLib", "File size     = %llu Bytes (%lu blocks)", SourceFileSize, CalcBlockSize(SourceFileSize));
   WriteLogMCf("MovieCutterLib", "AbsDir        = '%s'", AbsDirectory);
-  WriteLogMCf("MovieCutterLib", "PacketSize    = %d", PACKETSIZE);
 
   MaxBehindCutBlock = CalcBlockSize(SourceFileSize - CUTPOINTSEARCHRADIUS);
   if (BehindCutPoint->BlockNr == 0xFFFFFFFF)
@@ -355,7 +354,10 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
     {
       WriteLogMC("MovieCutterLib", "MovieCutter() E0004: Truncate routine failed.");
       if(!KeepCut)
+      {
+        TRACEEXIT();
         return RC_Error;
+      }
     }
   }
 
@@ -446,7 +448,7 @@ bool FileCut(char *SourceFileName, char *CutFileName, char *AbsDirectory, dword 
 
   //If a playback is running, stop it
   TAP_Hdd_GetPlayInfo(&PlayInfo);
-  if(PlayInfo.playMode == PLAYMODE_Playing)
+  if(PlayInfo.playMode == PLAYMODE_Playing || PlayInfo.playMode == 8)
   {
     Appl_StopPlaying();
     Appl_WaitEvt(0xE507, &x, 1, 0xFFFFFFFF, 300);
@@ -525,7 +527,7 @@ bool RecTruncate(char *SourceFileName, char *AbsDirectory, off_t TruncPosition)
 
   //If a playback is running, stop it
   TAP_Hdd_GetPlayInfo(&PlayInfo);
-  if(PlayInfo.playMode == PLAYMODE_Playing)
+  if(PlayInfo.playMode == PLAYMODE_Playing || PlayInfo.playMode == 8)
   {
     Appl_StopPlaying();
     Appl_WaitEvt(0xE507, &x, 1, 0xFFFFFFFF, 300);
@@ -545,27 +547,65 @@ bool RecTruncate(char *SourceFileName, char *AbsDirectory, off_t TruncPosition)
 // ----------------------------------------------------------------------------
 //                         Analyse von REC-Files
 // ----------------------------------------------------------------------------
-int GetPacketSize(const char *RecFileName)
+int GetPacketSize(const char *RecFileName, const char *AbsDirectory)
 {
+  char                 *p;
+  bool                  ret = FALSE;
   TRACEENTER();
 
-  if (strncmp(&RecFileName[strlen(RecFileName) - 4], ".mpg", 4) == 0)
-  {
-    PACKETSIZE = 188;
-    SYNCBYTEPOS = 0;   // 4 - komisch, aber ist tatsächlich so!!!
-    CUTPOINTSEARCHRADIUS = 99264;
-    CUTPOINTSECTORRADIUS = CUTPOINTSEARCHRADIUS/4096;  // 24
-  }
-  else
+  p = strrchr(RecFileName, '.');
+  if (p && strcmp(p, ".rec") == 0)
   {
     PACKETSIZE = 192;
     SYNCBYTEPOS = 4;
+    ret = TRUE;
+  }
+  else
+  {
+    char                AbsRecName[FBLIB_DIR_SIZE];
+    byte               *RecStartArray = NULL;
+    int                 f = -1;
+
+    TAP_SPrint(AbsRecName, sizeof(AbsRecName), "%s/%s", AbsDirectory, RecFileName);
+
+    RecStartArray = (byte*) TAP_MemAlloc(1733);  // 1733 = 9*192 + 5
+    if (RecStartArray)
+    {
+      f = open(AbsRecName, O_RDONLY);
+      if(f >= 0)
+      {
+        if (read(f, RecStartArray, 1733) == 1733)
+        {
+          PACKETSIZE = 188;
+          SYNCBYTEPOS = 0;
+          ret = isPacketStart(RecStartArray, 1733);
+
+          if (!ret)
+          {
+            PACKETSIZE = 192;
+            SYNCBYTEPOS = 4;
+            ret = isPacketStart(RecStartArray, 1733);
+          }
+        }
+        close(f);
+      }
+      TAP_MemFree(RecStartArray);
+    }
+  }
+
+  if (PACKETSIZE == 192)
+  {
     CUTPOINTSEARCHRADIUS = 9024;
     CUTPOINTSECTORRADIUS = CUTPOINTSEARCHRADIUS/4096;  // 2
   }
+  else
+  {
+    CUTPOINTSEARCHRADIUS = 99264;
+    CUTPOINTSECTORRADIUS = CUTPOINTSEARCHRADIUS/4096;  // 24
+  }
 
   TRACEEXIT();
-  return PACKETSIZE;
+  return (ret ? PACKETSIZE : 0);
 }
 
 bool isNavAvailable(const char *RecFileName, const char *AbsDirectory)
@@ -595,7 +635,7 @@ bool isCrypted(const char *RecFileName, const char *AbsDirectory)
   int                   f = -1;
   char                  AbsInfName[FBLIB_DIR_SIZE];
   byte                  CryptFlag = 2;  // wieso nicht 0?
-  bool                  ret = TRUE;
+  bool                  ret = FALSE;
 
   TRACEENTER();
 
@@ -603,6 +643,7 @@ bool isCrypted(const char *RecFileName, const char *AbsDirectory)
   f = open(AbsInfName, O_RDONLY);
   if(f >= 0)
   {
+    ret = TRUE;
     if (lseek(f, 0x0010, SEEK_SET) == 0x0010)
       if (read(f, &CryptFlag, 1) > 0)
         ret = ((CryptFlag & 1) != 0);
