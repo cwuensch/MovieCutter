@@ -2,7 +2,7 @@
 #define __MOVIECUTTERH__
 
 #define PROGRAM_NAME          "MovieCutter"
-#define VERSION               "V3.4"  // alpha = α,  beta = β, � = ü
+#define VERSION               "V3.3"  // alpha = α,  beta = β, � = ü
 #define TAPID                 0x8E0A4247
 //#define AUTHOR                "FireBird / Christian W�nsch"
 #define AUTHOR                "FireBird / C. Wünsch"
@@ -116,6 +116,6 @@ static bool  UndoLastAction(void);
 static void  UndoResetStack(void);
 static bool  PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isHD);
 
-//extern void  OSDMenuFreeStdFonts(void);
+extern void  OSDMenuFreeStdFonts(void);
 
 #endif
