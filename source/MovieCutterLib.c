@@ -113,7 +113,7 @@ dword TimeStringToMSec(char *const TimeString)
 
 void GetNextFreeCutName(const char *SourceFileName, char *const OutCutFileName, const char *AbsDirectory, int LeaveNamesOut)
 {
-  char                  CheckFileName[MAX_FILE_NAME_SIZE + 1];
+  char                  CheckFileName[MAX_FILE_NAME_SIZE + 1], *p;
   size_t                NameLen, ExtStart;
   int                   FreeIndices = 0, i = 0;
 
@@ -122,7 +122,8 @@ void GetNextFreeCutName(const char *SourceFileName, char *const OutCutFileName, 
 
   if (SourceFileName && OutCutFileName)
   {
-    NameLen = ExtStart = strlen(SourceFileName) - 4;  // ".rec" entfernen
+    p = strrchr(SourceFileName, '.');  // ".rec" entfernen
+    NameLen = ExtStart = ((p) ? (size_t)(p - SourceFileName) : strlen(SourceFileName));
 //    if((p = strstr(&SourceFileName[NameLen - 10], " (Cut-")) != NULL)
 //      NameLen = p - SourceFileName;        // wenn schon ein ' (Cut-xxx)' vorhanden ist, entfernen
     strncpy(CheckFileName, SourceFileName, NameLen);
@@ -447,7 +448,7 @@ bool FileCut(char *SourceFileName, char *CutFileName, char *AbsDirectory, dword 
 
   //If a playback is running, stop it
   TAP_Hdd_GetPlayInfo(&PlayInfo);
-  if(PlayInfo.playMode == PLAYMODE_Playing)
+  if(PlayInfo.playMode == PLAYMODE_Playing || PlayInfo.playMode == 8)
   {
     Appl_StopPlaying();
     Appl_WaitEvt(0xE507, &x, 1, 0xFFFFFFFF, 300);
@@ -526,7 +527,7 @@ bool RecTruncate(char *SourceFileName, char *AbsDirectory, off_t TruncPosition)
 
   //If a playback is running, stop it
   TAP_Hdd_GetPlayInfo(&PlayInfo);
-  if(PlayInfo.playMode == PLAYMODE_Playing)
+  if(PlayInfo.playMode == PLAYMODE_Playing || PlayInfo.playMode == 8)
   {
     Appl_StopPlaying();
     Appl_WaitEvt(0xE507, &x, 1, 0xFFFFFFFF, 300);
@@ -546,32 +547,65 @@ bool RecTruncate(char *SourceFileName, char *AbsDirectory, off_t TruncPosition)
 // ----------------------------------------------------------------------------
 //                         Analyse von REC-Files
 // ----------------------------------------------------------------------------
-int GetPacketSize(const char *RecFileName)
+int GetPacketSize(const char *RecFileName, const char *AbsDirectory)
 {
+  char                 *p;
+  bool                  ret = FALSE;
   TRACEENTER();
-  const char *p = &RecFileName[strlen(RecFileName) - 4];
 
-  if (strncmp(p, ".rec", 4) == 0)
+  p = strrchr(RecFileName, '.');
+  if (p && strcmp(p, ".rec") == 0)
   {
     PACKETSIZE = 192;
     SYNCBYTEPOS = 4;
+    ret = TRUE;
+  }
+  else
+  {
+    char                AbsRecName[FBLIB_DIR_SIZE];
+    byte               *RecStartArray = NULL;
+    int                 f = -1;
+
+    TAP_SPrint(AbsRecName, sizeof(AbsRecName), "%s/%s", AbsDirectory, RecFileName);
+
+    RecStartArray = (byte*) TAP_MemAlloc(1733);  // 1733 = 9*192 + 5
+    if (RecStartArray)
+    {
+      f = open(AbsRecName, O_RDONLY);
+      if(f >= 0)
+      {
+        if (read(f, RecStartArray, 1733) == 1733)
+        {
+          PACKETSIZE = 188;
+          SYNCBYTEPOS = 0;
+          ret = isPacketStart(RecStartArray, 1733);
+
+          if (!ret)
+          {
+            PACKETSIZE = 192;
+            SYNCBYTEPOS = 4;
+            ret = isPacketStart(RecStartArray, 1733);
+          }
+        }
+        close(f);
+      }
+      TAP_MemFree(RecStartArray);
+    }
+  }
+
+  if (PACKETSIZE == 192)
+  {
     CUTPOINTSEARCHRADIUS = 9024;
     CUTPOINTSECTORRADIUS = CUTPOINTSEARCHRADIUS/4096;  // 2
-    TRACEEXIT();
-    return PACKETSIZE;
   }
-  else if (strncmp(p, ".mpg", 4) == 0)
+  else
   {
-    PACKETSIZE = 188;
-    SYNCBYTEPOS = 0;   // 4 - komisch, aber ist tatsächlich so!!!
     CUTPOINTSEARCHRADIUS = 99264;
     CUTPOINTSECTORRADIUS = CUTPOINTSEARCHRADIUS/4096;  // 24
-    TRACEEXIT();
-    return PACKETSIZE;
   }
 
   TRACEEXIT();
-  return 0;
+  return (ret ? PACKETSIZE : 0);
 }
 
 bool isNavAvailable(const char *RecFileName, const char *AbsDirectory)
