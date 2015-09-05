@@ -443,9 +443,8 @@ static bool             DisableSleepKey    = FALSE;
 static tState           State = ST_Init;
 static tOSDMode         OSDMode = MD_NoOSD;
 static bool             BookmarkMode;
-static bool             MediaFileMode = FALSE;
 static bool             LinearTimeMode = FALSE;
-static bool             MCShowMessageBox = FALSE;
+//static bool             MCShowMessageBox = FALSE;
 static bool             OldRepeatMode = FALSE;
 static bool             ActionMenuEvenOdd;
 static TYPE_TrickMode   TrickMode;
@@ -457,7 +456,6 @@ static word             JumpRequestedSegment = 0xFFFF;        //Is set, when the
 static dword            JumpRequestedBlock = (dword) -1;      //Is set, when user presses Vol+/- to navigate in the progressbar
 static dword            JumpRequestedTime = 0;                //Is set, when one of the options on top is active
 static dword            JumpPerformedTime = 0;                //Is set after a segment jump has been performed to reduce flicker
-static dword            LastMessageBoxKey;
 static tUndoEvent      *UndoStack = NULL;
 static int              UndoLastItem;
 static char            *SuspectHDDs = NULL;
@@ -661,20 +659,19 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   #endif
 
   // Behandlung offener MessageBoxen (rekursiver Aufruf, auch bei DoNotReenter)
-  if(MCShowMessageBox)
-  {
+//  if(MCShowMessageBox)
+//  {
     if(OSDMenuMessageBoxIsVisible())
     {
-      if(event == EVT_KEY) LastMessageBoxKey = param1;
       #ifdef __ALTEFBLIB__
         OSDMenuMessageBoxDoScrollOver(&event, &param1);
       #endif
       OSDMenuEvent(&event, &param1, &param2);
+      param1 = 0;
     }
-    if(!OSDMenuMessageBoxIsVisible())
-      MCShowMessageBox = FALSE;
-    param1 = 0;
-  }
+//    if(!OSDMenuMessageBoxIsVisible())
+//      MCShowMessageBox = FALSE;
+//  }
 
   // Abbruch von fsck ermöglichen (selbst bei DoNotReenter)
   if(DoNotReenter && OSDMenuProgressBarIsVisible())
@@ -809,10 +806,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
         //Identify the file name (.rec or .mpg)
         TAP_SPrint(PlaybackName, sizeof(PlaybackName), PlayInfo.file->name);
-        if (strcmp(&PlaybackName[strlen(PlaybackName) - 4], ".inf") == 0)
-          PlaybackName[strlen(PlaybackName) - 4] = '\0';
-        else
-          MediaFileMode = TRUE;
+        PlaybackName[strlen(PlaybackName) - 4] = '\0';
 
         //Find out the absolute path to the rec file and check for max length
         HDD_GetAbsolutePathByTypeFile2(PlayInfo.file, AbsPlaybackDir);
@@ -852,7 +846,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         int PacketSize;
         RecFileSize = 0;
         if ( (!HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, &InodeNr, &RecFileSize) || !RecFileSize)
-          || ((PacketSize = GetPacketSize(PlaybackName, AbsPlaybackDir)) == 0) )
+          || ((PacketSize = GetPacketSize(PlaybackName)) == 0) )
         {
           State = ST_UnacceptedFile;
           WriteLogMC(PROGRAM_NAME, ".rec size or packet size could not be detected!");
@@ -879,9 +873,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         }
 
         //Check if a nav is available
-        if (MediaFileMode || !isNavAvailable(PlaybackName, AbsPlaybackDir))
+        if(!isNavAvailable(PlaybackName, AbsPlaybackDir))
         {
-          if (MediaFileMode || ShowConfirmationDialog(LangGetString(LS_NoNavMessage)))
+          if (ShowConfirmationDialog(LangGetString(LS_NoNavMessage)))
           {
             WriteLogMC(PROGRAM_NAME, ".nav file not found! Using linear time mode...");
             LinearTimeMode = TRUE;
@@ -1040,9 +1034,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         }
 
         CalcLastSeconds();
-        if (!MediaFileMode)
-          if (!ReadBookmarks(Bookmarks, &NrBookmarks))
-            WriteLogMC(PROGRAM_NAME, "Error: ReadBookmarks() failed!");
+        if (!ReadBookmarks(Bookmarks, &NrBookmarks))
+          WriteLogMC(PROGRAM_NAME, "Error: ReadBookmarks() failed!");
         if(!CutFileLoad())
         {
           if(!AddDefaultSegmentMarker())
@@ -1056,6 +1049,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           }
         }
 
+        CloseLogMC();
         State = ST_ActiveOSD;
         OSDRedrawEverything();
         OSDTextStateWindow(LS_MovieCutterActive);
@@ -1100,9 +1094,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           JumpRequestedSegment = 0xFFFF;    // eigentlich unnötig
           JumpRequestedBlock = (dword) -1;  //   "
 //          JumpRequestedTime = 0;            //   "
-          if (!MediaFileMode)
-            if (!ReadBookmarks(Bookmarks, &NrBookmarks))
-              WriteLogMC(PROGRAM_NAME, "Error: ReadBookmarks() failed!");
+          if (!ReadBookmarks(Bookmarks, &NrBookmarks))
+            WriteLogMC(PROGRAM_NAME, "Error: ReadBookmarks() failed!");
           OldRepeatMode = PlaybackRepeatGet();
           PlaybackRepeatSet(TRUE);
           State = ST_ActiveOSD;
@@ -1241,15 +1234,12 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           case RKEY_Fav:
           case RKEY_Guide:
           {
-            if (!MediaFileMode)
-            {
-              BookmarkMode = !BookmarkMode;
-//              OSDRedrawEverything();
-              OSDInfoDrawMinuteJump(FALSE);
-              OSDInfoDrawBookmarkMode(FALSE);
-              OSDInfoDrawProgressbar(TRUE, TRUE);
-              OSDTextStateWindow((BookmarkMode) ? LS_BookmarkMode : LS_SegmentMode);
-            }
+            BookmarkMode = !BookmarkMode;
+//            OSDRedrawEverything();
+            OSDInfoDrawMinuteJump(FALSE);
+            OSDInfoDrawBookmarkMode(FALSE);
+            OSDInfoDrawProgressbar(TRUE, TRUE);
+            OSDTextStateWindow((BookmarkMode) ? LS_BookmarkMode : LS_SegmentMode);
             break;
           }
 
@@ -1768,14 +1758,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           case RKEY_Fav:
           case RKEY_Guide:
           {
-            if (!MediaFileMode)
-            {
-              BookmarkMode = !BookmarkMode;
-              OSDInfoDrawMinuteJump(FALSE);
-              OSDInfoDrawBookmarkMode(FALSE);
-              OSDInfoDrawProgressbar(TRUE, TRUE);
-              ActionMenuDraw();
-            }
+            BookmarkMode = !BookmarkMode;
+            OSDInfoDrawMinuteJump(FALSE);
+            OSDInfoDrawBookmarkMode(FALSE);
+            OSDInfoDrawProgressbar(TRUE, TRUE);
+            ActionMenuDraw();
             break;
           }
 
@@ -1892,13 +1879,13 @@ bool ShowConfirmationDialog(char *MessageStr)
   OSDMenuMessageBoxButtonAdd(LangGetString(LS_No));
   OSDMenuMessageBoxButtonSelect(1);
   OSDMenuMessageBoxShow();
-  MCShowMessageBox = TRUE;
-  while (MCShowMessageBox)
+//  MCShowMessageBox = TRUE;
+  while (OSDMenuMessageBoxIsVisible())
   {
     TAP_SystemProc();
     TAP_Sleep(1);
   }
-  ret = ((LastMessageBoxKey == RKEY_Ok || LastMessageBoxKey == FKEY_Ok)) && (OSDMenuMessageBoxLastButton() == 0);
+  ret = (OSDMenuMessageBoxLastButton() == 0);
 
   TAP_Osd_Sync();
   if(OldSysSubState != 0) TAP_EnterNormalNoInfo();
@@ -1923,8 +1910,8 @@ void ShowErrorMessage(char *MessageStr, char *TitleStr)
   OSDMenuMessageBoxDoNotEnterNormalMode(TRUE);
   OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
   OSDMenuMessageBoxShow();
-  MCShowMessageBox = TRUE;
-  while (MCShowMessageBox)
+//  MCShowMessageBox = TRUE;
+  while (OSDMenuMessageBoxIsVisible())
   {
     TAP_SystemProc();
     TAP_Sleep(1);
@@ -2037,7 +2024,6 @@ void Cleanup(bool DoClearOSD)
 
 //  RecFileSize = 0;
   LastTotalBlocks = 0;
-  MediaFileMode = FALSE;
   LinearTimeMode = FALSE;
   JumpRequestedSegment = 0xFFFF;
   JumpRequestedBlock = (dword) -1;
@@ -2500,7 +2486,7 @@ void ExportSegmentsToBookmarks(void)
 
   TRACEENTER();
 
-  if (NrSegmentMarker > 2 && !MediaFileMode)
+  if (NrSegmentMarker > 2)
   {
     // first, delete all present bookmarks
 //    UndoResetStack();
@@ -3099,8 +3085,7 @@ bool CutFileLoad(void)
 //  if (CutFileMode != CM_InfOnly)
   {
     TAP_SPrint(AbsCutName, sizeof(AbsCutName), "%s/%s", AbsPlaybackDir, PlaybackName);
-    char *p = strrchr(AbsCutName, '.');
-    TAP_SPrint(((p) ? p : &AbsCutName[strlen(AbsCutName)]), 5, ".cut");
+    TAP_SPrint(&AbsCutName[strlen(AbsCutName) - 4], 5, ".cut");
 
     fCut = fopen(AbsCutName, "rb");
     if(fCut)
@@ -3318,8 +3303,7 @@ bool CutFileSave2(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
     if (CutFileMode != CM_InfOnly)
     {
       TAP_SPrint(AbsCutName, sizeof(AbsCutName), "%s/%s", AbsPlaybackDir, RecFileName);
-      char *p = strrchr(AbsCutName, '.');
-      TAP_SPrint(((p) ? p : &AbsCutName[strlen(AbsCutName)]), 5, ".cut");
+      TAP_SPrint(&AbsCutName[strlen(AbsCutName) - 4], 5, ".cut");
 
       fCut = fopen(AbsCutName, "wb");
       if(fCut)
@@ -3392,7 +3376,7 @@ bool CutEncodeToBM(tSegmentMarker SegmentMarker[], int NrSegmentMarker, dword Bo
 bool CutSaveToBM(bool ReadBMBefore)
 {
   TRACEENTER();
-  if (CutFileMode != CM_CutOnly && !MediaFileMode)
+  if (CutFileMode != CM_CutOnly)
   {
     if (ReadBMBefore && !ReadBookmarks(Bookmarks, &NrBookmarks))
       WriteLogMC(PROGRAM_NAME, "CutSaveToBM: ReadBookmarks() failed!");
@@ -3497,8 +3481,7 @@ void CutFileDelete(void)
 
 //  HDD_ChangeDir(PlaybackDir);
   TAP_SPrint(CutName, sizeof(CutName), PlaybackName);
-  char *p = strrchr(CutName, '.');
-  if (p) p[0] = '\0';
+  CutName[strlen(CutName) - 4] = '\0';
   strcat(CutName, ".cut");
   HDD_Delete2(CutName, AbsPlaybackDir, FALSE);
 
@@ -4691,7 +4674,7 @@ void ActionMenuDraw(void)
       case MI_ExportSegments:
       {
         DisplayStr = LangGetString(LS_ExportToBM);
-        if (NrSegmentMarker <= 2 || MediaFileMode) DisplayColor = Color_Inactive;
+        if (NrSegmentMarker <= 2) DisplayColor = Color_Inactive;
         break;
       }
       case MI_ExitMC:
@@ -4713,7 +4696,7 @@ void ActionMenuDraw(void)
 
 bool ActionMenuItemInactive(int MenuItem)
 {
-  return (((MenuItem==MI_SaveSegments||MenuItem==MI_DeleteSegments||MenuItem==MI_SelectEvOddSegments) && NrSegmentMarker<=2) || (MenuItem==MI_SplitMovie && PlayInfo.currentBlock==0) || (MenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && (NrSegmentMarker>2 || NrSelectedSegments>0)))) || (MenuItem==MI_ImportBookmarks && NrBookmarks<=0) || (MenuItem==MI_ExportSegments && (NrSegmentMarker<=2 || MediaFileMode)) || (MenuItem==MI_ScanDelete && !BookmarkMode && !jfs_fsck_present));
+  return (((MenuItem==MI_SaveSegments||MenuItem==MI_DeleteSegments||MenuItem==MI_SelectEvOddSegments) && NrSegmentMarker<=2) || (MenuItem==MI_SplitMovie && PlayInfo.currentBlock==0) || (MenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && (NrSegmentMarker>2 || NrSelectedSegments>0)))) || (MenuItem==MI_ImportBookmarks && NrBookmarks<=0) || (MenuItem==MI_ExportSegments && NrSegmentMarker<=2) || (MenuItem==MI_ScanDelete && !BookmarkMode && !jfs_fsck_present));
 }
 
 void ActionMenuDown(void)
@@ -5491,8 +5474,7 @@ void MovieCutterProcess(bool KeepCut, bool SplitMovie)  // Splittet am linken Se
   {
     char CutName[MAX_FILE_NAME_SIZE + 1];  // , BackupCutName[MAX_FILE_NAME_SIZE + 1];
     TAP_SPrint(CutName, sizeof(CutName), "%s", PlaybackName);
-    char *p = strrchr(CutName, '.');
-    TAP_SPrint(((p) ? p : &CutName[strlen(CutName)]), 5, ".cut");
+    TAP_SPrint(&CutName[strlen(CutName) - 4], 5, ".cut");
     TAP_SPrint(CommandLine, sizeof(CommandLine), "cp \"%s/%s\" \"%s/%s.bak\"", AbsPlaybackDir, CutName, AbsPlaybackDir, CutName);
     system(CommandLine);
   }
@@ -5586,8 +5568,7 @@ if (HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, &InodeNr, NULL))
       if (CutEnding)
       {
         TAP_SPrint(TempFileName, sizeof(TempFileName), PlaybackName);
-        char *p = strrchr(TempFileName, '.');
-        TAP_SPrint(((p) ? p : &TempFileName[strlen(TempFileName)]), 10, "_temp%s", ((p) ? &PlaybackName[p-TempFileName] : ""));
+        TAP_SPrint(&TempFileName[strlen(PlaybackName) - 4], 10, "_temp%s", &PlaybackName[strlen(PlaybackName) - 4]);
         HDD_Delete2(TempFileName, AbsPlaybackDir, TRUE);
       }
 
@@ -5671,7 +5652,7 @@ if (KeepCut || CutEnding)
       if (RecFileSize > 0)
       {
 //        TAP_Hdd_PlayTs(PlaybackName);
-        HDD_StartPlayback2(PlaybackName, AbsPlaybackDir, MediaFileMode);
+        HDD_StartPlayback2(PlaybackName, AbsPlaybackDir);
         PlayInfo.totalBlock = 0;
         j = 0;
         while ((j < 2000) && (!isPlaybackRunning() || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0))  // 2000 ~ 30 sek. (750 ~ 10 sek.)
@@ -5682,7 +5663,7 @@ if (KeepCut || CutEnding)
         #ifdef FULLDEBUG        
           WriteLogMCf(PROGRAM_NAME, "Playback re-started (j=%d, isPlaybackRunning=%d, TotalBlock=%lu, CurrentBlock=%lu)", j, isPlaybackRunning(), PlayInfo.totalBlock, PlayInfo.currentBlock);
         #endif
-        if (PlayInfo.playMode == PLAYMODE_Playing || PlayInfo.playMode == 8)
+        if (PlayInfo.playMode == PLAYMODE_Playing)
           PlaybackRepeatSet(TRUE);
 //        HDD_ChangeDir(PlaybackDir);
 
@@ -6003,14 +5984,14 @@ bool isPlaybackRunning(void)
 
 //  if((int)PlayInfo.currentBlock < 0) PlayInfo.currentBlock = 0;   *** kritisch ***
 
-  if (PlayInfo.playMode == PLAYMODE_Playing || PlayInfo.playMode == 8)
+  if (PlayInfo.playMode == PLAYMODE_Playing)
   {
     TrickMode = (TYPE_TrickMode)PlayInfo.trickMode;
     TrickModeSpeed = PlayInfo.speed;
   }
 
   TRACEEXIT();
-  return (PlayInfo.playMode == PLAYMODE_Playing || PlayInfo.playMode == 8);
+  return (PlayInfo.playMode == PLAYMODE_Playing);
 }
 
 void CalcLastSeconds(void)
@@ -6270,6 +6251,7 @@ bool CheckFileSystem(char *MountPath, dword ProgressStart, dword ProgressEnd, dw
   }
   else if (OldSysSubState != 0) 
     TAP_EnterNormalNoInfo();
+  CloseLogMC();
 
   TRACEEXIT();
   return ret;

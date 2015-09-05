@@ -144,7 +144,7 @@ bool       HDD_GetFileSizeAndInode2(const char *FileName, const char *AbsDirecto
 bool       HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, dword NewDateTime);
 __off64_t  HDD_GetFreeDiscSpace(char *AnyFileName, char *AbsDirectory);
 bool       HDD_TAP_CheckCollisionByID(dword MyTapID);
-bool       HDD_StartPlayback2(char *FileName, char *AbsDirectory, bool MediaFileMode);
+bool       HDD_StartPlayback2(char *FileName, char *AbsDirectory);
 bool       ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks);
 bool       SaveBookmarks(dword Bookmarks[], int NrBookmarks, bool OverwriteAll);
 //TYPE_RepeatMode PlaybackRepeatMode(bool ChangeMode, TYPE_RepeatMode RepeatMode, dword RepeatStartBlock, dword RepeatEndBlock);
