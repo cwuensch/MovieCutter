@@ -424,14 +424,14 @@ static char* DefaultStrings[LS_NrStrings] =
   "Umbenennen der Datei fehlgeschlagen.",
   "Neuen Namen eingeben",
   "Cursor bewegen   ",
-  "Ende   ",
+  "Ende    ",
   "Zeichen löschen",
   "Groß-/Kleinbuchst. ",
   "Sonderzeichen ",
-  "Kopieren",
+  "Kopieren ",
   "Einfg",
   "Original ",
-  "Alles löschen   ",
+  "Alles löschen    ",
   "Abbrechen ",
   "Speichern"
 };
@@ -861,7 +861,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
         //Find out the absolute path to the rec file and check for max length
         HDD_GetAbsolutePathByTypeFile2(PlayInfo.file, AbsPlaybackDir);
-        if((strlen(PlaybackName) + 18 > MAX_FILE_NAME_SIZE) || (strlen(AbsPlaybackDir) + 14 >= FBLIB_DIR_SIZE))  // 18 = ' (Cut-123)' + '.nav.bak' | 14 = ' (Cut-123)' + '.bak'
+        if((strlen(PlaybackName) + 18 >= MAX_FILE_NAME_SIZE) || (strlen(AbsPlaybackDir) + 14 >= FBLIB_DIR_SIZE))  // 18 = ' (Cut-123)' + '.nav.bak' | 14 = ' (Cut-123)' + '.bak'
         {
           State = ST_UnacceptedFile;
           WriteLogMC(PROGRAM_NAME, "File name or path is too long!");
@@ -3103,24 +3103,29 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
 
 bool CutDecodeFromBM(void)
 {
-  int                   Start, i;
+  int                   End = 0, Start, i;
   bool                  ret = FALSE;
 
   TRACEENTER();
 
   NrSegmentMarker = 0;
   ActiveSegment = 0;
-  if (Bookmarks[NRBOOKMARKS - 1] == TAPID)
+  if (Bookmarks[NRBOOKMARKS - 2] == TAPID)       // ID im vorletzen Bookmark-Dword (-> neues SRP-Format und CRP-Format auf SRP)
+    End = NRBOOKMARKS - 2;
+  else if (Bookmarks[NRBOOKMARKS - 1] == TAPID)  // ID im letzten Bookmark-Dword (-> CRP- und altes SRP-Format)
+    End = NRBOOKMARKS - 1;
+
+  if(End)
   {
     ret = TRUE;
-    NrSegmentMarker = Bookmarks[NRBOOKMARKS - 2];
+    NrSegmentMarker = Bookmarks[End - 1];
     if (NrSegmentMarker > NRSEGMENTMARKER) NrSegmentMarker = NRSEGMENTMARKER;
 
-    Start = NRBOOKMARKS - NrSegmentMarker - 6;
+    Start = End - NrSegmentMarker - 5;
     for (i = 0; i < NrSegmentMarker; i++)
     {
-      SegmentMarker[i].Block = Bookmarks[Start+i];
-      SegmentMarker[i].Selected = ((Bookmarks[NRBOOKMARKS-6+(i/32)] & (1 << (i%32))) != 0);
+      SegmentMarker[i].Block = Bookmarks[Start + i];
+      SegmentMarker[i].Selected = ((Bookmarks[End-5+(i/32)] & (1 << (i%32))) != 0);
       SegmentMarker[i].Timems = NavGetBlockTimeStamp(SegmentMarker[i].Block);
       SegmentMarker[i].Percent = 0;
     }
@@ -3391,7 +3396,7 @@ bool CutFileSave2(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
 
 bool CutEncodeToBM(tSegmentMarker SegmentMarker[], int NrSegmentMarker, dword Bookmarks[], int NrBookmarks)
 {
-  int                   Start, i;
+  int                   End, Start, i;
   bool                  ret = TRUE;
 
   TRACEENTER();
@@ -3400,21 +3405,22 @@ bool CutEncodeToBM(tSegmentMarker SegmentMarker[], int NrSegmentMarker, dword Bo
     TRACEEXIT();
     return FALSE;
   }
-  memset(&Bookmarks[NrBookmarks], 0, NRBOOKMARKS - min(NrBookmarks, NRBOOKMARKS));
+  memset(&Bookmarks[NrBookmarks], 0, (NRBOOKMARKS - min(NrBookmarks, NRBOOKMARKS)) * sizeof(dword));
 
   if (CutFileMode != CM_CutOnly)
   {
-    Start = NRBOOKMARKS - NrSegmentMarker - 6;
+    End   = (GetSystemType() == ST_TMSC) ? NRBOOKMARKS-1 : NRBOOKMARKS-2;  // neu: auf dem SRP das vorletzte Dword nehmen -> CRP-kompatibel
+    Start = End - NrSegmentMarker - 5;
     if (Start >= NrBookmarks)
     {
       if (SegmentMarker && (NrSegmentMarker > 2))
       {
-        Bookmarks[NRBOOKMARKS - 1] = TAPID;  // Magic
-        Bookmarks[NRBOOKMARKS - 2] = NrSegmentMarker;
+        Bookmarks[End]   = TAPID;  // Magic
+        Bookmarks[End-1] = NrSegmentMarker;
         for (i = 0; i < NrSegmentMarker; i++)
         {
           Bookmarks[Start+i] = SegmentMarker[i].Block;
-          Bookmarks[NRBOOKMARKS-6+(i/32)] = (Bookmarks[NRBOOKMARKS-6+(i/32)] & ~(1 << (i%32))) | (SegmentMarker[i].Selected ? 1 << (i%32) : 0);
+          Bookmarks[End-5+(i/32)] = (Bookmarks[End-5+(i/32)] & ~(1 << (i%32))) | (SegmentMarker[i].Selected ? 1 << (i%32) : 0);
         }
       }
     }
@@ -5491,7 +5497,7 @@ void MovieCutterDeleteFile(void)
 
 bool MovieCutterRenameFile(void)
 {
-  char                  NewName[MAX_FILE_NAME_SIZE + 1], TempNameISO[MAX_FILE_NAME_SIZE + 1];
+  char                  NewName[MAX_FILE_NAME_SIZE], TempNameISO[MAX_FILE_NAME_SIZE];
   char                 *ExtensionStart, *p;
   dword                 LastPlaybackPos;
   int                   i;
@@ -5508,9 +5514,9 @@ TAP_PrintNet("DEBUG: PlaybackName = [%x] '%s'\n", (PlaybackName[0] >= 0x20 ? 0 :
   ExtensionStart = strrchr(PlaybackName, '.');
   if (!ExtensionStart) ExtensionStart = "";
   if (isUTFToppy())
-    ConvertUTFStr(TempNameISO, PlaybackName, sizeof(TempNameISO), FALSE);
+    StrToISO(PlaybackName, TempNameISO);
   else
-    strcpy(&TempNameISO[1], PlaybackName);
+    strcpy(TempNameISO, PlaybackName);
   p = strrchr(TempNameISO, '.');
   if(p) p[0] = '\0';
 
@@ -5521,7 +5527,7 @@ TAP_PrintNet("DEBUG: TempNameISO  = [%x] '%s'\n", (TempNameISO[0] >= 0x20 ? 0 : 
   while (!ret)
   {
     // OSD-Tastatur anzeigen
-    OSDMenuKeyboard_Setup(LangGetString(LS_EnterNewName), TempNameISO, sizeof(TempNameISO) - strlen(ExtensionStart));
+    OSDMenuKeyboard_Setup(LangGetString(LS_EnterNewName), TempNameISO, sizeof(TempNameISO) - strlen(ExtensionStart) - 4 - 1);
     OSDMenuKeyboard_LegendButton(1, &_Button_jumpstart_Gd, "");
     OSDMenuKeyboard_LegendButton(1, &_Button_jumpend_Gd, LangGetString(LS_KeybMoveCursor));
     OSDMenuKeyboard_LegendButton(1, &_Button_step_Gd, LangGetString(LS_KeybEnd));
@@ -5563,7 +5569,7 @@ TAP_PrintNet("DEBUG: TempNameISO  = [%x] '%s'\n", (TempNameISO[0] >= 0x20 ? 0 : 
         TempNameFull = (TempNameISO[0] >= 0x20) ? &TempNameBuffer[1] : TempNameBuffer;
         strcpy(TempNameFull, TempNameISO);
         if (isUTFToppy())
-          ConvertUTFStr(NewName, TempNameFull, sizeof(NewName) - strlen(ExtensionStart), TRUE);
+          ConvertUTFStr(NewName, TempNameFull, sizeof(NewName) - strlen(ExtensionStart) - 4, TRUE);
         else
           strcpy(NewName, TempNameFull);  // TempNameBuffer wenn ISO-Dateiname immer mit TypeChar (0x05) beginnen soll
         strcat(NewName, ExtensionStart);
