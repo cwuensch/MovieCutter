@@ -134,8 +134,9 @@ typedef struct
 } TYPE_RecHeader_TMST;
 
 
-void       HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNav);
-void       HDD_Delete2(const char *FileName, const char *AbsDirectory, bool DeleteInfNav);
+void       GetCutNameFromRec(const char *RecFileName, const char *AbsDirectory, char *const OutCutFileName);  // needs FBLIB_DIR_SIZE chars
+void       HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNavCut);
+void       HDD_Delete2(const char *FileName, const char *AbsDirectory, bool DeleteInfNavCut);
 bool       HDD_Exist2(const char *FileName, const char *AbsDirectory);
 bool       HDD_TruncateFile(const char *FileName, const char *AbsDirectory, off_t NewFileSize);
 bool       HDD_GetAbsolutePathByTypeFile2(TYPE_File *File, char *OutAbsFileName);    // OutAbsFileName: mind. FBLIB_DIR_SIZE Zeichen (inkl. Nullchar)
@@ -153,6 +154,7 @@ bool       PlaybackRepeatGet();
 bool       HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint, char *const OutDeviceNode);  // OutMountPoint und OutDeviceNode: max. FBLIB_DIR_SIZE (inkl. Nullchar)
 char*      RemoveEndLineBreak (char *const Text);
 char       SysTypeToStr(void);
+bool       ConvertUTFStr(char *DestStr, char *SourceStr, int MaxLen, bool ToUnicode);
 void       WriteLogMC(char *ProgramName, char *s);
 void       WriteLogMCf(char *ProgramName, const char *format, ...) __attribute__ ((format(__printf__, 2, 3)));
 //void       WriteDebugLog(const char *format, ...) __attribute__ ((format(__printf__, 1, 2)));
