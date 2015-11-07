@@ -109,6 +109,19 @@ de_082=Minutensprung aus
 de_083=Wenig freier Festplattenspeicher!\nTrotzdem fortfahren?
 de_084=SystemType ist unbekannt.\nBitte die FirmwareTMS.dat überprüfen!
 de_085=Aufnahme hier teilen
+de_086=Aufnahme umbenennen
+de_087=Eingegebener Dateiname ist ungültig.\nZeichen '/' ist nicht erlaubt.
+de_088=Neuer Dateiname bereits vorhanden!\nÜberschreiben?
+de_089=Umbenennen der Datei fehlgeschlagen.
+de_090=Leer
+de_091=Lös
+de_092=chen
+de_093=Original
+de_094=Alles löschen
+de_095=Kopieren
+de_096=Einfügen
+de_097=Abbrechen
+de_098=Speichern
 
 
 #English
@@ -198,6 +211,19 @@ en_082=Minute jump off
 en_083=Free disc space is low!\nProceed anyways?
 en_084=Unknown system type.\nPlease check FirmwareTMS.dat!
 en_085=Split movie here
+en_086=Rename movie
+en_087=The entered file name is invalid.\nCharacter '/' is not allowed.
+en_088=File name already exists!\nOverwrite?
+en_089=Renaming of file has failed.
+en_090=Space
+en_091=Del
+en_092=ete
+en_093=Original
+en_094=Delete all
+en_095=Copy
+en_096=Paste
+en_097=Cancel
+en_098=Save
 
 
 #French
@@ -287,6 +313,19 @@ fr_082=Saut désactivé
 fr_083=Peu d'espace disque libre !\nProcéder quand même ?
 fr_084=Type de système indéterminé.\nContrôler FirmwareTMS.dat !
 fr_085=Scinder l'enregistrement ici
+fr_086=Rename movie
+fr_087=The entered file name is invalid.\nCharacter '/' is not allowed.
+fr_088=File name already exists!\nOverwrite?
+fr_089=Renaming of file has failed.
+fr_090=Space
+fr_091=Del
+fr_092=ete
+fr_093=Original
+fr_094=Delete all
+fr_095=Copy
+fr_096=Paste
+fr_097=Cancel
+fr_098=Save
 
 
 #Dutch
@@ -376,3 +415,16 @@ nl_082=Minutensprong uit
 nl_083=Vrije schijfruimte is laag!\nToch doorgaan?
 nl_084=SystemType is onbekend.\nAUB de FirmwareTMS.dat kontroleren!
 nl_085=Film hier delen
+nl_086=Rename movie
+nl_087=The entered file name is invalid.\nCharacter '/' is not allowed.
+nl_088=File name already exists!\nOverwrite?
+nl_089=Renaming of file has failed.
+nl_090=Space
+nl_091=Del
+nl_092=ete
+nl_093=Original
+nl_094=Delete all
+nl_095=Copy
+nl_096=Paste
+nl_097=Cancel
+nl_098=Save

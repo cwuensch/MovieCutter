@@ -26,31 +26,47 @@
 // ============================================================================
 //                               TAP-API-Lib
 // ============================================================================
-void HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNav)
+void GetCutNameFromRec(const char *RecFileName, const char *AbsDirectory, char *const OutCutFileName)
+{
+  char *p = NULL;
+  TRACEENTER();
+
+  if (RecFileName && OutCutFileName)
+  {
+    TAP_SPrint(OutCutFileName, FBLIB_DIR_SIZE, "%s/%s", AbsDirectory, RecFileName);
+    if ((p = strrchr(OutCutFileName, '.')) == NULL)
+      p = &OutCutFileName[strlen(OutCutFileName)];
+    TAP_SPrint(p, 5, ".cut");
+  }
+  TRACEEXIT();
+}
+
+void HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNavCut)
 {
   char AbsFileName[FBLIB_DIR_SIZE], AbsNewFileName[FBLIB_DIR_SIZE];
   TRACEENTER();
 
   TAP_SPrint  (AbsFileName, sizeof(AbsFileName), "%s/%s",     AbsDirectory, FileName);  TAP_SPrint(AbsNewFileName, sizeof(AbsNewFileName), "%s/%s",     AbsDirectory, NewFileName);  rename(AbsFileName, AbsNewFileName);
-  if(RenameInfNav)
+  if(RenameInfNavCut)
   {
     TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.inf", AbsDirectory, FileName);  TAP_SPrint(AbsNewFileName, sizeof(AbsNewFileName), "%s/%s.inf", AbsDirectory, NewFileName);  rename(AbsFileName, AbsNewFileName);
     TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.nav", AbsDirectory, FileName);  TAP_SPrint(AbsNewFileName, sizeof(AbsNewFileName), "%s/%s.nav", AbsDirectory, NewFileName);  rename(AbsFileName, AbsNewFileName);
+    GetCutNameFromRec(FileName, AbsDirectory, AbsFileName);                             GetCutNameFromRec(NewFileName, AbsDirectory, AbsNewFileName);                                rename(AbsFileName, AbsNewFileName);   
   }
-
   TRACEEXIT();
 }
 
-void HDD_Delete2(const char *FileName, const char *AbsDirectory, bool DeleteInfNav)
+void HDD_Delete2(const char *FileName, const char *AbsDirectory, bool DeleteInfNavCut)
 {
   char AbsFileName[FBLIB_DIR_SIZE];
   TRACEENTER();
 
   TAP_SPrint  (AbsFileName, sizeof(AbsFileName), "%s/%s",     AbsDirectory, FileName);  remove(AbsFileName);
-  if(DeleteInfNav)
+  if(DeleteInfNavCut)
   {
     TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.inf", AbsDirectory, FileName);  remove(AbsFileName);
     TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.nav", AbsDirectory, FileName);  remove(AbsFileName);
+    GetCutNameFromRec(FileName, AbsDirectory, AbsFileName);                             remove(AbsFileName);
   }
 
   TRACEEXIT();
@@ -498,6 +514,46 @@ char SysTypeToStr(void)
     case ST_TMST:  return 'T';
     default:       return '?';
   }
+}
+
+bool ConvertUTFStr(char *DestStr, char *SourceStr, int MaxLen, bool ToUnicode)
+{
+  char *TempStr = NULL;
+  TRACEENTER();
+
+  TempStr = (char*) TAP_MemAlloc(MaxLen * 2);
+  if (TempStr)
+  {
+    memset(TempStr, 0, sizeof(TempStr));
+    if (ToUnicode)
+    {
+      #ifdef __ALTEFBLIB__
+        if (SourceStr[0] < 0x20) SourceStr++;
+        StrToUTF8(SourceStr, TempStr);
+      #else
+        StrToUTF8(SourceStr, TempStr, 9);
+      #endif
+    }
+    else
+      StrToISO(SourceStr, TempStr);
+
+    if (!ToUnicode && (SourceStr[0] >= 0x20) && (strlen(TempStr) < strlen(SourceStr)))
+    {
+      DestStr[0] = 0x05;
+      DestStr++;
+      MaxLen--;
+    }
+    TempStr[MaxLen-1] = 0;
+    if (ToUnicode && ((TempStr[strlen(TempStr)-1] & 0xC0) == 0xC0))
+      TempStr[strlen(TempStr)-1] = 0;
+    strcpy(DestStr, TempStr);
+
+    TAP_MemFree(TempStr);
+    TRACEEXIT();
+    return TRUE;
+  }
+  TRACEEXIT();
+  return FALSE;
 }
 
 

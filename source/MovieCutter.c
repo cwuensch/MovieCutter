@@ -45,9 +45,9 @@
 #include                "Graphics/Button_Down.gd"
 #include                "Graphics/Button_Down_small.gd"
 #include                "Graphics/Button_red.gd"
-#include                "Graphics/Button_green.gd"
-#include                "Graphics/Button_yellow.gd"
-#include                "Graphics/Button_blue.gd"
+//#include                "Graphics/Button_green.gd"
+//#include                "Graphics/Button_yellow.gd"
+//#include                "Graphics/Button_blue.gd"
 #include                "Graphics/Button_white.gd"
 #include                "Graphics/Button_recall.gd"
 #include                "Graphics/Button_vf.gd"
@@ -78,6 +78,7 @@
 #include                "Graphics/Button_7_small.gd"
 #include                "Graphics/Button_8_small.gd"
 #include                "TMSCommander.h"
+extern TYPE_GrData      _Button_Green_Gd, _Button_Yellow_Gd, _Button_Blue_Gd;
 //extern TYPE_GrData      _Button_red_Gd, _Button_green_Gd, _Button_yellow_Gd, _Button_blue_Gd, _Button_white_Gd;
 //extern TYPE_GrData      _Button_recall_Gd, _Button_menu_Gd, _Button_vf_Gd;
 
@@ -87,6 +88,8 @@ TAP_PROGRAM_VERSION     (VERSION);
 TAP_AUTHOR_NAME         (AUTHOR);
 TAP_DESCRIPTION         (DESCRIPTION);
 TAP_ETCINFO             (__DATE__);
+
+extern char            *LangStrings;
 
 // ============================================================================
 //                              Definitionen
@@ -156,7 +159,7 @@ typedef enum
   MI_ClearAll,
   MI_ImportBookmarks,
   MI_ExportSegments,
-  MI_ScanDelete,
+  MI_RenameCheckFS,
   MI_ExitMC,
   MI_NrMenuItems
 } tMenuItem;
@@ -299,6 +302,19 @@ typedef enum
   LS_UnknownSystemType,
  // Menu entries (5)
   LS_SplitMovie,
+  LS_RenameMovie,
+  LS_NameInvalid,
+  LS_NameAlreadyExists,
+  LS_RenamingFailed,
+  LS_KeybSpace,
+  LS_KeybDelete1,
+  LS_KeybDelete2,
+  LS_KeybOriginal,
+  LS_KeybClearAll,
+  LS_KeybCopy,
+  LS_KeybPaste,
+  LS_KeybCancel,
+  LS_KeybSave,
   LS_NrStrings
 } tLngStrings;
 
@@ -312,7 +328,7 @@ static char* DefaultStrings[LS_NrStrings] =
   "Auswählen",
   "Keine nav-Datei! Zeitangaben evtl. ungenau.\nTrotzdem fortfahren?",
   "",   // Ausgewählte Segmente löschen
-  "Diese Datei löschen",
+  "",   // Diese Datei löschen
   "MovieCutter beenden",
   "",   // Konnte F/W-Funktion _bookmarkTime nicht finden.
   "",   // Nächster Bookmark
@@ -393,7 +409,20 @@ static char* DefaultStrings[LS_NrStrings] =
   "Minutensprung aus",
   "Wenig freier Festplattenspeicher!\nTrotzdem fortfahren?",
   "SystemType ist unbekannt.\nBitte die FirmwareTMS.dat überprüfen!",
-  "Aufnahme hier teilen"
+  "Aufnahme hier teilen",
+  "Aufnahme umbenennen",
+  "Eingegebener Dateiname ist ungültig.\nZeichen '/' ist nicht erlaubt.",
+  "Neuer Dateiname bereits vorhanden!\nÜberschreiben?",
+  "Umbenennen der Datei fehlgeschlagen.",
+  "Leer",
+  "Lös",
+  "chen",
+  "Original",
+  "Alles löschen",
+  "Kopieren",
+  "Einfügen",
+  "Abbrechen",
+  "Speichern"
 };
 #ifdef MC_MULTILANG
   #define LangGetString(x)  LangGetStringDefault(x, DefaultStrings[x])
@@ -521,8 +550,8 @@ int TAP_Main(void)
 
   char HDDModel[41], HDDSerial[21], HDDFirmware[9];
 
-  CreateSettingsDir();
   KeyTranslate(TRUE, &TAP_EventHandler);
+  CreateSettingsDir();
 
   WriteLogMC (PROGRAM_NAME, "***  MovieCutter " VERSION " started! (FBLib " __FBLIB_VERSION__ ") ***");
   WriteLogMC (PROGRAM_NAME, "=======================================================");
@@ -673,6 +702,13 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 //    if(!OSDMenuMessageBoxIsVisible())
 //      MCShowMessageBox = FALSE;
 //  }
+
+  // Behandlung der OSD-Tastatur, falls offen (auch bei DoNotReenter?)
+  if(OSDMenuKeyboard_isVisible())
+  {
+    OSDMenuKeyboard_EventHandler(&event, &param1, &param2);
+    param1 = 0;
+  }
 
   // Abbruch von fsck ermöglichen (selbst bei DoNotReenter)
   if(DoNotReenter && OSDMenuProgressBarIsVisible())
@@ -1669,8 +1705,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           case RKEY_8:
           {
             dword SelectedMenuItem = param1 & 0x0f;
-            if (SelectedMenuItem == MI_ScanDelete && BookmarkMode)
-              break;
             if (ActionMenuItemInactive(SelectedMenuItem))
               break;
             ActionMenuItem = SelectedMenuItem;
@@ -1688,7 +1722,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 break;
 
               // Aktionen mit Confirmation-Dialog
-              if (ActionMenuItem==MI_SaveSegments || ActionMenuItem==MI_DeleteSegments || ActionMenuItem==MI_SplitMovie || (ActionMenuItem==MI_ClearAll && (BookmarkMode || NrSelectedSegments==0)) || (ActionMenuItem==MI_ScanDelete && BookmarkMode) || (ActionMenuItem==MI_ImportBookmarks && NrSegmentMarker>2) || (ActionMenuItem==MI_ExportSegments && NrBookmarks>0))
+              if (ActionMenuItem==MI_SaveSegments || ActionMenuItem==MI_DeleteSegments || ActionMenuItem==MI_SplitMovie || (ActionMenuItem==MI_ClearAll && (BookmarkMode || NrSelectedSegments==0)) || (ActionMenuItem==MI_ImportBookmarks && NrSegmentMarker>2) || (ActionMenuItem==MI_ExportSegments && NrBookmarks>0))
               {
                 if(AskBeforeEdit && !ShowConfirmationDialog(LangGetString(LS_AskConfirmation)))
                 {
@@ -1699,7 +1733,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               }
 
               // PlayInfo prüfen
-              if (!(isPlaybackRunning() && PLAYINFOVALID()) && (ActionMenuItem != MI_ExitMC) && (ActionMenuItem != MI_ScanDelete))   // PlayInfo wird nicht aktualisiert
+              if (!(isPlaybackRunning() && PLAYINFOVALID()) && (ActionMenuItem != MI_ExitMC) && (ActionMenuItem != MI_RenameCheckFS))   // PlayInfo wird nicht aktualisiert
                 break;
 
               ActionMenuRemove();
@@ -1731,15 +1765,15 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 }
                 case MI_ImportBookmarks:     ImportBookmarksToSegments(); break;
                 case MI_ExportSegments:      ExportSegmentsToBookmarks(); break;
-                case MI_ScanDelete:
+                case MI_RenameCheckFS:
                 {
                   if (!BookmarkMode)
+                    MovieCutterRenameFile();
+                  else
                   {
                     WriteLogMC(PROGRAM_NAME, "[Action 'Check file system' started...]");
                     CheckFileSystem(AbsPlaybackDir, 0, 1, 1, TRUE, FALSE, FALSE, TRUE, 0, NULL);
                   }
-                  else
-                    MovieCutterDeleteFile();
                   break;
                 }
                 case MI_ExitMC:              State = ST_Exit; break;
@@ -3104,10 +3138,7 @@ bool CutFileLoad(void)
   // Schaue zuerst im Cut-File nach
 //  if (CutFileMode != CM_InfOnly)
   {
-    TAP_SPrint(AbsCutName, sizeof(AbsCutName), "%s/%s", AbsPlaybackDir, PlaybackName);
-    char *p = strrchr(AbsCutName, '.');
-    TAP_SPrint(((p) ? p : &AbsCutName[strlen(AbsCutName)]), 5, ".cut");
-
+    GetCutNameFromRec(PlaybackName, AbsPlaybackDir, AbsCutName);
     fCut = fopen(AbsCutName, "rb");
     if(fCut)
     {
@@ -3323,10 +3354,7 @@ bool CutFileSave2(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
 
     if (CutFileMode != CM_InfOnly)
     {
-      TAP_SPrint(AbsCutName, sizeof(AbsCutName), "%s/%s", AbsPlaybackDir, RecFileName);
-      char *p = strrchr(AbsCutName, '.');
-      TAP_SPrint(((p) ? p : &AbsCutName[strlen(AbsCutName)]), 5, ".cut");
-
+      GetCutNameFromRec(PlaybackName, AbsPlaybackDir, AbsCutName);
       fCut = fopen(AbsCutName, "wb");
       if(fCut)
       {
@@ -3498,16 +3526,13 @@ bool CutSaveToInf(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
 
 void CutFileDelete(void)
 {
-  char                  CutName[MAX_FILE_NAME_SIZE + 1];
+  char                  CutName[FBLIB_DIR_SIZE];
 
   TRACEENTER();
 
 //  HDD_ChangeDir(PlaybackDir);
-  TAP_SPrint(CutName, sizeof(CutName), PlaybackName);
-  char *p = strrchr(CutName, '.');
-  if (p) p[0] = '\0';
-  strcat(CutName, ".cut");
-  HDD_Delete2(CutName, AbsPlaybackDir, FALSE);
+  GetCutNameFromRec(PlaybackName, "", CutName);
+  HDD_Delete2(&CutName[1], AbsPlaybackDir, FALSE);
 
   TRACEEXIT();
 }
@@ -3997,7 +4022,7 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
 // ------------
 void OSDInfoDrawBackground(void)
 {
-  TYPE_GrData*          ColorButtons[]       = {&_Button_red_Gd,          &_Button_green_Gd,     &_Button_yellow_Gd,     &_Button_blue_Gd};
+  TYPE_GrData*          ColorButtons[]       = {&_Button_red_Gd,          &_Button_Green_Gd,     &_Button_Yellow_Gd,     &_Button_Blue_Gd};
   char*                 ColorButtonStrings[] = {LangGetString(LS_Delete), LangGetString(LS_Add), LangGetString(LS_Move), LangGetString(LS_Select)};
   int                   ColorButtonLengths[4];
   TYPE_GrData*          BelowButtons[]       = {&_Button_recall_Gd,     &_Button_vf_Gd,               &_Button_ProgPlusMinus_Gd,  &_Button_menu_Gd,            &_Button_Exit_Gd,       &_Button_white_Gd};
@@ -4560,8 +4585,7 @@ void ActionMenuDraw(void)
   // ShortCut-Buttons zeichnen
   for (i = 1; i <= 9; i++)
   {
-    if (!(i == MI_ScanDelete && BookmarkMode))
-      TAP_Osd_PutGd(rgnActionMenu, ShortButtonLeft, TextFieldStart_Y + (TextFieldHeight + TextFieldDist) * i + 4, ShortButtons[i-1], TRUE);
+    TAP_Osd_PutGd(rgnActionMenu, ShortButtonLeft, TextFieldStart_Y + (TextFieldHeight + TextFieldDist) * i + 4, ShortButtons[i-1], TRUE);
   }
 
   // Grünen Auswahlrahmen zeichnen
@@ -4675,17 +4699,17 @@ void ActionMenuDraw(void)
         }
         break;
       }
-      case MI_ScanDelete:
+      case MI_RenameCheckFS:
       {
         if (!BookmarkMode)
         {
-          DisplayStr = LangGetString(LS_FileSystemCheck);
-          DisplayColor = (jfs_fsck_present) ? RGB(80, 240, 80) : Color_Inactive;
+          DisplayStr = LangGetString(LS_RenameMovie);
+          DisplayColor = RGB(255, 150, 150);
         }
         else
         {
-          DisplayStr = LangGetString(LS_DeleteFile);
-          DisplayColor = RGB(255, 100, 100);
+          DisplayStr = LangGetString(LS_FileSystemCheck);
+          DisplayColor = (jfs_fsck_present) ? RGB(80, 240, 80) : Color_Inactive;
         }
         break;
       }
@@ -4720,7 +4744,7 @@ void ActionMenuDraw(void)
 
 bool ActionMenuItemInactive(int MenuItem)
 {
-  return (((MenuItem==MI_SaveSegments||MenuItem==MI_DeleteSegments||MenuItem==MI_SelectEvOddSegments) && NrSegmentMarker<=2) || (MenuItem==MI_SplitMovie && PlayInfo.currentBlock==0) || (MenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && (NrSegmentMarker>2 || NrSelectedSegments>0)))) || (MenuItem==MI_ImportBookmarks && NrBookmarks<=0) || (MenuItem==MI_ExportSegments && (NrSegmentMarker<=2 || MediaFileMode)) || (MenuItem==MI_ScanDelete && !BookmarkMode && !jfs_fsck_present));
+  return (((MenuItem==MI_SaveSegments||MenuItem==MI_DeleteSegments||MenuItem==MI_SelectEvOddSegments) && NrSegmentMarker<=2) || (MenuItem==MI_SplitMovie && PlayInfo.currentBlock==0) || (MenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && (NrSegmentMarker>2 || NrSelectedSegments>0)))) || (MenuItem==MI_ImportBookmarks && NrBookmarks<=0) || (MenuItem==MI_ExportSegments && (NrSegmentMarker<=2 || MediaFileMode)) || (MenuItem==MI_RenameCheckFS && BookmarkMode && !jfs_fsck_present));
 }
 
 void ActionMenuDown(void)
@@ -5460,6 +5484,182 @@ void MovieCutterDeleteFile(void)
   TRACEEXIT();
 }
 
+bool MovieCutterRenameFile(void)
+{
+  char                  NewName[MAX_FILE_NAME_SIZE], TempNameISO[MAX_FILE_NAME_SIZE];
+  char                 *ExtensionStart, *p;
+  dword                 LastPlaybackPos;
+  int                   i;
+  bool                  ret = FALSE;
+
+  TRACEENTER();
+  HDD_TAP_PushDir();
+  WriteLogMCf(PROGRAM_NAME, "[Action 'Rename movie' started...]");
+
+#if STACKTRACE == TRUE
+  TAP_PrintNet("DEBUG: VOR der Umwandlung in ISO:\n");
+  TAP_PrintNet("DEBUG: PlaybackName = [%x] '%s'\n", (PlaybackName[0] >= 0x20 ? 0 : PlaybackName[0]), PlaybackName);
+#endif
+
+  ExtensionStart = strrchr(PlaybackName, '.');
+  if (!ExtensionStart) ExtensionStart = "";
+  if (isUTFToppy() && PlaybackName[0] >= 0x20)
+    StrToISO(PlaybackName, TempNameISO);
+  else
+    strcpy(TempNameISO, PlaybackName);
+  p = strrchr(TempNameISO, '.');
+  if(p) p[0] = '\0';
+
+#if STACKTRACE == TRUE
+  TAP_PrintNet("DEBUG: NACH der Umwandlung in ISO:\n");
+  TAP_PrintNet("DEBUG: TempNameISO  = [%x] '%s'\n", (TempNameISO[0] >= 0x20 ? 0 : TempNameISO[0]), TempNameISO);
+#endif
+
+  while (!ret)
+  {
+    // OSD-Tastatur anzeigen
+    OSDMenuKeyboard_Setup(LangGetString(LS_RenameMovie), TempNameISO, sizeof(TempNameISO) - strlen(ExtensionStart) - 4 - 1);
+    #ifdef MC_MULTILANG
+      if (LangStrings)
+        OSDMenuKeyboard_SetLegendStrings(LangGetString(LS_KeybSpace), LangGetString(LS_KeybDelete1), LangGetString(LS_KeybDelete2), LangGetString(LS_KeybOriginal), LangGetString(LS_KeybClearAll), LangGetString(LS_KeybCopy), LangGetString(LS_KeybPaste), LangGetString(LS_KeybCancel), LangGetString(LS_KeybSave));
+    #endif
+    OSDMenuKeyboard_Show();
+    while (OSDMenuKeyboard_isVisible())
+    {
+      TAP_SystemProc();
+      TAP_Sleep(1);
+    }
+    OSDRedrawEverything();
+
+    // Eingabe überprüfen und ggf. wieder in UTF-8 umwandeln
+    if ((TempNameISO[0] >= 0x20) || (TempNameISO[0] && TempNameISO[1]))
+    {
+      // Wenn Name ungültig, Meldung anzeigen
+      if (strchr(TempNameISO, '/'))
+        ShowErrorMessage(LangGetString(LS_NameInvalid), NULL);
+      else
+      {
+        char            TempNameBuffer[MAX_FILE_NAME_SIZE + 2]; TempNameBuffer[0] = '\5';
+        char           *TempNameFull;
+        char           *PlayNameNoTypeChar, *TempNameNoTypeChar;  // *TempNameWithTypeChar;
+
+#if STACKTRACE == TRUE
+  TAP_PrintNet("DEBUG: VOR Rück-Umwandlung in UTF-8:\n");
+  TAP_PrintNet("DEBUG: TempNameISO  = [%x] '%s'\n", (TempNameISO[0] >= 0x20 ? 0 : TempNameISO[0]), TempNameISO);
+#endif
+
+        TempNameFull = (TempNameISO[0] >= 0x20) ? &TempNameBuffer[1] : TempNameBuffer;
+        strcpy(TempNameFull, TempNameISO);
+        if (isUTFToppy() && TempNameISO[0] >= 0x20)
+          ConvertUTFStr(NewName, TempNameFull, sizeof(NewName) - strlen(ExtensionStart) - 4, TRUE);
+        else
+          strcpy(NewName, TempNameFull);  // TempNameBuffer wenn ISO-Dateiname immer mit TypeChar (0x05) beginnen soll
+        strcat(NewName, ExtensionStart);
+        strcat(TempNameFull, ExtensionStart);
+
+        PlayNameNoTypeChar = (PlaybackName[0] >= 0x20) ? PlaybackName : &PlaybackName[1];
+        TempNameNoTypeChar = &TempNameBuffer[1];  // (TempNameFull[0] >= 0x20) ? TempNameFull : &TempNameFull[1];
+//        TempNameWithTypeChar = (TempNameFull[0] >= 0x20) ? TempNameBuffer : TempNameFull;
+
+#if STACKTRACE == TRUE
+  TAP_PrintNet("DEBUG: NACH der Rück-Umwandlung in UTF-8:\n");
+  TAP_PrintNet("DEBUG: TempNameBuf  = [%x] '%s'\n", (TempNameBuffer[0] >= 0x20 ? 0 : TempNameBuffer[0]), TempNameBuffer);
+  TAP_PrintNet("DEBUG: TempNameFull = [%x] '%s'\n", (TempNameFull[0]   >= 0x20 ? 0 : TempNameFull[0]),   TempNameFull);
+  TAP_PrintNet("DEBUG: NewName      = [%x] '%s'\n", (NewName[0]        >= 0x20 ? 0 : NewName[0]),        NewName);
+#endif
+
+        // Wenn neuer Name nicht leer, aber verändert
+        if (*NewName && (strcmp(NewName, PlaybackName) != 0) && (strcmp(TempNameNoTypeChar, PlayNameNoTypeChar) != 0))
+        {
+          // ggf. Rückfrage, ob existierende Datei überschrieben werden soll
+          if ((!HDD_Exist2(NewName, AbsPlaybackDir) && !HDD_Exist2(TempNameBuffer, AbsPlaybackDir) && !HDD_Exist2(TempNameNoTypeChar, AbsPlaybackDir))
+            || ShowConfirmationDialog(LangGetString(LS_NameAlreadyExists)))
+              ret = TRUE;
+        }
+        else
+          break;
+      }
+    }
+    else
+      break;
+  }
+
+  // Jetzt kann die Aufnahme umbenannt werden...
+  if (ret)
+  {
+    WriteLogMCf(PROGRAM_NAME, "New file name: %s", NewName);
+
+    // Playback stoppen
+    LastPlaybackPos = PlayInfo.currentBlock;
+    if (isPlaybackRunning())
+      TAP_Hdd_StopTs();
+
+    // Umbenennen
+    HDD_Delete2(NewName, AbsPlaybackDir, TRUE);
+    HDD_Rename2(PlaybackName, NewName, AbsPlaybackDir, TRUE);
+
+    // Playback wieder starten
+    ret = HDD_Exist2(NewName, AbsPlaybackDir);
+    if (ret)
+    {
+      WriteLogMC(PROGRAM_NAME, "Renaming successful!");
+      HDD_StartPlayback2(NewName, AbsPlaybackDir, MediaFileMode);
+    }
+    else
+    {
+      WriteLogMC(PROGRAM_NAME, "Renaming has failed!");
+      HDD_StartPlayback2(PlaybackName, AbsPlaybackDir, MediaFileMode);
+    }
+
+    // auf das Starten des Playbacks warten
+    i = 0;
+    do {
+      TAP_SystemProc();
+      i++;
+    } while ((i < 2000) && (!isPlaybackRunning() || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0));
+
+    if (isPlaybackRunning())
+    {
+      PlaybackRepeatSet(TRUE);
+      if(LastPlaybackPos >= 1000)
+        TAP_Hdd_ChangePlaybackPos(LastPlaybackPos);
+    }
+
+    // neuen Namen übernehmen
+    if (ret && isPlaybackRunning())
+    {
+      strcpy(PlaybackName, NewName);
+//      OSDInfoDrawRecName();
+      OSDRedrawEverything();
+    }
+    else
+      ShowErrorMessage(LangGetString(LS_RenamingFailed), NULL);
+
+    // Prüfen, ob das Playback wieder gestartet wurde
+    if((int)PlayInfo.totalBlock <= 0)
+    {
+      WriteLogMC(PROGRAM_NAME, "MovieCutterRenameFile: Error restarting the playback!");
+      State = ST_UnacceptedFile;
+      LastTotalBlocks = PlayInfo.totalBlock;
+      ClearOSD(TRUE);
+      ret = FALSE;
+    }
+    else
+    {
+      if (SegmentMarker[NrSegmentMarker - 1].Block != PlayInfo.totalBlock)
+      {
+        #ifdef FULLDEBUG
+          WriteLogMCf(PROGRAM_NAME, "MovieCutterRenameFile: Nach Playback-Restart neues TotalBlock %lu (vorher %lu)!", SegmentMarker[NrSegmentMarker - 1].Block, PlayInfo.totalBlock);
+        #endif
+        SegmentMarker[NrSegmentMarker - 1].Block = PlayInfo.totalBlock;
+      }
+    }
+  }
+  HDD_TAP_PopDir();
+  TRACEEXIT();
+  return ret;
+}
+
 void MovieCutterProcess(bool KeepCut, bool SplitMovie)  // Splittet am linken SegmentMarker (ActiveSegment)
 {
 //  int                   NrSelectedSegments;
@@ -5496,17 +5696,15 @@ void MovieCutterProcess(bool KeepCut, bool SplitMovie)  // Splittet am linken Se
   if (SaveCutBak && (CutFileMode != CM_InfOnly))
   {
     CutFileSave();
-    char CutName[MAX_FILE_NAME_SIZE + 1], BackupCutName[MAX_FILE_NAME_SIZE + 1];
-    TAP_SPrint(CutName, sizeof(CutName), "%s", PlaybackName);
-    char *p = strrchr(CutName, '.');
-    TAP_SPrint(((p) ? p : &CutName[strlen(CutName)]), 5, ".cut");
-    TAP_SPrint(BackupCutName, sizeof(BackupCutName), "%s.bak", CutName);
-//    if (HDD_Exist2(BackupCutName, AbsPlaybackDir)) HDD_Delete2(BackupCutName, AbsPlaybackDir, FALSE);
-    HDD_Rename2(CutName, BackupCutName, AbsPlaybackDir, FALSE);
+    char AbsCutName[FBLIB_DIR_SIZE], AbsBackupCutName[FBLIB_DIR_SIZE];
+    GetCutNameFromRec(PlaybackName, AbsPlaybackDir, AbsCutName);
+    TAP_SPrint(AbsBackupCutName, sizeof(AbsBackupCutName), "%s.bak", AbsCutName);    
+//    if (HDD_Exist2(&AbsBackupCutName[1], "")) HDD_Delete2(&AbsBackupCutName[1], "", FALSE);
+    rename(AbsCutName, AbsBackupCutName);
   }
   CutFileSave();
-//  TAP_SPrint(LogString, sizeof(LogString), "cp \"%s/%s.cut\" \"%s/%s.cut.bak\"", AbsPlaybackDir, BackupCutName, AbsPlaybackDir, BackupCutName);
-//  system(LogString);
+//  TAP_SPrint(CommandLine, sizeof(CommandLine), "cp \"%s\" \"%s.bak\"", AbsCutName, AbsCutName);
+//  system(CommandLine);
 
   // Zähle die ausgewählten Segmente
   CountSelectedSegments();
