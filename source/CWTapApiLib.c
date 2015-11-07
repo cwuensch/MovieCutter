@@ -26,47 +26,31 @@
 // ============================================================================
 //                               TAP-API-Lib
 // ============================================================================
-void GetCutNameFromRec(const char *RecFileName, const char *AbsDirectory, char *const OutCutFileName)
-{
-  char *p = NULL;
-  TRACEENTER();
-
-  if (RecFileName && OutCutFileName)
-  {
-    TAP_SPrint(OutCutFileName, FBLIB_DIR_SIZE, "%s/%s", AbsDirectory, RecFileName);
-    if ((p = strrchr(OutCutFileName, '.')) == NULL)
-      p = &OutCutFileName[strlen(OutCutFileName)];
-    TAP_SPrint(p, 5, ".cut");
-  }
-  TRACEEXIT();
-}
-
-void HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNavCut)
+void HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNav)
 {
   char AbsFileName[FBLIB_DIR_SIZE], AbsNewFileName[FBLIB_DIR_SIZE];
   TRACEENTER();
 
   TAP_SPrint  (AbsFileName, sizeof(AbsFileName), "%s/%s",     AbsDirectory, FileName);  TAP_SPrint(AbsNewFileName, sizeof(AbsNewFileName), "%s/%s",     AbsDirectory, NewFileName);  rename(AbsFileName, AbsNewFileName);
-  if(RenameInfNavCut)
+  if(RenameInfNav)
   {
     TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.inf", AbsDirectory, FileName);  TAP_SPrint(AbsNewFileName, sizeof(AbsNewFileName), "%s/%s.inf", AbsDirectory, NewFileName);  rename(AbsFileName, AbsNewFileName);
     TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.nav", AbsDirectory, FileName);  TAP_SPrint(AbsNewFileName, sizeof(AbsNewFileName), "%s/%s.nav", AbsDirectory, NewFileName);  rename(AbsFileName, AbsNewFileName);
-    GetCutNameFromRec(FileName, AbsDirectory, AbsFileName);                             GetCutNameFromRec(NewFileName, AbsDirectory, AbsNewFileName);                                rename(AbsFileName, AbsNewFileName);   
   }
+
   TRACEEXIT();
 }
 
-void HDD_Delete2(const char *FileName, const char *AbsDirectory, bool DeleteInfNavCut)
+void HDD_Delete2(const char *FileName, const char *AbsDirectory, bool DeleteInfNav)
 {
   char AbsFileName[FBLIB_DIR_SIZE];
   TRACEENTER();
 
   TAP_SPrint  (AbsFileName, sizeof(AbsFileName), "%s/%s",     AbsDirectory, FileName);  remove(AbsFileName);
-  if(DeleteInfNavCut)
+  if(DeleteInfNav)
   {
     TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.inf", AbsDirectory, FileName);  remove(AbsFileName);
     TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.nav", AbsDirectory, FileName);  remove(AbsFileName);
-    GetCutNameFromRec(FileName, AbsDirectory, AbsFileName);                             remove(AbsFileName);
   }
 
   TRACEEXIT();
@@ -275,9 +259,8 @@ bool HDD_TAP_CheckCollisionByID(dword MyTapID)
 // ----------------------------------------------------------------------------
 //                        Playback-Operationen
 // ----------------------------------------------------------------------------
-bool HDD_StartPlayback2(char *FileName, char *AbsDirectory, bool MediaFileMode)
+bool HDD_StartPlayback2(char *FileName, char *AbsDirectory)
 {
-//  char                  InfFileName[MAX_FILE_NAME_SIZE + 1];
   tDirEntry             FolderStruct;
   bool                  ret = FALSE;
 
@@ -295,12 +278,7 @@ bool HDD_StartPlayback2(char *FileName, char *AbsDirectory, bool MediaFileMode)
     ApplHdd_SetWorkFolder(&FolderStruct);
 
     //Start the playback
-//    TAP_SPrint(InfFileName, sizeof(InfFileName), "%s.inf", FileName);
-//    if (HDD_Exist2(InfFileName, AbsDirectory))
-    if (!MediaFileMode)
-      ret = (Appl_StartPlayback(FileName, 0, TRUE, FALSE) == 0);
-    else
-      ret = (Appl_StartPlaybackMedia(FileName, 0, TRUE, FALSE) == 0);
+    ret = (Appl_StartPlayback(FileName, 0, TRUE, FALSE) == 0);
   }
   ApplHdd_RestoreWorkFolder();
 //  HDD_TAP_PopDir();
@@ -358,20 +336,13 @@ bool PlaybackRepeatGet()
 
 bool ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks)
 {
-//  TYPE_PlayInfo         PlayInfo;
-  dword                *PlayInfoBookmarkStruct = NULL;
-  byte                 *TempRecSlot = NULL;
+  dword                *PlayInfoBookmarkStruct;
+  byte                 *TempRecSlot;
   bool                  ret = FALSE;
 
   TRACEENTER();
 
-/*  TAP_Hdd_GetPlayInfo(&PlayInfo);
-  if (PlayInfo.playMode != PLAYMODE_Playing)
-  {
-    TRACEEXIT();
-    return FALSE;
-  }  */
-
+  PlayInfoBookmarkStruct = NULL;
   TempRecSlot = (byte*)FIS_vTempRecSlot();
   if(TempRecSlot)
     PlayInfoBookmarkStruct = (dword*)HDD_GetPvrRecTsPlayInfoPointer(*TempRecSlot);
@@ -392,7 +363,7 @@ bool ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks)
     TAP_SPrint(s, sizeof(s), "TempRecSlot=%p", TempRecSlot);
     if(TempRecSlot)
       TAP_SPrint(&s[strlen(s)], sizeof(s)-strlen(s), ", *TempRecSlot=%d, HDD_NumberOfRECSlots()=%lu", *TempRecSlot, HDD_NumberOfRECSlots());
-    WriteLogMC("*DEBUG*", s);  */
+    WriteLogMC(PROGRAM_NAME, s);  */
     ret = FALSE;
   }
 
@@ -403,20 +374,13 @@ bool ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks)
 //Experimentelle Methode, um Bookmarks direkt in der Firmware abzuspeichern.
 bool SaveBookmarks(dword Bookmarks[], int NrBookmarks, bool OverwriteAll)
 {
-//  TYPE_PlayInfo         PlayInfo;
-  dword                *PlayInfoBookmarkStruct = NULL;
-  byte                 *TempRecSlot = NULL;
+  dword                *PlayInfoBookmarkStruct;
+  byte                 *TempRecSlot;
   bool                  ret = FALSE;
 
   TRACEENTER();
 
-/*  TAP_Hdd_GetPlayInfo(&PlayInfo);
-  if (PlayInfo.playMode != PLAYMODE_Playing)
-  {
-    TRACEEXIT();
-    return FALSE;
-  }  */
-
+  PlayInfoBookmarkStruct = NULL;
   TempRecSlot = (byte*)FIS_vTempRecSlot();
   if(TempRecSlot)
     PlayInfoBookmarkStruct = (dword*)HDD_GetPvrRecTsPlayInfoPointer(*TempRecSlot);
@@ -514,46 +478,6 @@ char SysTypeToStr(void)
     case ST_TMST:  return 'T';
     default:       return '?';
   }
-}
-
-bool ConvertUTFStr(char *DestStr, char *SourceStr, int MaxLen, bool ToUnicode)
-{
-  char *TempStr = NULL;
-  TRACEENTER();
-
-  TempStr = (char*) TAP_MemAlloc(MaxLen * 2);
-  if (TempStr)
-  {
-    memset(TempStr, 0, sizeof(TempStr));
-    if (ToUnicode)
-    {
-      #ifdef __ALTEFBLIB__
-        if (SourceStr[0] < 0x20) SourceStr++;
-        StrToUTF8(SourceStr, TempStr);
-      #else
-        StrToUTF8(SourceStr, TempStr, 9);
-      #endif
-    }
-    else
-      StrToISO(SourceStr, TempStr);
-
-    if (!ToUnicode && (SourceStr[0] >= 0x20) && (strlen(TempStr) < strlen(SourceStr)))
-    {
-      DestStr[0] = 0x05;
-      DestStr++;
-      MaxLen--;
-    }
-    TempStr[MaxLen-1] = 0;
-    if (ToUnicode && ((TempStr[strlen(TempStr)-1] & 0xC0) == 0xC0))
-      TempStr[strlen(TempStr)-1] = 0;
-    strcpy(DestStr, TempStr);
-
-    TAP_MemFree(TempStr);
-    TRACEEXIT();
-    return TRUE;
-  }
-  TRACEEXIT();
-  return FALSE;
 }
 
 

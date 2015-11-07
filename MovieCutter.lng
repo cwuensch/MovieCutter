@@ -109,22 +109,7 @@ de_082=Minutensprung aus
 de_083=Wenig freier Festplattenspeicher!\nTrotzdem fortfahren?
 de_084=SystemType ist unbekannt.\nBitte die FirmwareTMS.dat überprüfen!
 de_085=Aufnahme hier teilen
-de_086=Aufnahme umbenennen
-de_087=Eingegebener Dateiname ist ungültig.\nZeichen '/' ist nicht erlaubt.
-de_088=Neuer Dateiname bereits vorhanden!\nÜberschreiben?
-de_089=Umbenennen der Datei fehlgeschlagen.
-de_090=Neuen Namen eingeben
-de_091=Cursor bewegen   
-de_092=Ende    
-de_093=Zeichen löschen
-de_094=Groß-/Kleinbuchst. 
-de_095=Sonderzeichen 
-de_096=Kopieren 
-de_097=Einfg
-de_098=Original 
-de_099=Alles löschen    
-de_100=Abbrechen 
-de_101=Speichern
+
 
 #English
 en_000=Add
@@ -213,22 +198,6 @@ en_082=Minute jump off
 en_083=Free disc space is low!\nProceed anyways?
 en_084=Unknown system type.\nPlease check FirmwareTMS.dat!
 en_085=Split movie here
-en_086=Rename movie
-en_087=The entered file name is invalid.\nCharacter '/' is not allowed.
-en_088=File name already exists!\nOverwrite?
-en_089=Renaming of file has failed.
-en_090=Enter a new name
-en_091=Move cursor  
-en_092=To end  
-en_093=Delete char
-en_094=Caps/Letters 
-en_095=Special chars 
-en_096=Copy 
-en_097=Paste
-en_098=Original 
-en_099=Delete all    
-en_100=Cancel 
-en_101=Save
 
 
 #French
@@ -318,22 +287,6 @@ fr_082=Saut désactivé
 fr_083=Peu d'espace disque libre !\nProcéder quand même ?
 fr_084=Type de système indéterminé.\nContrôler FirmwareTMS.dat !
 fr_085=Scinder l'enregistrement ici
-fr_086=Rename movie
-fr_087=The entered file name is invalid.\nCharacter '/' is not allowed.
-fr_088=File name already exists!\nOverwrite?
-fr_089=Renaming of file has failed.
-fr_090=Enter a new name
-fr_091=Move cursor  
-fr_092=To end  
-fr_093=Delete char
-fr_094=Caps/Letters 
-fr_095=Special chars 
-fr_096=Copy 
-fr_097=Paste
-fr_098=Original 
-fr_099=Delete all    
-fr_100=Cancel 
-fr_101=Save
 
 
 #Dutch
@@ -423,19 +376,3 @@ nl_082=Minutensprong uit
 nl_083=Vrije schijfruimte is laag!\nToch doorgaan?
 nl_084=SystemType is onbekend.\nAUB de FirmwareTMS.dat kontroleren!
 nl_085=Film hier delen
-nl_086=Rename movie
-nl_087=The entered file name is invalid.\nCharacter '/' is not allowed.
-nl_088=File name already exists!\nOverwrite?
-nl_089=Renaming of file has failed.
-nl_090=Enter a new name
-nl_091=Move cursor  
-nl_092=To end  
-nl_093=Delete char
-nl_094=Caps/Letters 
-nl_095=Special chars 
-nl_096=Copy 
-nl_097=Paste
-nl_098=Original 
-nl_099=Delete all    
-nl_100=Cancel 
-nl_101=Save

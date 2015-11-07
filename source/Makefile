@@ -27,7 +27,7 @@ all: $(APP1).tap clean
 
 $(APP1).tap: $(APP1).o MovieCutterLib.o HddToolsLib.o CWTapApiLib.o
 	@echo "[Linking... $@]"
-	@$(LD) -shared --no-undefined --allow-shlib-undefined -O1 -s --gc-sections MovieCutterLib.o HddToolsLib.o CWTapApiLib.o -o $@ $< $(TAP_LIBS)
+	@$(LD) -shared --no-undefined --allow-shlib-undefined -O1 --gc-sections MovieCutterLib.o HddToolsLib.o CWTapApiLib.o -o $@ $< $(TAP_LIBS)
 	@$(JB) $@
 
 %.o: %.c ${BASE}/include/libFireBird.h

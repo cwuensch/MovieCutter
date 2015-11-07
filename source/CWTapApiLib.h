@@ -134,9 +134,8 @@ typedef struct
 } TYPE_RecHeader_TMST;
 
 
-void       GetCutNameFromRec(const char *RecFileName, const char *AbsDirectory, char *const OutCutFileName);  // needs FBLIB_DIR_SIZE chars
-void       HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNavCut);
-void       HDD_Delete2(const char *FileName, const char *AbsDirectory, bool DeleteInfNavCut);
+void       HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNav);
+void       HDD_Delete2(const char *FileName, const char *AbsDirectory, bool DeleteInfNav);
 bool       HDD_Exist2(const char *FileName, const char *AbsDirectory);
 bool       HDD_TruncateFile(const char *FileName, const char *AbsDirectory, off_t NewFileSize);
 bool       HDD_GetAbsolutePathByTypeFile2(TYPE_File *File, char *OutAbsFileName);    // OutAbsFileName: mind. FBLIB_DIR_SIZE Zeichen (inkl. Nullchar)
@@ -145,7 +144,7 @@ bool       HDD_GetFileSizeAndInode2(const char *FileName, const char *AbsDirecto
 bool       HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, dword NewDateTime);
 __off64_t  HDD_GetFreeDiscSpace(char *AnyFileName, char *AbsDirectory);
 bool       HDD_TAP_CheckCollisionByID(dword MyTapID);
-bool       HDD_StartPlayback2(char *FileName, char *AbsDirectory, bool MediaFileMode);
+bool       HDD_StartPlayback2(char *FileName, char *AbsDirectory);
 bool       ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks);
 bool       SaveBookmarks(dword Bookmarks[], int NrBookmarks, bool OverwriteAll);
 //TYPE_RepeatMode PlaybackRepeatMode(bool ChangeMode, TYPE_RepeatMode RepeatMode, dword RepeatStartBlock, dword RepeatEndBlock);
@@ -154,7 +153,6 @@ bool       PlaybackRepeatGet();
 bool       HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint, char *const OutDeviceNode);  // OutMountPoint und OutDeviceNode: max. FBLIB_DIR_SIZE (inkl. Nullchar)
 char*      RemoveEndLineBreak (char *const Text);
 char       SysTypeToStr(void);
-bool       ConvertUTFStr(char *DestStr, char *SourceStr, int MaxLen, bool ToUnicode);
 void       WriteLogMC(char *ProgramName, char *s);
 void       WriteLogMCf(char *ProgramName, const char *format, ...) __attribute__ ((format(__printf__, 2, 3)));
 //void       WriteDebugLog(const char *format, ...) __attribute__ ((format(__printf__, 1, 2)));
