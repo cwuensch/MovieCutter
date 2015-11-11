@@ -5569,7 +5569,7 @@ bool MovieCutterRenameFile(void)
 #endif
 
         // Wenn neuer Name nicht leer, aber verändert
-        if (*NewName && (strcmp(NewName, PlaybackName) != 0) && (strcmp(TempNameNoTypeChar, PlayNameNoTypeChar) != 0))
+        if (*NewName && (strcmp(NewName, PlaybackName) != 0) /*&& (strcmp(TempNameNoTypeChar, PlayNameNoTypeChar) != 0)*/)
         {
           // ggf. Rückfrage, ob existierende Datei überschrieben werden soll
           if ((!HDD_Exist2(NewName, AbsPlaybackDir) && !HDD_Exist2(TempNameBuffer, AbsPlaybackDir) && !HDD_Exist2(TempNameNoTypeChar, AbsPlaybackDir))

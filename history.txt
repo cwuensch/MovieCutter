@@ -1,12 +1,16 @@
-2015-09-?? v3.5* NEU:
-                   ** Umbenennen der laufenden Aufnahme mittels der Firebird-Tastatur
-                      (funktioniert auch im Direct-Mode über TMSRemote)
+2015-11-11 v3.5* NEU:
+                   ** Umbenennen der laufenden Aufnahme mittels (modifizierter) Firebird-Tastatur
+                      (funktioniert auch im DirectMode über TMSRemote)
+                   ** Format der cut-Speicherung in der inf-Datei geändert(*), zwecks Kompatibilität zwischen SRP/CRP-Aufnahmen
+                      (beide Formate werden eingelesen, nur neues geschrieben)
 
-2015-09-18 v3.4* NEU:
+2015-10-31 v3.4b*
+2015-09-18 v3.4  NEU:
                    ** es können nun auch TS-Dateien im MediaFiles-Ordner geschnitten werden
                       (aufgrund fehlender nav-Datei bestehen ggf. Einschränkungen bzgl. Spulen und Springen)
 
-2015-08-31 v3.3* NEU:
+2015-10-31 v3.3b*
+2015-08-31 v3.3  NEU:
                   *** neue Funktion "Aufnahme teilen" (ersetzt "Gerade Segmente löschen")
                   *** neue Behandlung des letzten Segments (truncate) -> verhindert Aufnahmenfresser!
                   *** fixed 4-byte-offset when cutting on Australian PVRs
