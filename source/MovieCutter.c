@@ -5486,7 +5486,7 @@ void MovieCutterDeleteFile(void)
 
 bool MovieCutterRenameFile(void)
 {
-  char                  NewName[MAX_FILE_NAME_SIZE], TempNameISO[MAX_FILE_NAME_SIZE];
+  char                  NewName[MAX_FILE_NAME_SIZE + 1], TempNameISO[MAX_FILE_NAME_SIZE + 1];
   char                 *ExtensionStart, *p;
   dword                 LastPlaybackPos;
   int                   i;
