@@ -3369,6 +3369,7 @@ bool CutFileSave2(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
           MSecToTimeString(SegmentMarker[i].Timems, TimeStamp);
           ret = (fprintf(fCut, "%3d ;  %c  ; %10lu ;%14s ;  %5.1f%%\r\n", i, (SegmentMarker[i].Selected ? '*' : '-'), SegmentMarker[i].Block, TimeStamp, SegmentMarker[i].Percent) > 0) && ret;
         }
+//        ret = (fflush(fCut) == 0) && ret;
         ret = (fclose(fCut) == 0) && ret;
         HDD_SetFileDateTime(&AbsCutName[1], "", 0);
       }
@@ -3450,10 +3451,10 @@ bool CutSaveToBM(bool ReadBMBefore)
 bool CutSaveToInf(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const char* RecFileName)
 {
   char                  AbsInfName[FBLIB_DIR_SIZE];
-  int                   fInf = -1;
+  FILE                 *fInf = NULL;
   byte                 *Buffer = NULL;
   TYPE_Bookmark_Info   *BookmarkInfo = NULL;
-  ssize_t               InfSize, BytesRead;
+  size_t               InfSize, BytesRead;
   bool                  ret = FALSE;
   
   TRACEENTER();
@@ -3482,8 +3483,8 @@ bool CutSaveToInf(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
 
     //Read inf
     TAP_SPrint(AbsInfName, sizeof(AbsInfName), "%s/%s.inf", AbsPlaybackDir, RecFileName);
-    fInf = open(AbsInfName, O_RDWR);
-    if(fInf < 0)
+    fInf = fopen(AbsInfName, "r+b");
+    if(!fInf)
     {
       WriteLogMC(PROGRAM_NAME, "CutSaveToInf: Failed to open the inf file!");
       TAP_MemFree(Buffer);
@@ -3492,7 +3493,7 @@ bool CutSaveToInf(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
     }
 
     //Read and Decode inf
-    BytesRead = read(fInf, Buffer, InfSize);
+    BytesRead = fread(Buffer, 1, InfSize, fInf);
     if (BytesRead > 0)
     {
       switch (GetSystemType())
@@ -3507,13 +3508,13 @@ bool CutSaveToInf(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
       if (BookmarkInfo && CutEncodeToBM(SegmentMarker, NrSegmentMarker, BookmarkInfo->Bookmarks, BookmarkInfo->NrBookmarks))
       {
         //Write the new inf
-        lseek(fInf, 0, SEEK_SET);
-        if (write(fInf, Buffer, InfSize) == InfSize)
+        fseek(fInf, 0, SEEK_SET);
+        if (fwrite(Buffer, 1, InfSize, fInf) == InfSize)
           ret = TRUE;
       }
     }
-    ret = (fsync(fInf) == 0) && ret;
-    ret = (close(fInf) == 0) && ret;
+//    ret = (fflush(fInf) == 0) && ret;
+    ret = (fclose(fInf) == 0) && ret;
     TAP_MemFree(Buffer);
     HDD_SetFileDateTime(&AbsInfName[1], "", 0);
 
@@ -6305,12 +6306,11 @@ dword NavGetBlockTimeStamp(dword PlaybackBlockNr)
 // SOLLTE eine nav-Datei einen Überlauf beinhalten, wird dieser durch PatchOldNavFile korrigiert.
 bool PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isHD)
 {
-  int                   fSourceNav = -1;
-  int                   fNewNav = -1;
+  FILE                 *fSourceNav = NULL;
+  FILE                 *fNewNav = NULL;
   char                  NavFileName[MAX_FILE_NAME_SIZE + 1];
   char                  BakFileName[MAX_FILE_NAME_SIZE + 1];
-  tnavSD               *navRecs = NULL;
-  ssize_t               navsRead, i;
+  tnavSD                NavBuffer[2], *CurNavRec = &NavBuffer[0];
   char                  AbsFileName[FBLIB_DIR_SIZE];
   bool                  ret = FALSE;
 
@@ -6326,94 +6326,70 @@ bool PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isH
     TRACEEXIT();
     return FALSE;
   }
-
   WriteLogMC(PROGRAM_NAME, "Checking source nav file (possibly older version with incorrect Times)...");
-
-  // Allocate the buffer
-  navRecs = (tnavSD*) TAP_MemAlloc(NAVRECS_SD * sizeof(tnavSD));
-  if (!navRecs)
-  {
-    WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E1a01.");
-    TRACEEXIT();
-    return FALSE;
-  }
 
   //Rename the original nav file to bak
   HDD_Rename2(NavFileName, BakFileName, AbsDirectory, FALSE);
 
   //Open the original nav
   TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s", AbsDirectory, BakFileName);
-  fSourceNav = open(AbsFileName, O_RDONLY);
-  if(fSourceNav < 0)
+  fSourceNav = fopen(AbsFileName, "rb");
+  if(!fSourceNav)
   {
-    WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E1a02.");
-    TAP_MemFree(navRecs);
+    WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E1a01.");
     TRACEEXIT();
     return FALSE;
   }
 
   //Create and open the new source nav
   TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s", AbsDirectory, NavFileName);
-  fNewNav = open(AbsFileName, O_WRONLY | O_TRUNC | O_CREAT | O_APPEND, 0666);
-  if(fNewNav < 0)
+  fNewNav = fopen(AbsFileName, "wb");
+  if(!fNewNav)
   {
-    close(fSourceNav);
-    WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E1a03.");
-    TAP_MemFree(navRecs);
+    fclose(fSourceNav);
+    WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E1a02.");
     TRACEEXIT();
     return FALSE;
   }
+
+  // Versuche, nav-Dateien aus Timeshift-Aufnahmen zu unterstützen ***experimentell***
+  dword FirstDword = 0;
+  fread(&FirstDword, 4, 1, fSourceNav);
+  if(FirstDword == 0x72767062)  // 'bpvr'
+    fseek(fSourceNav, 1056, SEEK_SET);
+  else
+    rewind(fSourceNav);
 
   //Loop through the nav
   dword Difference = 0;
   dword LastTime = 0;
   size_t navsCount = 0;
-  bool FirstRun = TRUE;
 
-  while(TRUE)
+  while (fread(CurNavRec, sizeof(tnavSD) * (isHD ? 2 : 1), 1, fSourceNav))
   {
-    navsRead = read(fSourceNav, navRecs, NAVRECS_SD * sizeof(tnavSD)) / sizeof(tnavSD);
-    if(navsRead == 0) break;
-
-    // Versuche, nav-Dateien aus Timeshift-Aufnahmen zu unterstützen ***experimentell***
-    if(FirstRun)
-    {
-      FirstRun = FALSE;
-      if(navRecs[0].SHOffset == 0x72767062)  // 'bpvr'
-      {
-        lseek(fSourceNav, 1056, SEEK_SET);
-        continue;
-      }
-    }
-
     ret = TRUE;
-    for(i = 0; i < navsRead; i++)
-    {
-      // Falls HD: Betrachte jeden tnavHD-Record als 2 tnavSD-Records, verwende den ersten und überspringe den zweiten
-      if (isHD && (i % 2 != 0)) continue;
 
-      if (navRecs[i].Timems - LastTime >= 3000)
-      {
-        Difference += (navRecs[i].Timems - LastTime) - 1000;
-        WriteLogMCf(PROGRAM_NAME, "  - Gap found at nav record nr. %u:  Offset=%llu, TimeStamp(before)=%lu, TimeStamp(after)=%lu, GapSize=%lu", navsCount /*(ftell(fSourceNav)/sizeof(tnavSD) - navsRead + i) / ((isHD) ? 2 : 1)*/, ((off_t)(navRecs[i].PHOffsetHigh) << 32) | navRecs[i].PHOffset, navRecs[i].Timems, navRecs[i].Timems-Difference, navRecs[i].Timems-LastTime);
-      }
-      LastTime = navRecs[i].Timems;
-      navRecs[i].Timems -= Difference;
-      navsCount++;
+    if (CurNavRec->Timems - LastTime >= 3000)
+    {
+      Difference += (CurNavRec->Timems - LastTime) - 1000;
+      WriteLogMCf(PROGRAM_NAME, "  - Gap found at nav record nr. %u:  Offset=%llu, TimeStamp(before)=%lu, TimeStamp(after)=%lu, GapSize=%lu", navsCount /*(ftell(fSourceNav)/sizeof(tnavSD) - navsRead + i) / ((isHD) ? 2 : 1)*/, ((off_t)(CurNavRec->PHOffsetHigh) << 32) | CurNavRec->PHOffset, CurNavRec->Timems, CurNavRec->Timems-Difference, CurNavRec->Timems-LastTime);
     }
-    ret = (write(fNewNav, navRecs, navsRead * sizeof(tnavSD)) == navsRead * (int)sizeof(tnavSD)) && ret;
+    LastTime = CurNavRec->Timems;
+    CurNavRec->Timems -= Difference;
+    navsCount++;
+
+    ret = (fwrite(CurNavRec, sizeof(tnavSD) * (isHD ? 2 : 1), 1, fNewNav)) && ret;
   }
 
-  ret = (fsync(fNewNav) == 0) && ret;
-  ret = (close(fNewNav) == 0) && ret;
-  close(fSourceNav);
-  TAP_MemFree(navRecs);
+//  ret = (fflush(fNewNav) == 0) && ret;
+  ret = (fclose(fNewNav) == 0) && ret;
+  fclose(fSourceNav);
   HDD_SetFileDateTime(&AbsFileName[1], "", 0);
 
   //On error rename the bak file back to original
   if (!ret)
   {
-    WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E1a04.");
+    WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E1a03.");
     HDD_Delete2(NavFileName, AbsDirectory, FALSE);
     HDD_Rename2(BakFileName, NavFileName, AbsDirectory, FALSE);
     TRACEEXIT();
