@@ -4119,7 +4119,7 @@ void OSDInfoDrawRecName(void)
   int                   TimeTop      = FrameTop + 13,                                                      TitleLeft   = FrameLeft + 2;
   int                   TitleWidth   = FrameWidth - TimeWidth - (TitleLeft - FrameLeft) - 12;
   int                   TitleHeight, TitleTop;
-  char                  TitleStr[MAX_FILE_NAME_SIZE + 1];
+  char                  TitleStr[MAX_FILE_NAME_SIZE];
   char                  TimeStr[8];
   dword                 TimeVal, Hours, Minutes, Seconds;
 
@@ -5487,7 +5487,7 @@ void MovieCutterDeleteFile(void)
 
 bool MovieCutterRenameFile(void)
 {
-  char                  NewName[MAX_FILE_NAME_SIZE + 1], TempNameISO[MAX_FILE_NAME_SIZE + 1];
+  char                  NewName[MAX_FILE_NAME_SIZE], TempNameISO[MAX_FILE_NAME_SIZE];
   char                 *ExtensionStart, *p;
   dword                 LastPlaybackPos;
   int                   i;
@@ -5540,7 +5540,7 @@ bool MovieCutterRenameFile(void)
         ShowErrorMessage(LangGetString(LS_NameInvalid), NULL);
       else
       {
-        char            TempNameBuffer[MAX_FILE_NAME_SIZE + 2]; TempNameBuffer[0] = '\5';
+        char            TempNameBuffer[MAX_FILE_NAME_SIZE + 1]; TempNameBuffer[0] = '\5';
         char           *TempNameFull;
         char           *PlayNameNoTypeChar, *TempNameNoTypeChar;  // *TempNameWithTypeChar;
 
@@ -5667,8 +5667,8 @@ void MovieCutterProcess(bool KeepCut, bool SplitMovie)  // Splittet am linken Se
   bool                  isMultiSelect, CutEnding;
   int                   WorkingSegment;
   int                   maxProgress; 
-  char                  CutFileName[MAX_FILE_NAME_SIZE + 1];
-  char                  TempFileName[MAX_FILE_NAME_SIZE + 1];
+  char                  CutFileName[MAX_FILE_NAME_SIZE];
+  char                  TempFileName[MAX_FILE_NAME_SIZE];
   char                  MessageString[512];
   tTimeStamp            CutStartPoint, BehindCutPoint;
   dword                 DeltaBlock, DeltaTime;
@@ -5828,7 +5828,7 @@ if (DoiCheckTest >= 3)
 if (KeepCut || CutEnding)
 {
   __ino64_t OldInodeNr, NewInodeNr;
-  char CommandLine[FBLIB_DIR_SIZE], InfFileName[MAX_FILE_NAME_SIZE + 1];
+  char CommandLine[FBLIB_DIR_SIZE], InfFileName[MAX_FILE_NAME_SIZE];
   TAP_SPrint(InfFileName, sizeof(InfFileName), "%s.inf", PlaybackName);
   if (HDD_GetFileSizeAndInode2(InfFileName, AbsPlaybackDir, &OldInodeNr, NULL))
   {
@@ -6308,8 +6308,8 @@ bool PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isH
 {
   FILE                 *fSourceNav = NULL;
   FILE                 *fNewNav = NULL;
-  char                  NavFileName[MAX_FILE_NAME_SIZE + 1];
-  char                  BakFileName[MAX_FILE_NAME_SIZE + 1];
+  char                  NavFileName[MAX_FILE_NAME_SIZE];
+  char                  BakFileName[MAX_FILE_NAME_SIZE];
   tnavSD                NavBuffer[2], *CurNavRec = &NavBuffer[0];
   char                  AbsFileName[FBLIB_DIR_SIZE];
   bool                  ret = FALSE;

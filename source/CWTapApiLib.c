@@ -277,7 +277,7 @@ bool HDD_TAP_CheckCollisionByID(dword MyTapID)
 // ----------------------------------------------------------------------------
 bool HDD_StartPlayback2(char *FileName, char *AbsDirectory, bool MediaFileMode)
 {
-//  char                  InfFileName[MAX_FILE_NAME_SIZE + 1];
+//  char                  InfFileName[MAX_FILE_NAME_SIZE];
   tDirEntry             FolderStruct;
   bool                  ret = FALSE;
 
@@ -758,7 +758,7 @@ bool infData_Get2(const char *RecFileName, const char *AbsDirectory, const char 
 
 bool infData_Set2(const char *RecFileName, const char *AbsDirectory, const char *NameTag, dword PayloadSize, byte Payload[])
 {
-  char InfFileName[MAX_FILE_NAME_SIZE + 1];
+  char InfFileName[MAX_FILE_NAME_SIZE];
   bool                  ret;
   tTFRPlusHdr           TFRPlusHdr;
 
@@ -810,7 +810,7 @@ bool infData_Set2(const char *RecFileName, const char *AbsDirectory, const char 
 
 bool infData_Delete2(const char *RecFileName, const char *AbsDirectory, const char *NameTag)
 {
-  char                  InfFileName[MAX_FILE_NAME_SIZE + 1];
+  char                  InfFileName[MAX_FILE_NAME_SIZE];
   dword                 SourcePos, DestPos, Len;
   tTFRPlusHdr           TFRPlusHdr;
   char                  NameTagHdr[INFDATAMAXSIG];

@@ -113,7 +113,7 @@ dword TimeStringToMSec(char *const TimeString)
 
 void GetNextFreeCutName(const char *SourceFileName, char *const OutCutFileName, const char *AbsDirectory, int LeaveNamesOut)
 {
-  char                  CheckFileName[MAX_FILE_NAME_SIZE + 1], *p;
+  char                  CheckFileName[MAX_FILE_NAME_SIZE], *p;
   size_t                NameLen, ExtStart;
   int                   FreeIndices = 0, i = 0;
 
@@ -131,7 +131,7 @@ void GetNextFreeCutName(const char *SourceFileName, char *const OutCutFileName, 
     do
     {
       i++;
-      TAP_SPrint(&CheckFileName[NameLen], MAX_FILE_NAME_SIZE+1 - NameLen, " (Cut-%d)%s", i, &SourceFileName[ExtStart]);
+      TAP_SPrint(&CheckFileName[NameLen], sizeof(CheckFileName) - NameLen, " (Cut-%d)%s", i, &SourceFileName[ExtStart]);
       if (!HDD_Exist2(CheckFileName, AbsDirectory))
         FreeIndices++;
     } while (FreeIndices <= LeaveNamesOut);
@@ -147,7 +147,7 @@ void GetNextFreeCutName(const char *SourceFileName, char *const OutCutFileName, 
 // ----------------------------------------------------------------------------
 tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirectory, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepCut, bool isHD)
 {
-  char                  FileName[MAX_FILE_NAME_SIZE + 1];
+  char                  FileName[MAX_FILE_NAME_SIZE];
   off_t                 SourceFileSize, CutFileSize;
   __ino64_t             InodeNr;
   dword                 MaxBehindCutBlock;
@@ -362,7 +362,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
   }
 
   // Rename old nav file to bak
-  char BakFileName[MAX_FILE_NAME_SIZE + 1];
+  char BakFileName[MAX_FILE_NAME_SIZE];
   TAP_SPrint(FileName, sizeof(FileName), "%s.nav", SourceFileName);
   TAP_SPrint(BakFileName, sizeof(BakFileName), "%s.nav.bak", SourceFileName);
   if (HDD_Exist2(FileName, AbsDirectory))
@@ -610,7 +610,7 @@ int GetPacketSize(const char *RecFileName, const char *AbsDirectory)
 
 bool isNavAvailable(const char *RecFileName, const char *AbsDirectory)
 {
-  char                  NavFileName[MAX_FILE_NAME_SIZE + 1];
+  char                  NavFileName[MAX_FILE_NAME_SIZE];
   off_t                 NavFileSize;
   bool                  ret;
 
