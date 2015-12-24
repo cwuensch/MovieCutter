@@ -33,6 +33,10 @@ TAP_ETCINFO             (__DATE__);
 typedef enum
 {
   LS_AskConfirmation,
+  LS_NoFiles,
+  LS_FinishedStr,
+  LS_StatusTitle,
+  LS_StatusText,
   LS_Yes,
   LS_No,
   LS_OK,
@@ -41,12 +45,16 @@ typedef enum
 
 static char* DefaultStrings[LS_NrStrings] =
 {
-  "Sind Sie sicher?",
+  "%d Aufnahme(n) jetzt schrumpfen?",
+  "Keine Dateien zu verarbeiten.",
+  "RecStripper beendet.\n%i von %i Dateien erfolgreich verarbeitet.",
+  "Verarbeite [%d/%d] . . .",
+  "%s\nZeit vergangen: %lu s, Zeit verbleibend: %lu s",
   "Ja",
   "Nein",
   "Ok"
 };
-#ifdef MC_MULTILANG
+#ifdef RS_MULTILANG
   #define LangGetString(x)  LangGetStringDefault(x, DefaultStrings[x])
 #else
   #define LangGetString(x)  DefaultStrings[x]  
@@ -137,7 +145,7 @@ int TAP_Main(void)
           OSDMenuEvent(NULL, NULL, NULL);
         } while(OSDMenuInfoBoxIsVisible());
 
-        #ifdef MC_UNICODE
+        #ifdef RS_UNICODE
           FMUC_FreeFontFile(&Calibri_10_FontData);
           FMUC_FreeFontFile(&Calibri_12_FontData);
           FMUC_FreeFontFile(&Calibri_14_FontData);
@@ -158,77 +166,88 @@ int TAP_Main(void)
   TAP_Hdd_ChangeDir("/DataFiles/RecStrip");
   NrRecFiles = TAP_Hdd_FindFirst(&FolderEntry, "rec");
   WriteLogMCf(PROGRAM_NAME, "Nr of files in folder: %i", NrRecFiles);
-  for (CurRecNr = 0; CurRecNr < NrRecFiles; CurRecNr++)
+
+  if (NrRecFiles > 0)
   {
-    if(FolderEntry.attr == ATTR_NORMAL)
+    TAP_SPrint(MessageStr, sizeof(MessageStr), LangGetString(LS_AskConfirmation), NrRecFiles);
+    if (ShowConfirmationDialog(MessageStr))
     {
-      byte sec;
-      TAP_SPrint(CurRecName, sizeof(CurRecName), FolderEntry.name);
-      strcpy(OutRecName, CurRecName);
-      HDD_GetFileSizeAndInode2(CurRecName, ABSRECDIR, NULL, &RecFileSize);
-
-      WriteLogMCf(PROGRAM_NAME, "Processing file '%s' (%llu bytes)... ", CurRecName, RecFileSize);
-      StartTime = PvrTimeToLinux(Now(&sec)) + sec;
-
-      // Start RecStrip
-      RecStrip_Cancelled = FALSE;
-      TAP_SPrint(CommandLine, sizeof(CommandLine), RECSTRIPPATH "/RecStrip \"%s/%s\" \"%s/%s\" &> /tmp/RecStrip.log & echo $!", ABSRECDIR, CurRecName, ABSOUTDIR, OutRecName);
-      FILE* fPidFile = popen(CommandLine, "r");
-      if(fPidFile)
+      for (CurRecNr = 0; CurRecNr < NrRecFiles; CurRecNr++)
       {
-//        if (fgets(PidStr, 13, fPidFile))
-//          fsck_Pid = atoi(PidStr);
-        fscanf(fPidFile, "%ld", &RecStrip_Pid);
-        pclose(fPidFile);
-      }
-
-      //Wait for termination of fsck
-      TAP_SPrint(CommandLine, sizeof(CommandLine), "/proc/%lu", RecStrip_Pid);
-      while (access(CommandLine, F_OK) != -1)
-      {
-//        BytesRead += fread(&LogBuffer[BytesRead], 1, BufSize-BytesRead-1, fLogFile);
-//        LogBuffer[BytesRead] = '\0';
-//        TAP_PrintNet(LogBuffer);
-        TAP_Sleep(100);
-        TAP_SystemProc();
-      }
-            
-      // Get exit code of RecStrip
-      RecStrip_Return = -1;
-      if (RecStrip_Pid)
-      {
-        TAP_SPrint(CommandLine, sizeof(CommandLine), "wait %lu", RecStrip_Pid);
-        FILE* fRetFile = popen(CommandLine, "r");
-        if(fRetFile)
+        if(FolderEntry.attr == ATTR_NORMAL)
         {
-          fscanf(fPidFile, "%ld", &RecStrip_Return);
-          pclose(fPidFile);
+          byte sec;
+          TAP_SPrint(CurRecName, sizeof(CurRecName), FolderEntry.name);
+          strcpy(OutRecName, CurRecName);
+          HDD_GetFileSizeAndInode2(CurRecName, ABSRECDIR, NULL, &RecFileSize);
+
+          WriteLogMCf(PROGRAM_NAME, "Processing file '%s' (%llu bytes)... ", CurRecName, RecFileSize);
+          StartTime = PvrTimeToLinux(Now(&sec)) + sec;
+
+          // Start RecStrip
+          RecStrip_Cancelled = FALSE;
+          TAP_SPrint(CommandLine, sizeof(CommandLine), RECSTRIPPATH "/RecStrip \"%s/%s\" \"%s/%s\" &> /tmp/RecStrip.log & echo $!", ABSRECDIR, CurRecName, ABSOUTDIR, OutRecName);
+          FILE* fPidFile = popen(CommandLine, "r");
+          if(fPidFile)
+          {
+//            if (fgets(PidStr, 13, fPidFile))
+//              fsck_Pid = atoi(PidStr);
+            fscanf(fPidFile, "%ld", &RecStrip_Pid);
+            pclose(fPidFile);
+          }
+
+          //Wait for termination of fsck
+          TAP_SPrint(CommandLine, sizeof(CommandLine), "/proc/%lu", RecStrip_Pid);
+          while (access(CommandLine, F_OK) != -1)
+          {
+//            BytesRead += fread(&LogBuffer[BytesRead], 1, BufSize-BytesRead-1, fLogFile);
+//            LogBuffer[BytesRead] = '\0';
+//            TAP_PrintNet(LogBuffer);
+            TAP_Sleep(100);
+            TAP_SystemProc();
+          }
+            
+          // Get exit code of RecStrip
+          RecStrip_Return = -1;
+          if (RecStrip_Pid)
+          {
+            TAP_SPrint(CommandLine, sizeof(CommandLine), "wait %lu 2> nul; echo $?", RecStrip_Pid);
+            FILE* fRetFile = popen(CommandLine, "r");
+            if(fRetFile)
+            {
+              fscanf(fPidFile, "%ld", &RecStrip_Return);
+              pclose(fPidFile);
+            }
+            system("cat /tmp/RecStrip.log >> " LOGFILEDIR "/RecStrip.log");
+          }
+          RecStrip_Pid = 0;
+
+          // Output RecStrip return
+          HDD_GetFileSizeAndInode2(OutRecName, ABSOUTDIR, NULL, &CurOutFileSize);
+          dword CurTime = PvrTimeToLinux(Now(&sec)) + sec;
+          if (RecStrip_Return == 0)
+          {
+            WriteLogMCf(PROGRAM_NAME, "Success! Output size %llu (%.2f %% reduced). Elapsed time: %lu s.", CurOutFileSize, ((double)CalcBlockSize(CurOutFileSize)/CalcBlockSize(RecFileSize))*100, CurTime-StartTime);
+            NrSuccessful++;
+          }
+          else if (RecStrip_Cancelled)
+            WriteLogMCf(PROGRAM_NAME, "RecStrip aborted! Elapsed time: %lu s.", CurTime-StartTime);
+          else
+          {
+            WriteLogMCf(PROGRAM_NAME, "RecStrip returned error code %lu! Elapsed time: %lu s.", RecStrip_Return, CurTime-StartTime);
+//            HDD_Delete2(OutRecName, ABSOUTDIR, TRUE);
+          }
         }
+        TAP_Hdd_FindNext(&FolderEntry);
       }
-      RecStrip_Pid = 0;
-
-      // Output RecStrip return
-      HDD_GetFileSizeAndInode2(OutRecName, ABSOUTDIR, NULL, &CurOutFileSize);
-      dword CurTime = PvrTimeToLinux(Now(&sec)) + sec;
-      if (RecStrip_Return == 0)
-      {
-        WriteLogMCf(PROGRAM_NAME, "Success! Output size %llu (%.2f %% reduced). Elapsed time: %lu s.", CurOutFileSize, ((double)CalcBlockSize(CurOutFileSize)/CalcBlockSize(RecFileSize))*100, CurTime-StartTime);
-        NrSuccessful++;
-      }
-      else if (RecStrip_Cancelled)
-        WriteLogMCf(PROGRAM_NAME, "RecStrip aborted! Elapsed time: %lu s.", CurTime-StartTime);
-      else
-      {
-        WriteLogMCf(PROGRAM_NAME, "RecStrip returned error code %lu! Elapsed time: %lu s.", RecStrip_Return, CurTime-StartTime);
-//        HDD_Delete2(OutRecName, ABSOUTDIR, TRUE);
-      }
+      OSDMenuProgressBarDestroyNoOSDUpdate();
+      WriteLogMCf(PROGRAM_NAME, "%d of %d files successfully processed.", NrSuccessful, NrRecFiles);
+      TAP_SPrint(MessageStr, sizeof(MessageStr), LangGetString(LS_FinishedStr), NrSuccessful, NrRecFiles);
+      ShowErrorMessage(MessageStr, PROGRAM_NAME);
     }
-    TAP_Hdd_FindNext(&FolderEntry);
   }
-
-  TAP_SPrint(MessageStr, sizeof(MessageStr), "RecStripper finished.\n\n%i of %i files successfully processed.", NrSuccessful, NrRecFiles);
-  WriteLogMC(PROGRAM_NAME, MessageStr);
-  ShowErrorMessage(MessageStr, PROGRAM_NAME);
+  else
+    ShowErrorMessage(LangGetString(LS_NoFiles), PROGRAM_NAME);
 
   #ifdef RS_MULTILANG
     LangUnloadStrings();
@@ -282,18 +301,19 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
   if (event == EVT_IDLE)
   {
-    if(labs(TAP_GetTick() - LastDraw) > 10)
+    if(labs(TAP_GetTick() - LastDraw) > 100)
     {
       sync();
       if (RecStrip_Pid && HDD_GetFileSizeAndInode2(OutRecName, ABSOUTDIR, NULL, &CurOutFileSize))
       {
         byte sec;
-        char ProgressStr[MAX_FILE_NAME_SIZE + 128];
+        char TitleStr[128], ProgressStr[MAX_FILE_NAME_SIZE + 128];
         dword CurTime = PvrTimeToLinux(Now(&sec)) + sec;
         dword percent = CalcBlockSize(CurOutFileSize)/(CalcBlockSize(RecFileSize)/100);
 
-        TAP_SPrint(ProgressStr, sizeof(ProgressStr), "Stripping movie [%d/%d] . . .\n%s\nElapsed time: %lu s, Remaining time: %lu s", CurRecNr+1, NrRecFiles, CurRecName, CurTime-StartTime, ((100-percent)*(CurTime-StartTime))/100);
-        OSDMenuProgressBarShow(PROGRAM_NAME, ProgressStr, percent, 100, NULL);
+        TAP_SPrint(TitleStr, sizeof(ProgressStr), LangGetString(LS_StatusTitle), CurRecNr+1, NrRecFiles);
+        TAP_SPrint(ProgressStr, sizeof(ProgressStr), LangGetString(LS_StatusText), CurRecName, CurTime-StartTime, (percent ? ((100*(CurTime-StartTime))/percent)-(CurTime-StartTime) : 0));
+        OSDMenuProgressBarShow(TitleStr, ProgressStr, percent, 100, NULL);
       }
       else
         OSDMenuProgressBarDestroyNoOSDUpdate();
@@ -405,8 +425,8 @@ bool ShowConfirmationDialog(char *MessageStr)
   OSDMenuMessageBoxInitialize(PROGRAM_NAME, MessageStr);
   OSDMenuMessageBoxDoNotEnterNormalMode(TRUE);
   OSDMenuMessageBoxAllowScrollOver();
-  OSDMenuMessageBoxButtonAdd("Ja");
-  OSDMenuMessageBoxButtonAdd("Nein");
+  OSDMenuMessageBoxButtonAdd(LangGetString(LS_Yes));
+  OSDMenuMessageBoxButtonAdd(LangGetString(LS_No));
   OSDMenuMessageBoxButtonSelect(1);
   OSDMenuMessageBoxShow();
   while (OSDMenuMessageBoxIsVisible())
@@ -436,7 +456,7 @@ void ShowErrorMessage(char *MessageStr, char *TitleStr)
 
   OSDMenuMessageBoxInitialize((TitleStr) ? TitleStr : PROGRAM_NAME, MessageStr);
   OSDMenuMessageBoxDoNotEnterNormalMode(TRUE);
-  OSDMenuMessageBoxButtonAdd("Ok");
+  OSDMenuMessageBoxButtonAdd(LangGetString(LS_OK));
   OSDMenuMessageBoxShow();
   while (OSDMenuMessageBoxIsVisible())
   {

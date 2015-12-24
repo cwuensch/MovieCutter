@@ -19,6 +19,6 @@ if not "%1"=="/quiet" (
   )
 )
 if "%BuildState%"=="0" (
-  move /y YouTopf.tap ..\YouTopf.tap
+  move /y RecStripper.tap ..\RecStripper.tap
 )
 exit %BuildState%

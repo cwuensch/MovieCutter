@@ -16,6 +16,7 @@
 #define LOGFILE               PROGRAM_NAME ".log"
 #define LNGFILENAME           PROGRAM_NAME ".lng"
 #define INIFILENAME           PROGRAM_NAME ".ini"
+#define LOGFILEDIR            TAPFSROOT "/ProgramFiles/Settings/" PROGRAM_NAME
 #define RECSTRIPPATH          TAPFSROOT "/ProgramFiles"
 #define ABSRECDIR             TAPFSROOT "/DataFiles/RecStrip"
 #define ABSOUTDIR             TAPFSROOT "/DataFiles/RecStrip_out"

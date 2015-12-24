@@ -1,0 +1,43 @@
+# To add a new language, copy a block and translate it
+# the following codes are supported:
+#
+# LAN_Arab          ar
+# LAN_Czech         cs
+# LAN_Danish        da
+# LAN_Dutch         nl
+# LAN_English       en
+# LAN_French        fr
+# LAN_German        de
+# LAN_Greek         el
+# LAN_Italy         it
+# LAN_Norwegian     no
+# LAN_Persian       fa
+# LAN_Polish        pl
+# LAN_Russian       ru
+# LAN_Slovak        sk
+# LAN_Spain         es
+# LAN_Suomi         fi
+# LAN_Swedish       sv
+# LAN_Thai          th
+# LAN_Turk          tr
+
+
+#Deutsch
+de_000=%d Aufnahme(n) jetzt schrumpfen?
+de_001=Keine Dateien zu verarbeiten.
+de_002=RecStripper beendet.\n%i von %i Dateien erfolgreich verarbeitet.
+de_003=Verarbeite [%d/%d] . . .
+de_004=%s\nZeit vergangen: %lu s, Zeit verbleibend: %lu s
+de_005=Ja
+de_006=Nein
+de_007=Ok
+
+#English
+en_000=Process %d recording(s) now?
+en_001=No Files to process.
+en_002=RecStripper finished.\n%i of %i files successfully processed.
+en_003=Stripping movie [%d/%d] . . .
+en_004=%s\nElapsed time: %lu s, Remaining time: %lu s
+en_005=Yes
+en_006=No
+en_005=Ok
