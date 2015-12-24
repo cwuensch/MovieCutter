@@ -562,7 +562,7 @@ bool ConvertUTFStr(char *DestStr, char *SourceStr, int MaxLen, bool ToUnicode)
 // ----------------------------------------------------------------------------
 FILE *fLogMC = NULL;
 
-void CloseLogMC()
+void CloseLogMC(void)
 {
   if (fLogMC)
   {

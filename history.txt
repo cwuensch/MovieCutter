@@ -1,3 +1,13 @@
+2015-12-15 v3.5b* NEU:
+                    * OSD-Keyboard bei Aufnahme umbenennen unterstützt auch Eingabe über USB-Tastatur
+
+                  INTERNALS:
+                    - File-I/O-Zugriffe in den Inf-/Nav-Methoden wieder über C-StandardLib (fopen/fread/fwrite) statt SystemCalls realisiert
+                    - PatchNavFiles(), NavLoad() und PatchOldNavFile() arbeiten nun ohne eigenes Buffering (-> übernimmt fread/fwrite)
+                    - auch WriteLogMC wieder mit gepufferten Stream-Funktionen, Buffering zusätzlich auf zeilenweise umgestellt
+                    - Dateinamen-Puffer reduziert, da Dateinamen nur MAX_FILE_NAME_SIZE (inkl. Null) lang sein dürfen
+                    - jfs_fsck: File-I/O über C-StandardLib und zeilenweises Buffering in Standardausgabe
+
 2015-11-11 v3.5* NEU:
                    ** Umbenennen der laufenden Aufnahme mittels (modifizierter) Firebird-Tastatur
                       (funktioniert auch im DirectMode über TMSRemote)
