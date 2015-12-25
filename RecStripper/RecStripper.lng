@@ -26,18 +26,16 @@
 de_000=%d Aufnahme(n) jetzt schrumpfen?
 de_001=Keine Dateien zu verarbeiten.
 de_002=RecStripper beendet.\n%i von %i Dateien erfolgreich verarbeitet.
-de_003=Verarbeite [%d/%d] . . .
-de_004=%s\nZeit vergangen: %lu s, Zeit verbleibend: %lu s
-de_005=Ja
-de_006=Nein
-de_007=Ok
+de_003=Verarbeite [%d/%d] . . .\n%s\n\nZeit vergangen: %lu s, Zeit verbleibend: %lu s\n\n
+de_004=Ja
+de_005=Nein
+de_006=Ok
 
 #English
 en_000=Process %d recording(s) now?
 en_001=No Files to process.
 en_002=RecStripper finished.\n%i of %i files successfully processed.
-en_003=Stripping movie [%d/%d] . . .
-en_004=%s\nElapsed time: %lu s, Remaining time: %lu s
-en_005=Yes
-en_006=No
-en_005=Ok
+en_003=Stripping movie [%d/%d] . . .\n%s\n\nElapsed time: %lu s, Remaining time: %lu s\n\n
+en_004=Yes
+en_005=No
+en_006=Ok

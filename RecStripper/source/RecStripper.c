@@ -10,6 +10,7 @@
 #include                <stdio.h>
 #include                <stdlib.h>
 #include                <unistd.h>
+#include                <fcntl.h>
 #include                <string.h>
 #include                <stdarg.h>
 #include                <sys/stat.h>
@@ -35,7 +36,6 @@ typedef enum
   LS_AskConfirmation,
   LS_NoFiles,
   LS_FinishedStr,
-  LS_StatusTitle,
   LS_StatusText,
   LS_Yes,
   LS_No,
@@ -48,8 +48,7 @@ static char* DefaultStrings[LS_NrStrings] =
   "%d Aufnahme(n) jetzt schrumpfen?",
   "Keine Dateien zu verarbeiten.",
   "RecStripper beendet.\n%i von %i Dateien erfolgreich verarbeitet.",
-  "Verarbeite [%d/%d] . . .",
-  "%s\nZeit vergangen: %lu s, Zeit verbleibend: %lu s",
+  "Verarbeite [%d/%d] . . .\n%s\n\nZeit vergangen: %lu s, Zeit verbleibend: %lu s\n\n",
   "Ja",
   "Nein",
   "Ok"
@@ -186,7 +185,7 @@ int TAP_Main(void)
 
           // Start RecStrip
           RecStrip_Cancelled = FALSE;
-          TAP_SPrint(CommandLine, sizeof(CommandLine), RECSTRIPPATH "/RecStrip \"%s/%s\" \"%s/%s\" &> /tmp/RecStrip.log & echo $!", ABSRECDIR, CurRecName, ABSOUTDIR, OutRecName);
+          TAP_SPrint(CommandLine, sizeof(CommandLine), "( rm /tmp/RecStrip.* ; " RECSTRIPPATH "/RecStrip \"%s/%s\" \"%s/%s\" &> /tmp/RecStrip.log ; echo $? > /tmp/RecStrip.out ) & echo $!", ABSRECDIR, CurRecName, ABSOUTDIR, OutRecName);
           FILE* fPidFile = popen(CommandLine, "r");
           if(fPidFile)
           {
@@ -211,13 +210,22 @@ int TAP_Main(void)
           RecStrip_Return = -1;
           if (RecStrip_Pid)
           {
-            TAP_SPrint(CommandLine, sizeof(CommandLine), "wait %lu 2> nul; echo $?", RecStrip_Pid);
-            FILE* fRetFile = popen(CommandLine, "r");
+            FILE* fRetFile = fopen("/tmp/RecStrip.out", "rb");
             if(fRetFile)
             {
               fscanf(fPidFile, "%ld", &RecStrip_Return);
-              pclose(fPidFile);
+TAP_PrintNet("Return fopen: %lu\n", RecStrip_Return);
+              fclose(fPidFile);
             }
+/*            int fRetFile2 = open("/tmp/RecStrip.out", O_RDONLY);
+            if (fRetFile2 > 0)
+            {
+              char tmp[10];
+              if (read(fRetFile2, tmp, 10) > 0)
+                RecStrip_Return = atoi(tmp);
+TAP_PrintNet("Return open: %lu\n", RecStrip_Return);
+              close(fRetFile2);
+            } */
             system("cat /tmp/RecStrip.log >> " LOGFILEDIR "/RecStrip.log");
           }
           RecStrip_Pid = 0;
@@ -307,13 +315,14 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       if (RecStrip_Pid && HDD_GetFileSizeAndInode2(OutRecName, ABSOUTDIR, NULL, &CurOutFileSize))
       {
         byte sec;
-        char TitleStr[128], ProgressStr[MAX_FILE_NAME_SIZE + 128];
+        char ProgressStr[MAX_FILE_NAME_SIZE + 128], ISORecName[MAX_FILE_NAME_SIZE + 1];
         dword CurTime = PvrTimeToLinux(Now(&sec)) + sec;
         dword percent = CalcBlockSize(CurOutFileSize)/(CalcBlockSize(RecFileSize)/100);
 
-        TAP_SPrint(TitleStr, sizeof(ProgressStr), LangGetString(LS_StatusTitle), CurRecNr+1, NrRecFiles);
-        TAP_SPrint(ProgressStr, sizeof(ProgressStr), LangGetString(LS_StatusText), CurRecName, CurTime-StartTime, (percent ? ((100*(CurTime-StartTime))/percent)-(CurTime-StartTime) : 0));
-        OSDMenuProgressBarShow(TitleStr, ProgressStr, percent, 100, NULL);
+        StrToISO(CurRecName, ISORecName);
+//        TAP_SPrint(TitleStr, sizeof(ProgressStr), LangGetString(LS_StatusTitle), CurRecNr+1, NrRecFiles);
+        TAP_SPrint(ProgressStr, sizeof(ProgressStr), LangGetString(LS_StatusText), CurRecNr+1, NrRecFiles, ISORecName, CurTime-StartTime, (percent ? ((100*(CurTime-StartTime))/percent)-(CurTime-StartTime) : 0));
+        OSDMenuProgressBarShow(PROGRAM_NAME, ProgressStr, percent, 100, NULL);
       }
       else
         OSDMenuProgressBarDestroyNoOSDUpdate();
