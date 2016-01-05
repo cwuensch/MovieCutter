@@ -235,7 +235,7 @@ TAP_PrintNet("Return open: %lu\n", RecStrip_Return);
           dword CurTime = PvrTimeToLinux(Now(&sec)) + sec;
           if (RecStrip_Return == 0)
           {
-            WriteLogMCf(PROGRAM_NAME, "Success! Output size %llu (%.2f %% reduced). Elapsed time: %lu s.", CurOutFileSize, ((double)CalcBlockSize(CurOutFileSize)/CalcBlockSize(RecFileSize))*100, CurTime-StartTime);
+            WriteLogMCf(PROGRAM_NAME, "Success! Output size %llu (%.2f %% reduced). Elapsed time: %lu s.", CurOutFileSize, 100.0-(((double)CalcBlockSize(CurOutFileSize)/CalcBlockSize(RecFileSize))*100), CurTime-StartTime);
             NrSuccessful++;
           }
           else if (RecStrip_Cancelled)

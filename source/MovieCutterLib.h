@@ -45,19 +45,20 @@ typedef struct
 
 typedef struct
 {
-  dword                 LastPPS;
+  dword                 SEIPPS:24;
+  dword                 FrameType:8;
   byte                  MPEGType;
   byte                  FrameIndex;
-  byte                  PPS_FirstSEI;
+  byte                  PPSLen;
   byte                  Zero1;
   dword                 SEIOffsetHigh;
   dword                 SEIOffsetLow;
-  dword                 PTS2;
+  dword                 SEIPTS;
   dword                 NextAUD;
   dword                 Timems;
   dword                 Zero2;
-  dword                 LastSPS;
-  dword                 PictFormat;
+  dword                 SEISPS;
+  dword                 SPSLen;
   dword                 IFrame;
   dword                 Zero4;
   dword                 Zero5;
