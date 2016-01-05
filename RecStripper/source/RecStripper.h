@@ -12,7 +12,7 @@
 #endif
 #define TAPID                 0x2A0A0004
 #define AUTHOR                "chris86"
-#define DESCRIPTION           "Shrinks recordings by removal of filler NALUs and Zero-byte-padding."
+#define DESCRIPTION           "Shrinks recordings by removal of filler NALUs and Zero-byte-stuffing."
 #define LOGFILE               PROGRAM_NAME ".log"
 #define LNGFILENAME           PROGRAM_NAME ".lng"
 #define INIFILENAME           PROGRAM_NAME ".ini"
