@@ -39,3 +39,12 @@ en_003=Stripping movie [%d/%d] . . .\n%s\n\nElapsed time: %lu s, Remaining time:
 en_004=Yes
 en_005=No
 en_006=Ok
+
+#Nederlands
+nl_000=%d opname(s) nu verwerken?
+nl_001=Geen opname(s) te verwerken.
+nl_002=RecStripper gereed.\n%i van %i opname(s) succesvol verwerkt.
+nl_003=Opname aan het verwerken [%d/%d] . . .\n%s\n\nVeropen tijd: %lu s, Resterende tijd: %lu s\n\n
+nl_004=Ja
+nl_005=Nee
+nl_006=Ok

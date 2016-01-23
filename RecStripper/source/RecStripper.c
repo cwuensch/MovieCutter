@@ -100,7 +100,7 @@ int TAP_Main(void)
   WriteLogMC (PROGRAM_NAME, "=======================================================");
   WriteLogMCf(PROGRAM_NAME, "Receiver Model: %s (%u), System Type: TMS-%c (%d)", GetToppyString(GetSysID()), GetSysID(), SysTypeToStr(), GetSystemType());
   WriteLogMCf(PROGRAM_NAME, "Firmware: %s", GetApplVer());
-  WriteLogMCf(PROGRAM_NAME, "RecStripDir: %s, OutDir: %s", ABSRECDIR, ABSOUTDIR);
+  WriteLogMCf(PROGRAM_NAME, "RecStripDir: %s, OutDir: %s", TAPFSROOT RECDIR, TAPFSROOT OUTDIR);
   if (HDD_Exist2("RecStrip", RECSTRIPPATH))
     chmod(RECSTRIPPATH "/RecStrip", 0777);
   else
@@ -157,13 +157,13 @@ int TAP_Main(void)
 
 
   // hier der Inhalt
-//  TAP_SPrint(AbsRecDir, sizeof(AbsRecDir), TAPFSROOT "/DataFiles/RecStrip");
-//  TAP_SPrint(AbsOutDir, sizeof(AbsRecDir), TAPFSROOT "/DataFiles/RecStrip_out");
+//  TAP_SPrint(AbsRecDir, sizeof(AbsRecDir), TAPFSROOT RECDIR);
+//  TAP_SPrint(AbsOutDir, sizeof(AbsRecDir), TAPFSROOT OUTDIR);
 
   TYPE_FolderEntry FolderEntry;
 
-  TAP_Hdd_ChangeDir("/DataFiles/RecStrip");
-  NrRecFiles = TAP_Hdd_FindFirst(&FolderEntry, "rec");
+  TAP_Hdd_ChangeDir(RECDIR);
+  NrRecFiles = TAP_Hdd_FindFirst(&FolderEntry, "rec|ts|mpg");
   WriteLogMCf(PROGRAM_NAME, "Nr of files in folder: %i", NrRecFiles);
 
   if (NrRecFiles > 0)
@@ -176,16 +176,20 @@ int TAP_Main(void)
         if(FolderEntry.attr == ATTR_NORMAL)
         {
           byte sec;
+          char CurRecName2[sizeof(CurRecName)], OutRecName2[sizeof(OutRecName)];
           TAP_SPrint(CurRecName, sizeof(CurRecName), FolderEntry.name);
           strcpy(OutRecName, CurRecName);
-          HDD_GetFileSizeAndInode2(CurRecName, ABSRECDIR, NULL, &RecFileSize);
+
+          HDD_GetFileSizeAndInode2(CurRecName, TAPFSROOT RECDIR, NULL, &RecFileSize);
 
           WriteLogMCf(PROGRAM_NAME, "Processing file '%s' (%llu bytes)... ", CurRecName, RecFileSize);
           StartTime = PvrTimeToLinux(Now(&sec)) + sec;
 
           // Start RecStrip
           RecStrip_Cancelled = FALSE;
-          TAP_SPrint(CommandLine, sizeof(CommandLine), "( rm /tmp/RecStrip.* ; " RECSTRIPPATH "/RecStrip \"%s/%s\" \"%s/%s\" &> /tmp/RecStrip.log ; echo $? > /tmp/RecStrip.out ) & echo $!", ABSRECDIR, CurRecName, ABSOUTDIR, OutRecName);
+          strcpy(CurRecName2, CurRecName); StrReplace(CurRecName2, "\"", "\\\"");
+          strcpy(OutRecName2, OutRecName); StrReplace(OutRecName2, "\"", "\\\"");
+          TAP_SPrint(CommandLine, sizeof(CommandLine), "( rm /tmp/RecStrip.* ; " RECSTRIPPATH "/RecStrip \"%s/%s\" \"%s/%s\" 2>&1 >> " TAPFSROOT LOGDIR "/RecStrip.log ; echo $? > /tmp/RecStrip.out ) & echo $!", TAPFSROOT RECDIR, CurRecName2, TAPFSROOT OUTDIR, OutRecName2);
           FILE* fPidFile = popen(CommandLine, "r");
           if(fPidFile)
           {
@@ -195,7 +199,7 @@ int TAP_Main(void)
             pclose(fPidFile);
           }
 
-          //Wait for termination of fsck
+          //Wait for termination of RecStrip
           TAP_SPrint(CommandLine, sizeof(CommandLine), "/proc/%lu", RecStrip_Pid);
           while (access(CommandLine, F_OK) != -1)
           {
@@ -205,7 +209,8 @@ int TAP_Main(void)
             TAP_Sleep(100);
             TAP_SystemProc();
           }
-            
+WriteLogMC(PROGRAM_NAME, "RecStrip finished.");
+
           // Get exit code of RecStrip
           RecStrip_Return = -1;
           if (RecStrip_Pid)
@@ -213,8 +218,9 @@ int TAP_Main(void)
             FILE* fRetFile = fopen("/tmp/RecStrip.out", "rb");
             if(fRetFile)
             {
+WriteLogMCf(PROGRAM_NAME, "RecStrip.out exists.");
               fscanf(fPidFile, "%ld", &RecStrip_Return);
-TAP_PrintNet("Return fopen: %lu\n", RecStrip_Return);
+WriteLogMCf(PROGRAM_NAME, "Return fopen: %lu", RecStrip_Return);
               fclose(fPidFile);
             }
 /*            int fRetFile2 = open("/tmp/RecStrip.out", O_RDONLY);
@@ -226,12 +232,27 @@ TAP_PrintNet("Return fopen: %lu\n", RecStrip_Return);
 TAP_PrintNet("Return open: %lu\n", RecStrip_Return);
               close(fRetFile2);
             } */
-            system("cat /tmp/RecStrip.log >> " LOGFILEDIR "/RecStrip.log");
+//            system("cat /tmp/RecStrip.log >> " LOGFILEDIR "/RecStrip.log");
+//            system("cat /tmp/RecStrip.out >> " LOGFILEDIR "/RecStrip_out.log");
           }
           RecStrip_Pid = 0;
 
+          // Set Date of Recording
+          char NewFileName[MAX_FILE_NAME_SIZE], OldFileName[FBLIB_DIR_SIZE];
+          TAP_SPrint(OldFileName, sizeof(OldFileName), "%s/%s", RECDIR, CurRecName);
+          HDD_SetFileDateTime(OutRecName, TAPFSROOT OUTDIR, HDD_GetFileTimeByRelFileName(OldFileName)); 
+          TAP_SPrint(OldFileName, sizeof(OldFileName), "%s/%s.inf", RECDIR, CurRecName); TAP_SPrint(NewFileName, sizeof(NewFileName), "%s.inf", OutRecName);
+          HDD_SetFileDateTime(NewFileName, TAPFSROOT OUTDIR, HDD_GetFileTimeByRelFileName(OldFileName)); 
+          TAP_SPrint(OldFileName, sizeof(OldFileName), "%s/%s.nav", RECDIR, CurRecName); TAP_SPrint(NewFileName, sizeof(NewFileName), "%s.nav", OutRecName);
+          HDD_SetFileDateTime(NewFileName, TAPFSROOT OUTDIR, HDD_GetFileTimeByRelFileName(OldFileName)); 
+          GetCutNameFromRec(CurRecName, RECDIR, OldFileName);
+          GetCutNameFromRec(OutRecName, RECDIR, NewFileName);
+          TAP_SPrint(OldFileName, sizeof(OldFileName), "%s/%s", RECDIR, NewFileName); GetCutNameFromRec(OutRecName, "", NewFileName);
+          HDD_SetFileDateTime(&NewFileName[1], TAPFSROOT, HDD_GetFileTimeByRelFileName(OldFileName)); 
+WriteLogMC(PROGRAM_NAME, "Timestamps renewed.");
+
           // Output RecStrip return
-          HDD_GetFileSizeAndInode2(OutRecName, ABSOUTDIR, NULL, &CurOutFileSize);
+          HDD_GetFileSizeAndInode2(OutRecName, TAPFSROOT OUTDIR, NULL, &CurOutFileSize);
           dword CurTime = PvrTimeToLinux(Now(&sec)) + sec;
           if (RecStrip_Return == 0)
           {
@@ -242,7 +263,7 @@ TAP_PrintNet("Return open: %lu\n", RecStrip_Return);
             WriteLogMCf(PROGRAM_NAME, "RecStrip aborted! Elapsed time: %lu s.", CurTime-StartTime);
           else
           {
-            WriteLogMCf(PROGRAM_NAME, "RecStrip returned error code %lu! Elapsed time: %lu s.", RecStrip_Return, CurTime-StartTime);
+            WriteLogMCf(PROGRAM_NAME, "RecStrip returned error code %ld! Elapsed time: %lu s.", RecStrip_Return, CurTime-StartTime);
 //            HDD_Delete2(OutRecName, ABSOUTDIR, TRUE);
           }
         }
@@ -312,7 +333,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     if(labs(TAP_GetTick() - LastDraw) > 100)
     {
       sync();
-      if (RecStrip_Pid && HDD_GetFileSizeAndInode2(OutRecName, ABSOUTDIR, NULL, &CurOutFileSize))
+      if (RecStrip_Pid && HDD_GetFileSizeAndInode2(OutRecName, TAPFSROOT OUTDIR, NULL, &CurOutFileSize))
       {
         byte sec;
         char ProgressStr[MAX_FILE_NAME_SIZE + 128], ISORecName[MAX_FILE_NAME_SIZE + 1];
@@ -329,86 +350,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       LastDraw = TAP_GetTick();
     }
   }
-
-/*  if (!isPlaybackRunning())
-  {
-    sync();
-    if (wget_Pid && TotalRecFileSize && HDD_GetFileSizeAndInode2(DOWNLOADNAME, DOWNLOADPATH, NULL, &CurrentRecFileSize))
-    {
-      if (CurrentRecFileSize >= min(4*1024*1024, TotalRecFileSize/3))
-      {
-        param1 = 0;
-        HDD_StartPlayback2(DOWNLOADNAME, DOWNLOADPATH, TRUE);
-        break;
-      }
-      else
-        if (rgnSplashScreen)
-        {
-          TAP_Osd_FillBox(rgnSplashScreen, 30, 190, (_Logo_Gd.width-60) * (dword)CurrentRecFileSize / (4*1024*1024), 10, COLOR_Red);
-          TAP_Osd_Sync();
-        }
-    }
-        
-    if (!wget_Pid || !TotalRecFileSize || (event == EVT_KEY && param1 == RKEY_Exit) || (labs(TAP_GetTick() - DownloadStarted) >= 3000))
-    {
-      WriteLogMCf(PROGRAM_NAME, "Download aborted! wget_Pid=%lu, TotalRecFileSize=%lld, ExitKey=%s, TimeOut=%lu", wget_Pid, TotalRecFileSize, (event==EVT_KEY&&param1==RKEY_Exit) ? "true" : "false", labs(TAP_GetTick() - DownloadStarted));
-      ShowErrorMessage("Medien-Download fehlgeschlagen!", PROGRAM_NAME);
-      AbortDownload();
-      ClearOSD(FALSE);
-      param1 = 0;
-      State = ST_InactiveMode;
-    }
-  }
-  else
-  {
-    param1 = 0;
-
-    if(!PlayInfo.file || !PlayInfo.file->name[0]) break;
-    if(((int)PlayInfo.totalBlock <= 0) || ((int)PlayInfo.currentBlock < 0)) break;
-
-    TAP_GetState(&SysState, &SysSubState);
-    if(SysState != STATE_Normal || (SysSubState != SUBSTATE_Normal && SysSubState != SUBSTATE_PvrPlayingSearch && SysSubState != 0)) break;
-
-//        PlaybackRepeatSet(TRUE);
-    LastTotalBlocks = PlayInfo.totalBlock;
-
-    WriteLogMC(PROGRAM_NAME, "========================================\r\n");
-
-    //Identify the file name (.rec or .mpg)
-    strncpy(PlaybackName, PlayInfo.file->name, MAX_FILE_NAME_SIZE);
-    PlaybackName[MAX_FILE_NAME_SIZE] = '\0';
-
-    //Find out the absolute path to the rec file and check if it is DOWNLOADNAME
-    HDD_GetAbsolutePathByTypeFile2(PlayInfo.file, AbsPlaybackDir);
-    if(strcmp(AbsPlaybackDir, DOWNLOADPATH "/" DOWNLOADNAME) != 0)
-    {
-      State = ST_InactiveMode;
-      WriteLogMC(PROGRAM_NAME, "Playback file name is not the downloaded file!");
-//          ClearOSD(TRUE);
-      break;
-    }
-
-    //Save only the absolute path to rec folder
-    char *p;
-    p = strstr(AbsPlaybackDir, PlaybackName);
-    if(p) *(p-1) = '\0';
-
-    if (strncmp(AbsPlaybackDir, TAPFSROOT, strlen(TAPFSROOT)) == 0)
-      HDD_ChangeDir(&AbsPlaybackDir[strlen(TAPFSROOT)]);
-
-    WriteLogMCf(PROGRAM_NAME, "Attaching to %s/%s", AbsPlaybackDir, PlaybackName);
-    WriteLogMC (PROGRAM_NAME, "----------------------------------------");
-    WriteLogMCf(PROGRAM_NAME, "Playback Description: %s", PlaybackDesc);
-    WriteLogMCf(PROGRAM_NAME, "Total rec file size   = %llu Bytes (%lu blocks)", TotalRecFileSize, (dword)(TotalRecFileSize / BLOCKSIZE));
-    WriteLogMCf(PROGRAM_NAME, "Current rec file size = %llu Bytes (%lu blocks)", CurrentRecFileSize, (dword)(CurrentRecFileSize / BLOCKSIZE));
-    WriteLogMCf(PROGRAM_NAME, "Reported total blocks:  %lu", PlayInfo.totalBlock);
-
-    ClearOSD(FALSE);
-
-    State = ST_ActiveOSD;
-    OSDMode = TRUE;
-    OSDRedrawEverything();
-  }  */
 
   DoNotReenter = FALSE;
   TRACEEXIT();
