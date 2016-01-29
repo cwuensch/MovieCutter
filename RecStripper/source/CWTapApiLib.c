@@ -359,7 +359,7 @@ bool PlaybackRepeatGet()
 bool ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks)
 {
 //  TYPE_PlayInfo         PlayInfo;
-  dword                *PlayInfoBookmarkStruct = NULL;
+  TYPE_Bookmark_Info   *PlayInfoBookmarkStruct = NULL;
   byte                 *TempRecSlot = NULL;
   bool                  ret = FALSE;
 
@@ -374,13 +374,13 @@ bool ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks)
 
   TempRecSlot = (byte*)FIS_vTempRecSlot();
   if(TempRecSlot)
-    PlayInfoBookmarkStruct = (dword*)HDD_GetPvrRecTsPlayInfoPointer(*TempRecSlot);
+    PlayInfoBookmarkStruct = (TYPE_Bookmark_Info*)HDD_GetPvrRecTsPlayInfoPointer(*TempRecSlot);
 
   if(Bookmarks && NrBookmarks && PlayInfoBookmarkStruct)
   {
-    *NrBookmarks = PlayInfoBookmarkStruct[0];
+    *NrBookmarks = min(PlayInfoBookmarkStruct->NrBookmarks, NRBOOKMARKS);
 //    memset(Bookmarks, 0, NRBOOKMARKS * sizeof(dword));
-    memcpy(Bookmarks, &PlayInfoBookmarkStruct[1], NRBOOKMARKS * sizeof(dword));
+    memcpy(Bookmarks, &PlayInfoBookmarkStruct->Bookmarks, NRBOOKMARKS * sizeof(dword));
     ret = TRUE;
   }
   else
@@ -404,7 +404,7 @@ bool ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks)
 bool SaveBookmarks(dword Bookmarks[], int NrBookmarks, bool OverwriteAll)
 {
 //  TYPE_PlayInfo         PlayInfo;
-  dword                *PlayInfoBookmarkStruct = NULL;
+  TYPE_Bookmark_Info   *PlayInfoBookmarkStruct = NULL;
   byte                 *TempRecSlot = NULL;
   bool                  ret = FALSE;
 
@@ -419,13 +419,14 @@ bool SaveBookmarks(dword Bookmarks[], int NrBookmarks, bool OverwriteAll)
 
   TempRecSlot = (byte*)FIS_vTempRecSlot();
   if(TempRecSlot)
-    PlayInfoBookmarkStruct = (dword*)HDD_GetPvrRecTsPlayInfoPointer(*TempRecSlot);
+    PlayInfoBookmarkStruct = (TYPE_Bookmark_Info*)HDD_GetPvrRecTsPlayInfoPointer(*TempRecSlot);
 
   if(Bookmarks && PlayInfoBookmarkStruct)
   {
-    PlayInfoBookmarkStruct[0] = NrBookmarks;
-//    memset(&PlayInfoBookmarkStruct[1], 0, NRBOOKMARKS * sizeof(dword));
-    memcpy(&PlayInfoBookmarkStruct[1], Bookmarks, (OverwriteAll ? NRBOOKMARKS : NrBookmarks) * sizeof(dword));
+    NrBookmarks = min(NrBookmarks, NRBOOKMARKS);
+    PlayInfoBookmarkStruct->NrBookmarks = NrBookmarks;
+//    memset(&PlayInfoBookmarkStruct->Bookmarks, 0, NRBOOKMARKS * sizeof(dword));
+    memcpy(&PlayInfoBookmarkStruct->Bookmarks, Bookmarks, (OverwriteAll ? NRBOOKMARKS : NrBookmarks) * sizeof(dword));
     ret = TRUE;
   }
   else
@@ -562,7 +563,7 @@ bool ConvertUTFStr(char *DestStr, char *SourceStr, int MaxLen, bool ToUnicode)
 // ----------------------------------------------------------------------------
 FILE *fLogMC = NULL;
 
-void CloseLogMC()
+void CloseLogMC(void)
 {
   if (fLogMC)
   {
