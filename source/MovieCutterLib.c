@@ -1212,13 +1212,13 @@ bool GetRecDateFromInf(const char *RecFileName, const char *AbsDirectory, dword 
   }
 
   //add new Bookmarks
-  for (i = 0; i < NrBookmarks; i++) {
+  for (i = 0; i < min(NrBookmarks, NRBOOKMARKS); i++) {
     RECHeaderInfo.Bookmark[i] = Bookmarks[i];
   }
-  for (i = NrBookmarks; i < 177; i++) {
+  for (i = NrBookmarks; i < NRBOOKMARKS; i++) {
     RECHeaderInfo.Bookmark[i] = 0;
   }
-  RECHeaderInfo.NrBookmarks = NrBookmarks;
+  RECHeaderInfo.NrBookmarks = min(NrBookmarks, NRBOOKMARKS);
 
   //encode and write inf
   if(HDD_EncodeRECHeader(Buffer, &RECHeaderInfo, ST_UNKNOWN))
@@ -1359,7 +1359,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
 
   //Save all bookmarks to a temporary array
   memcpy(Bookmarks, BookmarkInfo->Bookmarks, NRBOOKMARKS * sizeof(dword));
-  NrBookmarks = BookmarkInfo->NrBookmarks;
+  NrBookmarks = min(BookmarkInfo->NrBookmarks, NRBOOKMARKS);
   TAP_SPrint(LogString, sizeof(LogString), "Bookmarks: ");
   for(i = 0; i < NrBookmarks; i++)
   {
