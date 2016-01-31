@@ -621,7 +621,7 @@ void WriteLogMCf(char *ProgramName, const char *format, ...)
   char Text[512];
 
   HDD_TAP_PushDir();
-  TAP_Hdd_ChangeDir("/ProgramFiles/Settings/MovieCutter");
+  TAP_Hdd_ChangeDir("/ProgramFiles/Settings/RecStripper");
 
   if(format)
   {

@@ -1,7 +1,7 @@
 #ifndef __CWTAPAPILIB__
 #define __CWTAPAPILIB__
 
-#include                "../../../../../Topfield/FireBirdLib/flash/FBLib_flash.h"
+#include                "../../../../../../Topfield/FireBirdLib/flash/FBLib_flash.h"
 
 
 // ============================================================================
@@ -16,8 +16,8 @@
 //#define TAP_MemSet    memset
 #define TAP_SPrint    snprintf
 
-#define LOGDIR          "/ProgramFiles/Settings/MovieCutter"
-#define LOGFILENAME     "MovieCutter.log"
+#define LOGDIR          "/ProgramFiles/Settings/RecStripper"
+#define LOGFILENAME     "RecStripper.log"
 #define NRBOOKMARKS     177   // eigentlich werden nur 48 Bookmarks unterstützt!! (SRP2401)
 
 typedef struct

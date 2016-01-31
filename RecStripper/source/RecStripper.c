@@ -239,7 +239,9 @@ TAP_PrintNet("Return open: %lu\n", RecStrip_Return);
 
           // Set Date of Recording
           char NewFileName[MAX_FILE_NAME_SIZE], OldFileName[FBLIB_DIR_SIZE];
+WriteLogMCf(PROGRAM_NAME, "HDD_GetFileTimeByRelFileName(%s)", OldFileName);
           TAP_SPrint(OldFileName, sizeof(OldFileName), "%s/%s", RECDIR, CurRecName);
+WriteLogMCf(PROGRAM_NAME, "HDD_SetFileDateTime(%s, %s, %lu)", OutRecName, TAPFSROOT OUTDIR, HDD_GetFileTimeByRelFileName(OldFileName));
           HDD_SetFileDateTime(OutRecName, TAPFSROOT OUTDIR, HDD_GetFileTimeByRelFileName(OldFileName)); 
           TAP_SPrint(OldFileName, sizeof(OldFileName), "%s/%s.inf", RECDIR, CurRecName); TAP_SPrint(NewFileName, sizeof(NewFileName), "%s.inf", OutRecName);
           HDD_SetFileDateTime(NewFileName, TAPFSROOT OUTDIR, HDD_GetFileTimeByRelFileName(OldFileName)); 
