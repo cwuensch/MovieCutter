@@ -2919,7 +2919,7 @@ bool CutFileDecodeBin(FILE *fCut, __off64_t *OutSavedSize)
         ret = (fread(&CutHeader, sizeof(CutHeader), 1, fCut) == 1);
         if (ret)
         {
-          *OutSavedSize = CutHeader.RecFileSize;
+          if (OutSavedSize) *OutSavedSize = CutHeader.RecFileSize;
           SavedNrSegments = CutHeader.NrSegmentMarker;
 //          ActiveSegment = CutHeader.ActiveSegment;
         }
@@ -2932,7 +2932,7 @@ bool CutFileDecodeBin(FILE *fCut, __off64_t *OutSavedSize)
         ret = (fread(&CutHeader, sizeof(CutHeader), 1, fCut) == 1);
         if (ret)
         {
-          *OutSavedSize = CutHeader.RecFileSize;
+          if (OutSavedSize) *OutSavedSize = CutHeader.RecFileSize;
           SavedNrSegments = CutHeader.NrSegmentMarker;
 //          ActiveSegment = CutHeader.ActiveSegment;
         }
@@ -3057,9 +3057,9 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
             if (OutSavedSize) *OutSavedSize = SavedSize;
           }
           else if (strcmp(Name, "NrSegmentMarker") == 0)
-            SavedNrSegments = Value;
+            SavedNrSegments = (int)Value;
 //          else if (strcmp(Name, "ActiveSegment") == 0)
-//            ActiveSegment = Value;
+//            ActiveSegment = (int)Value;
         }
       }
 
@@ -3068,7 +3068,7 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
       {
         //[Segments]
         //#Nr. ; Sel ; StartBlock ; StartTime ; Percent
-        if (sscanf(Buffer, "%*i ; %c ; %lu ; %16[^;\r\n] ; %f%%", &Selected, &SegmentMarker[NrSegmentMarker].Block, TimeStamp, &SegmentMarker[NrSegmentMarker].Percent) >= 3)
+        if (sscanf(Buffer, "%*i ; %c ; %lu ; %15[^;\r\n] ; %f%%", &Selected, &SegmentMarker[NrSegmentMarker].Block, TimeStamp, &SegmentMarker[NrSegmentMarker].Percent) >= 3)
         {
           SegmentMarker[NrSegmentMarker].Selected = (Selected == '*');
           SegmentMarker[NrSegmentMarker].Timems = (TimeStringToMSec(TimeStamp));
