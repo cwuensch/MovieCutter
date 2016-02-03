@@ -6,13 +6,13 @@
 
 #define PROGRAM_NAME          "RecStripper"
 #ifdef FULLDEBUG
-  #define VERSION             "V0.2 (debug)"
+  #define VERSION             "V0.4 (debug)"
 #else
-  #define VERSION             "V0.2"
+  #define VERSION             "V0.4"
 #endif
 #define TAPID                 0x2A0A0004
 #define AUTHOR                "chris86"
-#define DESCRIPTION           "Shrinks recordings by removal of filler NALUs and Zero-byte-stuffing."
+#define DESCRIPTION           "Shrink recordings by removal of filler material."
 #define LOGFILE               PROGRAM_NAME ".log"
 #define LNGFILENAME           PROGRAM_NAME ".lng"
 #define INIFILENAME           PROGRAM_NAME ".ini"

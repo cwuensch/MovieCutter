@@ -65,7 +65,7 @@ static char             CurRecName[MAX_FILE_NAME_SIZE + 1], OutRecName[MAX_FILE_
 //static char             AbsRecDir[FBLIB_DIR_SIZE], AbsOutDir[FBLIB_DIR_SIZE];
 static __off64_t        RecFileSize = 0, CurOutFileSize = 0;
 static int              NrRecFiles = 0, CurRecNr = 0, NrSuccessful = 0;
-static dword            RecStrip_Pid = 0, RecStrip_Return = 0;
+static dword            RecStrip_Pid = 0, RecStrip_Return = -1;
 static bool             RecStrip_Cancelled = FALSE;
 static dword            StartTime = 0;
 static dword            LastDraw = 0;
@@ -196,7 +196,7 @@ int TAP_Main(void)
 //            if (fgets(PidStr, 13, fPidFile))
 //              fsck_Pid = atoi(PidStr);
             fscanf(fPidFile, "%ld", &RecStrip_Pid);
-            pclose(fPidFile);
+            pclose(fPidFile); fPidFile = NULL;
           }
 
           //Wait for termination of RecStrip
@@ -219,9 +219,9 @@ WriteLogMC(PROGRAM_NAME, "RecStrip finished.");
             if(fRetFile)
             {
 WriteLogMCf(PROGRAM_NAME, "RecStrip.out exists.");
-              fscanf(fPidFile, "%ld", &RecStrip_Return);
-WriteLogMCf(PROGRAM_NAME, "Return fopen: %lu", RecStrip_Return);
-              fclose(fPidFile);
+              fscanf(fRetFile, "%ld", &RecStrip_Return);
+WriteLogMCf(PROGRAM_NAME, "Return fscanf: %ld", RecStrip_Return);
+              fclose(fRetFile); fRetFile = NULL;
             }
 /*            int fRetFile2 = open("/tmp/RecStrip.out", O_RDONLY);
             if (fRetFile2 > 0)
@@ -256,13 +256,13 @@ WriteLogMC(PROGRAM_NAME, "Timestamps renewed.");
           // Output RecStrip return
           HDD_GetFileSizeAndInode2(OutRecName, TAPFSROOT OUTDIR, NULL, &CurOutFileSize);
           dword CurTime = PvrTimeToLinux(Now(&sec)) + sec;
-          if (RecStrip_Return == 0)
+          if (RecStrip_Cancelled)
+            WriteLogMCf(PROGRAM_NAME, "RecStrip aborted! Elapsed time: %lu s.", CurTime-StartTime);
+          else if (RecStrip_Return == 0)
           {
             WriteLogMCf(PROGRAM_NAME, "Success! Output size %llu (%.2f %% reduced). Elapsed time: %lu s.", CurOutFileSize, 100.0-(((double)CalcBlockSize(CurOutFileSize)/CalcBlockSize(RecFileSize))*100), CurTime-StartTime);
             NrSuccessful++;
           }
-          else if (RecStrip_Cancelled)
-            WriteLogMCf(PROGRAM_NAME, "RecStrip aborted! Elapsed time: %lu s.", CurTime-StartTime);
           else
           {
             WriteLogMCf(PROGRAM_NAME, "RecStrip returned error code %ld! Elapsed time: %lu s.", RecStrip_Return, CurTime-StartTime);
