@@ -189,7 +189,7 @@ int TAP_Main(void)
           RecStrip_Cancelled = FALSE;
           strcpy(CurRecName2, CurRecName); StrReplace(CurRecName2, "\"", "\\\"");
           strcpy(OutRecName2, OutRecName); StrReplace(OutRecName2, "\"", "\\\"");
-          TAP_SPrint(CommandLine, sizeof(CommandLine), "( rm /tmp/RecStrip.* ; " RECSTRIPPATH "/RecStrip \"%s/%s\" \"%s/%s\" 2>&1 >> " TAPFSROOT LOGDIR "/RecStrip.log ; echo $? > /tmp/RecStrip.out ) & echo $!", TAPFSROOT RECDIR, CurRecName2, TAPFSROOT OUTDIR, OutRecName2);
+          TAP_SPrint(CommandLine, sizeof(CommandLine), "( rm /tmp/RecStrip.* ; " RECSTRIPPATH "/RecStrip \"%s/%s\" \"%s/%s\" 2>&1 >> /tmp/RecStrip.log ; echo $? > /tmp/RecStrip.out ) & echo $!", TAPFSROOT RECDIR, CurRecName2, TAPFSROOT OUTDIR, OutRecName2);
           FILE* fPidFile = popen(CommandLine, "r");
           if(fPidFile)
           {
@@ -209,7 +209,7 @@ int TAP_Main(void)
             TAP_Sleep(100);
             TAP_SystemProc();
           }
-WriteLogMC(PROGRAM_NAME, "RecStrip finished.");
+          WriteLogMC(PROGRAM_NAME, "RecStrip finished.");
 
           // Get exit code of RecStrip
           RecStrip_Return = -1;
@@ -218,9 +218,7 @@ WriteLogMC(PROGRAM_NAME, "RecStrip finished.");
             FILE* fRetFile = fopen("/tmp/RecStrip.out", "rb");
             if(fRetFile)
             {
-WriteLogMCf(PROGRAM_NAME, "RecStrip.out exists.");
               fscanf(fRetFile, "%ld", &RecStrip_Return);
-WriteLogMCf(PROGRAM_NAME, "Return fscanf: %ld", RecStrip_Return);
               fclose(fRetFile); fRetFile = NULL;
             }
 /*            int fRetFile2 = open("/tmp/RecStrip.out", O_RDONLY);
@@ -229,29 +227,25 @@ WriteLogMCf(PROGRAM_NAME, "Return fscanf: %ld", RecStrip_Return);
               char tmp[10];
               if (read(fRetFile2, tmp, 10) > 0)
                 RecStrip_Return = atoi(tmp);
-TAP_PrintNet("Return open: %lu\n", RecStrip_Return);
               close(fRetFile2);
             } */
-//            system("cat /tmp/RecStrip.log >> " LOGFILEDIR "/RecStrip.log");
-//            system("cat /tmp/RecStrip.out >> " LOGFILEDIR "/RecStrip_out.log");
+            system("cat /tmp/RecStrip.log >> " LOGFILEDIR "/RecStrip.log");
+
+            // Set Date of Recording
+            char FileName[MAX_FILE_NAME_SIZE];
+            dword FileDate = 0;
+
+            if (!GetRecDateFromInf(CurRecName, TAPFSROOT RECDIR, &FileDate))
+            {
+              TAP_SPrint(FileName, sizeof(FileName), "%s%s/%s", TAPFSROOT, RECDIR, CurRecName);
+              FileDate = Unix2TFTime(HDD_GetFileTimeByAbsFileName(FileName));
+            }
+            HDD_SetFileDateTime(OutRecName, TAPFSROOT OUTDIR, FileDate); 
+            TAP_SPrint(FileName, sizeof(FileName), "%s.inf", OutRecName);   HDD_SetFileDateTime(FileName, TAPFSROOT OUTDIR, FileDate); 
+            TAP_SPrint(FileName, sizeof(FileName), "%s.nav", OutRecName);   HDD_SetFileDateTime(FileName, TAPFSROOT OUTDIR, FileDate);
+            GetCutNameFromRec(OutRecName, "", FileName);                    HDD_SetFileDateTime(&FileName[1], TAPFSROOT OUTDIR, FileDate);
           }
           RecStrip_Pid = 0;
-
-          // Set Date of Recording
-          char NewFileName[MAX_FILE_NAME_SIZE], OldFileName[FBLIB_DIR_SIZE];
-WriteLogMCf(PROGRAM_NAME, "HDD_GetFileTimeByRelFileName(%s)", OldFileName);
-          TAP_SPrint(OldFileName, sizeof(OldFileName), "%s/%s", RECDIR, CurRecName);
-WriteLogMCf(PROGRAM_NAME, "HDD_SetFileDateTime(%s, %s, %lu)", OutRecName, TAPFSROOT OUTDIR, HDD_GetFileTimeByRelFileName(OldFileName));
-          HDD_SetFileDateTime(OutRecName, TAPFSROOT OUTDIR, HDD_GetFileTimeByRelFileName(OldFileName)); 
-          TAP_SPrint(OldFileName, sizeof(OldFileName), "%s/%s.inf", RECDIR, CurRecName); TAP_SPrint(NewFileName, sizeof(NewFileName), "%s.inf", OutRecName);
-          HDD_SetFileDateTime(NewFileName, TAPFSROOT OUTDIR, HDD_GetFileTimeByRelFileName(OldFileName)); 
-          TAP_SPrint(OldFileName, sizeof(OldFileName), "%s/%s.nav", RECDIR, CurRecName); TAP_SPrint(NewFileName, sizeof(NewFileName), "%s.nav", OutRecName);
-          HDD_SetFileDateTime(NewFileName, TAPFSROOT OUTDIR, HDD_GetFileTimeByRelFileName(OldFileName)); 
-          GetCutNameFromRec(CurRecName, RECDIR, OldFileName);
-          GetCutNameFromRec(OutRecName, RECDIR, NewFileName);
-          TAP_SPrint(OldFileName, sizeof(OldFileName), "%s/%s", RECDIR, NewFileName); GetCutNameFromRec(OutRecName, "", NewFileName);
-          HDD_SetFileDateTime(&NewFileName[1], TAPFSROOT, HDD_GetFileTimeByRelFileName(OldFileName)); 
-WriteLogMC(PROGRAM_NAME, "Timestamps renewed.");
 
           // Output RecStrip return
           HDD_GetFileSizeAndInode2(OutRecName, TAPFSROOT OUTDIR, NULL, &CurOutFileSize);
@@ -500,6 +494,30 @@ static inline dword CalcBlockSize(off_t Size)
   return (dword)(Size >> 6) / 141;
 }
 
+bool GetRecDateFromInf(const char *RecFileName, const char *AbsDirectory, dword *const DateTime)
+{
+  int                   f = -1;
+  char                  AbsInfName[FBLIB_DIR_SIZE];
+  bool                  ret = FALSE;
+
+  if (DateTime == NULL) return FALSE;
+  TRACEENTER();
+
+  TAP_SPrint(AbsInfName, sizeof(AbsInfName), "%s/%s.inf", AbsDirectory, RecFileName);
+  f = open(AbsInfName, O_RDONLY);
+  if(f >= 0)
+  {
+    if (lseek(f, 0x08, 0) == 0x08)
+      ret = (read(f, DateTime, sizeof(dword)) == sizeof(dword));
+    close(f);
+  }
+  else
+    WriteLogMC(PROGRAM_NAME, "GetRecDateFromInf() E0601.");
+
+  TRACEEXIT();
+  return ret;
+}
+
 void SecToTimeString(dword Time, char *const OutTimeString)  // needs max. 4 + 1 + 2 + 1 + 2 + 1 = 11 chars
 {
   dword                 Hour, Min, Sec;
@@ -517,6 +535,8 @@ void SecToTimeString(dword Time, char *const OutTimeString)  // needs max. 4 + 1
 void AbortRecStrip(void)
 {
   char KillCommand[16];
+
+  TRACEENTER();
   if (RecStrip_Pid)
   {
     RecStrip_Cancelled = TRUE;
@@ -524,4 +544,5 @@ void AbortRecStrip(void)
     system(KillCommand);
 //    RecStrip_Pid = 0;
   }
+  TRACEEXIT();
 }

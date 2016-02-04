@@ -35,6 +35,7 @@
   static void CreateRecStripDirs(void);
 
   static inline dword CalcBlockSize(off_t Size);
+  static bool GetRecDateFromInf(const char *RecFileName, const char *AbsDirectory, dword *const DateTime);
   static void SecToTimeString(dword Time, char *const OutTimeString);  // needs max. 4 + 1 + 2 + 1 + 2 + 1 = 11 chars
   static void AbortRecStrip(void);
 
