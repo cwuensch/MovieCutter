@@ -232,7 +232,7 @@ int TAP_Main(void)
             system("cat /tmp/RecStrip.log >> " LOGFILEDIR "/RecStrip.log");
 
             // Set Date of Recording
-            char FileName[MAX_FILE_NAME_SIZE];
+            char FileName[FBLIB_DIR_SIZE];
             dword FileDate = 0;
 
             if (!GetRecDateFromInf(CurRecName, TAPFSROOT RECDIR, &FileDate))
@@ -256,6 +256,11 @@ int TAP_Main(void)
           {
             WriteLogMCf(PROGRAM_NAME, "Success! Output size %llu (%.2f %% reduced). Elapsed time: %lu s.", CurOutFileSize, 100.0-(((double)CalcBlockSize(CurOutFileSize)/CalcBlockSize(RecFileSize))*100), CurTime-StartTime);
             NrSuccessful++;
+
+            char FileName1[FBLIB_DIR_SIZE], FileName2[FBLIB_DIR_SIZE];
+            TAP_SPrint(FileName1, sizeof(FileName1), "%s/%s", RECDIR, CurRecName);
+            TAP_SPrint(FileName2, sizeof(FileName2), "%s/%s", DONEDIR, CurRecName);
+            HDD_Rename2(&FileName1[1], &FileName2[1], TAPFSROOT, TRUE);
           }
           else
           {
@@ -483,6 +488,7 @@ static void CreateRecStripDirs(void)
   HDD_ChangeDir("/DataFiles");
   if(!TAP_Hdd_Exist("RecStrip")) TAP_Hdd_Create("RecStrip", ATTR_FOLDER);
   if(!TAP_Hdd_Exist("RecStrip_out")) TAP_Hdd_Create("RecStrip_out", ATTR_FOLDER);
+  if(!TAP_Hdd_Exist("RecStrip_done")) TAP_Hdd_Create("RecStrip_done", ATTR_FOLDER);
   HDD_TAP_PopDir();
 }
 

@@ -6,9 +6,9 @@
 
 #define PROGRAM_NAME          "RecStripper"
 #ifdef FULLDEBUG
-  #define VERSION             "V0.4 (debug)"
+  #define VERSION             "V0.5 (debug)"
 #else
-  #define VERSION             "V0.4"
+  #define VERSION             "V0.5"
 #endif
 #define TAPID                 0x2A0A0004
 #define AUTHOR                "chris86"
@@ -20,6 +20,7 @@
 #define RECSTRIPPATH          TAPFSROOT "/ProgramFiles"
 #define RECDIR                "/DataFiles/RecStrip"
 #define OUTDIR                "/DataFiles/RecStrip_out"
+#define DONEDIR               "/DataFiles/RecStrip_done"
 
 
   int TAP_Main(void);
