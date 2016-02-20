@@ -83,6 +83,14 @@ bool        GetRecDateFromInf(const char *RecFileName, const char *AbsDirectory,
 tTimeStamp* NavLoad(const char *RecFileName, const char *AbsDirectory, int *const OutNrTimeStamps, bool isHD);
 
 
+static inline dword CalcBlockSize(off_t Size)
+{
+  // Workaround für die Division durch BLOCKSIZE (9024)
+  // Primfaktorenzerlegung: 9024 = 2^6 * 3 * 47
+  // max. Dateigröße: 256 GB (dürfte reichen...)
+  return (dword)(Size >> 6) / 141;
+}
+
 /* int fseeko64 (FILE *__stream, __off64_t __off, int __whence);
 __off64_t ftello64(FILE *__stream); */
 

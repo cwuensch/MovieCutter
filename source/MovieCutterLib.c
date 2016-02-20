@@ -55,14 +55,6 @@ void CreateSettingsDir(void)
   TRACEEXIT();
 }
 
-static inline dword CalcBlockSize(off_t Size)
-{
-  // Workaround für die Division durch BLOCKSIZE (9024)
-  // Primfaktorenzerlegung: 9024 = 2^6 * 3 * 47
-  // max. Dateigröße: 256 GB (dürfte reichen...)
-  return (dword)(Size >> 6) / 141;
-}
-
 void SecToTimeString(dword Time, char *const OutTimeString)  // needs max. 4 + 1 + 2 + 1 + 2 + 1 = 11 chars
 {
   dword                 Hour, Min, Sec;

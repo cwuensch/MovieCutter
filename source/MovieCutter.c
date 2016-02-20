@@ -21,7 +21,7 @@
 #include                "MovieCutterLib.h"
 #include                "MovieCutter_TAPCOM.h"
 #include                "MovieCutter.h"
-#include                "Graphics/ActionMenu10.gd"
+#include                "Graphics/ActionMenu9.gd"
 #include                "Graphics/ActionMenu_Bar.gd"
 #include                "Graphics/SegmentList_Background.gd"
 #include                "Graphics/SegmentList_ScrollBar.gd"
@@ -77,6 +77,7 @@
 #include                "Graphics/Button_6_small.gd"
 #include                "Graphics/Button_7_small.gd"
 #include                "Graphics/Button_8_small.gd"
+//#include                "Graphics/Button_9_small.gd"
 #include                "TMSCommander.h"
 extern TYPE_GrData      _Button_Green_Gd, _Button_Yellow_Gd, _Button_Blue_Gd;
 //extern TYPE_GrData      _Button_red_Gd, _Button_green_Gd, _Button_yellow_Gd, _Button_blue_Gd, _Button_white_Gd;
@@ -157,9 +158,9 @@ typedef enum
   MI_SplitMovie,
   MI_SelectEvOddSegments,
   MI_ClearAll,
-  MI_ImportBookmarks,
-  MI_ExportSegments,
-  MI_RenameCheckFS,
+  MI_ImExportBookmarks,
+  MI_RenameMovie,
+  MI_RecStripCheckFS,
   MI_ExitMC,
   MI_NrMenuItems
 } tMenuItem;
@@ -315,6 +316,9 @@ typedef enum
   LS_KeybPaste,
   LS_KeybCancel,
   LS_KeybSave,
+  LS_StripRec,
+  LS_StrippingMsg,
+  LS_StrippingFailed,
   LS_NrStrings
 } tLngStrings;
 
@@ -422,7 +426,10 @@ static char* DefaultStrings[LS_NrStrings] =
   "Kopieren",
   "Einfügen",
   "Abbrechen",
-  "Speichern"
+  "Speichern",
+  "Aufnahme schrumpfen",
+  "Aufnahme wird gestrippt...\n\nZeit vergangen: %lu s, Zeit verbleibend: %lu s\n\n",
+  "Strippen der Aufnahme fehlgeschlagen."
 };
 #ifdef MC_MULTILANG
   #define LangGetString(x)  LangGetStringDefault(x, DefaultStrings[x])
@@ -522,6 +529,8 @@ static word             rgnActionMenu = 0;
 static int              ActionMenuItem;
 static dword            LastPlayStateChange = 0;
 static bool             jfs_fsck_present = FALSE;
+static bool             RecStrip_present = FALSE, RecStrip_Cancelled;
+static dword            RecStrip_Pid = 0;
 
 
 static inline dword currentVisibleBlock()
@@ -565,6 +574,9 @@ int TAP_Main(void)
 //    system("chmod a+x " FSCKPATH "/jfs_fsck &");
   else
     WriteLogMC(PROGRAM_NAME, "WARNING! '" FSCKPATH "/jfs_fsck' not found.");
+  RecStrip_present = HDD_Exist2("RecStrip", RECSTRIPPATH);
+  if(RecStrip_present)
+    chmod(FSCKPATH "/RecStrip", 0777);
 
   // Load Fonts
   #ifdef MC_UNICODE
@@ -714,7 +726,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   if(DoNotReenter && OSDMenuProgressBarIsVisible())
   {
     if(event == EVT_KEY && (param1 == RKEY_Exit || param1 == FKEY_Exit || param1 == RKEY_Sleep))
+    {
+      RecStrip_Cancelled = TRUE;
       HDD_CancelCheckFS();
+    }
     param1 = 0;
   }
 
@@ -1722,7 +1737,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 break;
 
               // Aktionen mit Confirmation-Dialog
-              if (ActionMenuItem==MI_SaveSegments || ActionMenuItem==MI_DeleteSegments || ActionMenuItem==MI_SplitMovie || (ActionMenuItem==MI_ClearAll && (BookmarkMode || NrSelectedSegments==0)) || (ActionMenuItem==MI_ImportBookmarks && NrSegmentMarker>2) || (ActionMenuItem==MI_ExportSegments && NrBookmarks>0))
+              if (ActionMenuItem==MI_SaveSegments || ActionMenuItem==MI_DeleteSegments || ActionMenuItem==MI_SplitMovie || (ActionMenuItem==MI_ClearAll && (BookmarkMode || NrSelectedSegments==0)) || (ActionMenuItem==MI_ImExportBookmarks && ((!BookmarkMode && NrSegmentMarker>2) || (BookmarkMode && NrBookmarks>0))))
               {
                 if(AskBeforeEdit && !ShowConfirmationDialog(LangGetString(LS_AskConfirmation)))
                 {
@@ -1733,7 +1748,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               }
 
               // PlayInfo prüfen
-              if (!(isPlaybackRunning() && PLAYINFOVALID()) && (ActionMenuItem != MI_ExitMC) && (ActionMenuItem != MI_RenameCheckFS))   // PlayInfo wird nicht aktualisiert
+              if (!(isPlaybackRunning() && PLAYINFOVALID()) && (ActionMenuItem != MI_ExitMC) && (ActionMenuItem != MI_RenameMovie) && (ActionMenuItem != MI_RecStripCheckFS))   // PlayInfo wird nicht aktualisiert
                 break;
 
               ActionMenuRemove();
@@ -1763,12 +1778,19 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                   OSDInfoDrawProgressbar(TRUE, TRUE);
                   break;
                 }
-                case MI_ImportBookmarks:     ImportBookmarksToSegments(); break;
-                case MI_ExportSegments:      ExportSegmentsToBookmarks(); break;
-                case MI_RenameCheckFS:
+                case MI_ImExportBookmarks:
                 {
                   if (!BookmarkMode)
-                    MovieCutterRenameFile();
+                    ImportBookmarksToSegments();
+                  else
+                    ExportSegmentsToBookmarks();
+                  break;
+                }  
+                case MI_RenameMovie:         MovieCutterRenameFile(); break;
+                case MI_RecStripCheckFS:
+                {
+                  if (!BookmarkMode)
+                    MovieCutterStripRec();
                   else
                   {
                     WriteLogMC(PROGRAM_NAME, "[Action 'Check file system' started...]");
@@ -4142,7 +4164,7 @@ void OSDInfoDrawRecName(void)
     TAP_SPrint(TitleStr, sizeof(TitleStr), PlaybackName);
     #ifndef MC_UNICODE
       if(isUTFToppy()) StrToISO(PlaybackName, TitleStr);
-      TitleStr[MAX_FILE_NAME_SIZE] = '\0';
+      TitleStr[sizeof(TitleStr)-1] = '\0';
     #endif
 
     // Passende Schriftgröße ermitteln
@@ -4550,7 +4572,7 @@ void ActionMenuDraw(void)
 {
   const int             TextFieldStart_X  =   7,   TextFieldStart_Y  = 4;
   const int             TextFieldHeight   =  26,   TextFieldDist     = 2;
-  const int             ShortButtonLeft   =  _ActionMenu10_Gd.width - TextFieldStart_X - _Button_Sleep_small_Gd.width - 5;
+  const int             ShortButtonLeft   =  _ActionMenu9_Gd.width - TextFieldStart_X - _Button_Sleep_small_Gd.width - 5;
   const dword           Color_Inactive    =  RGB(120, 120, 120);
   const dword           Color_Warning     =  RGB(250, 139, 18);
   TYPE_GrData*          ShortButtons[]    =  {&_Button_1_small_Gd, &_Button_2_small_Gd, &_Button_3_small_Gd, &_Button_4_small_Gd, &_Button_5_small_Gd, &_Button_6_small_Gd, &_Button_7_small_Gd, &_Button_8_small_Gd, &_Button_Sleep_small_Gd};
@@ -4568,11 +4590,13 @@ void ActionMenuDraw(void)
   // Region erzeugen und Hintergrund zeichnen
   if(!rgnActionMenu)
   {
-    rgnActionMenu = TAP_Osd_Create(((ScreenWidth - _ActionMenu10_Gd.width) / 2) +25, 70, _ActionMenu10_Gd.width, _ActionMenu10_Gd.height, 0, 0);
+    rgnActionMenu = TAP_Osd_Create(((ScreenWidth - _ActionMenu9_Gd.width) / 2) +25, 70, _ActionMenu9_Gd.width, _ActionMenu9_Gd.height, 0, 0);
 //    ActionMenuItem = 0;
     jfs_fsck_present = HDD_Exist2("jfs_fsck", FSCKPATH);
+    if(jfs_fsck_present)
+      chmod(FSCKPATH "/jfs_fsck", 0777);
   }
-  TAP_Osd_PutGd(rgnActionMenu, 0, 0, &_ActionMenu10_Gd, FALSE);
+  TAP_Osd_PutGd(rgnActionMenu, 0, 0, &_ActionMenu9_Gd, FALSE);
 
   // Buttons unterhalb der Liste zeichnen
   PosX = TextFieldStart_X + 12;
@@ -4700,12 +4724,31 @@ void ActionMenuDraw(void)
         }
         break;
       }
-      case MI_RenameCheckFS:
+      case MI_RenameMovie:
+      {
+        DisplayStr = LangGetString(LS_RenameMovie);
+        break;
+      }
+      case MI_ImExportBookmarks:
       {
         if (!BookmarkMode)
         {
-          DisplayStr = LangGetString(LS_RenameMovie);
-          DisplayColor = RGB(255, 150, 150);
+          DisplayStr = LangGetString(LS_ImportBM);
+          if (NrBookmarks <= 0) DisplayColor = Color_Inactive;
+        }
+        else
+        {
+          DisplayStr = LangGetString(LS_ExportToBM);
+          if (NrSegmentMarker <= 2 || MediaFileMode) DisplayColor = Color_Inactive;
+        }
+        break;
+      }
+      case MI_RecStripCheckFS:
+      {
+        if (!BookmarkMode)
+        {
+          DisplayStr = LangGetString(LS_StripRec);
+          DisplayColor = (RecStrip_present) ? RGB(255, 150, 150) : Color_Inactive;
         }
         else
         {
@@ -4714,21 +4757,11 @@ void ActionMenuDraw(void)
         }
         break;
       }
-      case MI_ImportBookmarks:
-      {
-        DisplayStr = LangGetString(LS_ImportBM);
-        if (NrBookmarks <= 0) DisplayColor = Color_Inactive;
-        break;
-      }
-      case MI_ExportSegments:
-      {
-        DisplayStr = LangGetString(LS_ExportToBM);
-        if (NrSegmentMarker <= 2 || MediaFileMode) DisplayColor = Color_Inactive;
-        break;
-      }
       case MI_ExitMC:
+      {
         DisplayStr = LangGetString(LS_ExitMC);
         break;
+      }
       case MI_NrMenuItems:
         break;
     }
@@ -4745,7 +4778,7 @@ void ActionMenuDraw(void)
 
 bool ActionMenuItemInactive(int MenuItem)
 {
-  return (((MenuItem==MI_SaveSegments||MenuItem==MI_DeleteSegments||MenuItem==MI_SelectEvOddSegments) && NrSegmentMarker<=2) || (MenuItem==MI_SplitMovie && PlayInfo.currentBlock==0) || (MenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && (NrSegmentMarker>2 || NrSelectedSegments>0)))) || (MenuItem==MI_ImportBookmarks && NrBookmarks<=0) || (MenuItem==MI_ExportSegments && (NrSegmentMarker<=2 || MediaFileMode)) || (MenuItem==MI_RenameCheckFS && BookmarkMode && !jfs_fsck_present));
+  return (((MenuItem==MI_SaveSegments||MenuItem==MI_DeleteSegments||MenuItem==MI_SelectEvOddSegments) && NrSegmentMarker<=2) || (MenuItem==MI_SplitMovie && PlayInfo.currentBlock==0) || (MenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && (NrSegmentMarker>2 || NrSelectedSegments>0)))) || (MenuItem==MI_ImExportBookmarks && ((!BookmarkMode && NrBookmarks<=0) || (BookmarkMode && (NrSegmentMarker<=2 || MediaFileMode))) ) || (MenuItem==MI_RecStripCheckFS && ((!BookmarkMode && !RecStrip_present) || (BookmarkMode && !jfs_fsck_present))));
 }
 
 void ActionMenuDown(void)
@@ -5661,6 +5694,155 @@ bool MovieCutterRenameFile(void)
   return ret;
 }
 
+bool MovieCutterStripRec(void)
+{
+  char                  StripName[MAX_FILE_NAME_SIZE], BakName[MAX_FILE_NAME_SIZE];
+  char                  StripName2[MAX_FILE_NAME_SIZE], PlaybackName2[MAX_FILE_NAME_SIZE], AbsPlaybackDir2[FBLIB_DIR_SIZE];
+  char                  CommandLine[1280];
+  char                 *ExtensionStart;
+  int                   NameLength = 0;
+  __off64_t             StripFileSize;
+  byte                  sec;
+  dword                 StartTime, CurTime;
+  dword                 RecStrip_Return = (dword)-1;
+  
+  TRACEENTER();
+  HDD_TAP_PushDir();
+  WriteLogMCf(PROGRAM_NAME, "[Action 'Strip movie' started...]");
+
+  // Wiedergabe stoppen und OSD ausblenden
+  CutSaveToBM(FALSE);
+  CutFileSave();
+  UndoResetStack();
+  TAP_Hdd_StopTs();
+  if(InodeMonitoring) HDD_FixInodeList(AbsPlaybackDir, TRUE);
+  ClearOSD(FALSE);
+  StartTime = PvrTimeToLinux(Now(&sec)) + sec;
+
+  // Neue Dateinamen berechnen
+  ExtensionStart = strrchr(PlaybackName, '.');
+  if (ExtensionStart) NameLength = ExtensionStart - PlaybackName;
+  strcpy(StripName, PlaybackName);
+  strcpy(BakName, PlaybackName);
+  TAP_SPrint(&StripName[NameLength], sizeof(StripName)-NameLength, "_strip%s", ExtensionStart);
+  TAP_SPrint(&BakName[NameLength], sizeof(BakName)-NameLength, "_bak%s", ExtensionStart);
+
+  // RecStrip starten ...
+  RecStrip_Cancelled = FALSE;
+  strcpy(StripName2, StripName); StrReplace(StripName2, "\"", "\\\"");
+  strcpy(PlaybackName2, PlaybackName); StrReplace(PlaybackName2, "\"", "\\\"");
+  strcpy(AbsPlaybackDir2, AbsPlaybackDir); StrReplace(AbsPlaybackDir2, "\"", "\\\"");
+  HDD_Delete2(StripName, AbsPlaybackDir, TRUE);
+  TAP_SPrint(CommandLine, sizeof(CommandLine), "( rm /tmp/RecStrip.* ; " RECSTRIPPATH "/RecStrip \"%s/%s\" \"%s/%s\" 2>&1 >> /tmp/RecStrip.log ; echo $? > /tmp/RecStrip.out ) & echo $!", AbsPlaybackDir2, PlaybackName2, AbsPlaybackDir2, StripName2);
+  FILE* fPidFile = popen(CommandLine, "r");
+  if(fPidFile)
+  {
+    fscanf(fPidFile, "%ld", &RecStrip_Pid);
+    pclose(fPidFile); fPidFile = NULL;
+  }
+
+  // ... und auf Beendigung warten
+  TAP_SPrint(CommandLine, sizeof(CommandLine), "/proc/%lu", RecStrip_Pid);
+  while (access(CommandLine, F_OK) != -1)
+  {
+    char ProgressStr[MAX_FILE_NAME_SIZE+128];
+    dword percent;
+    sync();
+    CurTime = PvrTimeToLinux(Now(&sec)) + sec;
+    if (HDD_GetFileSizeAndInode2(StripName, AbsPlaybackDir, NULL, &StripFileSize))
+    {
+      percent = CalcBlockSize(StripFileSize)/(CalcBlockSize(RecFileSize)/100);
+      TAP_SPrint(ProgressStr, sizeof(ProgressStr), LangGetString(LS_StrippingMsg), CurTime-StartTime, (percent ? ((100*(CurTime-StartTime))/percent)-(CurTime-StartTime) : 0));
+      OSDMenuProgressBarShow(PROGRAM_NAME, ProgressStr, percent, 100, NULL);
+    }
+    TAP_SystemProc();
+
+    if (RecStrip_Cancelled)
+    {
+      char KillCommand[16];
+      TAP_SPrint(KillCommand, sizeof(KillCommand), "kill %lu", RecStrip_Pid);
+      system(KillCommand);
+    }
+    TAP_Sleep(1000);
+  }
+  WriteLogMC(PROGRAM_NAME, "RecStrip finished.");
+
+  // Get exit code of RecStrip
+  if (RecStrip_Pid)
+  {
+    FILE* fRetFile = fopen("/tmp/RecStrip.out", "rb");
+    if(fRetFile)
+    {
+      fscanf(fRetFile, "%ld", &RecStrip_Return);
+      fclose(fRetFile); fRetFile = NULL;
+    }
+    system("cat /tmp/RecStrip.log >> /mnt/hd/ProgramFiles/Settings/RecStripper/RecStrip.log &");
+
+    // Set Date of Recording
+    char FileName[FBLIB_DIR_SIZE];
+    dword FileDate = 0;
+
+    if (!GetRecDateFromInf(StripName, AbsPlaybackDir, &FileDate))
+    {
+      TAP_SPrint(FileName, sizeof(FileName), "%s/%s", AbsPlaybackDir, StripName);
+      FileDate = Unix2TFTime(HDD_GetFileTimeByAbsFileName(FileName));
+    }
+    HDD_SetFileDateTime(StripName, AbsPlaybackDir, FileDate); 
+    GetCutNameFromRec(StripName, AbsPlaybackDir, FileName);        HDD_SetFileDateTime(FileName, AbsPlaybackDir, FileDate);
+    TAP_SPrint(FileName, sizeof(FileName), "%s.nav", StripName);   HDD_SetFileDateTime(FileName, AbsPlaybackDir, FileDate);
+    TAP_SPrint(FileName, sizeof(FileName), "%s.inf", StripName);   HDD_SetFileDateTime(FileName, AbsPlaybackDir, FileDate); 
+
+    // Falls erfolgreich, Aufnahmen umbenennen
+    if (RecStrip_Return == 0)
+    {
+      if (HDD_Exist2(FileName, AbsPlaybackDir))
+      {
+        WriteLogMCf(PROGRAM_NAME, "Renaming original recording '%s' to '%s'", PlaybackName, BakName);
+        HDD_Rename2(PlaybackName, BakName, AbsPlaybackDir, TRUE);
+        WriteLogMCf(PROGRAM_NAME, "Renaming stripped recording '%s' to '%s'", StripName, PlaybackName);
+        HDD_Rename2(StripName, PlaybackName, AbsPlaybackDir, TRUE);
+      }
+      else RecStrip_Return = -1;
+    }
+  }
+  RecStrip_Pid = 0;
+
+  // Wiedergabe wieder starten
+  HDD_StartPlayback2(PlaybackName, AbsPlaybackDir, MediaFileMode);
+  int i = 0;
+  while ((i < 2000) && (!isPlaybackRunning() || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0))  // 2000 ~ 30 sek. (750 ~ 10 sek.)
+  {
+    TAP_SystemProc();
+    i++;
+  }
+
+  // Output RecStrip return
+  HDD_GetFileSizeAndInode2(StripName, AbsPlaybackDir, NULL, &StripFileSize);
+  if (RecStrip_Cancelled)
+    WriteLogMCf(PROGRAM_NAME, "RecStrip aborted!");
+  else if (RecStrip_Return == 0)
+    WriteLogMCf(PROGRAM_NAME, "Success! Output size %llu (%.2f %% reduced).", StripFileSize, 100.0-(((double)CalcBlockSize(StripFileSize)/CalcBlockSize(RecFileSize))*100));
+  else
+  {
+    WriteLogMCf(PROGRAM_NAME, "RecStrip returned error code %ld!", RecStrip_Return);
+    ShowErrorMessage(LangGetString(LS_StrippingFailed), NULL);
+  }
+  OSDMenuProgressBarDestroyNoOSDUpdate();
+  TAP_Osd_Sync();
+
+  if (isPlaybackRunning() && (int)PlayInfo.totalBlock > 0)
+    State = ST_WaitForPlayback;
+  else
+  {
+    State = ST_UnacceptedFile;
+    ClearOSD(TRUE);
+  }
+
+  HDD_TAP_PopDir();
+  TRACEEXIT();
+  return (RecStrip_Return == 0);
+}
+
 void MovieCutterProcess(bool KeepCut, bool SplitMovie)  // Splittet am linken SegmentMarker (ActiveSegment)
 {
 //  int                   NrSelectedSegments;
@@ -6172,6 +6354,7 @@ CutDumpList();
     PlaybackRepeatSet(OldRepeatMode);
   }
 
+//  Cleanup(FALSE);
   if (State == ST_UnacceptedFile)
   {
     LastTotalBlocks = PlayInfo.totalBlock;
@@ -6434,7 +6617,7 @@ bool CheckFileSystem(char *MountPath, dword ProgressStart, dword ProgressEnd, dw
   // Prüfen, ob das Playback wieder gestartet wurde
   if (DoFix && (State==ST_ActiveOSD || State==ST_ActionMenu) && (LastTotalBlocks > 0) && (RecFileSize > 0))
   {
-    if((int)PlayInfo.totalBlock <= 0)
+    if(!isPlaybackRunning() || (int)PlayInfo.totalBlock <= 0)
     {
       WriteLogMC(PROGRAM_NAME, "CheckFileSystem: Error restarting the playback!");
       State = ST_UnacceptedFile;

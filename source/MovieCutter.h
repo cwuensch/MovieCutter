@@ -2,7 +2,7 @@
 #define __MOVIECUTTERH__
 
 #define PROGRAM_NAME          "MovieCutter"
-#define VERSION               "V3.5b"  // alpha = α,  beta = β, � = ü
+#define VERSION               "V3.6"  // alpha = α,  beta = β, � = ü
 #define TAPID                 0x8E0A4247
 //#define AUTHOR                "FireBird / Christian W�nsch"
 #define AUTHOR                "FireBird / C. Wünsch"
@@ -15,6 +15,7 @@
 #define LOGDIR                "/ProgramFiles/Settings/MovieCutter"
 #define LNGFILENAME           PROGRAM_NAME ".lng"
 #define INIFILENAME           PROGRAM_NAME ".ini"
+#define RECSTRIPPATH          TAPFSROOT "/ProgramFiles"
 
 typedef struct
 {
@@ -77,6 +78,7 @@ static void  MovieCutterDeleteSegments(void);
 static bool  MovieCutterRenameFile(void);
 static void  MovieCutterSelectEvOddSegments(void);
 static void  MovieCutterSplitMovie(void);
+static bool  MovieCutterStripRec(void);
 static void  MovieCutterUnselectAll(void);
 static void  MovieCutterProcess(bool KeepCut, bool SplitHere);
 static void  MovieCutterSaveSegments(void);
