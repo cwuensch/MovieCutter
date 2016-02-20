@@ -64,7 +64,7 @@ static char* DefaultStrings[LS_NrStrings] =
 static char             CurRecName[MAX_FILE_NAME_SIZE + 1], OutRecName[MAX_FILE_NAME_SIZE + 1];
 //static char             AbsRecDir[FBLIB_DIR_SIZE], AbsOutDir[FBLIB_DIR_SIZE];
 static __off64_t        RecFileSize = 0, CurOutFileSize = 0;
-static int              NrRecFiles = 0, CurRecNr = 0, NrSuccessful = 0;
+static int              NrRecFiles = 0, NrFolders = 0, CurRecNr = 0, NrSuccessful = 0;
 static dword            RecStrip_Pid = 0, RecStrip_Return = -1;
 static bool             RecStrip_Cancelled = FALSE;
 static dword            StartTime = 0;
@@ -164,7 +164,7 @@ int TAP_Main(void)
 
   TAP_Hdd_ChangeDir(RECDIR);
   NrRecFiles = TAP_Hdd_FindFirst(&FolderEntry, "rec|ts|mpg");
-  WriteLogMCf(PROGRAM_NAME, "Nr of files in folder: %i", NrRecFiles);
+  WriteLogMCf(PROGRAM_NAME, "Nr of files and folders: %i", NrRecFiles);
 
   if (NrRecFiles > 0)
   {
@@ -173,7 +173,9 @@ int TAP_Main(void)
     {
       for (CurRecNr = 0; CurRecNr < NrRecFiles; CurRecNr++)
       {
-        if(FolderEntry.attr == ATTR_NORMAL)
+        if(FolderEntry.attr == ATTR_FOLDER)
+          NrFolders++;
+        else if(FolderEntry.attr == ATTR_NORMAL)
         {
           byte sec;
           char CurRecName2[sizeof(CurRecName)], OutRecName2[sizeof(OutRecName)];
@@ -271,8 +273,8 @@ int TAP_Main(void)
         TAP_Hdd_FindNext(&FolderEntry);
       }
       OSDMenuProgressBarDestroyNoOSDUpdate();
-      WriteLogMCf(PROGRAM_NAME, "%d of %d files successfully processed.", NrSuccessful, NrRecFiles);
-      TAP_SPrint(MessageStr, sizeof(MessageStr), LangGetString(LS_FinishedStr), NrSuccessful, NrRecFiles);
+      WriteLogMCf(PROGRAM_NAME, "%d of %d files successfully processed.", NrSuccessful, NrRecFiles-NrFolders);
+      TAP_SPrint(MessageStr, sizeof(MessageStr), LangGetString(LS_FinishedStr), NrSuccessful, NrRecFiles-NrFolders);
       ShowErrorMessage(MessageStr, PROGRAM_NAME);
     }
   }
@@ -343,11 +345,14 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
         StrToISO(CurRecName, ISORecName);
 //        TAP_SPrint(TitleStr, sizeof(ProgressStr), LangGetString(LS_StatusTitle), CurRecNr+1, NrRecFiles);
-        TAP_SPrint(ProgressStr, sizeof(ProgressStr), LangGetString(LS_StatusText), CurRecNr+1, NrRecFiles, ISORecName, CurTime-StartTime, (percent ? ((100*(CurTime-StartTime))/percent)-(CurTime-StartTime) : 0));
+        TAP_SPrint(ProgressStr, sizeof(ProgressStr), LangGetString(LS_StatusText), CurRecNr+1, NrRecFiles-NrFolders, ISORecName, CurTime-StartTime, (percent ? ((100*(CurTime-StartTime))/percent)-(CurTime-StartTime) : 0));
         OSDMenuProgressBarShow(PROGRAM_NAME, ProgressStr, percent, 100, NULL);
       }
       else
+      {
         OSDMenuProgressBarDestroyNoOSDUpdate();
+        TAP_Osd_Sync();
+      }
       LastDraw = TAP_GetTick();
     }
   }
