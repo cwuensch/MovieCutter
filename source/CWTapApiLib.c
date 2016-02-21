@@ -273,6 +273,52 @@ bool HDD_TAP_CheckCollisionByID(dword MyTapID)
 
 
 // ----------------------------------------------------------------------------
+//                              INF-Funktionen
+// ----------------------------------------------------------------------------
+bool GetRecInfosFromInf(const char *RecFileName, const char *AbsDirectory, bool *const isCrypted, bool *const isHDVideo, bool *const isStripped, dword *const DateTime)
+{
+  char                  AbsInfName[FBLIB_DIR_SIZE];
+  TYPE_RecHeader_Info   RecHeaderInfo;
+  TYPE_Service_Info     ServiceInfo;
+  int                   f = -1;
+  bool                  ret = FALSE;
+
+  TRACEENTER();
+
+  TAP_SPrint(AbsInfName, sizeof(AbsInfName), "%s/%s.inf", AbsDirectory, RecFileName);
+  f = open(AbsInfName, O_RDONLY);
+  if(f >= 0)
+  {
+    ret = (read(f, &RecHeaderInfo, sizeof(RecHeaderInfo)) == sizeof(RecHeaderInfo));
+    if (ret)
+    {
+      if (isCrypted)  *isCrypted  = ((RecHeaderInfo.CryptFlag & 1) != 0);
+      if (isStripped) *isStripped = RecHeaderInfo.rs_HasBeenStripped;
+      if (DateTime)   *DateTime   = RecHeaderInfo.HeaderStartTime;
+
+      if (isHDVideo)
+      {
+        ret = (ret && read(f, &ServiceInfo, sizeof(ServiceInfo)) == sizeof(ServiceInfo));
+        if ((ServiceInfo.VideoStreamType==STREAM_VIDEO_MPEG4_PART2) || (ServiceInfo.VideoStreamType==STREAM_VIDEO_MPEG4_H264) || (ServiceInfo.VideoStreamType==STREAM_VIDEO_MPEG4_H263))
+          *isHDVideo = TRUE;
+        else if ((ServiceInfo.VideoStreamType==STREAM_VIDEO_MPEG1) || (ServiceInfo.VideoStreamType==STREAM_VIDEO_MPEG2))
+          *isHDVideo = FALSE;
+        else
+        {
+          WriteLogMCf("CWTapApiLib", "GetRecInfosFromInfFile(): Unknown video stream type 0x%hhx.\n", ServiceInfo.VideoStreamType);
+          ret = FALSE;
+        }
+      }
+    }
+    close(f);
+  }
+
+  TRACEEXIT();
+  return ret;
+}
+
+
+// ----------------------------------------------------------------------------
 //                        Playback-Operationen
 // ----------------------------------------------------------------------------
 bool HDD_StartPlayback2(char *FileName, char *AbsDirectory, bool MediaFileMode)

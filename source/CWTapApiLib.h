@@ -24,7 +24,12 @@ typedef struct
 {
   char                  HeaderMagic[4];
   word                  HeaderVersion;
-  byte                  HeaderUnknown2[2];
+  byte                  HeaderUnknown2;
+  byte                  rbn_HasBeenScanned:1;
+  byte                  iqt_UnencryptedRec:1;
+  byte                  rs_HasBeenStripped:1;
+  byte                  rs_ToBeStripped:1;
+  byte                  Reserved:4;
   dword                 HeaderStartTime;
   word                  HeaderDuration;
   word                  HeaderDurationSec;
@@ -135,6 +140,7 @@ typedef struct
 
 
 void       GetCutNameFromRec(const char *RecFileName, const char *AbsDirectory, char *const OutCutFileName);  // needs FBLIB_DIR_SIZE chars
+bool       GetRecInfosFromInf(const char *RecFileName, const char *AbsDirectory, bool *const isCrypted, bool *const isHDVideo, bool *const isStripped, dword *const DateTime);
 void       HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNavCut);
 void       HDD_Delete2(const char *FileName, const char *AbsDirectory, bool DeleteInfNavCut);
 bool       HDD_Exist2(const char *FileName, const char *AbsDirectory);

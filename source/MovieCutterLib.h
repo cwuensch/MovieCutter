@@ -75,10 +75,7 @@ void        MSecToTimeString(dword Timems, char *const OutTimeString);  // needs
 dword       TimeStringToMSec(char *const TimeString);
 void        Print64BitLong(long64 Number, char *const OutString);       // needs max. 2 + 2*9 + 1 = 19 chars
 int         GetPacketSize(const char *RecFileName, const char *AbsDirectory);
-bool        isCrypted(const char *RecFileName, const char *AbsDirectory);
-bool        isHDVideo(const char *RecFileName, const char *AbsDirectory, bool *const isHD);
 bool        isNavAvailable(const char *RecFileName, const char *AbsDirectory);
-bool        GetRecDateFromInf(const char *RecFileName, const char *AbsDirectory, dword *const DateTime);
 // bool        SaveBookmarksToInf(const char *RecFileName, const char *AbsDirectory, const dword Bookmarks[], int NrBookmarks);
 tTimeStamp* NavLoad(const char *RecFileName, const char *AbsDirectory, int *const OutNrTimeStamps, bool isHD);
 

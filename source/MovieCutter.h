@@ -78,7 +78,7 @@ static void  MovieCutterDeleteSegments(void);
 static bool  MovieCutterRenameFile(void);
 static void  MovieCutterSelectEvOddSegments(void);
 static void  MovieCutterSplitMovie(void);
-static bool  MovieCutterStripRec(void);
+static bool  MovieCutterRecStrip(bool DoCut, bool DoStrip);
 static void  MovieCutterUnselectAll(void);
 static void  MovieCutterProcess(bool KeepCut, bool SplitHere);
 static void  MovieCutterSaveSegments(void);

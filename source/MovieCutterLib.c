@@ -385,7 +385,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
     WriteLogMC("MovieCutterLib", "MovieCutter() W0010: inf creation failed.");
 
   // Fix the date info of all involved files
-  if (GetRecDateFromInf(SourceFileName, AbsDirectory, &RecDate)) {
+  if (GetRecInfosFromInf(SourceFileName, AbsDirectory, NULL, NULL, NULL, &RecDate)) {
     //Source
     char LogString[512];
     LogString[0] = '\0';
@@ -400,7 +400,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
     if(LogString[0])
       WriteLogMC("MovieCutterLib", LogString);
   }
-  if (KeepCut && GetRecDateFromInf(CutFileName, AbsDirectory, &RecDate)) {
+  if (KeepCut && GetRecInfosFromInf(CutFileName, AbsDirectory, NULL, NULL, NULL, &RecDate)) {
     //Cut
     char LogString[512];
     LogString[0] = '\0';
@@ -616,70 +616,6 @@ bool isNavAvailable(const char *RecFileName, const char *AbsDirectory)
       if (NavFileSize != 0)
         ret = TRUE;
   }
-
-  TRACEEXIT();
-  return ret;
-}
-
-// TODO: Auslesen der Stream-Information aus dem InfCache im RAM
-bool isCrypted(const char *RecFileName, const char *AbsDirectory)
-{
-  int                   f = -1;
-  char                  AbsInfName[FBLIB_DIR_SIZE];
-  byte                  CryptFlag = 2;  // wieso nicht 0?
-  bool                  ret = FALSE;
-
-  TRACEENTER();
-
-  TAP_SPrint(AbsInfName, sizeof(AbsInfName), "%s/%s.inf", AbsDirectory, RecFileName);
-  f = open(AbsInfName, O_RDONLY);
-  if(f >= 0)
-  {
-    ret = TRUE;
-    if (lseek(f, 0x0010, SEEK_SET) == 0x0010)
-      if (read(f, &CryptFlag, 1) > 0)
-        ret = ((CryptFlag & 1) != 0);
-    close(f);
-  }
-
-  TRACEEXIT();
-  return ret;
-}
-
-// TODO: Auslesen der Stream-Information aus dem InfCache im RAM
-bool isHDVideo(const char *RecFileName, const char *AbsDirectory, bool *const isHD)
-{
-  int                   f = -1;
-  char                  AbsInfName[FBLIB_DIR_SIZE];
-  byte                  StreamType = STREAM_UNKNOWN;
-  bool                  ret = FALSE;
-
-  if (isHD == NULL) return FALSE;
-  TRACEENTER();
-
-  TAP_SPrint(AbsInfName, sizeof(AbsInfName), "%s/%s.inf", AbsDirectory, RecFileName);
-  f = open(AbsInfName, O_RDONLY);
-  if(f >= 0)
-  {
-    if (lseek(f, 0x0042, SEEK_SET) == 0x0042)
-      if (read(f, &StreamType, 1) > 0)
-        ret = TRUE;
-    close(f);
-  }
-  if (ret)
-  {
-    if ((StreamType==STREAM_VIDEO_MPEG4_PART2) || (StreamType==STREAM_VIDEO_MPEG4_H264) || (StreamType==STREAM_VIDEO_MPEG4_H263))
-      *isHD = TRUE;
-    else if ((StreamType==STREAM_VIDEO_MPEG1) || (StreamType==STREAM_VIDEO_MPEG2))
-      *isHD = FALSE;
-    else
-    {
-      WriteLogMC("MovieCutterLib", "isHDVideo() E0102.");
-      ret = FALSE;
-    }
-  }
-  else
-    WriteLogMC("MovieCutterLib", "isHDVideo() E0101.");
 
   TRACEEXIT();
   return ret;
@@ -1127,30 +1063,6 @@ bool FindCutPointOffset2(const byte CutPointArray[], off_t RequestedCutPosition,
 // ----------------------------------------------------------------------------
 //                              INF-Funktionen
 // ----------------------------------------------------------------------------
-bool GetRecDateFromInf(const char *RecFileName, const char *AbsDirectory, dword *const DateTime)
-{
-  int                   f = -1;
-  char                  AbsInfName[FBLIB_DIR_SIZE];
-  bool                  ret = FALSE;
-
-  if (DateTime == NULL) return FALSE;
-  TRACEENTER();
-
-  TAP_SPrint(AbsInfName, sizeof(AbsInfName), "%s/%s.inf", AbsDirectory, RecFileName);
-  f = open(AbsInfName, O_RDONLY);
-  if(f >= 0)
-  {
-    if (lseek(f, 0x08, 0) == 0x08)
-      ret = (read(f, DateTime, sizeof(dword)) == sizeof(dword));
-    close(f);
-  }
-  else
-    WriteLogMC("MovieCutterLib", "GetRecDateFromInf() E0601.");
-
-  TRACEEXIT();
-  return ret;
-}
-
 /* bool SaveBookmarksToInf(const char *RecFileName, const char *AbsDirectory, const dword Bookmarks[], int NrBookmarks)
 {
   char                  AbsInfName[FBLIB_DIR_SIZE];
@@ -1287,20 +1199,12 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   fclose(fSourceInf);
 
   //Decode the source .inf
+  RecHeaderInfo = (TYPE_RecHeader_Info*) Buffer;
   switch (GetSystemType())
   {
-    case ST_TMSS:
-      RecHeaderInfo = &(((TYPE_RecHeader_TMSS*)Buffer)->RecHeaderInfo);
-      BookmarkInfo  = &(((TYPE_RecHeader_TMSS*)Buffer)->BookmarkInfo);
-      break;
-    case ST_TMSC:
-      RecHeaderInfo = &(((TYPE_RecHeader_TMSC*)Buffer)->RecHeaderInfo);
-      BookmarkInfo  = &(((TYPE_RecHeader_TMSC*)Buffer)->BookmarkInfo);
-      break;
-    case ST_TMST:
-      RecHeaderInfo = &(((TYPE_RecHeader_TMST*)Buffer)->RecHeaderInfo);
-      BookmarkInfo  = &(((TYPE_RecHeader_TMST*)Buffer)->BookmarkInfo);
-      break;
+    case ST_TMSS:  BookmarkInfo  = &(((TYPE_RecHeader_TMSS*)Buffer)->BookmarkInfo); break;
+    case ST_TMSC:  BookmarkInfo  = &(((TYPE_RecHeader_TMSC*)Buffer)->BookmarkInfo); break;
+    case ST_TMST:  BookmarkInfo  = &(((TYPE_RecHeader_TMST*)Buffer)->BookmarkInfo); break;
     default:
       WriteLogMC("MovieCutterLib", "PatchInfFiles() E0903: source inf not patched, cut inf not created.");
       TAP_MemFree(Buffer);
