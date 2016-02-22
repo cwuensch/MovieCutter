@@ -146,6 +146,7 @@ typedef enum
   ST_UnacceptedFile,     // ->[ST_Inact.Playing] // TAP is not active and cannot be entered (playback of unsupported file)
   ST_ActionMenu,         // [ST_ActionDialog]    // Action Menu is open, navigation only within menu
 //  ST_CutFailDialog,    //                      // Show the failure dialog
+  ST_RecStrip,           //                      // RecStrip executing, wait to finish
   ST_Exit,               //                      // Preparing to exit TAP
   ST_ExitNoSave
 } tState;
@@ -321,7 +322,8 @@ typedef enum
   LS_CopyCurSegment,
   LS_StripRec,
   LS_StrippingMsg,
-  LS_StrippingFailed,
+  LS_StripSuccess,
+  LS_StripFailed,
   LS_NrStrings
 } tLngStrings;
 
@@ -432,9 +434,10 @@ static char* DefaultStrings[LS_NrStrings] =
   "Speichern",
   "Mark. Seg. in neue Rec kopieren",
   "Aktuelles Seg. in neue Rec kopieren",
-  "Aufnahme schrumpfen",
-  "Aufnahme wird gestrippt...\n\nZeit vergangen: %lu s, Zeit verbleibend: %lu s\n\n",
-  "Strippen der Aufnahme fehlgeschlagen."
+  "Aufnahme strippen",
+  "Kopie erstellen...",
+  "Aktion erfolgreich abgeschlossen.\n\n%.1f von %.1f MB (%.1f %%) kopiert.",
+  "Kopieren ist fehlgeschlagen!\nBitte das Log prüfen!"
 };
 #ifdef MC_MULTILANG
   #define LangGetString(x)  LangGetStringDefault(x, DefaultStrings[x])
@@ -532,10 +535,11 @@ static word             rgnInfoBarMini = 0;
 static word             rgnPlayState = 0;
 static word             rgnTextState = 0;
 static word             rgnActionMenu = 0;
+static word             rgnStripProgBar = 0;
 static int              ActionMenuItem;
 static dword            LastPlayStateChange = 0;
 static bool             jfs_fsck_present = FALSE;
-static bool             RecStrip_present = FALSE, RecStrip_Cancelled;
+static bool             RecStrip_present = FALSE, RecStrip_DoCut = FALSE, RecStrip_Cancelled;
 static dword            RecStrip_Pid = 0;
 
 
@@ -729,15 +733,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   }
 
   // Abbruch von fsck ermöglichen (selbst bei DoNotReenter)
-  if(DoNotReenter && (OSDMenuProgressBarIsVisible() || RecStrip_Pid))
+  if(DoNotReenter && OSDMenuProgressBarIsVisible())
   {
     if(event == EVT_KEY && (param1 == RKEY_Exit || param1 == FKEY_Exit || param1 == RKEY_Sleep))
-    {
       HDD_CancelCheckFS();
-      RecStrip_Cancelled = TRUE;
-    }
-    if (!RecStrip_Pid || (event==EVT_KEY && !(param1==RKEY_Up || param1==RKEY_Down || param1==RKEY_Left || param1==RKEY_Right || (param1>=RKEY_0 && param1<=RKEY_9))))
-      param1 = 0;
+    param1 = 0;
   }
 
 
@@ -1769,13 +1769,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               {
                 case MI_SaveSegments:        MovieCutterSaveSegments(); break;
                 case MI_DeleteSegments:      MovieCutterDeleteSegments(); break;
-                case MI_CopySegments:
-                {
-                  if (NrSelectedSegments == 0)
-                    SegmentMarker[ActiveSegment].Selected = TRUE;
-                  MovieCutterRecStrip(TRUE, FALSE);
-                  break;
-                }
                 case MI_SplitMovie:          MovieCutterSplitMovie(); break;
                 case MI_SelectEvOddSegments: MovieCutterSelectEvOddSegments(); break;
                 case MI_ClearAll:            
@@ -1805,10 +1798,25 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                   break;
                 }  
                 case MI_RenameMovie:         MovieCutterRenameFile(); break;
+
+                case MI_CopySegments:
+                {
+                  if (NrSelectedSegments == 0)
+                    SegmentMarker[ActiveSegment].Selected = TRUE;
+                  RecStrip_DoCut = TRUE;
+                  // weiter mit MI_RecStripCheckFS
+                }
                 case MI_RecStripCheckFS:
                 {
-                  if (!BookmarkMode)
-                    MovieCutterRecStrip(FALSE, TRUE);
+                  if ((ActionMenuItem == MI_CopySegments) || (ActionMenuItem == MI_RecStripCheckFS && !BookmarkMode))
+                  {
+                    WriteLogMCf(PROGRAM_NAME, "[Action '%s' started...]", (RecStrip_DoCut ? "Copy parts" : "Strip movie"));
+                    CutSaveToBM(FALSE);
+                    CutFileSave();
+                    TAP_Hdd_StopTs();
+                    State = ST_RecStrip;
+                    Cleanup(TRUE);
+                  }
                   else
                   {
                     WriteLogMC(PROGRAM_NAME, "[Action 'Check file system' started...]");
@@ -1869,6 +1877,180 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       break;
     }
 
+    // RecStrip läuft: Fortschritt anzeigen und auf Beendigung warten
+    // --------------------------------------------------------------
+    case ST_RecStrip:         //RecStrip ProgressBar is visible
+    {
+      static char       StripName[MAX_FILE_NAME_SIZE], BakName[MAX_FILE_NAME_SIZE], PidFile[20];
+      static __off64_t  OrigFileSize = 0;
+      static dword      RecStrip_Return, LastRefresh;
+      __off64_t         StripFileSize;
+  
+      if(event == EVT_KEY && (param1 == RKEY_Exit || param1 == FKEY_Exit || param1 == RKEY_Sleep))
+      {
+        if (RecStrip_Pid)
+        {
+          char KillCommand[16];
+          TAP_SPrint(KillCommand, sizeof(KillCommand), "kill %lu", RecStrip_Pid);
+          system(KillCommand);
+          RecStrip_Cancelled = TRUE;
+        }
+        param1 = 0;
+      }
+
+      else if (event == EVT_IDLE)
+      {
+        // INIT: Starte RecStrip
+        if (!rgnStripProgBar && !RecStrip_Pid)
+        {
+          RecStrip_Return = (dword) -1;
+          RecStrip_Cancelled = FALSE;
+
+          // Progress-OSD einblenden
+          OSDRecStripProgressBar(0);
+
+          // Neue Dateinamen berechnen
+          if (RecStrip_DoCut)
+          {
+            GetNextFreeCutName(PlaybackName, StripName, AbsPlaybackDir, 0);
+            OrigFileSize = 0;
+            int i;
+            for (i = 0; i < NrSegmentMarker-2; i++)
+              if (SegmentMarker[i].Selected)
+                OrigFileSize += (SegmentMarker[i+1].Block - SegmentMarker[i].Block);
+          }
+          else
+          {
+            char         *ExtensionStart;
+            int           NameLength = 0;
+
+            ExtensionStart = strrchr(PlaybackName, '.');
+            if (ExtensionStart) NameLength = ExtensionStart - PlaybackName;
+            strcpy(StripName, PlaybackName);
+            strcpy(BakName, PlaybackName);
+            TAP_SPrint(&StripName[NameLength], sizeof(StripName)-NameLength, "_strip%s", ExtensionStart);
+            TAP_SPrint(&BakName[NameLength], sizeof(BakName)-NameLength, "_bak%s", ExtensionStart);
+            OrigFileSize = RecFileSize;
+          }
+
+          // RecStrip starten
+          {
+            char          StripName2[MAX_FILE_NAME_SIZE], PlaybackName2[MAX_FILE_NAME_SIZE], AbsPlaybackDir2[FBLIB_DIR_SIZE];
+            char          CommandLine[1280];
+
+            HDD_Delete2(StripName, AbsPlaybackDir, TRUE);
+            strcpy(StripName2, StripName); StrReplace(StripName2, "\"", "\\\"");
+            strcpy(PlaybackName2, PlaybackName); StrReplace(PlaybackName2, "\"", "\\\"");
+            strcpy(AbsPlaybackDir2, AbsPlaybackDir); StrReplace(AbsPlaybackDir2, "\"", "\\\"");
+            TAP_SPrint(CommandLine, sizeof(CommandLine), "( rm /tmp/RecStrip.* ; " RECSTRIPPATH "/RecStrip %s \"%s/%s\" \"%s/%s\" 2>&1 >> /tmp/RecStrip.log ; echo $? > /tmp/RecStrip.out ) & echo $!", (RecStrip_DoCut ? "-c" : ""), AbsPlaybackDir2, PlaybackName2, AbsPlaybackDir2, StripName2);
+            FILE* fPidFile = popen(CommandLine, "r");
+            if(fPidFile)
+            {
+              fscanf(fPidFile, "%ld", &RecStrip_Pid);
+              pclose(fPidFile); fPidFile = NULL;
+            }
+            TAP_SPrint(PidFile, sizeof(PidFile), "/proc/%lu", RecStrip_Pid);
+          }
+        }
+
+        // WAIT: Auf Beendigung von RecStrip warten
+        if (rgnStripProgBar && RecStrip_Pid)
+        {
+          if (access(PidFile, F_OK) != -1)
+          {
+            if(labs(TAP_GetTick() - LastRefresh) > 100)
+            {
+              sync();
+              if (HDD_GetFileSizeAndInode2(StripName, AbsPlaybackDir, NULL, &StripFileSize))
+                OSDRecStripProgressBar(CalcBlockSize(StripFileSize) / (CalcBlockSize(OrigFileSize) / 100));
+              LastRefresh = TAP_GetTick();
+            }
+          }
+          else
+          {
+            WriteLogMC(PROGRAM_NAME, "RecStrip finished.");
+
+            // Get exit code of RecStrip
+            if (RecStrip_Pid)
+            {
+              FILE* fRetFile = fopen("/tmp/RecStrip.out", "rb");
+              if(fRetFile)
+              {
+                fscanf(fRetFile, "%ld", &RecStrip_Return);
+                fclose(fRetFile); fRetFile = NULL;
+              }
+              RecStrip_Pid = 0;
+              system("cat /tmp/RecStrip.log >> /mnt/hd/ProgramFiles/Settings/RecStripper/RecStrip.log &");
+            }
+          }
+        }
+
+        // FINISHED: Nachverarbeitung
+        if (rgnStripProgBar && RecStrip_Return == 0)
+        {
+          // Set Date of Recording
+          char FileName[FBLIB_DIR_SIZE];
+          dword FileDate = RecDateTime;
+
+          sync();
+          HDD_GetFileSizeAndInode2(StripName, AbsPlaybackDir, NULL, &StripFileSize);
+
+          if (!FileDate)
+          {
+            TAP_SPrint(FileName, sizeof(FileName), "%s/%s", AbsPlaybackDir, StripName);
+            FileDate = Unix2TFTime(HDD_GetFileTimeByAbsFileName(FileName));
+          }
+          HDD_SetFileDateTime(StripName, AbsPlaybackDir, FileDate); 
+          GetCutNameFromRec(StripName, AbsPlaybackDir, FileName);        HDD_SetFileDateTime(FileName, AbsPlaybackDir, FileDate);
+          TAP_SPrint(FileName, sizeof(FileName), "%s.nav", StripName);   HDD_SetFileDateTime(FileName, AbsPlaybackDir, FileDate);
+          TAP_SPrint(FileName, sizeof(FileName), "%s.inf", StripName);   HDD_SetFileDateTime(FileName, AbsPlaybackDir, FileDate); 
+
+          // Falls erfolgreich, Aufnahmen umbenennen
+          if (!RecStrip_DoCut && RecStrip_Return == 0)
+          {
+            if (HDD_Exist2(FileName, AbsPlaybackDir))
+            {
+              WriteLogMCf(PROGRAM_NAME, "Renaming original recording '%s' to '%s'", PlaybackName, BakName);
+              HDD_Rename2(PlaybackName, BakName, AbsPlaybackDir, TRUE);
+              WriteLogMCf(PROGRAM_NAME, "Renaming stripped recording '%s' to '%s'", StripName, PlaybackName);
+              HDD_Rename2(StripName, PlaybackName, AbsPlaybackDir, TRUE);
+            }
+            else RecStrip_Return = -1;
+          }
+          else if (RecStrip_Cancelled)
+            HDD_Delete2(StripName, AbsPlaybackDir, TRUE);
+        }
+
+        // END: Ausgabe
+        if (rgnStripProgBar && !RecStrip_Pid)
+        {
+          State = (AutoOSDPolicy) ? ST_WaitForPlayback : ST_InactiveMode;
+          RecStrip_DoCut = FALSE;
+
+          TAP_Osd_Delete(rgnStripProgBar);
+          rgnStripProgBar = 0;
+          TAP_Osd_Sync();
+
+          // Output RecStrip return
+          if (RecStrip_Cancelled)
+            WriteLogMCf(PROGRAM_NAME, "RecStrip aborted!");
+          else if (RecStrip_Return == 0)
+          {
+            char MessageStr[128];
+            TAP_SPrint(MessageStr, sizeof(MessageStr), LangGetString(LS_StripSuccess), CalcBlockSize(StripFileSize)/116.1986, CalcBlockSize(OrigFileSize)/116.1986, ((double)CalcBlockSize(StripFileSize)/CalcBlockSize(OrigFileSize))*100);
+            WriteLogMC(PROGRAM_NAME, MessageStr);
+            ShowErrorMessage(MessageStr, NULL);
+          }
+          else
+          {
+            WriteLogMCf(PROGRAM_NAME, "RecStrip returned error code %ld!", RecStrip_Return);
+            ShowErrorMessage(LangGetString(LS_StripFailed), NULL);
+          }
+        }
+      }
+      break;
+    }
+      
     // Beendigung des TAPs
     // -------------------
     case ST_Exit:             //Preparing to terminate the TAP
@@ -4582,6 +4764,37 @@ void OSDTextStateWindow(int MessageID)
   TRACEEXIT();
 }
 
+void OSDRecStripProgressBar(int percent)
+{
+  const int             RegionWidth = 150;
+  const int             RegionHeight = 30;
+  static int            LastPercent = 0;
+  char                  ProgressStr[10];
+
+  TRACEENTER();
+
+  // Progress-OSD einblenden
+  if (!rgnStripProgBar)
+  {
+    rgnStripProgBar = TAP_Osd_Create(Overscan_X + 20, Overscan_Y + 20, RegionWidth, RegionHeight, 0, 0);
+    TAP_Osd_FillBox(rgnStripProgBar, 0, 0, RegionWidth, RegionHeight, ColorLightBackground);
+    TAP_Osd_DrawRectangle(rgnStripProgBar, 0, 0, RegionWidth, RegionHeight, 2, COLOR_Gray);
+    FM_PutString(rgnStripProgBar, 5, 2, RegionWidth-3, LangGetString(LS_StrippingMsg), RGB(255, 255, 224), ColorLightBackground, &Calibri_10_FontData, TRUE, ALIGN_LEFT);
+    TAP_Osd_FillBox(rgnStripProgBar, 5, RegionHeight-10, 100, 5, COLOR_Gray);
+    TAP_Osd_Sync();
+  }
+
+  if (rgnStripProgBar && (percent != LastPercent))
+  {
+    TAP_Osd_FillBox(rgnStripProgBar, 5, RegionHeight-10, percent, 5, COLOR_Red);
+    TAP_SPrint(ProgressStr, sizeof(ProgressStr), "%3d %%", percent);
+    FM_PutString(rgnStripProgBar, 108, 12, RegionWidth-5, ProgressStr, RGB(255, 255, 224), ColorLightBackground, &Calibri_10_FontData, FALSE, ALIGN_RIGHT);
+    TAP_Osd_Sync();
+  }
+
+  TRACEEXIT();
+}
+
 
 // ----------------------------------------------------------------------------
 //                          ActionMenu-Funktionen
@@ -5720,189 +5933,6 @@ bool MovieCutterRenameFile(void)
   HDD_TAP_PopDir();
   TRACEEXIT();
   return ret;
-}
-
-bool MovieCutterRecStrip(bool DoCut, bool DoStrip)
-{
-  const int             RegionWidth = 150, RegionHeight = 30;
-
-  char                  StripName[MAX_FILE_NAME_SIZE], BakName[MAX_FILE_NAME_SIZE];
-  char                  StripName2[MAX_FILE_NAME_SIZE], PlaybackName2[MAX_FILE_NAME_SIZE], AbsPlaybackDir2[FBLIB_DIR_SIZE];
-  char                  CommandLine[1280];
-  char                 *ExtensionStart;
-  int                   NameLength = 0;
-  dword                 rgnStripProgress = 0;
-  __off64_t             OrigFileSize = 0, StripFileSize;
-//  byte                  sec;
-//  dword                 StartTime, CurTime;
-  dword                 RecStrip_Return = (dword)-1;
-  int                   i;
-  
-  TRACEENTER();
-  HDD_TAP_PushDir();
-  WriteLogMCf(PROGRAM_NAME, "[Action 'Strip movie' started...]");
-
-  // Wiedergabe stoppen und OSD ausblenden
-  CutSaveToBM(FALSE);
-  CutFileSave();
-  UndoResetStack();
-  TAP_Hdd_StopTs();
-  if(InodeMonitoring) HDD_FixInodeList(AbsPlaybackDir, TRUE);
-  ClearOSD(TRUE);
-//  StartTime = PvrTimeToLinux(Now(&sec)) + sec;
-
-  // Progress-OSD einblenden
-  rgnStripProgress = TAP_Osd_Create(Overscan_X + 20, Overscan_Y + 20, RegionWidth, RegionHeight, 0, 0);
-  TAP_Osd_FillBox(rgnStripProgress, 0, 0, RegionWidth, RegionHeight, ColorLightBackground);
-  TAP_Osd_DrawRectangle(rgnStripProgress, 0, 0, RegionWidth, RegionHeight, 2, COLOR_Gray);
-  FM_PutString(rgnStripProgress, 5, 2, RegionWidth-3, "Stripping...", RGB(255, 255, 224), ColorLightBackground, &Calibri_10_FontData, TRUE, ALIGN_LEFT);
-  TAP_Osd_FillBox(rgnStripProgress, 5, RegionHeight-10, 100, 5, COLOR_Gray);
-  TAP_Osd_Sync();
-
-  // Neue Dateinamen berechnen
-  ExtensionStart = strrchr(PlaybackName, '.');
-  if (ExtensionStart) NameLength = ExtensionStart - PlaybackName;
-  if (DoCut)
-  {
-    GetNextFreeCutName(PlaybackName, StripName, AbsPlaybackDir, 0);
-    for (i = 0; i < NrSegmentMarker-2; i++)
-    {
-      if (SegmentMarker[i].Selected)
-        OrigFileSize += (SegmentMarker[i+1].Block - SegmentMarker[i].Block);
-    }
-  }
-  else
-  {
-    strcpy(StripName, PlaybackName);
-    strcpy(BakName, PlaybackName);
-    TAP_SPrint(&StripName[NameLength], sizeof(StripName)-NameLength, "_strip%s", ExtensionStart);
-    TAP_SPrint(&BakName[NameLength], sizeof(BakName)-NameLength, "_bak%s", ExtensionStart);
-    OrigFileSize = RecFileSize;
-  }
-
-  // RecStrip starten ...
-  RecStrip_Cancelled = FALSE;
-  strcpy(StripName2, StripName); StrReplace(StripName2, "\"", "\\\"");
-  strcpy(PlaybackName2, PlaybackName); StrReplace(PlaybackName2, "\"", "\\\"");
-  strcpy(AbsPlaybackDir2, AbsPlaybackDir); StrReplace(AbsPlaybackDir2, "\"", "\\\"");
-  HDD_Delete2(StripName, AbsPlaybackDir, TRUE);
-  TAP_SPrint(CommandLine, sizeof(CommandLine), "( rm /tmp/RecStrip.* ; " RECSTRIPPATH "/RecStrip %s %s \"%s/%s\" \"%s/%s\" 2>&1 >> /tmp/RecStrip.log ; echo $? > /tmp/RecStrip.out ) & echo $!", (DoCut ? "-c" : ""), (DoStrip ? "" : ""), AbsPlaybackDir2, PlaybackName2, AbsPlaybackDir2, StripName2);
-  FILE* fPidFile = popen(CommandLine, "r");
-  if(fPidFile)
-  {
-    fscanf(fPidFile, "%ld", &RecStrip_Pid);
-    pclose(fPidFile); fPidFile = NULL;
-  }
-
-  // ... und auf Beendigung warten
-  TAP_SPrint(CommandLine, sizeof(CommandLine), "/proc/%lu", RecStrip_Pid);
-  i = 0;
-  while (access(CommandLine, F_OK) != -1)
-  {
-    char ProgressStr[MAX_FILE_NAME_SIZE+128];
-    dword percent;
-    if (i == 0)
-    {
-      sync();
-//      CurTime = PvrTimeToLinux(Now(&sec)) + sec;
-      if (HDD_GetFileSizeAndInode2(StripName, AbsPlaybackDir, NULL, &StripFileSize))
-      {
-        percent = CalcBlockSize(StripFileSize)/(CalcBlockSize(OrigFileSize)/100);
-        TAP_SPrint(ProgressStr, sizeof(ProgressStr), "%ld %%", percent);
-        TAP_Osd_FillBox(rgnStripProgress, 5, RegionHeight-10, percent, 5, COLOR_Red);
-        FM_PutString(rgnStripProgress, 108, 12, RegionWidth-5, ProgressStr, RGB(255, 255, 224), ColorLightBackground, &Calibri_10_FontData, FALSE, ALIGN_RIGHT);
-//        TAP_SPrint(ProgressStr, sizeof(ProgressStr), LangGetString(LS_StrippingMsg), CurTime-StartTime, (percent ? ((100*(CurTime-StartTime))/percent)-(CurTime-StartTime) : 0));
-//        OSDMenuProgressBarShow(PROGRAM_NAME, ProgressStr, percent, 100, NULL);
-        TAP_Osd_Sync();
-      }
-    }
-    TAP_SystemProc();
-
-    if (RecStrip_Cancelled)
-    {
-      char KillCommand[16];
-      TAP_SPrint(KillCommand, sizeof(KillCommand), "kill %lu", RecStrip_Pid);
-      system(KillCommand);
-    }
-    i = (i+1) % 20;
-    TAP_Delay(10);
-  }
-  WriteLogMC(PROGRAM_NAME, "RecStrip finished.");
-
-  // Get exit code of RecStrip
-  if (RecStrip_Pid)
-  {
-    FILE* fRetFile = fopen("/tmp/RecStrip.out", "rb");
-    if(fRetFile)
-    {
-      fscanf(fRetFile, "%ld", &RecStrip_Return);
-      fclose(fRetFile); fRetFile = NULL;
-    }
-    system("cat /tmp/RecStrip.log >> /mnt/hd/ProgramFiles/Settings/RecStripper/RecStrip.log &");
-
-    // Set Date of Recording
-    char FileName[FBLIB_DIR_SIZE];
-    dword FileDate = RecDateTime;
-
-    if (!FileDate)
-    {
-      TAP_SPrint(FileName, sizeof(FileName), "%s/%s", AbsPlaybackDir, StripName);
-      FileDate = Unix2TFTime(HDD_GetFileTimeByAbsFileName(FileName));
-    }
-    HDD_SetFileDateTime(StripName, AbsPlaybackDir, FileDate); 
-    GetCutNameFromRec(StripName, AbsPlaybackDir, FileName);        HDD_SetFileDateTime(FileName, AbsPlaybackDir, FileDate);
-    TAP_SPrint(FileName, sizeof(FileName), "%s.nav", StripName);   HDD_SetFileDateTime(FileName, AbsPlaybackDir, FileDate);
-    TAP_SPrint(FileName, sizeof(FileName), "%s.inf", StripName);   HDD_SetFileDateTime(FileName, AbsPlaybackDir, FileDate); 
-
-    // Falls erfolgreich, Aufnahmen umbenennen
-    if (!DoCut && RecStrip_Return == 0)
-    {
-      if (HDD_Exist2(FileName, AbsPlaybackDir))
-      {
-        WriteLogMCf(PROGRAM_NAME, "Renaming original recording '%s' to '%s'", PlaybackName, BakName);
-        HDD_Rename2(PlaybackName, BakName, AbsPlaybackDir, TRUE);
-        WriteLogMCf(PROGRAM_NAME, "Renaming stripped recording '%s' to '%s'", StripName, PlaybackName);
-        HDD_Rename2(StripName, PlaybackName, AbsPlaybackDir, TRUE);
-      }
-      else RecStrip_Return = -1;
-    }
-    else if (RecStrip_Cancelled)
-      HDD_Delete2(StripName, AbsPlaybackDir, TRUE);
-  }
-  RecStrip_Pid = 0;
-
-  // Wiedergabe wieder starten
-  HDD_StartPlayback2(PlaybackName, AbsPlaybackDir, MediaFileMode);
-  i = 0;
-  while ((i < 2000) && (!isPlaybackRunning() || (int)PlayInfo.totalBlock <= 0 || (int)PlayInfo.currentBlock < 0))  // 2000 ~ 30 sek. (750 ~ 10 sek.)
-  {
-    TAP_SystemProc();
-    i++;
-  }
-//  OSDMenuProgressBarDestroyNoOSDUpdate();
-  TAP_Osd_Delete(rgnStripProgress);
-  TAP_Osd_Sync();
-
-  // Output RecStrip return
-  HDD_GetFileSizeAndInode2(StripName, AbsPlaybackDir, NULL, &StripFileSize);
-  if (RecStrip_Cancelled)
-    WriteLogMCf(PROGRAM_NAME, "RecStrip aborted!");
-  else if (RecStrip_Return == 0)
-    WriteLogMCf(PROGRAM_NAME, "Success! Output size %llu (%.2f %% reduced).", StripFileSize, 100.0-(((double)CalcBlockSize(StripFileSize)/CalcBlockSize(OrigFileSize))*100));
-  else
-  {
-    WriteLogMCf(PROGRAM_NAME, "RecStrip returned error code %ld!", RecStrip_Return);
-    ShowErrorMessage(LangGetString(LS_StrippingFailed), NULL);
-  }
-
-  if (isPlaybackRunning() && (int)PlayInfo.totalBlock > 0)
-    State = ST_WaitForPlayback;
-  else
-    State = ST_UnacceptedFile;
-
-  HDD_TAP_PopDir();
-  TRACEEXIT();
-  return (RecStrip_Return == 0);
 }
 
 void MovieCutterProcess(bool KeepCut, bool SplitMovie)  // Splittet am linken SegmentMarker (ActiveSegment)
