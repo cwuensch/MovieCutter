@@ -68,7 +68,7 @@ typedef struct
 } tnavHD;
 
 void        CreateSettingsDir(void);
-tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirectory, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepCut, bool isHD);
+tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirectory, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepCut, bool isHD, char *pCutCaption, char *pSourceCaption);
 void        GetNextFreeCutName(const char *SourceFileName, char *const OutCutFileName, const char *AbsDirectory, int LeaveNamesOut);
 void        SecToTimeString(dword Time, char *const OutTimeString);     // needs max. 4 + 1 + 2 + 1 + 2 + 1 = 11 chars
 void        MSecToTimeString(dword Timems, char *const OutTimeString);  // needs max. 4 + 1 + 2 + 1 + 2 + 1 + 3 + 1 = 15 chars

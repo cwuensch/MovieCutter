@@ -12,6 +12,7 @@
 //#define NRBOOKMARKS           144
 #define NRUNDOEVENTS          100
 #define SIZESUSPECTHDDS       1024
+#define MAXCAPTIONLENGTH      512
 #define LOGDIR                "/ProgramFiles/Settings/MovieCutter"
 #define LNGFILENAME           PROGRAM_NAME ".lng"
 #define INIFILENAME           PROGRAM_NAME ".ini"
@@ -23,6 +24,7 @@ typedef struct
   dword                 Timems; //Time in ms
   float                 Percent;
   bool                  Selected;
+  char                 *pCaption;
 } tSegmentMarker;
 
 
@@ -41,6 +43,7 @@ static int   AddBookmark(dword newBlock, bool RejectSmallScenes);
 static bool  AddDefaultSegmentMarker(void);
 static int   AddSegmentMarker(dword newBlock, bool RejectSmallSegments);
 static void  CalcLastSeconds(void);
+static void  ChangeSegmentText(void);
 static bool  CheckFileSystem(char *MountPath, dword ProgressStart, dword ProgressEnd, dword ProgressMax, bool DoFix, bool Quick, bool NoOkInfo, bool ErrorMessage, int SuspectFiles, char *InodeNrs);
 static void  CheckLastSeconds(void);
 static void  Cleanup(bool DoClearOSD);
@@ -61,7 +64,7 @@ static bool  CutSaveToBM(bool ReadBMBefore);
 static bool  CutSaveToInf(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const char* RecFileName);
 static bool  DeleteBookmark(int BookmarkIndex);
 static bool  DeleteAllBookmarks(void);
-static bool  DeleteSegmentMarker(int MarkerIndex);
+static bool  DeleteSegmentMarker(int MarkerIndex, bool FreeCaption);
 static void  DeleteAllSegmentMarkers(void);
 static void  ExportSegmentsToBookmarks(void);
 static int   FindNearestBookmark(dword curBlock);
@@ -93,6 +96,7 @@ static void  OSDInfoDrawRecName(void);
 static void  OSDRedrawEverything(void);
 static void  OSDRecStripProgressBar(int percent);
 static void  OSDSegmentListDrawList(bool DoSync);
+static void  OSDSegmentTextDraw(bool Force);
 static void  OSDTextStateWindow(int MessageID);
 static void  Playback_Faster(void);
 static void  Playback_FFWD(void);
@@ -108,13 +112,14 @@ static void  Playback_Pause(void);
 static void  Playback_RWD(void);
 static void  Playback_Slow(void);
 static void  Playback_Slower(void);
+static void  ResetSegmentMarkers(void);
 static void  SaveINI(void);
 static bool  SelectSegmentMarker(void);
 static void  SetCurrentSegment(void);
 static bool  SetPlaybackSpeed(TYPE_TrickMode newTrickMode, byte newTrickModeSpeed);
 static bool  ShowConfirmationDialog(char *MessageStr);
 static void  ShowErrorMessage(char *MessageStr, char *TitleStr);
-static void  UndoAddEvent(bool Bookmark, dword PreviousBlock, dword NewBlock, bool SegmentWasSelected);
+static void  UndoAddEvent(bool Bookmark, dword PreviousBlock, dword NewBlock, bool SegmentWasSelected, char *pPrevCaption);
 static bool  UndoLastAction(void);
 static void  UndoResetStack(void);
 static bool  PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isHD);

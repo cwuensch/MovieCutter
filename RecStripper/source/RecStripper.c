@@ -191,7 +191,7 @@ int TAP_Main(void)
           RecStrip_Cancelled = FALSE;
           strcpy(CurRecName2, CurRecName); StrReplace(CurRecName2, "\"", "\\\"");
           strcpy(OutRecName2, OutRecName); StrReplace(OutRecName2, "\"", "\\\"");
-          TAP_SPrint(CommandLine, sizeof(CommandLine), "( rm /tmp/RecStrip.* ; " RECSTRIPPATH "/RecStrip \"%s/%s\" \"%s/%s\" 2>&1 >> /tmp/RecStrip.log ; echo $? > /tmp/RecStrip.out ) & echo $!", TAPFSROOT RECDIR, CurRecName2, TAPFSROOT OUTDIR, OutRecName2);
+          TAP_SPrint(CommandLine, sizeof(CommandLine), "( rm /tmp/RecStrip.* ; " RECSTRIPPATH "/RecStrip \"%s/%s\" \"%s/%s\" 2>&1 > /tmp/RecStrip.log ; echo $? > /tmp/RecStrip.out ) & echo $!", TAPFSROOT RECDIR, CurRecName2, TAPFSROOT OUTDIR, OutRecName2);
           FILE* fPidFile = popen(CommandLine, "r");
           if(fPidFile)
           {

@@ -30,7 +30,7 @@ static bool  ReadCutPointArea(const char *SourceFileName, const char *AbsDirecto
 static bool  ReadFirstAndLastCutPacket(const char *CutFileName, const char *AbsDirectory, byte FirstCutPacket[], byte LastCutPacket[]);
 static bool  FindCutPointOffset(const byte CutPacket[], const byte CutPointArray[], long *const OutOffset);
 static bool  FindCutPointOffset2(const byte CutPointArray[], off_t RequestedCutPosition, bool CheckPacketStart, long *const OutOffset);
-static bool  PatchInfFiles(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, dword SourcePlayTime, const tTimeStamp *CutStartPoint, const tTimeStamp *BehindCutPoint);
+static bool  PatchInfFiles(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, dword SourcePlayTime, const tTimeStamp *CutStartPoint, const tTimeStamp *BehindCutPoint, char *pCutCaption, char *pSourceCaption);
 static bool  PatchNavFiles(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, off_t CutStartPos, off_t BehindCutPos, bool isHD, bool IgnoreRecordsAfterCut, dword *const OutCutStartTime, dword *const OutBehindCutTime, dword *const OutSourcePlayTime);
 
 static int              PACKETSIZE = 192;
@@ -137,7 +137,7 @@ void GetNextFreeCutName(const char *SourceFileName, char *const OutCutFileName, 
 // ----------------------------------------------------------------------------
 //                       MovieCutter-Schnittfunktion
 // ----------------------------------------------------------------------------
-tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirectory, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepCut, bool isHD)
+tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirectory, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepCut, bool isHD, char *pCutCaption, char *pSourceCaption)
 {
   char                  FileName[MAX_FILE_NAME_SIZE];
   off_t                 SourceFileSize, CutFileSize;
@@ -381,7 +381,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
   }
 
   // Copy the inf file and patch both play lengths
-  if (!PatchInfFiles(SourceFileName, CutFileName, AbsDirectory, SourcePlayTime, CutStartPoint, BehindCutPoint))
+  if (!PatchInfFiles(SourceFileName, CutFileName, AbsDirectory, SourcePlayTime, CutStartPoint, BehindCutPoint, pCutCaption, pSourceCaption))
     WriteLogMC("MovieCutterLib", "MovieCutter() W0010: inf creation failed.");
 
   // Fix the date info of all involved files
@@ -1141,11 +1141,11 @@ bool FindCutPointOffset2(const byte CutPointArray[], off_t RequestedCutPosition,
   return ret;
 } */
 
-bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, dword SourcePlayTime, const tTimeStamp *CutStartPoint, const tTimeStamp *BehindCutPoint)
+bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, dword SourcePlayTime, const tTimeStamp *CutStartPoint, const tTimeStamp *BehindCutPoint, char *pCutCaption, char *pSourceCaption)
 {
   char                  AbsSourceInfName[FBLIB_DIR_SIZE], AbsCutInfName[FBLIB_DIR_SIZE];
   char                  T1[16], T2[16], T3[16];
-  char                  LogString[512];
+  char                  NewEventText[2048], OldEventText[1024], LogString[512];
   FILE                 *fSourceInf = NULL, *fCutInf = NULL;
   byte                 *Buffer = NULL;
   TYPE_RecHeader_Info  *RecHeaderInfo = NULL;
@@ -1212,16 +1212,23 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
       return FALSE;
   }
 
-  //Event-Strings von Datenmüll reinigen (unnötig, kosmetisch)
+  //Captions in den ExtEventText einfügen und Event-Strings von Datenmüll reinigen
   TYPE_RecHeader_TMSC *RecHeader = (TYPE_RecHeader_TMSC*)Buffer;
   dword p = strlen(RecHeader->EventInfo.EventNameDescription);
   if (p < sizeof(RecHeader->EventInfo.EventNameDescription))
     memset(&RecHeader->EventInfo.EventNameDescription[p], 0, sizeof(RecHeader->EventInfo.EventNameDescription) - p);
   p = RecHeader->ExtEventInfo.ExtEventTextLength;
-//  if (p > sizeof(RecHeader->ExtEventInfo.ExtEventText))
-//    p = strlen(RecHeader->ExtEventInfo.ExtEventText);
   if (p < sizeof(RecHeader->ExtEventInfo.ExtEventText))
     memset(&RecHeader->ExtEventInfo.ExtEventText[p], 0, sizeof(RecHeader->ExtEventInfo.ExtEventText) - p);
+
+  strncpy(OldEventText, RecHeader->ExtEventInfo.ExtEventText, min((dword)RecHeader->ExtEventInfo.ExtEventTextLength+1, sizeof(OldEventText)));
+  OldEventText[sizeof(OldEventText) - 1] = '\0';
+  if (pSourceCaption)
+  {
+    StrToUTF8(pSourceCaption, NewEventText, 9);
+    TAP_SPrint(RecHeader->ExtEventInfo.ExtEventText, sizeof(RecHeader->ExtEventInfo.ExtEventText), "%s\x8a\x8a%s", NewEventText, OldEventText);
+    RecHeader->ExtEventInfo.ExtEventTextLength = strlen(RecHeader->ExtEventInfo.ExtEventText);
+  }
 
   //Calculate the new play times
   CutPlayTime = BehindCutPoint->Timems - CutStartPoint->Timems;
@@ -1327,6 +1334,14 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   }
 
   // --- Patch the cut inf ---
+  // ggf. Caption in den ExtEventText einfügen
+  if (pCutCaption)
+  {
+    StrToUTF8(pCutCaption, NewEventText, 9);
+    TAP_SPrint(RecHeader->ExtEventInfo.ExtEventText, sizeof(RecHeader->ExtEventInfo.ExtEventText), "%s\x8a\x8a%s", NewEventText, OldEventText);
+    RecHeader->ExtEventInfo.ExtEventTextLength = strlen(RecHeader->ExtEventInfo.ExtEventText);
+  }
+
   //Set the length of the cut file
   RecHeaderInfo->HeaderDuration = (word)(CutPlayTime / 60);
   RecHeaderInfo->HeaderDurationSec = CutPlayTime % 60;
