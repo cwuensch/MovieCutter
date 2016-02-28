@@ -1975,7 +1975,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             strcpy(StripName2, StripName); StrReplace(StripName2, "\"", "\\\"");
             strcpy(PlaybackName2, PlaybackName); StrReplace(PlaybackName2, "\"", "\\\"");
             strcpy(AbsPlaybackDir2, AbsPlaybackDir); StrReplace(AbsPlaybackDir2, "\"", "\\\"");
-            TAP_SPrint(CommandLine, sizeof(CommandLine), "( rm /tmp/RecStrip.* ; " RECSTRIPPATH "/RecStrip %s \"%s/%s\" \"%s/%s\" 2>&1 >> /tmp/RecStrip.log ; echo $? > /tmp/RecStrip.out ) & echo $!", (RecStrip_DoCut ? "-c" : ""), AbsPlaybackDir2, PlaybackName2, AbsPlaybackDir2, StripName2);
+            TAP_SPrint(CommandLine, sizeof(CommandLine), "( rm /tmp/RecStrip.* ; " RECSTRIPPATH "/RecStrip %s \"%s/%s\" \"%s/%s\" 2>&1 >> /tmp/RecStrip.log ; echo $? > /tmp/RecStrip.out ) & echo $!", (RecStrip_DoCut ? "-c" : "-s"), AbsPlaybackDir2, PlaybackName2, AbsPlaybackDir2, StripName2);
             FILE* fPidFile = popen(CommandLine, "r");
             if(fPidFile)
             {
@@ -2101,14 +2101,12 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
     case ST_ExitNoSave:
     {
-      int i;
       // wenn nötig, beim Beenden HDDCheck und/oder Inode-Fix durchführen
       if (SuspectHDDs[0])
       {
-        int   NrHDDs = 0;
+        int   i = 0, NrHDDs = 0;
         char *p;
         
-        i = 0;
         if (CheckFSAfterCut == FM_Shutdown)
         {
           while (SuspectHDDs[i] != '\0')
@@ -2138,9 +2136,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       TAP_MemFree(SuspectHDDs);
       TAP_MemFree(UndoStack);
       TAP_MemFree(Bookmarks);
-      for (i = 0; i < NrSegmentMarker; i++)
-        if (SegmentMarker[i].pCaption)
-          TAP_MemFree(SegmentMarker[i].pCaption);
+      ResetSegmentMarkers();
       TAP_MemFree(SegmentMarker);
       #ifdef MC_MULTILANG
         LangUnloadStrings();
@@ -3260,7 +3256,6 @@ bool CutFileDecodeBin(FILE *fCut, __off64_t *OutSavedSize)
   TRACEENTER();
   ResetSegmentMarkers();
   ActiveSegment = 0;
-  memset(SegmentMarker, 0, NRSEGMENTMARKER * sizeof(tSegmentMarker));
   if (OutSavedSize) *OutSavedSize = 0;
 
   if (fCut)
@@ -3350,7 +3345,6 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
   TRACEENTER();
   ResetSegmentMarkers();
   ActiveSegment = 0;
-  memset(SegmentMarker, 0, NRSEGMENTMARKER * sizeof(tSegmentMarker));
   if (OutSavedSize) *OutSavedSize = 0;
 
   if (fCut)
