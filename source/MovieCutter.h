@@ -119,7 +119,7 @@ static void  SetCurrentSegment(void);
 static bool  SetPlaybackSpeed(TYPE_TrickMode newTrickMode, byte newTrickModeSpeed);
 static bool  ShowConfirmationDialog(char *MessageStr);
 static void  ShowErrorMessage(char *MessageStr, char *TitleStr);
-static void  UndoAddEvent(bool Bookmark, dword PreviousBlock, dword NewBlock, bool SegmentWasSelected, char *pPrevCaption);
+static void  UndoAddEvent(bool Segment, dword PreviousBlock, dword NewBlock, bool SegmentWasSelected, char *pPrevCaption);
 static bool  UndoLastAction(void);
 static void  UndoResetStack(void);
 static bool  PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isHD);

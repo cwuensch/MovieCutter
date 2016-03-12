@@ -115,7 +115,7 @@ extern char            *LangStrings;
 
 typedef struct
 {
-  bool                  Bookmark;  // TRUE for Bookmark-Event, FALSE for Segment-Event
+  bool                  Segment;  // TRUE for Segment-Event, FALSE for Bookmark-Event
   dword                 PrevBlockNr;
   dword                 NewBlockNr;
   bool                  SegmentWasSelected;
@@ -1456,7 +1456,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 dword NearestBlock = Bookmarks[NearestIndex];
                 if (DeleteBookmark(NearestIndex))
                 {
-                  UndoAddEvent(TRUE, NearestBlock, 0, FALSE, NULL);
+                  if(NearestBlock == 0) NearestBlock = (dword) -1;
+                  UndoAddEvent(FALSE, NearestBlock, 0, FALSE, NULL);
                   OSDTextStateWindow(LS_BookmarkDeleted);
                 }
                 OSDInfoDrawProgressbar(TRUE, TRUE);
@@ -1475,7 +1476,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 bool SegmentWasSelected = SegmentMarker[NearestIndex].Selected;
                 if (DeleteSegmentMarker(NearestIndex, FALSE))
                 {
-                  UndoAddEvent(FALSE, NearestBlock, 0, SegmentWasSelected, pPrevCaption);
+                  UndoAddEvent(TRUE, NearestBlock, 0, SegmentWasSelected, pPrevCaption);
                   OSDSegmentListDrawList(FALSE);
                   OSDInfoDrawProgressbar(TRUE, TRUE);
                   OSDTextStateWindow(LS_SegMarkerDeleted);
@@ -1493,7 +1494,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             {
               if(AddBookmark(newBlock, TRUE) >= 0)
               {
-                UndoAddEvent(TRUE, 0, newBlock, FALSE, NULL);
+                if(newBlock == 0) newBlock = (dword) -1;
+                UndoAddEvent(FALSE, 0, newBlock, FALSE, NULL);
                 OSDTextStateWindow(LS_BookmarkCreated);
               }
               OSDInfoDrawProgressbar(TRUE, TRUE);
@@ -1503,7 +1505,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             {
               if(AddSegmentMarker(newBlock, TRUE) >= 0)
               {
-                UndoAddEvent(FALSE, 0, newBlock, FALSE, NULL);
+                UndoAddEvent(TRUE, 0, newBlock, FALSE, NULL);
                 OSDSegmentListDrawList(FALSE);
                 OSDInfoDrawProgressbar(TRUE, TRUE);
                 OSDTextStateWindow(LS_SegMarkerCreated);
@@ -1528,7 +1530,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 {
                   if(NearestBlock == 0) NearestBlock = (dword) -1;
                   if(newBlock == 0) newBlock = (dword) -1;
-                  UndoAddEvent(TRUE, NearestBlock, newBlock, FALSE, NULL);
+                  UndoAddEvent(FALSE, NearestBlock, newBlock, FALSE, NULL);
                   OSDTextStateWindow(LS_BookmarkMoved);
                 }
                 OSDInfoDrawProgressbar(TRUE, TRUE);
@@ -1542,7 +1544,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 dword NearestBlock = SegmentMarker[NearestIndex].Block;
                 if(MoveSegmentMarker(NearestIndex, newBlock, TRUE))
                 {
-                  UndoAddEvent(FALSE, NearestBlock, newBlock, FALSE, NULL);
+                  UndoAddEvent(TRUE, NearestBlock, newBlock, FALSE, NULL);
                   if(ActiveSegment + 1 == NearestIndex) ActiveSegment++;
                   OSDSegmentListDrawList(FALSE);
                   OSDInfoDrawProgressbar(TRUE, TRUE);
@@ -2875,7 +2877,7 @@ void ChangeSegmentText(void)
   // pCaption auf den neuen Puffer verlinken
   if (OSDMenuKeyboard_Saved())
   {
-    UndoAddEvent(FALSE, SegmentMarker[CurrentSegment].Block, SegmentMarker[CurrentSegment].Block, SegmentMarker[CurrentSegment].Selected, SegmentMarker[CurrentSegment].pCaption);
+    UndoAddEvent(TRUE, SegmentMarker[CurrentSegment].Block, SegmentMarker[CurrentSegment].Block, SegmentMarker[CurrentSegment].Selected, SegmentMarker[CurrentSegment].pCaption);
     if (*pNewCaption)
     {
 TAP_PrintNet("DEBUG: MALLOC: %s (%d): %s\n", __FUNCTION__, MAXCAPTIONLENGTH, pNewCaption);
@@ -3144,22 +3146,22 @@ bool DeleteAllBookmarks(void)
 // ----------------------------------------------------------------------------
 //                          Rückgängig-Funktionen
 // ----------------------------------------------------------------------------
-void UndoAddEvent(bool Bookmark, dword PreviousBlock, dword NewBlock, bool SegmentWasSelected, char *pPrevCaption)
+void UndoAddEvent(bool Segment, dword PreviousBlock, dword NewBlock, bool SegmentWasSelected, char *pPrevCaption)
 {
   tUndoEvent* NextAction;
   TRACEENTER();
 
-  if (!(Bookmark == FALSE && PreviousBlock == 0 && NewBlock == 0))
+  if (!(Segment == FALSE && PreviousBlock == 0 && NewBlock == 0))
   {
     UndoLastItem++;
     if (UndoLastItem >= NRUNDOEVENTS)
       UndoLastItem = 0;
     NextAction = &UndoStack[UndoLastItem];
     #ifdef FULLDEBUG
-      TAP_PrintNet("MovieCutter: UndoAddEvent %d (%s, PreviousBlock=%lu, NewBlock=%lu)\n", UndoLastItem, (Bookmark) ? "Bookmark" : "SegmentMarker", PreviousBlock, NewBlock);
+      TAP_PrintNet("MovieCutter: UndoAddEvent %d (%s, PreviousBlock=%lu, NewBlock=%lu)\n", UndoLastItem, (Segment) ? "SegmentMarker" : "Bookmark", PreviousBlock, NewBlock);
     #endif
 
-    NextAction->Bookmark           = Bookmark;
+    NextAction->Segment            = Segment;
     NextAction->PrevBlockNr        = PreviousBlock;
     NextAction->NewBlockNr         = NewBlock;
     NextAction->SegmentWasSelected = SegmentWasSelected;
@@ -3187,10 +3189,46 @@ bool UndoLastAction(void)
   }
   LastAction = &UndoStack[UndoLastItem];
   #ifdef FULLDEBUG
-    TAP_PrintNet("MovieCutter: UndoLastAction %d (%s, PreviousBlock=%lu, NewBlock=%lu)\n", UndoLastItem, (LastAction->Bookmark) ? "Bookmark" : "SegmentMarker", LastAction->PrevBlockNr, LastAction->NewBlockNr);
+    TAP_PrintNet("MovieCutter: UndoLastAction %d (%s, PreviousBlock=%lu, NewBlock=%lu)\n", UndoLastItem, (LastAction->Segment) ? "SegmentMarker" : "Bookmark", LastAction->PrevBlockNr, LastAction->NewBlockNr);
   #endif
 
-  if (LastAction->Bookmark)
+  if (LastAction->Segment)
+  {
+    if ((LastAction->NewBlockNr == 0) && (LastAction->PrevBlockNr != 0))
+    {
+      i = AddSegmentMarker(LastAction->PrevBlockNr, FALSE);
+      if (i >= 0)
+      {
+        SegmentMarker[i].Selected = LastAction->SegmentWasSelected;
+        SegmentMarker[i].pCaption = LastAction->pPrevCaption;
+      }
+    }
+    else
+    {
+      for(i = 0; i < NrSegmentMarker - 1; i++)
+        if(SegmentMarker[i].Block == LastAction->NewBlockNr) break;
+      if((i < NrSegmentMarker - 1) && (SegmentMarker[i].Block == LastAction->NewBlockNr))
+      {
+        if (LastAction->NewBlockNr == LastAction->PrevBlockNr)
+        {
+          if (SegmentMarker[i].pCaption)
+          {
+TAP_PrintNet("DEBUG: FREE: %s: %s\n", __FUNCTION__, SegmentMarker[i].pCaption);
+            TAP_MemFree(SegmentMarker[i].pCaption);
+          }
+          SegmentMarker[i].pCaption = LastAction->pPrevCaption;
+        }
+        else if (LastAction->NewBlockNr != 0)
+        {
+          if (LastAction->PrevBlockNr != 0)
+            MoveSegmentMarker(i, LastAction->PrevBlockNr, FALSE);
+          else
+            DeleteSegmentMarker(i, TRUE);
+        }
+      }
+    }
+  }
+  else
   {
     if (LastAction->NewBlockNr != 0)
     {
@@ -3210,49 +3248,14 @@ bool UndoLastAction(void)
     }
     else if (LastAction->PrevBlockNr != 0)
       AddBookmark(LastAction->PrevBlockNr, FALSE);    // BUG (fixed): Beim Undo einer BM-Verschiebung auf 0 wird das dortige BM nicht verschoben, sondern ein neues erzeugt!
-  }
-  else
-  {
-    if (LastAction->NewBlockNr == LastAction->PrevBlockNr)
+    else
     {
-      if (SegmentMarker[i].pCaption)
-      {
-TAP_PrintNet("DEBUG: FREE: %s: %s\n", __FUNCTION__, SegmentMarker[i].pCaption);
-        TAP_MemFree(SegmentMarker[i].pCaption);
-      }
-      SegmentMarker[i].pCaption = LastAction->pPrevCaption;
-
-      if (LastAction->NewBlockNr == 0)
-      {
-        TRACEEXIT();
-        return FALSE;
-      }
-    }
-
-    if (LastAction->NewBlockNr != 0)
-    {
-      for(i = 1; i < NrSegmentMarker - 1; i++)
-        if(SegmentMarker[i].Block == LastAction->NewBlockNr) break;
-      if((i < NrSegmentMarker - 1) && (SegmentMarker[i].Block == LastAction->NewBlockNr))
-      {
-        if (LastAction->PrevBlockNr != 0)
-          MoveSegmentMarker(i, LastAction->PrevBlockNr, FALSE);
-        else
-          DeleteSegmentMarker(i, TRUE);
-      }
-    }
-    else if (LastAction->PrevBlockNr != 0)
-    {
-      i = AddSegmentMarker(LastAction->PrevBlockNr, FALSE);
-      if (i >= 0)
-      {
-        SegmentMarker[i].Selected = LastAction->SegmentWasSelected;
-        SegmentMarker[i].pCaption = LastAction->pPrevCaption;
-      }
+      TRACEEXIT();
+      return FALSE;
     }
   }
 
-  LastAction->Bookmark = FALSE;
+  LastAction->Segment = FALSE;
   LastAction->PrevBlockNr = 0;
   LastAction->NewBlockNr = 0;
   LastAction->pPrevCaption = NULL;
