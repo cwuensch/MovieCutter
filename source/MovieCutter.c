@@ -319,6 +319,7 @@ typedef enum
   LS_KeybPaste,
   LS_KeybCancel,
   LS_KeybSave,
+  LS_SegmentNr,
   LS_EnterText,
   LS_CopySegments,
   LS_CopyCurSegment,
@@ -434,6 +435,7 @@ static char* DefaultStrings[LS_NrStrings] =
   "Einfügen",
   "Abbrechen",
   "Speichern",
+  "%hd. Segment",
   "Text eingeben",
   "Mark. Seg. in neue Rec kopieren",
   "Aktuelles Seg. in neue Rec kopieren",
@@ -543,6 +545,7 @@ static word             rgnSegmentText = 0;
 static word             rgnStripProgBar = 0;
 static int              ActionMenuItem;
 static dword            LastPlayStateChange = 0;
+static int              SegmentTextStartLine = 0;
 static bool             jfs_fsck_present = FALSE;
 static bool             RecStrip_present = FALSE, RecStrip_DoCut = FALSE, RecStrip_Cancelled;
 static dword            RecStrip_Pid = 0;
@@ -1254,6 +1257,14 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 break;
               }
 
+              // Wenn SegmentText aktiv -> dieses ausblenden
+              if (ShowSegmentText)
+              {
+                ShowSegmentText = FALSE;
+                OSDSegmentTextDraw(TRUE);
+                break;
+              }
+
               // Wenn echtes OSD aktiv -> in NoOSD-Modus wechseln
               if (OSDMode != MD_NoOSD || rgnInfoBarMini)
               {
@@ -1333,7 +1344,13 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
           case RKEY_Subt:
           {
-            ShowSegmentText = !ShowSegmentText;
+            if (!ShowSegmentText)
+            {
+              ShowSegmentText = TRUE;
+              SegmentTextStartLine = 0;
+            }
+            else
+              SegmentTextStartLine += 3;
             OSDSegmentTextDraw(TRUE);
             break;
           }
@@ -2733,15 +2750,18 @@ bool DeleteSegmentMarker(int MarkerIndex, bool FreeCaption)
   if((MarkerIndex > 0) && (MarkerIndex < NrSegmentMarker - 1))
   {
     if (FreeCaption && SegmentMarker[MarkerIndex].pCaption)
+    {
+TAP_PrintNet("DEBUG: FREE: %s: %s\n", __FUNCTION__, SegmentMarker[MarkerIndex].pCaption);
       TAP_MemFree(SegmentMarker[MarkerIndex].pCaption);
+    }
 
     for(i = MarkerIndex; i < NrSegmentMarker - 1; i++)
       memcpy(&SegmentMarker[i], &SegmentMarker[i + 1], sizeof(tSegmentMarker));
 
-//    memset(&SegmentMarker[NrSegmentMarker - 1], 0, sizeof(tSegmentMarker));
+    memset(&SegmentMarker[NrSegmentMarker - 1], 0, sizeof(tSegmentMarker));
     NrSegmentMarker--;
 
-    SegmentMarker[NrSegmentMarker - 1].Selected = FALSE;        // the very last marker (no segment)
+    SegmentMarker[NrSegmentMarker - 1].Selected = FALSE;          // the very last marker (no segment)
 //    if(NrSegmentMarker <= 2) SegmentMarker[0].Selected = FALSE;  // there is only one segment (from start to end)
     if(ActiveSegment >= MarkerIndex) ActiveSegment--;
     if(ActiveSegment >= NrSegmentMarker - 1) ActiveSegment = NrSegmentMarker - 2;
@@ -2763,14 +2783,16 @@ void DeleteAllSegmentMarkers()
     UndoResetStack();
     for (i = 0; i < NrSegmentMarker; i++)
       if (SegmentMarker[i].pCaption)
+      {
+TAP_PrintNet("DEBUG: FREE: %s: %s\n", __FUNCTION__, SegmentMarker[i].pCaption);
         TAP_MemFree(SegmentMarker[i].pCaption);
+        SegmentMarker[i].pCaption = NULL;
+      }
     memcpy(&SegmentMarker[1], &SegmentMarker[NrSegmentMarker-1], sizeof(tSegmentMarker));
 //    memset(&SegmentMarker[2], 0, (NrSegmentMarker-2) * sizeof(tSegmentMarker));
     NrSegmentMarker = 2;
   }
   SegmentMarker[0].Selected = FALSE;
-  SegmentMarker[0].pCaption = NULL;
-  SegmentMarker[1].pCaption = NULL;
   ActiveSegment = 0;
   JumpRequestedSegment = 0xFFFF;
 
@@ -2784,7 +2806,10 @@ static void ResetSegmentMarkers(void)
 
   for (i = 0; i < NrSegmentMarker; i++)
     if (SegmentMarker[i].pCaption)
+    {
+TAP_PrintNet("DEBUG: FREE: %s: %s\n", __FUNCTION__, SegmentMarker[i].pCaption);
       TAP_MemFree(SegmentMarker[i].pCaption);
+    }
   memset(SegmentMarker, 0, NRSEGMENTMARKER * sizeof(tSegmentMarker));
   NrSegmentMarker = 0;
 
@@ -2835,7 +2860,7 @@ void ChangeSegmentText(void)
   }
 
   // OSD-Tastatur anzeigen
-  OSDMenuKeyboard_Setup(LangGetString(LS_EnterText), pNewCaption, MAXCAPTIONLENGTH-1);
+  OSDMenuKeyboard_Setup(LangGetString(LS_EnterText), pNewCaption, MAXCAPTIONLENGTH-1, TRUE);
   #ifdef MC_MULTILANG
     if (LangStrings)
       OSDMenuKeyboard_SetLegendStrings(LangGetString(LS_KeybSpace), LangGetString(LS_KeybDelete1), LangGetString(LS_KeybDelete2), LangGetString(LS_KeybOriginal), LangGetString(LS_KeybClearAll), LangGetString(LS_KeybCopy), LangGetString(LS_KeybPaste), LangGetString(LS_KeybCancel), LangGetString(LS_KeybSave));
@@ -2848,14 +2873,20 @@ void ChangeSegmentText(void)
   }
   
   // pCaption auf den neuen Puffer verlinken
-  if (*pNewCaption)
+  if (OSDMenuKeyboard_Saved())
   {
     UndoAddEvent(FALSE, SegmentMarker[CurrentSegment].Block, SegmentMarker[CurrentSegment].Block, SegmentMarker[CurrentSegment].Selected, SegmentMarker[CurrentSegment].pCaption);
-    SegmentMarker[CurrentSegment].pCaption = pNewCaption;
+    if (*pNewCaption)
+    {
+TAP_PrintNet("DEBUG: MALLOC: %s (%d): %s\n", __FUNCTION__, MAXCAPTIONLENGTH, pNewCaption);
+      SegmentMarker[CurrentSegment].pCaption = pNewCaption;
+    }
+    else
+    {
+      SegmentMarker[CurrentSegment].pCaption = NULL;
+      TAP_MemFree(pNewCaption);
+    }
   }
-  else
-    TAP_MemFree(pNewCaption);
-
   OSDSegmentListDrawList(FALSE);
   OSDSegmentTextDraw(TRUE);
   TRACEEXIT();
@@ -3132,7 +3163,11 @@ void UndoAddEvent(bool Bookmark, dword PreviousBlock, dword NewBlock, bool Segme
     NextAction->PrevBlockNr        = PreviousBlock;
     NextAction->NewBlockNr         = NewBlock;
     NextAction->SegmentWasSelected = SegmentWasSelected;
-    if (NextAction->pPrevCaption) TAP_MemFree(NextAction->pPrevCaption);
+    if (NextAction->pPrevCaption)
+    {
+TAP_PrintNet("DEBUG: FREE: %s: %s\n", __FUNCTION__, NextAction->pPrevCaption);
+      TAP_MemFree(NextAction->pPrevCaption);
+    }
     NextAction->pPrevCaption       = pPrevCaption;
   }
   TRACEEXIT();
@@ -3178,19 +3213,29 @@ bool UndoLastAction(void)
   }
   else
   {
+    if (LastAction->NewBlockNr == LastAction->PrevBlockNr)
+    {
+      if (SegmentMarker[i].pCaption)
+      {
+TAP_PrintNet("DEBUG: FREE: %s: %s\n", __FUNCTION__, SegmentMarker[i].pCaption);
+        TAP_MemFree(SegmentMarker[i].pCaption);
+      }
+      SegmentMarker[i].pCaption = LastAction->pPrevCaption;
+
+      if (LastAction->NewBlockNr == 0)
+      {
+        TRACEEXIT();
+        return FALSE;
+      }
+    }
+
     if (LastAction->NewBlockNr != 0)
     {
       for(i = 1; i < NrSegmentMarker - 1; i++)
         if(SegmentMarker[i].Block == LastAction->NewBlockNr) break;
       if((i < NrSegmentMarker - 1) && (SegmentMarker[i].Block == LastAction->NewBlockNr))
       {
-        if (LastAction->PrevBlockNr == LastAction->NewBlockNr)
-        {
-          if (SegmentMarker[i].pCaption)
-            TAP_MemFree(SegmentMarker[i].pCaption);
-          SegmentMarker[i].pCaption = LastAction->pPrevCaption;
-        }
-        else if (LastAction->PrevBlockNr != 0)
+        if (LastAction->PrevBlockNr != 0)
           MoveSegmentMarker(i, LastAction->PrevBlockNr, FALSE);
         else
           DeleteSegmentMarker(i, TRUE);
@@ -3204,11 +3249,6 @@ bool UndoLastAction(void)
         SegmentMarker[i].Selected = LastAction->SegmentWasSelected;
         SegmentMarker[i].pCaption = LastAction->pPrevCaption;
       }
-    }
-    else if (UndoLastItem == 0)
-    {
-      TRACEEXIT();
-      return FALSE;
     }
   }
 
@@ -3236,7 +3276,10 @@ void UndoResetStack(void)
 
   for (i = 0; i < NRUNDOEVENTS; i++)
     if (UndoStack[i].pPrevCaption)
+    {
+TAP_PrintNet("DEBUG: FREE: %s: %s\n", __FUNCTION__, UndoStack[i].pPrevCaption);
       TAP_MemFree(UndoStack[i].pPrevCaption);
+    }
 
   memset(UndoStack, 0, NRUNDOEVENTS * sizeof(tUndoEvent));
   UndoLastItem = 0;
@@ -3431,8 +3474,9 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
           while (Buffer[ReadBytes] && (Buffer[ReadBytes] == ' ' || Buffer[ReadBytes] == ';'))  ReadBytes++;
           if (Buffer[ReadBytes])
           {
-            SegmentMarker[NrSegmentMarker].pCaption = (char*)TAP_MemAlloc(max(strlen(&Buffer[ReadBytes]), MAXCAPTIONLENGTH));
+            SegmentMarker[NrSegmentMarker].pCaption = (char*)TAP_MemAlloc(strlen(&Buffer[ReadBytes])+1);
             strcpy(SegmentMarker[NrSegmentMarker].pCaption, &Buffer[ReadBytes]);
+TAP_PrintNet("DEBUG: MALLOC: %s (%d): %s\n", __FUNCTION__, strlen(&Buffer[ReadBytes])+1, SegmentMarker[NrSegmentMarker].pCaption);
           }
           NrSegmentMarker++;
         }
@@ -4922,10 +4966,15 @@ void OSDTextStateWindow(int MessageID)
 // Segment-Text-Fenster
 void OSDSegmentTextDraw(bool Force)
 {
-  const int RegionWidth = ScreenWidth-Overscan_X-SegmentList_X-_SegmentList_Background_Gd.width-15;
-  const int RegionHeight = 100;
-  static word LastCurSegment = 0;
-  word CurrentSegment;
+  const int             RegionHeight = 100;
+  const int             RegionWidth = (rgnSegmentList) ? (ScreenWidth - Overscan_X - SegmentList_X - _SegmentList_Background_Gd.width - 15) : (ScreenWidth - 2*Overscan_X - 100);
+  const int             RegionLeft  = (rgnSegmentList) ? (ScreenWidth - RegionWidth - (int)Overscan_X) : ((ScreenWidth-RegionWidth) / 2);
+  const int             RegionTop   = (rgnInfoBar) ? (ScreenHeight - 160 - RegionHeight - 2) : (ScreenHeight - Overscan_Y - 38 - 32 - RegionHeight - 8);
+  const int             SpaceWidth  = FM_GetStringWidth(" ", &Calibri_12_FontData);
+  static word           LastCurSegment = 0;
+  char                  curLine[512], StartTime[12], EndTime[12];
+  word                  CurrentSegment;
+  int                   i = 0;
 
   TRACEENTER();
 
@@ -4939,19 +4988,82 @@ void OSDSegmentTextDraw(bool Force)
       CurrentSegment = NrSegmentMarker - 2;
 
     if (!rgnSegmentText)
-      rgnSegmentText = TAP_Osd_Create(SegmentList_X+_SegmentList_Background_Gd.width+15, ScreenHeight-160-RegionHeight-2, RegionWidth, RegionHeight, 0, 0);
+      rgnSegmentText = TAP_Osd_Create(RegionLeft, RegionTop, RegionWidth, RegionHeight, 0, 0);
 
     if (Force || (CurrentSegment != LastCurSegment))
     {
       TAP_Osd_DrawRectangle(rgnSegmentText, 0, 0, RegionWidth, RegionHeight, 2, ColorInfoBarLightSub);
       TAP_Osd_FillBox(rgnSegmentText, 2, 2, RegionWidth-4, RegionHeight-4, ColorDarkBackground);
+      TAP_Osd_FillBox(rgnSegmentText, 2, 2, RegionWidth-4, FM_GetStringHeight(LangGetString(LS_SegmentNr), &Calibri_14_FontData)+2, ColorInfoBarLightSub);
+
+      TAP_SPrint(curLine, sizeof(curLine), LangGetString(LS_SegmentNr), CurrentSegment+1);
+      FM_PutString(rgnSegmentText, 10, 1, RegionWidth-10, curLine, RGB(216, 137, 18), ColorInfoBarLightSub, &Calibri_14_FontData, TRUE, ALIGN_LEFT);
+      SecToTimeString((SegmentMarker[CurrentSegment].Timems) / 1000, StartTime);
+      SecToTimeString((SegmentMarker[CurrentSegment + 1].Timems) / 1000, EndTime);
+      TAP_SPrint(curLine, sizeof(curLine), "%s - %s", StartTime, EndTime);
+      FM_PutString(rgnSegmentText, RegionWidth/2-80, 4, RegionWidth/2+80, curLine, COLOR_White, ColorInfoBarLightSub, &Calibri_12_FontData, TRUE, ALIGN_CENTER);
+      SecToTimeString((SegmentMarker[CurrentSegment + 1].Timems - SegmentMarker[CurrentSegment].Timems) / 1000, EndTime);
+      if ((SegmentMarker[CurrentSegment + 1].Timems - SegmentMarker[CurrentSegment].Timems) / 1000 < 3600)
+        TAP_SPrint(curLine, sizeof(curLine), "%s min", &EndTime[2]);
+      else
+        TAP_SPrint(curLine, sizeof(curLine), "%s h", EndTime);
+      FM_PutString(rgnSegmentText, RegionWidth-100, 4, RegionWidth-15-_Icon_SegmentText_Gd.width, curLine, COLOR_White, ColorInfoBarLightSub, &Calibri_12_FontData, TRUE, ALIGN_RIGHT);
+      TAP_Osd_PutGd(rgnSegmentText, RegionWidth-_Icon_SegmentText_Gd.width-5, 9, &_Icon_SegmentText_Gd, TRUE);
+
+      if (CurrentSegment != LastCurSegment)
+        SegmentTextStartLine = 0;
       if (SegmentMarker[CurrentSegment].pCaption)
-        FM_PutString(rgnSegmentText, 5, 5, RegionWidth-5, SegmentMarker[CurrentSegment].pCaption, RGB(255, 255, 224), ColorDarkBackground, &Calibri_12_FontData, TRUE, ALIGN_LEFT);
+      {
+        char *pFullText = SegmentMarker[CurrentSegment].pCaption;
+        int curWidth;
+
+        char *curToken = strtok(pFullText, " \t\r\n");
+        for (i = 0; i < SegmentTextStartLine + 3; i++)
+        {
+          curWidth = 0;
+          curLine[0] = '\0';
+          if (!curToken) break;
+          while (curToken && ((curWidth += (FM_GetStringWidth(curToken, &Calibri_12_FontData) + ((curWidth>0) ? SpaceWidth : 0))) < RegionWidth-15))
+          {
+            int j = 0;
+            while ((curToken-j > pFullText) && (curToken[-j-1] == ' '))
+              j++;
+            if (curToken-j > pFullText)
+              curToken[-j-1] = ' ';
+            strcat(curLine, (*curLine) ? &curToken[-1] : curToken);
+            curToken = strtok(NULL, " \t\r\n");
+          }
+
+          if (!*curLine && curToken)
+            TAP_SPrint(curLine, sizeof(curLine), "%s", curToken); 
+          if (i >= SegmentTextStartLine)
+            FM_PutString(rgnSegmentText, 10, 31+(i-SegmentTextStartLine)*21, RegionWidth-5, curLine, RGB(192, 192, 192), ColorDarkBackground, &Calibri_12_FontData, TRUE, ALIGN_LEFT);
+        }
+        if (curToken)
+        {
+          int j = 0;
+          while ((curToken-j > pFullText) && (curToken[-j-1] == ' '))
+            j++;
+          if (curToken-j > pFullText)
+            curToken[-j-1] = ' ';
+        }
+
+        if (SegmentTextStartLine > 0)
+          TAP_Osd_PutGd(rgnSegmentText, RegionWidth-_Button_Up_small_Gd.width-3, 31, &_Button_Up_small_Gd, TRUE);
+        if (curToken)
+          TAP_Osd_PutGd(rgnSegmentText, RegionWidth-_Button_Down_small_Gd.width-3, RegionHeight-_Button_Down_small_Gd.height-5, &_Button_Down_small_Gd, TRUE);
+
+        if (i <= SegmentTextStartLine)
+          ShowSegmentText = FALSE;
+      }
+      else if (SegmentTextStartLine > 0)
+        ShowSegmentText = FALSE;
+
       TAP_Osd_Sync();
       LastCurSegment = CurrentSegment;
     }
   }
-  else if (rgnSegmentText)
+  if (!ShowSegmentText && rgnSegmentText)
   {
     TAP_Osd_Delete(rgnSegmentText);
     rgnSegmentText = 0;
@@ -5877,7 +5989,7 @@ void MovieCutterSplitMovie(void)
   if (PlayInfo.currentBlock > 0)
   {
     WriteLogMC(PROGRAM_NAME, "[Action 'Split movie' started...]");
-    if (AddSegmentMarker(PlayInfo.currentBlock, NULL, FALSE) > 0)
+    if (AddSegmentMarker(PlayInfo.currentBlock, FALSE) > 0)
       MovieCutterProcess(TRUE, TRUE);
   }
   TRACEEXIT();
@@ -5992,7 +6104,7 @@ bool MovieCutterRenameFile(void)
   while (!ret)
   {
     // OSD-Tastatur anzeigen
-    OSDMenuKeyboard_Setup(LangGetString(LS_RenameMovie), TempNameISO, sizeof(TempNameISO) - strlen(ExtensionStart) - 4 - 1);
+    OSDMenuKeyboard_Setup(LangGetString(LS_RenameMovie), TempNameISO, sizeof(TempNameISO) - strlen(ExtensionStart) - 4 - 1, FALSE);
     #ifdef MC_MULTILANG
       if (LangStrings)
         OSDMenuKeyboard_SetLegendStrings(LangGetString(LS_KeybSpace), LangGetString(LS_KeybDelete1), LangGetString(LS_KeybDelete2), LangGetString(LS_KeybOriginal), LangGetString(LS_KeybClearAll), LangGetString(LS_KeybCopy), LangGetString(LS_KeybPaste), LangGetString(LS_KeybCancel), LangGetString(LS_KeybSave));
