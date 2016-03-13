@@ -33,8 +33,8 @@ typedef struct
   dword                 SHOffset; // = (FrameType shl 24) or SHOffset
   byte                  MPEGType;
   byte                  FrameIndex;
-  byte                  Field5;
-  byte                  Zero1;
+  word                  iFrameSeqOffset;
+//  byte                  Zero1;
   dword                 PHOffsetHigh;
   dword                 PHOffset;
   dword                 PTS2;
@@ -49,8 +49,8 @@ typedef struct
   dword                 FrameType:8;
   byte                  MPEGType;
   byte                  FrameIndex;
-  byte                  PPSLen;
-  byte                  Zero1;
+  word                  PPSLen;
+//  byte                  Zero1;
   dword                 SEIOffsetHigh;
   dword                 SEIOffsetLow;
   dword                 SEIPTS;

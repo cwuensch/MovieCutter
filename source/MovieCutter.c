@@ -3247,7 +3247,10 @@ TAP_PrintNet("DEBUG: FREE: %s: %s\n", __FUNCTION__, SegmentMarker[i].pCaption);
       }
     }
     else if (LastAction->PrevBlockNr != 0)
+    {
+      if(LastAction->PrevBlockNr == (dword) -1)  LastAction->PrevBlockNr = 0;
       AddBookmark(LastAction->PrevBlockNr, FALSE);    // BUG (fixed): Beim Undo einer BM-Verschiebung auf 0 wird das dortige BM nicht verschoben, sondern ein neues erzeugt!
+    }
     else
     {
       TRACEEXIT();
@@ -4977,7 +4980,6 @@ void OSDSegmentTextDraw(bool Force)
   static word           LastCurSegment = 0;
   char                  curLine[512], StartTime[12], EndTime[12];
   word                  CurrentSegment;
-  int                   i = 0;
 
   TRACEENTER();
 
@@ -5018,37 +5020,37 @@ void OSDSegmentTextDraw(bool Force)
       if (SegmentMarker[CurrentSegment].pCaption)
       {
         char *pFullText = SegmentMarker[CurrentSegment].pCaption;
-        int curWidth;
+        int curWidth = 0, i = 0;
 
+        curLine[0] = '\0';
         char *curToken = strtok(pFullText, " \t\r\n");
-        for (i = 0; i < SegmentTextStartLine + 3; i++)
+
+        while (curToken && (i < SegmentTextStartLine+3))
         {
-          curWidth = 0;
-          curLine[0] = '\0';
-          if (!curToken) break;
-          while (curToken && ((curWidth += (FM_GetStringWidth(curToken, &Calibri_12_FontData) + ((curWidth>0) ? SpaceWidth : 0))) < RegionWidth-15))
+          if ((curWidth += (FM_GetStringWidth(curToken, &Calibri_12_FontData) + ((curWidth>0) ? SpaceWidth : 0))) < RegionWidth-15)
+            strcat(curLine, (*curLine) ? &curToken[-1] : curToken);  // Token an Zeile anfügen
+          else  // Zeile ausgeben und zurücksetzen
+          {
+            if (i >= SegmentTextStartLine)
+            {
+              if (!*curLine && curToken)
+                TAP_SPrint(curLine, sizeof(curLine), "%s", curToken); 
+              FM_PutString(rgnSegmentText, 10, 31+(i-SegmentTextStartLine)*21, RegionWidth-5, curLine, RGB(192, 192, 192), ColorDarkBackground, &Calibri_12_FontData, TRUE, ALIGN_LEFT);
+            }
+            curWidth = 0;
+            curLine[0] = '\0';
+            i++;
+          }
+
+          // Eingabe-String reparieren (nächstes Token holen und 0 davor entfernen)
+          if ((curToken = strtok(NULL, (i < SegmentTextStartLine+3) ? " \t\r\n" : "")) != NULL)
           {
             int j = 0;
             while ((curToken-j > pFullText) && (curToken[-j-1] == ' '))
               j++;
             if (curToken-j > pFullText)
               curToken[-j-1] = ' ';
-            strcat(curLine, (*curLine) ? &curToken[-1] : curToken);
-            curToken = strtok(NULL, " \t\r\n");
           }
-
-          if (!*curLine && curToken)
-            TAP_SPrint(curLine, sizeof(curLine), "%s", curToken); 
-          if (i >= SegmentTextStartLine)
-            FM_PutString(rgnSegmentText, 10, 31+(i-SegmentTextStartLine)*21, RegionWidth-5, curLine, RGB(192, 192, 192), ColorDarkBackground, &Calibri_12_FontData, TRUE, ALIGN_LEFT);
-        }
-        if (curToken)
-        {
-          int j = 0;
-          while ((curToken-j > pFullText) && (curToken[-j-1] == ' '))
-            j++;
-          if (curToken-j > pFullText)
-            curToken[-j-1] = ' ';
         }
 
         if (SegmentTextStartLine > 0)
