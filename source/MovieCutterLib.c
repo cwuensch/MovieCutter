@@ -1217,16 +1217,19 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   dword p = strlen(RecHeader->EventInfo.EventNameDescription);
   if (p < sizeof(RecHeader->EventInfo.EventNameDescription))
     memset(&RecHeader->EventInfo.EventNameDescription[p], 0, sizeof(RecHeader->EventInfo.EventNameDescription) - p);
-  p = RecHeader->ExtEventInfo.ExtEventTextLength;
-  if (p < sizeof(RecHeader->ExtEventInfo.ExtEventText))
-    memset(&RecHeader->ExtEventInfo.ExtEventText[p], 0, sizeof(RecHeader->ExtEventInfo.ExtEventText) - p);
+//  p = RecHeader->ExtEventInfo.ExtEventTextLength;
+//  if (p < sizeof(RecHeader->ExtEventInfo.ExtEventText))
+//    memset(&RecHeader->ExtEventInfo.ExtEventText[p], 0, sizeof(RecHeader->ExtEventInfo.ExtEventText) - p);
 
   strncpy(OldEventText, RecHeader->ExtEventInfo.ExtEventText, min((dword)RecHeader->ExtEventInfo.ExtEventTextLength+1, sizeof(OldEventText)));
   OldEventText[sizeof(OldEventText) - 1] = '\0';
+  memset(RecHeader->ExtEventInfo.ExtEventText, 0, sizeof(RecHeader->ExtEventInfo.ExtEventText));
   if (pSourceCaption)
   {
     StrToUTF8(pSourceCaption, NewEventText, 9);
-    TAP_SPrint(RecHeader->ExtEventInfo.ExtEventText, sizeof(RecHeader->ExtEventInfo.ExtEventText), "%s\x8a\x8a%s", NewEventText, OldEventText);
+    TAP_SPrint(RecHeader->ExtEventInfo.ExtEventText, sizeof(RecHeader->ExtEventInfo.ExtEventText), "%s\r\n\r\n%s", NewEventText, OldEventText);
+    if (RecHeader->ExtEventInfo.ExtEventText[sizeof(RecHeader->ExtEventInfo.ExtEventText) - 2] != 0)
+      TAP_SPrint(&RecHeader->ExtEventInfo.ExtEventText[sizeof(RecHeader->ExtEventInfo.ExtEventText) - 5], 4, "...");
     RecHeader->ExtEventInfo.ExtEventTextLength = strlen(RecHeader->ExtEventInfo.ExtEventText);
   }
 
@@ -1335,11 +1338,19 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
 
   // --- Patch the cut inf ---
   // ggf. Caption in den ExtEventText einfügen
-  if (pCutCaption)
+  if (pSourceCaption || pCutCaption)
   {
-    StrToUTF8(pCutCaption, NewEventText, 9);
-    TAP_SPrint(RecHeader->ExtEventInfo.ExtEventText, sizeof(RecHeader->ExtEventInfo.ExtEventText), "%s\x8a\x8a%s", NewEventText, OldEventText);
-    RecHeader->ExtEventInfo.ExtEventTextLength = strlen(RecHeader->ExtEventInfo.ExtEventText);
+    memset(RecHeader->ExtEventInfo.ExtEventText, 0, sizeof(RecHeader->ExtEventInfo.ExtEventText));
+    if (pCutCaption)
+    {
+      StrToUTF8(pCutCaption, NewEventText, 9);
+      TAP_SPrint(RecHeader->ExtEventInfo.ExtEventText, sizeof(RecHeader->ExtEventInfo.ExtEventText), "%s\r\n\r\n%s", NewEventText, OldEventText);
+      if (RecHeader->ExtEventInfo.ExtEventText[sizeof(RecHeader->ExtEventInfo.ExtEventText) - 2] != 0)
+        TAP_SPrint(&RecHeader->ExtEventInfo.ExtEventText[sizeof(RecHeader->ExtEventInfo.ExtEventText) - 5], 4, "...");
+      RecHeader->ExtEventInfo.ExtEventTextLength = strlen(RecHeader->ExtEventInfo.ExtEventText);
+    }
+    else
+      TAP_SPrint(RecHeader->ExtEventInfo.ExtEventText, sizeof(RecHeader->ExtEventInfo.ExtEventText), OldEventText);
   }
 
   //Set the length of the cut file

@@ -550,6 +550,7 @@ static bool             jfs_fsck_present = FALSE;
 static bool             RecStrip_present = FALSE, RecStrip_DoCut = FALSE, RecStrip_Cancelled;
 static dword            RecStrip_Pid = 0;
 
+static int dbg_NrMem = 0;
 
 static inline dword currentVisibleBlock()
 {
@@ -2167,6 +2168,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         FMUC_FreeFontFile(&Courier_New_13_FontData);
         OSDMenuFreeStdFonts();
       #endif
+TAP_PrintNet("DEBUG: NrMemAllocs = %d\n", dbg_NrMem);
       WriteLogMC(PROGRAM_NAME, "MovieCutter Exit.\r\n");
       CloseLogMC();
       TAP_Exit();
@@ -2753,6 +2755,7 @@ bool DeleteSegmentMarker(int MarkerIndex, bool FreeCaption)
   {
     if (FreeCaption && SegmentMarker[MarkerIndex].pCaption)
     {
+dbg_NrMem--;
 TAP_PrintNet("DEBUG: FREE: %s: %s\n", __FUNCTION__, SegmentMarker[MarkerIndex].pCaption);
       TAP_MemFree(SegmentMarker[MarkerIndex].pCaption);
     }
@@ -2786,6 +2789,7 @@ void DeleteAllSegmentMarkers()
     for (i = 0; i < NrSegmentMarker; i++)
       if (SegmentMarker[i].pCaption)
       {
+dbg_NrMem--;
 TAP_PrintNet("DEBUG: FREE: %s: %s\n", __FUNCTION__, SegmentMarker[i].pCaption);
         TAP_MemFree(SegmentMarker[i].pCaption);
         SegmentMarker[i].pCaption = NULL;
@@ -2809,6 +2813,7 @@ static void ResetSegmentMarkers(void)
   for (i = 0; i < NrSegmentMarker; i++)
     if (SegmentMarker[i].pCaption)
     {
+dbg_NrMem--;
 TAP_PrintNet("DEBUG: FREE: %s: %s\n", __FUNCTION__, SegmentMarker[i].pCaption);
       TAP_MemFree(SegmentMarker[i].pCaption);
     }
@@ -2880,6 +2885,7 @@ void ChangeSegmentText(void)
     UndoAddEvent(TRUE, SegmentMarker[CurrentSegment].Block, SegmentMarker[CurrentSegment].Block, SegmentMarker[CurrentSegment].Selected, SegmentMarker[CurrentSegment].pCaption);
     if (*pNewCaption)
     {
+dbg_NrMem++;
 TAP_PrintNet("DEBUG: MALLOC: %s (%d): %s\n", __FUNCTION__, MAXCAPTIONLENGTH, pNewCaption);
       SegmentMarker[CurrentSegment].pCaption = pNewCaption;
     }
@@ -3167,6 +3173,7 @@ void UndoAddEvent(bool Segment, dword PreviousBlock, dword NewBlock, bool Segmen
     NextAction->SegmentWasSelected = SegmentWasSelected;
     if (NextAction->pPrevCaption)
     {
+dbg_NrMem--;
 TAP_PrintNet("DEBUG: FREE: %s: %s\n", __FUNCTION__, NextAction->pPrevCaption);
       TAP_MemFree(NextAction->pPrevCaption);
     }
@@ -3213,6 +3220,7 @@ bool UndoLastAction(void)
         {
           if (SegmentMarker[i].pCaption)
           {
+dbg_NrMem--;
 TAP_PrintNet("DEBUG: FREE: %s: %s\n", __FUNCTION__, SegmentMarker[i].pCaption);
             TAP_MemFree(SegmentMarker[i].pCaption);
           }
@@ -3283,6 +3291,7 @@ void UndoResetStack(void)
   for (i = 0; i < NRUNDOEVENTS; i++)
     if (UndoStack[i].pPrevCaption)
     {
+dbg_NrMem--;
 TAP_PrintNet("DEBUG: FREE: %s: %s\n", __FUNCTION__, UndoStack[i].pPrevCaption);
       TAP_MemFree(UndoStack[i].pPrevCaption);
     }
@@ -3482,6 +3491,7 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
           {
             SegmentMarker[NrSegmentMarker].pCaption = (char*)TAP_MemAlloc(strlen(&Buffer[ReadBytes])+1);
             strcpy(SegmentMarker[NrSegmentMarker].pCaption, &Buffer[ReadBytes]);
+dbg_NrMem++;
 TAP_PrintNet("DEBUG: MALLOC: %s (%d): %s\n", __FUNCTION__, strlen(&Buffer[ReadBytes])+1, SegmentMarker[NrSegmentMarker].pCaption);
           }
           NrSegmentMarker++;
@@ -3767,7 +3777,7 @@ bool CutFileSave2(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
 
     if (CutFileMode != CM_InfOnly)
     {
-      GetCutNameFromRec(PlaybackName, AbsPlaybackDir, AbsCutName);
+      GetCutNameFromRec(RecFileName, AbsPlaybackDir, AbsCutName);
       fCut = fopen(AbsCutName, "wb");
       if(fCut)
       {
@@ -3779,6 +3789,7 @@ bool CutFileSave2(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
         ret = (fprintf(fCut, "#Nr ; Sel ; StartBlock ;     StartTime ; Percent ; Caption\r\n") > 0) && ret;
         for (i = 0; i < NrSegmentMarker; i++)
         {
+WriteLogMCf("mc", "cutsave - DEBUG: %d: %s\n", i, SegmentMarker[i].pCaption);
           MSecToTimeString(SegmentMarker[i].Timems, TimeStamp);
           ret = (fprintf(fCut, "%3d ;  %c  ; %10lu ;%14s ;  %5.1f%% ; %s\r\n", i, (SegmentMarker[i].Selected ? '*' : '-'), SegmentMarker[i].Block, TimeStamp, SegmentMarker[i].Percent, (SegmentMarker[i].pCaption ? SegmentMarker[i].pCaption : "")) > 0) && ret;
         }
@@ -4223,7 +4234,7 @@ void SetCurrentSegment()
     ActiveSegment = VisibleSegment;
   }
 
-  if (!JumpPerformedTime || (labs(TAP_GetTick() - JumpPerformedTime) >= 100))
+  if (!JumpPerformedTime || (labs(TAP_GetTick() - JumpPerformedTime) >= 200))
   {
     if (JumpPerformedTime) DoDraw = TRUE;
     JumpPerformedTime = 0;
@@ -5020,17 +5031,18 @@ void OSDSegmentTextDraw(bool Force)
       if (SegmentMarker[CurrentSegment].pCaption)
       {
         char *pFullText = SegmentMarker[CurrentSegment].pCaption;
-        int curWidth = 0, i = 0;
+        int curWidth = 0, TokenWidth = 0, i = 0;
 
         curLine[0] = '\0';
         char *curToken = strtok(pFullText, " \t\r\n");
 
-        while (curToken && (i < SegmentTextStartLine+3))
+        while (i < SegmentTextStartLine+3)
         {
-          if ((curWidth += (FM_GetStringWidth(curToken, &Calibri_12_FontData) + ((curWidth>0) ? SpaceWidth : 0))) < RegionWidth-15)
-            strcat(curLine, (*curLine) ? &curToken[-1] : curToken);  // Token an Zeile anfügen
-          else  // Zeile ausgeben und zurücksetzen
+          if (curToken)
+            TokenWidth = FM_GetStringWidth(curToken, &Calibri_12_FontData);
+          if (!curToken || ((curWidth + (TokenWidth + ((curWidth>0) ? SpaceWidth : 0))) >= RegionWidth-15))
           {
+            // Zeile ausgeben und zurücksetzen
             if (i >= SegmentTextStartLine)
             {
               if (!*curLine && curToken)
@@ -5041,6 +5053,13 @@ void OSDSegmentTextDraw(bool Force)
             curLine[0] = '\0';
             i++;
           }
+          if (curToken)  // Token an Zeile anfügen
+          {
+            strcat(curLine, (*curLine) ? &curToken[-1] : curToken);
+            curWidth += (TokenWidth + ((curWidth>0) ? SpaceWidth : 0));
+          }
+          else
+            break;
 
           // Eingabe-String reparieren (nächstes Token holen und 0 davor entfernen)
           if ((curToken = strtok(NULL, (i < SegmentTextStartLine+3) ? " \t\r\n" : "")) != NULL)
@@ -6560,7 +6579,8 @@ if (KeepCut || CutEnding)
               CutSegmentMarker[CutNrSegmentMarker].Timems   = SegmentMarker[j].Timems - min(SegmentMarker[j].Timems, CutStartPoint.Timems);
               CutSegmentMarker[CutNrSegmentMarker].Selected = SegmentMarker[j].Selected;
               CutSegmentMarker[CutNrSegmentMarker].Percent  = ((float)CutSegmentMarker[CutNrSegmentMarker].Block / (SegmentMarker[NrSegmentMarker-1].Block - CutStartPoint.BlockNr)) * 100.0;
-              CutSegmentMarker[CutNrSegmentMarker].pCaption  = SegmentMarker[j].pCaption;
+              CutSegmentMarker[CutNrSegmentMarker].pCaption = SegmentMarker[j].pCaption;
+WriteLogMCf("MC", "process: DEBUG: %d: %s\n", CutNrSegmentMarker, CutSegmentMarker[CutNrSegmentMarker].pCaption);
               CutNrSegmentMarker++;
             }
             if (j == NrSegmentMarker - 1)
@@ -6584,7 +6604,7 @@ if (KeepCut || CutEnding)
         else
           WriteLogMC(PROGRAM_NAME, "Error calculating new segments: No cut file for second part generated!");
         
-        for (j = 0; j < CutNrSegmentMarker; j++)
+        for (j = 1; j < CutNrSegmentMarker; j++)  // pCaption von 0 darf nicht freigegeben werden!
           if (CutSegmentMarker[j].pCaption)
             TAP_MemFree(CutSegmentMarker[j].pCaption);
         TAP_MemFree(CutSegmentMarker);
