@@ -3740,9 +3740,9 @@ bool CutFileLoad(void)
   }
 
   // Wenn zu wenig Segmente -> auf Standard zurücksetzen
-  if (NrSegmentMarker <= 2)
+  if (NrSegmentMarker < 2)
   {
-    if(ret) WriteLogMC(PROGRAM_NAME, "CutFileLoad: Two or less timestamps imported -> resetting!"); 
+    if(ret) WriteLogMC(PROGRAM_NAME, "CutFileLoad: Less than two timestamps imported -> resetting!"); 
     ResetSegmentMarkers();
 //    ActiveSegment = 0;
     ret = FALSE;
@@ -3765,45 +3765,40 @@ bool CutFileSave2(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
 
   TRACEENTER();
 
-  // nicht gewünschte Cut-Files löschen
-  if ((CutFileMode == CM_InfOnly) || (NrSegmentMarker <= 2))
-    CutFileDelete();
-
-  // neues CutFile speichern
-  if (SegmentMarker && (NrSegmentMarker > 2))
+  if ((CutFileMode != CM_InfOnly) && SegmentMarker && (NrSegmentMarker > 2 || SegmentMarker[0].pCaption))
   {
+    // neues CutFile speichern
     if (!HDD_GetFileSizeAndInode2(RecFileName, AbsPlaybackDir, NULL, &RecFileSize))
       WriteLogMC(PROGRAM_NAME, "CutFileSave: Could not detect size of recording!"); 
 
-    if (CutFileMode != CM_InfOnly)
+    GetCutNameFromRec(RecFileName, AbsPlaybackDir, AbsCutName);
+    fCut = fopen(AbsCutName, "wb");
+    if(fCut)
     {
-      GetCutNameFromRec(RecFileName, AbsPlaybackDir, AbsCutName);
-      fCut = fopen(AbsCutName, "wb");
-      if(fCut)
+      ret = (fprintf(fCut, "[MCCut3]\r\n") > 0) && ret;
+      ret = (fprintf(fCut, "RecFileSize=%llu\r\n", RecFileSize) > 0) && ret;
+      ret = (fprintf(fCut, "NrSegmentMarker=%d\r\n", NrSegmentMarker) > 0) && ret;
+      ret = (fprintf(fCut, "ActiveSegment=%d\r\n\r\n", ActiveSegment) > 0) && ret;  // sicher!?
+      ret = (fprintf(fCut, "[Segments]\r\n") > 0) && ret;
+      ret = (fprintf(fCut, "#Nr ; Sel ; StartBlock ;     StartTime ; Percent ; Caption\r\n") > 0) && ret;
+      for (i = 0; i < NrSegmentMarker; i++)
       {
-        ret = (fprintf(fCut, "[MCCut3]\r\n") > 0) && ret;
-        ret = (fprintf(fCut, "RecFileSize=%llu\r\n", RecFileSize) > 0) && ret;
-        ret = (fprintf(fCut, "NrSegmentMarker=%d\r\n", NrSegmentMarker) > 0) && ret;
-        ret = (fprintf(fCut, "ActiveSegment=%d\r\n\r\n", ActiveSegment) > 0) && ret;  // sicher!?
-        ret = (fprintf(fCut, "[Segments]\r\n") > 0) && ret;
-        ret = (fprintf(fCut, "#Nr ; Sel ; StartBlock ;     StartTime ; Percent ; Caption\r\n") > 0) && ret;
-        for (i = 0; i < NrSegmentMarker; i++)
-        {
 WriteLogMCf("mc", "cutsave - DEBUG: %d: %s\n", i, SegmentMarker[i].pCaption);
-          MSecToTimeString(SegmentMarker[i].Timems, TimeStamp);
-          ret = (fprintf(fCut, "%3d ;  %c  ; %10lu ;%14s ;  %5.1f%% ; %s\r\n", i, (SegmentMarker[i].Selected ? '*' : '-'), SegmentMarker[i].Block, TimeStamp, SegmentMarker[i].Percent, (SegmentMarker[i].pCaption ? SegmentMarker[i].pCaption : "")) > 0) && ret;
-        }
-//        ret = (fflush(fCut) == 0) && ret;
-        ret = (fclose(fCut) == 0) && ret;
-        HDD_SetFileDateTime(&AbsCutName[1], "", 0);
+        MSecToTimeString(SegmentMarker[i].Timems, TimeStamp);
+        ret = (fprintf(fCut, "%3d ;  %c  ; %10lu ;%14s ;  %5.1f%% ; %s\r\n", i, (SegmentMarker[i].Selected ? '*' : '-'), SegmentMarker[i].Block, TimeStamp, SegmentMarker[i].Percent, (SegmentMarker[i].pCaption ? SegmentMarker[i].pCaption : "")) > 0) && ret;
       }
-      else
-      {
-        WriteLogMC(PROGRAM_NAME, "CutFileSave: failed to open .cut!");
-        ret = FALSE;
-      }
+//      ret = (fflush(fCut) == 0) && ret;
+      ret = (fclose(fCut) == 0) && ret;
+      HDD_SetFileDateTime(&AbsCutName[1], "", 0);
+    }
+    else
+    {
+      WriteLogMC(PROGRAM_NAME, "CutFileSave: failed to open .cut!");
+      ret = FALSE;
     }
   }
+  else  // nicht gewünschte Cut-Files löschen
+    CutFileDelete();
   TRACEEXIT();
   return ret;
 }
@@ -3821,21 +3816,18 @@ bool CutEncodeToBM(tSegmentMarker SegmentMarker[], int NrSegmentMarker, dword Bo
   }
   memset(&Bookmarks[NrBookmarks], 0, (NRBOOKMARKS - min(NrBookmarks, NRBOOKMARKS)) * sizeof(dword));
 
-  if (CutFileMode != CM_CutOnly)
+  if ((CutFileMode != CM_CutOnly) && SegmentMarker && (NrSegmentMarker > 2))
   {
     End   = (GetSystemType() == ST_TMSC) ? NRBOOKMARKS-1 : NRBOOKMARKS-2;  // neu: auf dem SRP das vorletzte Dword nehmen -> CRP-kompatibel
     Start = End - NrSegmentMarker - 5;
     if (Start >= NrBookmarks)
     {
-      if (SegmentMarker && (NrSegmentMarker > 2))
+      Bookmarks[End]   = TAPID;  // Magic
+      Bookmarks[End-1] = NrSegmentMarker;
+      for (i = 0; i < NrSegmentMarker; i++)
       {
-        Bookmarks[End]   = TAPID;  // Magic
-        Bookmarks[End-1] = NrSegmentMarker;
-        for (i = 0; i < NrSegmentMarker; i++)
-        {
-          Bookmarks[Start+i] = SegmentMarker[i].Block;
-          Bookmarks[End-5+(i/32)] = (Bookmarks[End-5+(i/32)] & ~(1 << (i%32))) | (SegmentMarker[i].Selected ? 1 << (i%32) : 0);
-        }
+        Bookmarks[Start+i] = SegmentMarker[i].Block;
+        Bookmarks[End-5+(i/32)] = (Bookmarks[End-5+(i/32)] & ~(1 << (i%32))) | (SegmentMarker[i].Selected ? 1 << (i%32) : 0);
       }
     }
     else
@@ -5809,7 +5801,7 @@ void Playback_JumpForward(void)
 
   TRACEENTER();
 //  if(PLAYINFOVALID())  // Prüfung von currentBlock nun restriktiver
-  if (PlayInfo.currentBlock < BlockNrLastSecond)
+  if ((PlayInfo.currentBlock < BlockNrLastSecond) && (60*PlayInfo.duration + PlayInfo.durationSec != 0))
   {
     NrJumpBlocks = (PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec)) * MinuteJump*60;
     JumpToBlock  = min(PlayInfo.currentBlock + NrJumpBlocks, BlockNrLastSecond);
@@ -5826,11 +5818,12 @@ void Playback_JumpForward(void)
 
 void Playback_JumpBackward(void)
 {
-  dword                 NrJumpBlocks, JumpToBlock;
+  dword                 NrJumpBlocks = 0, JumpToBlock;
 
   TRACEENTER();
 //  if(PLAYINFOVALID())  // Prüfung von currentBlock nun restriktiver
-  NrJumpBlocks = (PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec)) * MinuteJump*60;
+  if (60*PlayInfo.duration + PlayInfo.durationSec != 0)
+    NrJumpBlocks = (PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec)) * MinuteJump*60;
   if (((int)PlayInfo.currentBlock >= 0) && (PlayInfo.currentBlock >= NrJumpBlocks))
   {
     JumpToBlock = PlayInfo.currentBlock - NrJumpBlocks;
@@ -5876,7 +5869,7 @@ void Playback_JumpPrevSegment(void)
 {
   TRACEENTER();
 
-  const dword ThreeSeconds = PlayInfo.totalBlock * 3 / (60*PlayInfo.duration + PlayInfo.durationSec);
+  const dword ThreeSeconds = (60*PlayInfo.duration + PlayInfo.durationSec != 0) ? (PlayInfo.totalBlock * 3 / (60*PlayInfo.duration + PlayInfo.durationSec)) : 0;
 
   if(NrSegmentMarker >= 2)
   {
@@ -5944,7 +5937,7 @@ void Playback_JumpPrevBookmark(void)
 {
   TRACEENTER();
 
-  const dword           ThreeSeconds = PlayInfo.totalBlock * 3 / (60*PlayInfo.duration + PlayInfo.durationSec);
+  const dword           ThreeSeconds = (60*PlayInfo.duration + PlayInfo.durationSec != 0) ? (PlayInfo.totalBlock * 3 / (60*PlayInfo.duration + PlayInfo.durationSec)) : 0;
   dword                 JumpToBlock = PlayInfo.currentBlock;
   int                   i;
 
@@ -6859,11 +6852,16 @@ bool isPlaybackRunning(void)
 void CalcLastSeconds(void)
 {
   TRACEENTER();
-  if((int)PlayInfo.totalBlock > 0  /*PLAYINFOVALID()*/)  // wenn nur totalBlock gesetzt ist, kann (und muss!) die Berechnung stattfinden
+  dword InfDurationSec = 60*PlayInfo.duration + PlayInfo.durationSec;
+  if((int)PlayInfo.totalBlock > 0  /*PLAYINFOVALID()*/ && InfDurationSec)  // wenn nur totalBlock gesetzt ist, kann (und muss!) die Berechnung stattfinden
   {
-    BlocksOneSecond      = PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec);
+    BlocksOneSecond      = PlayInfo.totalBlock / InfDurationSec;
     BlockNrLastSecond    = PlayInfo.totalBlock - min(PlayInfo.totalBlock, BlocksOneSecond);
-    BlockNrLast10Seconds = PlayInfo.totalBlock - min(PlayInfo.totalBlock, (10 * PlayInfo.totalBlock / (60*PlayInfo.duration + PlayInfo.durationSec)));
+    BlockNrLast10Seconds = PlayInfo.totalBlock - min(PlayInfo.totalBlock, (10 * PlayInfo.totalBlock / InfDurationSec));
+  }
+  else
+  {
+    BlocksOneSecond = 0; BlockNrLastSecond = 0; BlockNrLast10Seconds = 0;
   }
   TRACEEXIT();
 }
