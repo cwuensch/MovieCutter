@@ -1353,6 +1353,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
         if (RecHeader->ExtEventInfo.ExtEventText[sizeof(TYPE_ExtEvent_Info.ExtEventText) - 2] != 0)
           TAP_SPrint(&RecHeader->ExtEventInfo.ExtEventText[sizeof(TYPE_ExtEvent_Info.ExtEventText) - 5], 4, "...");
         RecHeader->ExtEventInfo.ExtEventTextLength = strlen(RecHeader->ExtEventInfo.ExtEventText);
+		TAP_MemFree(NewEventText);
       }
     }
     else
