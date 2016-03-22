@@ -1145,7 +1145,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
 {
   char                  AbsSourceInfName[FBLIB_DIR_SIZE], AbsCutInfName[FBLIB_DIR_SIZE];
   char                  T1[16], T2[16], T3[16];
-  char                 *NewEventText, OldEventText[sizeof(TYPE_ExtEvent_Info.ExtEventText)], LogString[1024];
+  char                 *NewEventText, OldEventText[1024], LogString[1024];
   FILE                 *fSourceInf = NULL, *fCutInf = NULL;
   byte                 *Buffer = NULL;
   TYPE_RecHeader_Info  *RecHeaderInfo = NULL;
@@ -1215,11 +1215,11 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   //Captions in den ExtEventText einfügen und Event-Strings von Datenmüll reinigen
   TYPE_RecHeader_TMSC *RecHeader = (TYPE_RecHeader_TMSC*)Buffer;
   dword p = strlen(RecHeader->EventInfo.EventNameDescription);
-  if (p < sizeof(TYPE_Event_Info.EventNameDescription))
-    memset(&RecHeader->EventInfo.EventNameDescription[p], 0, sizeof(TYPE_Event_Info.EventNameDescription) - p);
+  if (p < sizeof(RecHeader->EventInfo.EventNameDescription))
+    memset(&RecHeader->EventInfo.EventNameDescription[p], 0, sizeof(RecHeader->EventInfo.EventNameDescription) - p);
   p = RecHeader->ExtEventInfo.ExtEventTextLength;
-  if (p < sizeof(TYPE_ExtEvent_Info.ExtEventText))
-    memset(&RecHeader->ExtEventInfo.ExtEventText[p], 0, sizeof(TYPE_ExtEvent_Info.ExtEventText) - p);
+  if (p < sizeof(RecHeader->ExtEventInfo.ExtEventText))
+    memset(&RecHeader->ExtEventInfo.ExtEventText[p], 0, sizeof(RecHeader->ExtEventInfo.ExtEventText) - p);
 
   strncpy(OldEventText, RecHeader->ExtEventInfo.ExtEventText, min((dword)RecHeader->ExtEventInfo.ExtEventTextLength+1, sizeof(OldEventText)));
   OldEventText[sizeof(OldEventText) - 1] = '\0';
@@ -1228,9 +1228,9 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
     if ((NewEventText = (char*)TAP_MemAlloc(2 * strlen(pSourceCaption))))
     {
       StrToUTF8(pSourceCaption, NewEventText, 9);
-      TAP_SPrint(RecHeader->ExtEventInfo.ExtEventText, sizeof(TYPE_ExtEvent_Info.ExtEventText), "%s\r\n\r\n%s", NewEventText, OldEventText);
-      if (RecHeader->ExtEventInfo.ExtEventText[sizeof(TYPE_ExtEvent_Info.ExtEventText) - 2] != 0)
-        TAP_SPrint(&RecHeader->ExtEventInfo.ExtEventText[sizeof(TYPE_ExtEvent_Info.ExtEventText) - 5], 4, "...");
+      TAP_SPrint(RecHeader->ExtEventInfo.ExtEventText, sizeof(RecHeader->ExtEventInfo.ExtEventText), "%s\r\n\r\n%s", NewEventText, OldEventText);
+      if (RecHeader->ExtEventInfo.ExtEventText[sizeof(RecHeader->ExtEventInfo.ExtEventText) - 2] != 0)
+        TAP_SPrint(&RecHeader->ExtEventInfo.ExtEventText[sizeof(RecHeader->ExtEventInfo.ExtEventText) - 4], 4, "...");
       RecHeader->ExtEventInfo.ExtEventTextLength = strlen(RecHeader->ExtEventInfo.ExtEventText);
       TAP_MemFree(NewEventText);
     }
@@ -1251,7 +1251,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   {
     SourcePlayTime = 60 * RecHeaderInfo->HeaderDuration + RecHeaderInfo->HeaderDurationSec;
     SecToTimeString(SourcePlayTime, T1);
-    CutPlayTime    = (dword)((SourcePlayTime + 500) / 1000);
+    CutPlayTime    = (dword)((CutPlayTime + 500) / 1000);
     SourcePlayTime -= min(CutPlayTime, SourcePlayTime);
     SecToTimeString(SourcePlayTime, T3);
   }
@@ -1343,25 +1343,25 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   // ggf. Caption in den ExtEventText einfügen
   if (pSourceCaption || pCutCaption)
   {
-    memset(RecHeader->ExtEventInfo.ExtEventText, 0, sizeof(TYPE_ExtEvent_Info.ExtEventText));
+    memset(RecHeader->ExtEventInfo.ExtEventText, 0, sizeof(RecHeader->ExtEventInfo.ExtEventText));
     if (pCutCaption)
     {
       if ((NewEventText = (char*)TAP_MemAlloc(2 * strlen(pCutCaption))))
       {
         StrToUTF8(pCutCaption, NewEventText, 9);
-        TAP_SPrint(RecHeader->ExtEventInfo.ExtEventText, sizeof(TYPE_ExtEvent_Info.ExtEventText), "%s\r\n\r\n%s", NewEventText, OldEventText);
-        if (RecHeader->ExtEventInfo.ExtEventText[sizeof(TYPE_ExtEvent_Info.ExtEventText) - 2] != 0)
-          TAP_SPrint(&RecHeader->ExtEventInfo.ExtEventText[sizeof(TYPE_ExtEvent_Info.ExtEventText) - 5], 4, "...");
+        TAP_SPrint(RecHeader->ExtEventInfo.ExtEventText, sizeof(RecHeader->ExtEventInfo.ExtEventText), "%s\r\n\r\n%s", NewEventText, OldEventText);
+        if (RecHeader->ExtEventInfo.ExtEventText[sizeof(RecHeader->ExtEventInfo.ExtEventText) - 2] != 0)
+          TAP_SPrint(&RecHeader->ExtEventInfo.ExtEventText[sizeof(RecHeader->ExtEventInfo.ExtEventText) - 4], 4, "...");
         RecHeader->ExtEventInfo.ExtEventTextLength = strlen(RecHeader->ExtEventInfo.ExtEventText);
-		TAP_MemFree(NewEventText);
+        TAP_MemFree(NewEventText);
       }
     }
     else
-      TAP_SPrint(RecHeader->ExtEventInfo.ExtEventText, sizeof(TYPE_ExtEvent_Info.ExtEventText), OldEventText);
+      TAP_SPrint(RecHeader->ExtEventInfo.ExtEventText, sizeof(RecHeader->ExtEventInfo.ExtEventText), OldEventText);
   }
 
   //Set the length of the cut file
-WriteLogMCf("MC", "DEBUG: PatchInfFiles(): Setze Header: SourcePlayTime=%d, CutPlayTime=%d", SourcePlayTime, CutPlayTime);
+WriteLogMCf("MC", "DEBUG: PatchInfFiles(): Setze Header: SourcePlayTime=%lu, CutPlayTime=%lu", SourcePlayTime, CutPlayTime);
   RecHeaderInfo->HeaderDuration = (word)(CutPlayTime / 60);
   RecHeaderInfo->HeaderDurationSec = CutPlayTime % 60;
 WriteLogMCf("MC", "DEBUG: PatchInfFiles(): Header gesetzt: Duration=%hu, DurationSec=%hhu", RecHeaderInfo->HeaderDuration, RecHeaderInfo->HeaderDurationSec);

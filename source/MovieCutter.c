@@ -2168,7 +2168,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         FMUC_FreeFontFile(&Courier_New_13_FontData);
         OSDMenuFreeStdFonts();
       #endif
-TAP_PrintNet("DEBUG: NrMemAllocs = %d\n", dbg_NrMem);
+WriteLogMCf("MC", "DEBUG: NrMemAllocs = %d\n", dbg_NrMem);
       WriteLogMC(PROGRAM_NAME, "MovieCutter Exit.\r\n");
       CloseLogMC();
       TAP_Exit();
@@ -2557,8 +2557,8 @@ bool AddDefaultSegmentMarker(void)
   TRACEENTER();
 
   ResetSegmentMarkers();
-  ret = (AddSegmentMarker(0, TRUE) >= 0);
-  ret = ret && (AddSegmentMarker(PlayInfo.totalBlock, TRUE) >= 0);
+  ret = (AddSegmentMarker(0, FALSE) >= 0);
+  ret = ret && (AddSegmentMarker(PlayInfo.totalBlock, FALSE) >= 0);
 
   TRACEEXIT();
   return ret;
@@ -2591,11 +2591,11 @@ int AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
   }
 
   newTime = NavGetBlockTimeStamp(newBlock);
-  if((newTime == 0) && (newBlock > 3 * BlocksOneSecond))
+/*  if((newTime == 0) && (newBlock > 3 * BlocksOneSecond))
   {
     TRACEEXIT();
     return -1;
-  }
+  } */
 
   //Find the point where to insert the new marker so that the list stays sorted
   if(NrSegmentMarker < 2)
@@ -2731,7 +2731,7 @@ bool MoveSegmentMarker(int MarkerIndex, dword newBlock, bool RejectSmallSegments
 
     // neue Zeit ermitteln
     newTime = NavGetBlockTimeStamp(newBlock);
-    if((newTime != 0) || (newBlock <= 3 * BlocksOneSecond))
+//    if((newTime != 0) || (newBlock <= 3 * BlocksOneSecond))
     {
       SegmentMarker[MarkerIndex].Block = newBlock;
       SegmentMarker[MarkerIndex].Timems = newTime;
@@ -3718,7 +3718,7 @@ bool CutFileLoad(void)
       #endif
       SegmentMarker[NrSegmentMarker - 1].Block = PlayInfo.totalBlock;
       dword newTime = NavGetBlockTimeStamp(SegmentMarker[NrSegmentMarker - 1].Block);
-      SegmentMarker[NrSegmentMarker - 1].Timems = (newTime) ? newTime : (dword)(1000 * (60*PlayInfo.duration + PlayInfo.durationSec));
+      SegmentMarker[NrSegmentMarker - 1].Timems = (newTime) /*? newTime : (dword)(1000 * (60*PlayInfo.duration + PlayInfo.durationSec))*/;
     }
 
     // Prozent-Angaben neu berechnen (müssen künftig nicht mehr in der .cut gespeichert werden)
@@ -4791,8 +4791,8 @@ void OSDInfoDrawCurrentPlayTime(bool Force)
 
     if(rgnInfoBar)
     {
-      const int Frame1Width = 78,                                                    Frame2Width = InfoBarRightAreaWidth - Frame1Width - 1;
-      const int Frame1Left  = ScreenWidth - Overscan_X - InfoBarRightAreaWidth,      Frame2Left  = Frame1Left + Frame1Width + 1;
+      const int Frame1Width = 78,                                                   Frame2Width = InfoBarRightAreaWidth - Frame1Width - 1;
+      const int Frame1Left  = ScreenWidth - Overscan_X - InfoBarRightAreaWidth,     Frame2Left  = Frame1Left + Frame1Width + 1;
       PercentWidth = (dword)((float)PlayInfo.currentBlock * InfoBarRightAreaWidth / PlayInfo.totalBlock);
       PercentWidth = min(PercentWidth, InfoBarRightAreaWidth + 1);
 
@@ -6633,7 +6633,7 @@ WriteLogMCf("MC", "process: DEBUG: %d: %s\n", CutNrSegmentMarker, CutSegmentMark
           #endif
           SegmentMarker[NrSegmentMarker-1].Block = PlayInfo.totalBlock;
           dword newTime = NavGetBlockTimeStamp(SegmentMarker[NrSegmentMarker-1].Block);
-          SegmentMarker[NrSegmentMarker-1].Timems = (newTime) ? newTime : (dword)(1000 * (60*PlayInfo.duration + PlayInfo.durationSec));
+          SegmentMarker[NrSegmentMarker-1].Timems = (newTime) /*? newTime : (dword)(1000 * (60*PlayInfo.duration + PlayInfo.durationSec))*/;
           SegmentMarker[NrSegmentMarker-1].Percent = 100.0;
         }
         else
@@ -6861,7 +6861,7 @@ void CalcLastSeconds(void)
   }
   else
   {
-    BlocksOneSecond = 0; BlockNrLastSecond = 0; BlockNrLast10Seconds = 0;
+    BlocksOneSecond = 0; BlockNrLastSecond = PlayInfo.totalBlock; BlockNrLast10Seconds = PlayInfo.totalBlock;
   }
   TRACEEXIT();
 }
@@ -6893,18 +6893,18 @@ dword NavGetBlockTimeStamp(dword PlaybackBlockNr)
 {
   TRACEENTER();
 
-  if(LinearTimeMode)
+  if(LinearTimeMode || !TimeStamps)
   {
     TRACEEXIT();
     return ((dword) (((float)PlaybackBlockNr / PlayInfo.totalBlock) * (60*PlayInfo.duration + PlayInfo.durationSec)) * 1000);
   }
 
-  if(TimeStamps == NULL)
+/*  if(TimeStamps == NULL)
   {
     WriteLogMC(PROGRAM_NAME, "Someone is trying to get a timestamp while the array is empty!");
     TRACEEXIT();
     return 0;
-  }
+  } */
 
   if(LastTimeStamp->BlockNr < PlaybackBlockNr)
   {
