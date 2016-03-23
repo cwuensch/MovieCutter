@@ -307,6 +307,7 @@ typedef enum
  // Menu entries (5)
   LS_SplitMovie,
   LS_RenameMovie,
+ // Keyboard and Renaming (12)
   LS_NameInvalid,
   LS_NameAlreadyExists,
   LS_RenamingFailed,
@@ -319,6 +320,7 @@ typedef enum
   LS_KeybPaste,
   LS_KeybCancel,
   LS_KeybSave,
+ // Strippen und Teile kopieren (8)
   LS_SegmentNr,
   LS_EnterText,
   LS_CopySegments,
@@ -550,7 +552,6 @@ static bool             jfs_fsck_present = FALSE;
 static bool             RecStrip_present = FALSE, RecStrip_DoCut = FALSE, RecStrip_Cancelled;
 static dword            RecStrip_Pid = 0;
 
-static int dbg_NrMem = 0;
 
 static inline dword currentVisibleBlock()
 {
@@ -2064,9 +2065,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             if (HDD_Exist2(FileName, AbsPlaybackDir))
             {
               WriteLogMCf(PROGRAM_NAME, "Renaming original recording '%s' to '%s'", PlaybackName, BakName);
-              HDD_Rename2(PlaybackName, BakName, AbsPlaybackDir, TRUE);
+              HDD_Rename2(PlaybackName, BakName, AbsPlaybackDir, TRUE, TRUE);
               WriteLogMCf(PROGRAM_NAME, "Renaming stripped recording '%s' to '%s'", StripName, PlaybackName);
-              HDD_Rename2(StripName, PlaybackName, AbsPlaybackDir, TRUE);
+              HDD_Rename2(StripName, PlaybackName, AbsPlaybackDir, TRUE, TRUE);
             }
             else RecStrip_Return = -1;
           }
@@ -2168,7 +2169,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         FMUC_FreeFontFile(&Courier_New_13_FontData);
         OSDMenuFreeStdFonts();
       #endif
-WriteLogMCf("MC", "DEBUG: NrMemAllocs = %d\n", dbg_NrMem);
       WriteLogMC(PROGRAM_NAME, "MovieCutter Exit.\r\n");
       CloseLogMC();
       TAP_Exit();
@@ -2754,11 +2754,7 @@ bool DeleteSegmentMarker(int MarkerIndex, bool FreeCaption)
   if((MarkerIndex > 0) && (MarkerIndex < NrSegmentMarker - 1))
   {
     if (FreeCaption && SegmentMarker[MarkerIndex].pCaption)
-    {
-dbg_NrMem--;
-TAP_PrintNet("DEBUG: FREE: %s: %s\n", __FUNCTION__, SegmentMarker[MarkerIndex].pCaption);
       TAP_MemFree(SegmentMarker[MarkerIndex].pCaption);
-    }
 
     for(i = MarkerIndex; i < NrSegmentMarker - 1; i++)
       memcpy(&SegmentMarker[i], &SegmentMarker[i + 1], sizeof(tSegmentMarker));
@@ -2789,8 +2785,6 @@ void DeleteAllSegmentMarkers()
     for (i = 0; i < NrSegmentMarker; i++)
       if (SegmentMarker[i].pCaption)
       {
-dbg_NrMem--;
-TAP_PrintNet("DEBUG: FREE: %s: %s\n", __FUNCTION__, SegmentMarker[i].pCaption);
         TAP_MemFree(SegmentMarker[i].pCaption);
         SegmentMarker[i].pCaption = NULL;
       }
@@ -2812,11 +2806,7 @@ static void ResetSegmentMarkers(void)
 
   for (i = 0; i < NrSegmentMarker; i++)
     if (SegmentMarker[i].pCaption)
-    {
-dbg_NrMem--;
-TAP_PrintNet("DEBUG: FREE: %s: %s\n", __FUNCTION__, SegmentMarker[i].pCaption);
       TAP_MemFree(SegmentMarker[i].pCaption);
-    }
   memset(SegmentMarker, 0, NRSEGMENTMARKER * sizeof(tSegmentMarker));
   NrSegmentMarker = 0;
 
@@ -2884,11 +2874,7 @@ void ChangeSegmentText(void)
   {
     UndoAddEvent(TRUE, SegmentMarker[CurrentSegment].Block, SegmentMarker[CurrentSegment].Block, SegmentMarker[CurrentSegment].Selected, SegmentMarker[CurrentSegment].pCaption);
     if (*pNewCaption)
-    {
-dbg_NrMem++;
-TAP_PrintNet("DEBUG: MALLOC: %s (%d): %s\n", __FUNCTION__, MAXCAPTIONLENGTH, pNewCaption);
       SegmentMarker[CurrentSegment].pCaption = pNewCaption;
-    }
     else
     {
       SegmentMarker[CurrentSegment].pCaption = NULL;
@@ -3172,11 +3158,7 @@ void UndoAddEvent(bool Segment, dword PreviousBlock, dword NewBlock, bool Segmen
     NextAction->NewBlockNr         = NewBlock;
     NextAction->SegmentWasSelected = SegmentWasSelected;
     if (NextAction->pPrevCaption)
-    {
-dbg_NrMem--;
-TAP_PrintNet("DEBUG: FREE: %s: %s\n", __FUNCTION__, NextAction->pPrevCaption);
       TAP_MemFree(NextAction->pPrevCaption);
-    }
     NextAction->pPrevCaption       = pPrevCaption;
   }
   TRACEEXIT();
@@ -3219,11 +3201,7 @@ bool UndoLastAction(void)
         if (LastAction->NewBlockNr == LastAction->PrevBlockNr)
         {
           if (SegmentMarker[i].pCaption)
-          {
-dbg_NrMem--;
-TAP_PrintNet("DEBUG: FREE: %s: %s\n", __FUNCTION__, SegmentMarker[i].pCaption);
             TAP_MemFree(SegmentMarker[i].pCaption);
-          }
           SegmentMarker[i].pCaption = LastAction->pPrevCaption;
         }
         else if (LastAction->NewBlockNr != 0)
@@ -3290,12 +3268,7 @@ void UndoResetStack(void)
 
   for (i = 0; i < NRUNDOEVENTS; i++)
     if (UndoStack[i].pPrevCaption)
-    {
-dbg_NrMem--;
-TAP_PrintNet("DEBUG: FREE: %s: %s\n", __FUNCTION__, UndoStack[i].pPrevCaption);
       TAP_MemFree(UndoStack[i].pPrevCaption);
-    }
-
   memset(UndoStack, 0, NRUNDOEVENTS * sizeof(tUndoEvent));
   UndoLastItem = 0;
 
@@ -3491,8 +3464,6 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
           {
             SegmentMarker[NrSegmentMarker].pCaption = (char*)TAP_MemAlloc(strlen(&Buffer[ReadBytes])+1);
             strcpy(SegmentMarker[NrSegmentMarker].pCaption, &Buffer[ReadBytes]);
-dbg_NrMem++;
-TAP_PrintNet("DEBUG: MALLOC: %s (%d): %s\n", __FUNCTION__, strlen(&Buffer[ReadBytes])+1, SegmentMarker[NrSegmentMarker].pCaption);
           }
           NrSegmentMarker++;
         }
@@ -3783,7 +3754,6 @@ bool CutFileSave2(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
       ret = (fprintf(fCut, "#Nr ; Sel ; StartBlock ;     StartTime ; Percent ; Caption\r\n") > 0) && ret;
       for (i = 0; i < NrSegmentMarker; i++)
       {
-WriteLogMCf("mc", "cutsave - DEBUG: %d: %s\n", i, SegmentMarker[i].pCaption);
         MSecToTimeString(SegmentMarker[i].Timems, TimeStamp);
         ret = (fprintf(fCut, "%3d ;  %c  ; %10lu ;%14s ;  %5.1f%% ; %s\r\n", i, (SegmentMarker[i].Selected ? '*' : '-'), SegmentMarker[i].Block, TimeStamp, SegmentMarker[i].Percent, (SegmentMarker[i].pCaption ? SegmentMarker[i].pCaption : "")) > 0) && ret;
       }
@@ -6199,7 +6169,7 @@ bool MovieCutterRenameFile(void)
 
     // Umbenennen
     HDD_Delete2(NewName, AbsPlaybackDir, TRUE);
-    HDD_Rename2(PlaybackName, NewName, AbsPlaybackDir, TRUE);
+    HDD_Rename2(PlaybackName, NewName, AbsPlaybackDir, TRUE, TRUE);
 
     char OldCutBak[FBLIB_DIR_SIZE+4], NewCutBak[FBLIB_DIR_SIZE+4];
     GetCutNameFromRec(PlaybackName, AbsPlaybackDir, OldCutBak); strcat(OldCutBak, ".bak");
@@ -6472,14 +6442,14 @@ if (KeepCut || CutEnding)
           if (KeepCut)
           {
             WriteLogMCf(PROGRAM_NAME, "Renaming the end-segment file '%s' to '%s'", PlaybackName, CutFileName);
-            HDD_Rename2(PlaybackName, CutFileName, AbsPlaybackDir, TRUE);
+            HDD_Rename2(PlaybackName, CutFileName, AbsPlaybackDir, TRUE, FALSE);
           }
           else
             HDD_Delete2(PlaybackName, AbsPlaybackDir, TRUE);
           if (!HDD_Exist2(PlaybackName, AbsPlaybackDir))
           {
             WriteLogMCf(PROGRAM_NAME, "Renaming original recording '%s' back to '%s'", TempFileName, PlaybackName);
-            HDD_Rename2(TempFileName, PlaybackName, AbsPlaybackDir, TRUE);
+            HDD_Rename2(TempFileName, PlaybackName, AbsPlaybackDir, TRUE, FALSE);
           }
         }
       }
@@ -6573,7 +6543,6 @@ if (KeepCut || CutEnding)
               CutSegmentMarker[CutNrSegmentMarker].Selected = SegmentMarker[j].Selected;
               CutSegmentMarker[CutNrSegmentMarker].Percent  = ((float)CutSegmentMarker[CutNrSegmentMarker].Block / (SegmentMarker[NrSegmentMarker-1].Block - CutStartPoint.BlockNr)) * 100.0;
               CutSegmentMarker[CutNrSegmentMarker].pCaption = SegmentMarker[j].pCaption;
-WriteLogMCf("MC", "process: DEBUG: %d: %s\n", CutNrSegmentMarker, CutSegmentMarker[CutNrSegmentMarker].pCaption);
               CutNrSegmentMarker++;
             }
             if (j == NrSegmentMarker - 1)
@@ -6872,13 +6841,17 @@ void CheckLastSeconds(void)
 
   TRACEENTER();
 
-  if((PlayInfo.currentBlock > BlockNrLastSecond) && (TrickMode != TRICKMODE_Pause))
+  if(PlayInfo.currentBlock > BlockNrLastSecond)
   {
-    if (!LastSecondsPaused) Playback_Pause();
+    if ((TrickMode != TRICKMODE_Pause) && !LastSecondsPaused)
+      Playback_Pause();
     LastSecondsPaused = TRUE;
   }
-  else if((PlayInfo.currentBlock > BlockNrLast10Seconds) && (TrickMode == TRICKMODE_Forward)) 
-    Playback_Normal();
+  else if(PlayInfo.currentBlock > BlockNrLast10Seconds)
+  {
+    if (TrickMode == TRICKMODE_Forward)
+      Playback_Normal();
+  }
   else
     LastSecondsPaused = FALSE;
 
@@ -6960,7 +6933,7 @@ bool PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isH
   WriteLogMC(PROGRAM_NAME, "Checking source nav file (possibly older version with incorrect Times)...");
 
   //Rename the original nav file to bak
-  HDD_Rename2(NavFileName, BakFileName, AbsDirectory, FALSE);
+  HDD_Rename2(NavFileName, BakFileName, AbsDirectory, FALSE, FALSE);
 
   //Open the original nav
   TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s", AbsDirectory, BakFileName);
@@ -7022,7 +6995,7 @@ bool PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isH
   {
     WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E1a03.");
     HDD_Delete2(NavFileName, AbsDirectory, FALSE);
-    HDD_Rename2(BakFileName, NavFileName, AbsDirectory, FALSE);
+    HDD_Rename2(BakFileName, NavFileName, AbsDirectory, FALSE, FALSE);
     TRACEEXIT();
     return FALSE;
   }

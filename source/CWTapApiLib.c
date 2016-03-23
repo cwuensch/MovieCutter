@@ -41,18 +41,19 @@ void GetCutNameFromRec(const char *RecFileName, const char *AbsDirectory, char *
   TRACEEXIT();
 }
 
-void HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNavCut)
+void HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNav, bool RenameCut)
 {
   char AbsFileName[FBLIB_DIR_SIZE], AbsNewFileName[FBLIB_DIR_SIZE];
   TRACEENTER();
 
   TAP_SPrint  (AbsFileName, sizeof(AbsFileName), "%s/%s",     AbsDirectory, FileName);  TAP_SPrint(AbsNewFileName, sizeof(AbsNewFileName), "%s/%s",     AbsDirectory, NewFileName);  rename(AbsFileName, AbsNewFileName);
-  if(RenameInfNavCut)
+  if(RenameInfNav)
   {
     TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.inf", AbsDirectory, FileName);  TAP_SPrint(AbsNewFileName, sizeof(AbsNewFileName), "%s/%s.inf", AbsDirectory, NewFileName);  rename(AbsFileName, AbsNewFileName);
     TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.nav", AbsDirectory, FileName);  TAP_SPrint(AbsNewFileName, sizeof(AbsNewFileName), "%s/%s.nav", AbsDirectory, NewFileName);  rename(AbsFileName, AbsNewFileName);
-    GetCutNameFromRec(FileName, AbsDirectory, AbsFileName);                             GetCutNameFromRec(NewFileName, AbsDirectory, AbsNewFileName);                                rename(AbsFileName, AbsNewFileName);   
   }
+  if (RenameCut)
+    GetCutNameFromRec(FileName, AbsDirectory, AbsFileName);                             GetCutNameFromRec(NewFileName, AbsDirectory, AbsNewFileName);                                rename(AbsFileName, AbsNewFileName);   
   TRACEEXIT();
 }
 

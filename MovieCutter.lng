@@ -122,6 +122,14 @@ de_095=Kopieren
 de_096=Einfügen
 de_097=Abbrechen
 de_098=Speichern
+de_099=%hd. Segment
+de_100=Text eingeben
+de_101=Mark. Seg. in neue Rec kopieren
+de_102=Aktuelles Seg. in neue Rec kopieren
+de_103=Aufnahme strippen
+de_104=Kopie erstellen...
+de_105=Aktion erfolgreich abgeschlossen.\n\n%.1f von %.1f MB (%.1f %%) kopiert.
+de_106=Kopieren ist fehlgeschlagen!\nBitte das Log prüfen!
 
 
 #English
@@ -224,6 +232,14 @@ en_095=Copy
 en_096=Paste
 en_097=Cancel
 en_098=Save
+en_099=Segment %hd
+en_100=Enter text
+en_101=Copy selected seg. into new rec
+en_102=Copy current seg. into new rec
+en_103=Strip recording
+en_104=Creating copy...
+en_105=Action successfully completed.\n\n%.1f of %.1f MB (%.1f %%) copied.
+en_106=Copying has failed!\nPlease check the log!
 
 
 #French
@@ -326,6 +342,14 @@ fr_095=Copier
 fr_096=Coller
 fr_097=Annuler
 fr_098=Sauveg.
+fr_099=Segment %hd
+fr_100=Enter text
+fr_101=Copy selected seg. into new rec
+fr_102=Copy current seg. into new rec
+fr_103=Strip recording
+fr_104=Creating copy...
+fr_105=Action successfully completed.\n\n%.1f of %.1f MB (%.1f %%) copied.
+fr_106=Copying has failed!\nPlease check the log!
 
 
 #Dutch
@@ -428,3 +452,11 @@ nl_095=Copy
 nl_096=Paste
 nl_097=Cancel
 nl_098=Save
+nl_099=Segment %hd
+nl_100=Enter text
+nl_101=Copy selected seg. into new rec
+nl_102=Copy current seg. into new rec
+nl_103=Strip recording
+nl_104=Creating copy...
+nl_105=Action successfully completed.\n\n%.1f of %.1f MB (%.1f %%) copied.
+nl_106=Copying has failed!\nPlease check the log!

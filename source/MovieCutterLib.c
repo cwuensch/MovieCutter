@@ -361,7 +361,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
   {
     if (HDD_Exist2(BakFileName, AbsDirectory))
       HDD_Delete2(BakFileName, AbsDirectory, FALSE);
-    HDD_Rename2(FileName, BakFileName, AbsDirectory, FALSE);
+    HDD_Rename2(FileName, BakFileName, AbsDirectory, FALSE, FALSE);
   }
 
   // Patch the nav files (and get the TimeStamps for the actual cutting positions)
@@ -1361,10 +1361,8 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   }
 
   //Set the length of the cut file
-WriteLogMCf("MC", "DEBUG: PatchInfFiles(): Setze Header: SourcePlayTime=%lu, CutPlayTime=%lu", SourcePlayTime, CutPlayTime);
   RecHeaderInfo->HeaderDuration = (word)(CutPlayTime / 60);
   RecHeaderInfo->HeaderDurationSec = CutPlayTime % 60;
-WriteLogMCf("MC", "DEBUG: PatchInfFiles(): Header gesetzt: Duration=%hu, DurationSec=%hhu", RecHeaderInfo->HeaderDuration, RecHeaderInfo->HeaderDurationSec);
 
   //Set recording time of the cut file
   RecHeaderInfo->HeaderStartTime = AddTime(OrigHeaderStartTime, CutStartPoint->Timems / 60000);
@@ -1393,7 +1391,6 @@ WriteLogMCf("MC", "DEBUG: PatchInfFiles(): Header gesetzt: Duration=%hu, Duratio
   fCutInf = fopen(AbsCutInfName, "wb");
   if(fCutInf)
   {
-WriteLogMCf("MC", "DEBUG: PatchInfFiles(): Schreibe '%s' - Duration=%hu, DurationSec=%hhu", CutFileName, RecHeaderInfo->HeaderDuration, RecHeaderInfo->HeaderDurationSec);
     Result = (fwrite(Buffer, 1, max(InfSize, BytesRead), fCutInf) == max(InfSize, BytesRead)) && Result;
 
     // Kopiere den Rest der Source-inf (falls vorhanden) in die neue inf hinein

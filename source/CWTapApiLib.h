@@ -141,7 +141,7 @@ typedef struct
 
 void       GetCutNameFromRec(const char *RecFileName, const char *AbsDirectory, char *const OutCutFileName);  // needs FBLIB_DIR_SIZE chars
 bool       GetRecInfosFromInf(const char *RecFileName, const char *AbsDirectory, bool *const isCrypted, bool *const isHDVideo, bool *const isStripped, dword *const DateTime);
-void       HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNavCut);
+void       HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNav, bool RenameCut);
 void       HDD_Delete2(const char *FileName, const char *AbsDirectory, bool DeleteInfNavCut);
 bool       HDD_Exist2(const char *FileName, const char *AbsDirectory);
 bool       HDD_TruncateFile(const char *FileName, const char *AbsDirectory, off_t NewFileSize);
