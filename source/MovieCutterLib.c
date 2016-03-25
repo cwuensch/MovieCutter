@@ -1352,12 +1352,12 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
         TAP_SPrint(RecHeader->ExtEventInfo.ExtEventText, sizeof(RecHeader->ExtEventInfo.ExtEventText), "%s\r\n\r\n%s", NewEventText, OldEventText);
         if (RecHeader->ExtEventInfo.ExtEventText[sizeof(RecHeader->ExtEventInfo.ExtEventText) - 2] != 0)
           TAP_SPrint(&RecHeader->ExtEventInfo.ExtEventText[sizeof(RecHeader->ExtEventInfo.ExtEventText) - 4], 4, "...");
-        RecHeader->ExtEventInfo.ExtEventTextLength = strlen(RecHeader->ExtEventInfo.ExtEventText);
         TAP_MemFree(NewEventText);
       }
     }
     else
       TAP_SPrint(RecHeader->ExtEventInfo.ExtEventText, sizeof(RecHeader->ExtEventInfo.ExtEventText), OldEventText);
+    RecHeader->ExtEventInfo.ExtEventTextLength = strlen(RecHeader->ExtEventInfo.ExtEventText);
   }
 
   //Set the length of the cut file

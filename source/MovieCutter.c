@@ -6247,7 +6247,7 @@ void MovieCutterProcess(bool KeepCut, bool SplitMovie)  // Splittet am linken Se
   char                  CutFileName[MAX_FILE_NAME_SIZE];
   char                  TempFileName[MAX_FILE_NAME_SIZE];
   char                  MessageString[512];
-  char                 *pCutCaption = NULL, *pSourceCaption = NULL;
+  char                 *pCutCaption, *pSourceCaption;
   tTimeStamp            CutStartPoint, BehindCutPoint;
   dword                 DeltaBlock, DeltaTime;
   dword                 CurPlayPosition;
@@ -6346,8 +6346,8 @@ if (HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, &InodeNr, NULL))
       CutStartPoint.Timems   = SegmentMarker[WorkingSegment].Timems;
       BehindCutPoint.BlockNr = SegmentMarker[SplitMovie ? NrSegmentMarker-1 : WorkingSegment+1].Block;
       BehindCutPoint.Timems  = SegmentMarker[SplitMovie ? NrSegmentMarker-1 : WorkingSegment+1].Timems;
-      if (KeepCut)
-        pCutCaption = SegmentMarker[WorkingSegment].pCaption;
+      pCutCaption =  KeepCut ? SegmentMarker[WorkingSegment].pCaption : NULL;
+      pSourceCaption         = NULL;
 //      if ((NrSegmentMarker == 3) && !SplitMovie)
 //        pSourceCaption = SegmentMarker[!WorkingSegment].pCaption;
 
