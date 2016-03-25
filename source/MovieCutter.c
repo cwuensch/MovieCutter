@@ -3328,7 +3328,7 @@ bool CutFileDecodeBin(FILE *fCut, __off64_t *OutSavedSize)
     if (ret)
     {
       SavedNrSegments = min(SavedNrSegments, NRSEGMENTMARKER);
-      while (fread(SegmentMarker, sizeof(tSegmentMarker)-4, 1, fCut))
+      while (fread(&SegmentMarker[NrSegmentMarker], sizeof(tSegmentMarker)-4, 1, fCut))
       {
         SegmentMarker[NrSegmentMarker].pCaption = NULL;
         NrSegmentMarker++;
@@ -6348,8 +6348,8 @@ if (HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, &InodeNr, NULL))
       BehindCutPoint.Timems  = SegmentMarker[SplitMovie ? NrSegmentMarker-1 : WorkingSegment+1].Timems;
       if (KeepCut)
         pCutCaption = SegmentMarker[WorkingSegment].pCaption;
-      if ((NrSegmentMarker == 3) && !SplitMovie)
-        pSourceCaption = SegmentMarker[!WorkingSegment].pCaption;
+//      if ((NrSegmentMarker == 3) && !SplitMovie)
+//        pSourceCaption = SegmentMarker[!WorkingSegment].pCaption;
 
       // NEUE Spezial-Behandlung beim Schneiden des Endes
       CutEnding = FALSE;

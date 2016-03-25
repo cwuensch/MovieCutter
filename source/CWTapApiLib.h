@@ -78,7 +78,9 @@ typedef struct
   byte                  EventRunningStatus;
   byte                  EventTextLength;
   byte                  EventParentalRate;
-  char                  EventNameDescription[273];
+  char                  EventNameDescription[257];
+  word                  ServiceID;
+  byte                  unknown[14];
 } TYPE_Event_Info;
 
 typedef struct
