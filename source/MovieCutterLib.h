@@ -30,13 +30,15 @@ typedef struct
 
 typedef struct
 {
-  dword                 SHOffset; // = (FrameType shl 24) or SHOffset
+  dword                 SHOffset:24; // = (FrameType shl 24) or SHOffset
+  dword                 FrameType:8;
   byte                  MPEGType;
   byte                  FrameIndex;
   word                  iFrameSeqOffset;
 //  byte                  Zero1;
   dword                 PHOffsetHigh;
   dword                 PHOffset;
+
   dword                 PTS2;
   dword                 NextPH;
   dword                 Timems;
@@ -53,14 +55,17 @@ typedef struct
 //  byte                  Zero1;
   dword                 SEIOffsetHigh;
   dword                 SEIOffsetLow;
+
   dword                 SEIPTS;
   dword                 NextAUD;
   dword                 Timems;
   dword                 Zero2;
+
   dword                 SEISPS;
   dword                 SPSLen;
   dword                 IFrame;
   dword                 Zero4;
+
   dword                 Zero5;
   dword                 Zero6;
   dword                 Zero7;
