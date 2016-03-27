@@ -343,13 +343,13 @@ fr_096=Coller
 fr_097=Annuler
 fr_098=Sauveg.
 fr_099=Segment %hd
-fr_100=Enter text
-fr_101=Copy selected seg. into new rec
-fr_102=Copy current seg. into new rec
-fr_103=Strip recording
-fr_104=Creating copy...
-fr_105=Action successfully completed.\n\n%.1f of %.1f MB (%.1f %%) copied.
-fr_106=Copying has failed!\nPlease check the log!
+fr_100=Entrer le texte
+fr_101=Copier seg. marqué ds nouv. enreg.
+fr_102=Copier seg. en cours ds nouv. enreg.
+fr_103=Épurer enregistrement
+fr_104=Création de la copie...
+fr_105=Action terminée avec succès.\n\n%.1f de %.1f MB (%.1f %%) copiés.
+fr_106=La copie a échoué !\nConsulter le log.
 
 
 #Dutch
@@ -456,7 +456,7 @@ nl_099=Segment %hd
 nl_100=Enter text
 nl_101=Copy selected seg. into new rec
 nl_102=Copy current seg. into new rec
-nl_103=Strip recording
+nl_103=Opname strippen
 nl_104=Creating copy...
 nl_105=Action successfully completed.\n\n%.1f of %.1f MB (%.1f %%) copied.
 nl_106=Copying has failed!\nPlease check the log!

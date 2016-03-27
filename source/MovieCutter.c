@@ -1937,27 +1937,47 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     {
       static char       StripName[MAX_FILE_NAME_SIZE], BakName[MAX_FILE_NAME_SIZE], PidFile[20];
       static __off64_t  OrigFileSize = 0;
-      static dword      RecStrip_Return, LastRefresh;
+      static dword      LastRefresh;
+      static int        RecStrip_Return = -1;
       __off64_t         StripFileSize;
   
-      if(event == EVT_KEY && (param1 == RKEY_Exit || param1 == FKEY_Exit || param1 == RKEY_Sleep))
+      if (event == EVT_KEY)
       {
-        if (RecStrip_Pid)
+        if ((rgnStripProgBar && (param1 == RKEY_Exit || param1 == FKEY_Exit)) || param1 == RKEY_Sleep)
         {
-          char KillCommand[16];
-          TAP_SPrint(KillCommand, sizeof(KillCommand), "kill %lu", RecStrip_Pid);
-          system(KillCommand);
-          RecStrip_Cancelled = TRUE;
+          if (RecStrip_Pid)
+          {
+            char KillCommand[16];
+            TAP_SPrint(KillCommand, sizeof(KillCommand), "kill %lu", RecStrip_Pid);
+            system(KillCommand);
+            RecStrip_Cancelled = TRUE;
+          }
+          param1 = 0;
         }
-        param1 = 0;
+        else if (param1 == RKEY_Option || param1 == RKEY_Ab)
+        {
+          if (rgnStripProgBar)
+          {
+            TAP_Osd_Delete(rgnStripProgBar);
+            rgnStripProgBar = 0;
+            TAP_Osd_Sync();
+          }
+          else
+          {
+            OSDRecStripProgressBar(0);
+            LastRefresh = 0;
+          }
+          param1 = 0;
+        }
+        if (rgnStripProgBar && !(param1 >= RKEY_0 && param1 <= RKEY_9))
+          param1 = 0;
       }
 
       else if (event == EVT_IDLE)
       {
         // INIT: Starte RecStrip
-        if (!rgnStripProgBar && !RecStrip_Pid)
+        if (!RecStrip_Pid && RecStrip_Return == -1)
         {
-          RecStrip_Return = (dword) -1;
           RecStrip_Cancelled = FALSE;
 
           // Progress-OSD einblenden
@@ -1971,7 +1991,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             int i;
             for (i = 0; i < NrSegmentMarker-2; i++)
               if (SegmentMarker[i].Selected)
-                OrigFileSize += (SegmentMarker[i+1].Block - SegmentMarker[i].Block);
+                OrigFileSize += (SegmentMarker[i+1].Block - SegmentMarker[i].Block) * 9024;
           }
           else
           {
@@ -2008,16 +2028,19 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         }
 
         // WAIT: Auf Beendigung von RecStrip warten
-        if (rgnStripProgBar && RecStrip_Pid)
+        if (RecStrip_Pid)
         {
           if (access(PidFile, F_OK) != -1)
           {
-            if(labs(TAP_GetTick() - LastRefresh) > 100)
+            if (rgnStripProgBar)
             {
-              sync();
-              if (HDD_GetFileSizeAndInode2(StripName, AbsPlaybackDir, NULL, &StripFileSize))
-                OSDRecStripProgressBar(CalcBlockSize(StripFileSize) / (CalcBlockSize(OrigFileSize) / 100));
-              LastRefresh = TAP_GetTick();
+              if (labs(TAP_GetTick() - LastRefresh) > 100)
+              {
+                sync();
+                if (HDD_GetFileSizeAndInode2(StripName, AbsPlaybackDir, NULL, &StripFileSize))
+                  OSDRecStripProgressBar(CalcBlockSize(StripFileSize) / (CalcBlockSize(OrigFileSize) / 100));
+                LastRefresh = TAP_GetTick();
+              }
             }
           }
           else
@@ -2030,7 +2053,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               FILE* fRetFile = fopen("/tmp/RecStrip.out", "rb");
               if(fRetFile)
               {
-                fscanf(fRetFile, "%ld", &RecStrip_Return);
+                fscanf(fRetFile, "%d", &RecStrip_Return);
                 fclose(fRetFile); fRetFile = NULL;
               }
               RecStrip_Pid = 0;
@@ -2040,7 +2063,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         }
 
         // FINISHED: Nachverarbeitung
-        if (rgnStripProgBar && RecStrip_Return == 0)
+        if (!RecStrip_Pid && RecStrip_Return == 0)
         {
           // Set Date of Recording
           char FileName[FBLIB_DIR_SIZE];
@@ -2076,7 +2099,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         }
 
         // END: Ausgabe
-        if (rgnStripProgBar && !RecStrip_Pid)
+        if (!RecStrip_Pid)
         {
           State = (AutoOSDPolicy) ? ST_WaitForPlayback : ST_InactiveMode;
           RecStrip_DoCut = FALSE;
@@ -2097,9 +2120,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           }
           else
           {
-            WriteLogMCf(PROGRAM_NAME, "RecStrip returned error code %ld!", RecStrip_Return);
+            WriteLogMCf(PROGRAM_NAME, "RecStrip returned error code %d!", RecStrip_Return);
             ShowErrorMessage(LangGetString(LS_StripFailed), NULL);
           }
+          RecStrip_Return = -1;
         }
       }
       break;
@@ -5071,6 +5095,13 @@ void OSDRecStripProgressBar(int percent)
   // Progress-OSD einblenden
   if (!rgnStripProgBar)
   {
+    dword SysState, SysSubState;
+    TAP_GetState(&SysState, &SysSubState);
+    if(SysSubState != 0)
+    {
+      TAP_ExitNormal();
+      TAP_EnterNormalNoInfo();
+    }
     rgnStripProgBar = TAP_Osd_Create(Overscan_X + 20, Overscan_Y + 20, RegionWidth, RegionHeight, 0, 0);
     TAP_Osd_FillBox(rgnStripProgBar, 0, 0, RegionWidth, RegionHeight, ColorLightBackground);
     TAP_Osd_DrawRectangle(rgnStripProgBar, 0, 0, RegionWidth, RegionHeight, 2, COLOR_Gray);
