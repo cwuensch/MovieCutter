@@ -1505,7 +1505,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             }
             else
             {
-              if(AddSegmentMarker(newBlock, TRUE) >= 0)
+              if(AddSegmentMarker(&newBlock, TRUE, TRUE) > 0)
               {
                 UndoAddEvent(TRUE, 0, newBlock, FALSE, NULL);
                 OSDSegmentListDrawList(FALSE);
@@ -2543,6 +2543,7 @@ void CountSelectedSegments()
 void ImportBookmarksToSegments(void)
 {
   char LogString[512];
+  dword newBlock;
   int i;
 
   TRACEENTER();
@@ -2558,10 +2559,11 @@ void ImportBookmarksToSegments(void)
 
     for(i = 0; i < min(NrBookmarks, NRSEGMENTMARKER-2); i++)
     { 
-      TAP_SPrint(LogString, sizeof(LogString), "Bookmark %d @ %lu", i + 1, Bookmarks[i]);
+      newBlock = Bookmarks[i];
+      TAP_SPrint(LogString, sizeof(LogString), "Bookmark %d @ %lu", i + 1, newBlock);
       // Erlaube keinen neuen SegmentMarker zu knapp am Anfang oder Ende oder über totalBlock
-      if ((Bookmarks[i] > SegmentMarker[0].Block + 3*BlocksOneSecond) && (Bookmarks[i] + 3*BlocksOneSecond < SegmentMarker[NrSegmentMarker-1].Block))
-        AddSegmentMarker(Bookmarks[i], FALSE);
+      if ((newBlock > SegmentMarker[0].Block + 3*BlocksOneSecond) && (newBlock + 3*BlocksOneSecond < SegmentMarker[NrSegmentMarker-1].Block))
+        AddSegmentMarker(&newBlock, TRUE, FALSE);
       else
         TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), " -> ignored! (Too close to begin/end.)");
       WriteLogMC(PROGRAM_NAME, LogString);
@@ -2575,20 +2577,20 @@ void ImportBookmarksToSegments(void)
   TRACEEXIT();
 }
 
-bool AddDefaultSegmentMarker(void)
+void AddDefaultSegmentMarker(void)
 {
-  bool ret;
   TRACEENTER();
 
   ResetSegmentMarkers();
-  ret = (AddSegmentMarker(0, FALSE) >= 0);
-  ret = ret && (AddSegmentMarker(PlayInfo.totalBlock, FALSE) >= 0);
+  SegmentMarker[1].Block   = PlayInfo.totalBlock;
+  SegmentMarker[1].Timems  = NavGetBlockTimeStamp(SegmentMarker[1].Block);
+  SegmentMarker[1].Percent = 100.0;
+  NrSegmentMarker = 2;
 
   TRACEEXIT();
-  return ret;
 }
 
-int AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
+int AddSegmentMarker(dword *pNewBlock, bool MoveToIFrame, bool RejectSmallSegments)
 {
   char                  StartTime[16];
   dword                 newTime;
@@ -2597,7 +2599,7 @@ int AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
 
   TRACEENTER();
 
-  if(newBlock > PlayInfo.totalBlock  /*!PLAYINFOVALID() || ((int)newBlock < 0)*/)   // PlayInfo ist sicher, da in Z.804 und im ActionMenu überprüft, Prüfung für newBlock nun restriktiver
+  if(!pNewBlock || *pNewBlock > PlayInfo.totalBlock  /*!PLAYINFOVALID() || ((int)*pNewBlock < 0)*/)   // PlayInfo ist sicher, da in Z.804 und im ActionMenu überprüft, Prüfung für newBlock nun restriktiver
   {
     WriteLogMC(PROGRAM_NAME, "AddSegmentMarker: newBlock > totalBlock - darf nicht auftreten!");
     TRACEEXIT();
@@ -2609,65 +2611,63 @@ int AddSegmentMarker(dword newBlock, bool RejectSmallSegments)
     WriteLogMC(PROGRAM_NAME, "AddSegmentMarker: SegmentMarker list is full!");
     ShowErrorMessage(LangGetString(LS_ListIsFull), NULL);
 //    OSDRedrawEverything();
-
     TRACEEXIT();
     return -1;
   }
 
-  newTime = NavGetBlockTimeStamp(newBlock);
-/*  if((newTime == 0) && (newBlock > 3 * BlocksOneSecond))
+  newTime = NavGetBlockTimeStamp(*pNewBlock);
+
+  // Verschiebe Segment bis zum nächsten I-Frame
+  if (MoveToIFrame && !LinearTimeMode && newTime)
+  {
+    while ((LastTimeStamp < TimeStamps + NrTimeStamps-1) && (LastTimeStamp->FrameType != 1))
+      LastTimeStamp++;
+    if (LastTimeStamp->FrameType == 1)
+    {
+      *pNewBlock = LastTimeStamp->BlockNr - CUTPOINTSEARCHRADIUS;
+      newTime = LastTimeStamp->Timems;
+    }
+  }
+
+/*  if((newTime == 0) && (*pNewBlock > 3 * BlocksOneSecond))
   {
     TRACEEXIT();
     return -1;
   } */
 
   //Find the point where to insert the new marker so that the list stays sorted
-  if(NrSegmentMarker < 2)
+  for(i = 1; i < NrSegmentMarker; i++)
   {
-    //If less than 2 markers present, then set marker for start and end of file (called from AddDefaultSegmentMarker)
-    SegmentMarker[NrSegmentMarker].Block = newBlock;
-    SegmentMarker[NrSegmentMarker].Timems  = newTime;
-    SegmentMarker[NrSegmentMarker].Percent = ((float)newBlock / PlayInfo.totalBlock) * 100.0;
-    SegmentMarker[NrSegmentMarker].Selected = FALSE;
-    SegmentMarker[NrSegmentMarker].pCaption = NULL;
-    ret = NrSegmentMarker;
-    NrSegmentMarker++;
-  }
-  else
-  {
-    for(i = 1; i < NrSegmentMarker; i++)
+    if(SegmentMarker[i].Block >= *pNewBlock)
     {
-      if(SegmentMarker[i].Block >= newBlock)
+      if(SegmentMarker[i].Block == *pNewBlock)
       {
-        if(SegmentMarker[i].Block == newBlock)
-        {
-          TRACEEXIT();
-          return -1;
-        }
-        
-        // Erlaube kein Segment mit weniger als 3 Sekunden
-        if (RejectSmallSegments && ((i > 1 && (newBlock <= SegmentMarker[i-1].Block + 3*BlocksOneSecond)) || (i < NrSegmentMarker-2 && (newBlock + 3*BlocksOneSecond >= SegmentMarker[i].Block))))
-        {
-          TRACEEXIT();
-          return -1;
-        }
-
-        for(j = NrSegmentMarker; j > i; j--)
-          memcpy(&SegmentMarker[j], &SegmentMarker[j - 1], sizeof(tSegmentMarker));
-
-        SegmentMarker[i].Block = newBlock;
-        SegmentMarker[i].Timems = newTime;
-        SegmentMarker[i].Percent = ((float)newBlock / PlayInfo.totalBlock) * 100.0;
-        SegmentMarker[i].Selected = FALSE;
-        SegmentMarker[i].pCaption = NULL;
-
-        MSecToTimeString(SegmentMarker[i].Timems, StartTime);
-        WriteLogMCf(PROGRAM_NAME, "New marker @ block = %lu, time = %s, percent = %1.1f%%", newBlock, StartTime, SegmentMarker[i].Percent);
-
-        if(ActiveSegment + 1 >= i) ActiveSegment++;
-        ret = i;
-        break;
+        TRACEEXIT();
+        return -1;
       }
+
+      // Erlaube kein Segment mit weniger als 3 Sekunden
+      if (RejectSmallSegments && ((i > 1 && (*pNewBlock <= SegmentMarker[i-1].Block + 3*BlocksOneSecond)) || (i < NrSegmentMarker-2 && (*pNewBlock + 3*BlocksOneSecond >= SegmentMarker[i].Block))))
+      {
+        TRACEEXIT();
+        return -1;
+      }
+
+      for(j = NrSegmentMarker; j > i; j--)
+        memcpy(&SegmentMarker[j], &SegmentMarker[j - 1], sizeof(tSegmentMarker));
+
+      SegmentMarker[i].Block = *pNewBlock;
+      SegmentMarker[i].Timems = newTime;
+      SegmentMarker[i].Percent = ((float)*pNewBlock / PlayInfo.totalBlock) * 100.0;
+      SegmentMarker[i].Selected = FALSE;
+      SegmentMarker[i].pCaption = NULL;
+
+      MSecToTimeString(SegmentMarker[i].Timems, StartTime);
+      WriteLogMCf(PROGRAM_NAME, "New marker @ block = %lu, time = %s, percent = %1.1f%%", *pNewBlock, StartTime, SegmentMarker[i].Percent);
+
+      if(ActiveSegment + 1 >= i) ActiveSegment++;
+      ret = i;
+      break;
     }
     NrSegmentMarker++;
   }
@@ -3209,8 +3209,8 @@ bool UndoLastAction(void)
   {
     if ((LastAction->NewBlockNr == 0) && (LastAction->PrevBlockNr != 0))
     {
-      i = AddSegmentMarker(LastAction->PrevBlockNr, FALSE);
-      if (i >= 0)
+      i = AddSegmentMarker(&LastAction->PrevBlockNr, FALSE, FALSE);
+      if (i > 0)
       {
         SegmentMarker[i].Selected = LastAction->SegmentWasSelected;
         SegmentMarker[i].pCaption = LastAction->pPrevCaption;
@@ -6002,12 +6002,13 @@ void MovieCutterDeleteSegments(void)
 
 void MovieCutterSplitMovie(void)
 {
+  dword newBlock = PlayInfo.currentBlock;
   TRACEENTER();
 
   if (PlayInfo.currentBlock > 0)
   {
     WriteLogMC(PROGRAM_NAME, "[Action 'Split movie' started...]");
-    if (AddSegmentMarker(PlayInfo.currentBlock, FALSE) > 0)
+    if (AddSegmentMarker(&newBlock, TRUE, FALSE) > 0)
       MovieCutterProcess(TRUE, TRUE);
   }
   TRACEEXIT();

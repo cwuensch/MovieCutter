@@ -26,6 +26,7 @@ typedef struct
 {
   dword                 BlockNr;
   dword                 Timems;
+  byte                  FrameType;
 } tTimeStamp;
 
 typedef struct
@@ -71,6 +72,9 @@ typedef struct
   dword                 Zero7;
   dword                 Zero8;
 } tnavHD;
+
+
+extern int  CUTPOINTSEARCHRADIUS;
 
 void        CreateSettingsDir(void);
 tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirectory, tTimeStamp *CutStartPoint, tTimeStamp *BehindCutPoint, bool KeepCut, bool isHD, char *pCutCaption, char *pSourceCaption);

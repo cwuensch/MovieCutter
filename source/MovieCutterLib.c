@@ -35,8 +35,8 @@ static bool  PatchNavFiles(const char *SourceFileName, const char *CutFileName, 
 
 static int              PACKETSIZE = 192;
 static int              SYNCBYTEPOS = 4;
-static int              CUTPOINTSEARCHRADIUS = 9024;
 static int              CUTPOINTSECTORRADIUS = 2;
+int                     CUTPOINTSEARCHRADIUS = 9024;
 
 
 // ----------------------------------------------------------------------------
@@ -1635,8 +1635,8 @@ tTimeStamp* NavLoad(const char *RecFileName, const char *AbsDirectory, int *cons
     if(LastTimeStamp != CurNavRec->Timems)
     {
       AbsPos = ((ulong64)(CurNavRec->PHOffsetHigh) << 32) | CurNavRec->PHOffset;
-      TimeStampBuffer[NrTimeStamps].BlockNr = CalcBlockSize(AbsPos);
-      TimeStampBuffer[NrTimeStamps].Timems = CurNavRec->Timems;
+      TimeStampBuffer[NrTimeStamps].BlockNr   = CalcBlockSize(AbsPos);
+      TimeStampBuffer[NrTimeStamps].Timems    = CurNavRec->Timems;
 
 /*        if (CurNavRec->Timems >= FirstTime)
         // Timems ist größer als FirstTime -> kein Überlauf
@@ -1648,6 +1648,7 @@ tTimeStamp* NavLoad(const char *RecFileName, const char *AbsDirectory, int *cons
         // Timems ist (deutlich) kleiner als FirstTime -> ein Überlauf liegt vor
         TimeStampBuffer[*NrTimeStamps].Timems = (0xffffffff - FirstTime) + CurNavRec->Timems + 1;
 */
+      TimeStampBuffer[NrTimeStamps].FrameType = CurNavRec->FrameType;
       (NrTimeStamps)++;
       LastTimeStamp = CurNavRec->Timems;
     }
