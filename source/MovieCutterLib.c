@@ -600,6 +600,68 @@ int GetPacketSize(const char *RecFileName, const char *AbsDirectory)
   return (ret ? PACKETSIZE : 0);
 }
 
+off_t FindNextIFrame(const char *RecFileName, const char *AbsDirectory, dword BlockNr, bool isHD)
+{
+  FILE                 *fRec = NULL;
+  byte                 *Buffer = NULL, FrameType = 0;
+  char                  AbsRecName[FBLIB_DIR_SIZE];
+  dword                *Header1;
+  word                 *Header2;
+  int                   BytesRead, i;
+  bool                  IFrameFound = FALSE;
+  off_t                 pos = 0;
+
+  TRACEENTER();
+
+  TAP_SPrint(AbsRecName, sizeof(AbsRecName), "%s/%s", AbsDirectory, RecFileName);
+
+  Buffer = (byte*)TAP_MemAlloc(9024);
+  if (Buffer)
+  {
+    fRec = fopen64(AbsRecName, "rb");
+    if (fRec)
+    {
+      if (fseeko64(fRec, (__off64_t)BlockNr * 9024, SEEK_SET) == 0)
+      {
+        while (!IFrameFound && (BytesRead = fread(Buffer, 1, 9024, fRec)) > 0)
+        {
+          for (i = 0; i < BytesRead-5; i++)
+          {
+            Header1 = (dword*)&Buffer[i];
+            if (isHD)
+              // HD:
+              // Suche nach 00 00 01 01
+              // mit        FF FF FF 9F
+              // (dword & 0x9fffffff) == 0x01010000
+
+              IFrameFound = (*Header1 & 0x9fffffff == 0x01010000);
+            else
+              // SD:
+              // Suche nach 00 00 01 00 xx 08
+              // mit        FF FF FF FF 00 F8
+              // (dword == 0x00010000) && (word & 0xf800 == 0x0800)
+
+              IFrameFound = ((*Header1 == 0x00010000) && (Buffer[i+5] & 0xf8 == 0x08));
+
+            if (IFrameFound)
+            {
+              pos += i;
+              break;
+            }
+          }
+          if (!IFrameFound)
+            pos += BytesRead;
+        }
+      }
+      fclose(fRec);
+    }
+    TAP_MemFree(Buffer);
+  }
+
+  TRACEEXIT();
+  return (IFrameFound) ? pos : 0;
+}
+
 bool isNavAvailable(const char *RecFileName, const char *AbsDirectory)
 {
   char                  NavFileName[MAX_FILE_NAME_SIZE];
