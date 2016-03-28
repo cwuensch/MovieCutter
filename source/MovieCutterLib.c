@@ -605,9 +605,9 @@ off_t FindNextIFrame(const char *RecFileName, const char *AbsDirectory, dword Bl
   FILE                 *fRec = NULL;
   byte                 *Buffer = NULL, FrameType = 0;
   char                  AbsRecName[FBLIB_DIR_SIZE];
-  dword                *Header1;
-  word                 *Header2;
-  int                   BytesRead, i;
+  dword                *Header;
+  byte                 *p;
+  int                   BytesRead;
   bool                  IFrameFound = FALSE;
   off_t                 pos = 0;
 
@@ -625,27 +625,27 @@ off_t FindNextIFrame(const char *RecFileName, const char *AbsDirectory, dword Bl
       {
         while (!IFrameFound && (BytesRead = fread(Buffer, 1, 9024, fRec)) > 0)
         {
-          for (i = 0; i < BytesRead-5; i++)
+          for (p = Buffer; p < &Buffer[BytesRead-5]; p++)
           {
-            Header1 = (dword*)&Buffer[i];
+            Header = (dword*)p;
             if (isHD)
               // HD:
               // Suche nach 00 00 01 01
               // mit        FF FF FF 9F
               // (dword & 0x9fffffff) == 0x01010000
 
-              IFrameFound = (*Header1 & 0x9fffffff == 0x01010000);
+              IFrameFound = (*Header & 0x9fffffff == 0x01010000);
             else
               // SD:
               // Suche nach 00 00 01 00 xx 08
               // mit        FF FF FF FF 00 F8
               // (dword == 0x00010000) && (word & 0xf800 == 0x0800)
 
-              IFrameFound = ((*Header1 == 0x00010000) && (Buffer[i+5] & 0xf8 == 0x08));
+              IFrameFound = ((*Header == 0x00010000) && (p[5] & 0xf8 == 0x08));
 
             if (IFrameFound)
             {
-              pos += i;
+              pos += (p - Buffer);
               break;
             }
           }
@@ -1646,8 +1646,7 @@ tTimeStamp* NavLoad(const char *RecFileName, const char *AbsDirectory, int *cons
   tTimeStamp           *TimeStamps = NULL;
   int                   NrTimeStamps = 0;
   dword                 NavRecordsNr;
-  dword                 FirstTime;
-  dword                 LastTimeStamp;
+  dword                 FirstTime, LastTime;
   ulong64               AbsPos;
   dword                 NavSize = 0;
 
@@ -1688,15 +1687,20 @@ tTimeStamp* NavLoad(const char *RecFileName, const char *AbsDirectory, int *cons
     rewind(fNav);
 
   //Count and save all the _different_ time stamps in the .nav
-  LastTimeStamp = 0xFFFFFFFF;
+  LastTime = 0xFFFFFFFF;
   FirstTime = 0xFFFFFFFF;
 
   while (fread(CurNavRec, sizeof(tnavSD) * (isHD ? 2 : 1), 1, fNav))
   {
     if(FirstTime == 0xFFFFFFFF) FirstTime = CurNavRec->Timems;
-    if(LastTimeStamp != CurNavRec->Timems)
+    if(CurNavRec->FrameType == 1 || CurNavRec->Timems != LastTime)
     {
       AbsPos = ((ulong64)(CurNavRec->PHOffsetHigh) << 32) | CurNavRec->PHOffset;
+      if(CurNavRec->Timems == LastTime)
+      {
+TAP_PrintNet("Achtung! I-Frame an %llu ist nicht das erste mit selbem Timestamp.\n", AbsPos);
+        NrTimeStamps--;
+      }
       TimeStampBuffer[NrTimeStamps].BlockNr   = CalcBlockSize(AbsPos);
       TimeStampBuffer[NrTimeStamps].Timems    = CurNavRec->Timems;
 
@@ -1711,8 +1715,8 @@ tTimeStamp* NavLoad(const char *RecFileName, const char *AbsDirectory, int *cons
         TimeStampBuffer[*NrTimeStamps].Timems = (0xffffffff - FirstTime) + CurNavRec->Timems + 1;
 */
       TimeStampBuffer[NrTimeStamps].FrameType = CurNavRec->FrameType;
-      (NrTimeStamps)++;
-      LastTimeStamp = CurNavRec->Timems;
+      NrTimeStamps++;
+      LastTime = CurNavRec->Timems;
     }
   }
 

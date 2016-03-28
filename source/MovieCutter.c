@@ -2620,11 +2620,12 @@ int AddSegmentMarker(dword *pNewBlock, bool MoveToIFrame, bool RejectSmallSegmen
   // Verschiebe Segment bis zum nächsten I-Frame
   if (MoveToIFrame && !LinearTimeMode && newTime)
   {
-    while ((LastTimeStamp < TimeStamps + NrTimeStamps-1) && (LastTimeStamp->FrameType != 1))
+    while ((LastTimeStamp->FrameType != 1) && (LastTimeStamp < TimeStamps + NrTimeStamps-1))
       LastTimeStamp++;
     if (LastTimeStamp->FrameType == 1)
     {
-      *pNewBlock = LastTimeStamp->BlockNr - CUTPOINTSEARCHRADIUS;
+TAP_PrintNet("AddSegment: Verschiebe SegmentMarker. WunschPos=%lu, MarkerPos=%lu, Differenz=%ld.\n", *pNewBlock, LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024) - 1, LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024) - 1 - *pNewBlock);
+      *pNewBlock = LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024) - 1;
       newTime = LastTimeStamp->Timems;
     }
   }
