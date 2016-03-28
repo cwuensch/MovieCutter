@@ -994,7 +994,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           if (TimeStamps)
           {
             // Write duration to log file
-            WriteLogMCf(PROGRAM_NAME, ".nav-file loaded: %d different TimeStamps found.", NrTimeStamps);
+            WriteLogMCf(PROGRAM_NAME, ".nav-file loaded: %d I-Frames found.", NrTimeStamps);
             MSecToTimeString(TimeStamps[0].Timems, TimeStr);
             WriteLogMCf(PROGRAM_NAME, "First Timestamp: Block=%lu, Time=%s", TimeStamps[0].BlockNr, TimeStr);
             MSecToTimeString(TimeStamps[NrTimeStamps-1].Timems, TimeStr);
@@ -1114,17 +1114,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           if (!ReadBookmarks(Bookmarks, &NrBookmarks))
             WriteLogMC(PROGRAM_NAME, "Error: ReadBookmarks() failed!");
         if(!CutFileLoad())
-        {
-          if(!AddDefaultSegmentMarker())
-          {
-            State = ST_UnacceptedFile;
-            WriteLogMC(PROGRAM_NAME, "Error adding default segment markers!");
-            ShowErrorMessage(LangGetString(LS_NavLoadFailed), NULL);
-            PlaybackRepeatSet(OldRepeatMode);
-            ClearOSD(TRUE);
-            break;
-          }
-        }
+          AddDefaultSegmentMarker();
 
         CloseLogMC();
         State = ST_ActiveOSD;
@@ -1544,7 +1534,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               if (NearestIndex > 0)
               {
                 dword NearestBlock = SegmentMarker[NearestIndex].Block;
-                if(MoveSegmentMarker(NearestIndex, newBlock, TRUE))
+                if(MoveSegmentMarker(NearestIndex, &newBlock, TRUE, TRUE))
                 {
                   UndoAddEvent(TRUE, NearestBlock, newBlock, FALSE, NULL);
                   if(ActiveSegment + 1 == NearestIndex) ActiveSegment++;
@@ -2620,14 +2610,9 @@ int AddSegmentMarker(dword *pNewBlock, bool MoveToIFrame, bool RejectSmallSegmen
   // Verschiebe Segment bis zum nächsten I-Frame
   if (MoveToIFrame && !LinearTimeMode && newTime)
   {
-    while ((LastTimeStamp->FrameType != 1) && (LastTimeStamp < TimeStamps + NrTimeStamps-1))
-      LastTimeStamp++;
-    if (LastTimeStamp->FrameType == 1)
-    {
-TAP_PrintNet("AddSegment: Verschiebe SegmentMarker. WunschPos=%lu, MarkerPos=%lu, Differenz=%ld.\n", *pNewBlock, LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024) - 1, LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024) - 1 - *pNewBlock);
-      *pNewBlock = LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024) - 1;
-      newTime = LastTimeStamp->Timems;
-    }
+TAP_PrintNet("AddSegment: Verschiebe SegmentMarker. WunschPos=%lu, MarkerPos=%lu, Differenz=%ld.\n", *pNewBlock, LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024), LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024) - *pNewBlock);
+    *pNewBlock = LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024);
+    newTime = LastTimeStamp->Timems;
   }
 
 /*  if((newTime == 0) && (*pNewBlock > 3 * BlocksOneSecond))
@@ -2662,6 +2647,7 @@ TAP_PrintNet("AddSegment: Verschiebe SegmentMarker. WunschPos=%lu, MarkerPos=%lu
       SegmentMarker[i].Percent = ((float)*pNewBlock / PlayInfo.totalBlock) * 100.0;
       SegmentMarker[i].Selected = FALSE;
       SegmentMarker[i].pCaption = NULL;
+      NrSegmentMarker++;
 
       MSecToTimeString(SegmentMarker[i].Timems, StartTime);
       WriteLogMCf(PROGRAM_NAME, "New marker @ block = %lu, time = %s, percent = %1.1f%%", *pNewBlock, StartTime, SegmentMarker[i].Percent);
@@ -2670,7 +2656,6 @@ TAP_PrintNet("AddSegment: Verschiebe SegmentMarker. WunschPos=%lu, MarkerPos=%lu
       ret = i;
       break;
     }
-    NrSegmentMarker++;
   }
 
   TRACEEXIT();
@@ -2717,6 +2702,8 @@ int FindNearestSegmentMarker(dword curBlock)
         MinDelta = labs(SegmentMarker[i].Block - curBlock);
         NearestMarkerIndex = i;
       }
+      else
+        break;
     }
 //    if (NearestMarkerIndex == 0) NearestMarkerIndex = 1;
 //    if (NearestMarkerIndex == NrSegmentMarker-1) NearestMarkerIndex = NrSegmentMarker - 2;
@@ -2726,14 +2713,14 @@ int FindNearestSegmentMarker(dword curBlock)
   return NearestMarkerIndex;
 }
 
-bool MoveSegmentMarker(int MarkerIndex, dword newBlock, bool RejectSmallSegments)
+bool MoveSegmentMarker(int MarkerIndex, dword *pNewBlock, bool MoveToIFrame, bool RejectSmallSegments)
 {
   dword newTime;
   bool ret = FALSE;
 
   TRACEENTER();
 
-  if(newBlock > PlayInfo.totalBlock  /*!PLAYINFOVALID() || ((int)newBlock < 0)*/)   // PlayInfo ist sicher, da in Z.804 überprüft, Prüfung für newBlock nun restriktiver
+  if(*pNewBlock > PlayInfo.totalBlock  /*!PLAYINFOVALID() || ((int)newBlock < 0)*/)   // PlayInfo ist sicher, da in Z.804 überprüft, Prüfung für newBlock nun restriktiver
   {
     WriteLogMC(PROGRAM_NAME, "MoveSegmentMarker: newBlock > totalBlock - darf nicht auftreten!");
     TRACEEXIT();
@@ -2742,25 +2729,34 @@ bool MoveSegmentMarker(int MarkerIndex, dword newBlock, bool RejectSmallSegments
 
   if((MarkerIndex > 0) && (MarkerIndex < NrSegmentMarker - 1))
   {
-    if (SegmentMarker[MarkerIndex].Block == newBlock)
+    // neue Zeit ermitteln
+    newTime = NavGetBlockTimeStamp(*pNewBlock);
+
+    // Verschiebe Segment bis zum nächsten I-Frame
+    if (MoveToIFrame && !LinearTimeMode && newTime)
+    {
+TAP_PrintNet("MoveSegment: Verschiebe SegmentMarker. WunschPos=%lu, MarkerPos=%lu, Differenz=%ld.\n", *pNewBlock, LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024), LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024) - *pNewBlock);
+      *pNewBlock = LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024);
+      newTime = LastTimeStamp->Timems;
+    }
+
+    if (SegmentMarker[MarkerIndex].Block == *pNewBlock)
     {
       TRACEEXIT();
       return FALSE;
     }
     // Erlaube kein Segment mit weniger als 3 Sekunden
-    if (RejectSmallSegments && ((MarkerIndex > 1 && (newBlock <= SegmentMarker[MarkerIndex-1].Block + 3*BlocksOneSecond)) || (MarkerIndex < NrSegmentMarker-2 && (newBlock + 3*BlocksOneSecond >= SegmentMarker[MarkerIndex+1].Block))))
+    if (RejectSmallSegments && ((MarkerIndex > 1 && (*pNewBlock <= SegmentMarker[MarkerIndex-1].Block + 3*BlocksOneSecond)) || (MarkerIndex < NrSegmentMarker-2 && (*pNewBlock + 3*BlocksOneSecond >= SegmentMarker[MarkerIndex+1].Block))))
     {
       TRACEEXIT();
       return FALSE;
     }
 
-    // neue Zeit ermitteln
-    newTime = NavGetBlockTimeStamp(newBlock);
 //    if((newTime != 0) || (newBlock <= 3 * BlocksOneSecond))
     {
-      SegmentMarker[MarkerIndex].Block = newBlock;
+      SegmentMarker[MarkerIndex].Block = *pNewBlock;
       SegmentMarker[MarkerIndex].Timems = newTime;
-      SegmentMarker[MarkerIndex].Percent = ((float)newBlock / PlayInfo.totalBlock) * 100.0;
+      SegmentMarker[MarkerIndex].Percent = ((float)*pNewBlock / PlayInfo.totalBlock) * 100.0;
       ret = TRUE;
     }
   }
@@ -3232,7 +3228,7 @@ bool UndoLastAction(void)
         else if (LastAction->NewBlockNr != 0)
         {
           if (LastAction->PrevBlockNr != 0)
-            MoveSegmentMarker(i, LastAction->PrevBlockNr, FALSE);
+            MoveSegmentMarker(i, &LastAction->PrevBlockNr, FALSE, FALSE);
           else
             DeleteSegmentMarker(i, TRUE);
         }

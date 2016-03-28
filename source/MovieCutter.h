@@ -75,7 +75,7 @@ static bool  isLargeSegment(dword SegStartBlock, dword SegEndBlock, bool isLastS
 static bool  isPlaybackRunning(void);
 static void  LoadINI(void);
 static bool  MoveBookmark(int BookmarkIndex, dword newBlock, bool RejectSmallScenes);
-static bool  MoveSegmentMarker(int MarkerIndex, dword newBlock, bool RejectSmallSegments);
+static bool  MoveSegmentMarker(int MarkerIndex, dword *pNewBlock, bool MoveToIFrame, bool RejectSmallSegments);
 static void  MovieCutterDeleteFile(void);
 static void  MovieCutterDeleteSegments(void);
 static bool  MovieCutterRenameFile(void);

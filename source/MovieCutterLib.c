@@ -600,13 +600,13 @@ int GetPacketSize(const char *RecFileName, const char *AbsDirectory)
   return (ret ? PACKETSIZE : 0);
 }
 
-off_t FindNextIFrame(const char *RecFileName, const char *AbsDirectory, dword BlockNr, bool isHD)
+static off_t FindNextIFrame(const char *RecFileName, const char *AbsDirectory, dword BlockNr, bool isHD)
 {
   FILE                 *fRec = NULL;
-  byte                 *Buffer = NULL, FrameType = 0;
+  byte                 *Buffer = NULL;
   char                  AbsRecName[FBLIB_DIR_SIZE];
   dword                *Header;
-  byte                 *p;
+  byte                 *p, *B3pos = 0;
   int                   BytesRead;
   bool                  IFrameFound = FALSE;
   off_t                 pos = 0;
@@ -629,24 +629,38 @@ off_t FindNextIFrame(const char *RecFileName, const char *AbsDirectory, dword Bl
           {
             Header = (dword*)p;
             if (isHD)
+            {
               // HD:
               // Suche nach 00 00 01 01
               // mit        FF FF FF 9F
               // (dword & 0x9fffffff) == 0x01010000
 
-              IFrameFound = (*Header & 0x9fffffff == 0x01010000);
+              IFrameFound = ((*Header & 0x9fffffff) == 0x01010000);
+              if (IFrameFound)
+              {
+                pos += (p - Buffer);
+                break;
+              }
+            }
             else
+            {
               // SD:
-              // Suche nach 00 00 01 00 xx 08
-              // mit        FF FF FF FF 00 F8
+              // Suche nach letztem 00 00 01 B3  vor  00 00 01 00 xx 08
+              // mit                                  FF FF FF FF 00 F8
               // (dword == 0x00010000) && (word & 0xf800 == 0x0800)
 
-              IFrameFound = ((*Header == 0x00010000) && (p[5] & 0xf8 == 0x08));
-
-            if (IFrameFound)
-            {
-              pos += (p - Buffer);
-              break;
+              if (*Header == 0xB3010000)
+                B3pos = p;
+              else
+              {
+                IFrameFound = ((*Header == 0x00010000) && ((p[5] & 0xf8) == 0x08));
+                if (IFrameFound)
+                {
+                  if (B3pos >= p) pos -= 9024;
+                  pos += (B3pos - Buffer);
+                  break;
+                }
+              }
             }
           }
           if (!IFrameFound)
@@ -1644,8 +1658,7 @@ tTimeStamp* NavLoad(const char *RecFileName, const char *AbsDirectory, int *cons
   tnavSD                NavBuffer[2], *CurNavRec = &NavBuffer[0];
   tTimeStamp           *TimeStampBuffer = NULL;
   tTimeStamp           *TimeStamps = NULL;
-  int                   NrTimeStamps = 0;
-  dword                 NavRecordsNr;
+  int                   NavRecordsNr, NrTimeStamps = 0;
   dword                 FirstTime, LastTime;
   ulong64               AbsPos;
   dword                 NavSize = 0;
@@ -1667,7 +1680,7 @@ tTimeStamp* NavLoad(const char *RecFileName, const char *AbsDirectory, int *cons
   struct stat statbuf;
   if (fstat(fileno(fNav), &statbuf) == 0)
     NavSize = statbuf.st_size;
-  NavRecordsNr = NavSize / (sizeof(tnavSD) * ((isHD) ? 2 : 1));
+  NavRecordsNr = (NavSize / (sizeof(tnavSD) * ((isHD) ? 2 : 1))) / 4;  // höchstens jedes 4. Frame ist ein I-Frame (?)
 
   TimeStampBuffer = (tTimeStamp*) TAP_MemAlloc(NavRecordsNr * sizeof(tTimeStamp));
   if (!TimeStampBuffer)
@@ -1690,16 +1703,15 @@ tTimeStamp* NavLoad(const char *RecFileName, const char *AbsDirectory, int *cons
   LastTime = 0xFFFFFFFF;
   FirstTime = 0xFFFFFFFF;
 
-  while (fread(CurNavRec, sizeof(tnavSD) * (isHD ? 2 : 1), 1, fNav))
+  while (fread(CurNavRec, sizeof(tnavSD) * (isHD ? 2 : 1), 1, fNav) && (NrTimeStamps < NavRecordsNr))
   {
     if(FirstTime == 0xFFFFFFFF) FirstTime = CurNavRec->Timems;
-    if(CurNavRec->FrameType == 1 || CurNavRec->Timems != LastTime)
+    if(CurNavRec->FrameType == 1)  // erfasse nur noch I-Frames
     {
       AbsPos = ((ulong64)(CurNavRec->PHOffsetHigh) << 32) | CurNavRec->PHOffset;
       if(CurNavRec->Timems == LastTime)
       {
-TAP_PrintNet("Achtung! I-Frame an %llu ist nicht das erste mit selbem Timestamp.\n", AbsPos);
-        NrTimeStamps--;
+TAP_PrintNet("Achtung! I-Frame an %llu hat denselben Timestamp wie sein Vorgänger!\n", AbsPos);
       }
       TimeStampBuffer[NrTimeStamps].BlockNr   = CalcBlockSize(AbsPos);
       TimeStampBuffer[NrTimeStamps].Timems    = CurNavRec->Timems;
@@ -1714,7 +1726,6 @@ TAP_PrintNet("Achtung! I-Frame an %llu ist nicht das erste mit selbem Timestamp.
         // Timems ist (deutlich) kleiner als FirstTime -> ein Überlauf liegt vor
         TimeStampBuffer[*NrTimeStamps].Timems = (0xffffffff - FirstTime) + CurNavRec->Timems + 1;
 */
-      TimeStampBuffer[NrTimeStamps].FrameType = CurNavRec->FrameType;
       NrTimeStamps++;
       LastTime = CurNavRec->Timems;
     }

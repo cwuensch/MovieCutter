@@ -26,7 +26,7 @@ typedef struct
 {
   dword                 BlockNr;
   dword                 Timems;
-  byte                  FrameType;
+//  byte                  FrameType;
 } tTimeStamp;
 
 typedef struct
