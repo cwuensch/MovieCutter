@@ -600,20 +600,22 @@ int GetPacketSize(const char *RecFileName, const char *AbsDirectory)
   return (ret ? PACKETSIZE : 0);
 }
 
+// ACHTUNG! Schlägt fehl, wenn der Header durch Paketgrenze unterbrochen wird (-> kommt vor, klappt aber meistens!)
 static off_t FindNextIFrame(const char *RecFileName, const char *AbsDirectory, dword BlockNr, bool isHD)
 {
   FILE                 *fRec = NULL;
   byte                 *Buffer = NULL;
   char                  AbsRecName[FBLIB_DIR_SIZE];
   dword                *Header;
-  byte                 *p, *B3pos = 0;
+  byte                 *p;
   int                   BytesRead;
   bool                  IFrameFound = FALSE;
-  off_t                 pos = 0;
+  off_t                 pos, SEI = 0;
 
   TRACEENTER();
 
   TAP_SPrint(AbsRecName, sizeof(AbsRecName), "%s/%s", AbsDirectory, RecFileName);
+  pos = (__off64_t)BlockNr * 9024;
 
   Buffer = (byte*)TAP_MemAlloc(9024);
   if (Buffer)
@@ -621,9 +623,9 @@ static off_t FindNextIFrame(const char *RecFileName, const char *AbsDirectory, d
     fRec = fopen64(AbsRecName, "rb");
     if (fRec)
     {
-      if (fseeko64(fRec, (__off64_t)BlockNr * 9024, SEEK_SET) == 0)
+      if (fseeko64(fRec, pos, SEEK_SET) == 0)
       {
-        while (!IFrameFound && (BytesRead = fread(Buffer, 1, 9024, fRec)) > 0)
+        while ((!IFrameFound || !SEI) && (BytesRead = fread(Buffer, 1, 9024, fRec)) > 0)
         {
           for (p = Buffer; p < &Buffer[BytesRead-5]; p++)
           {
@@ -631,14 +633,18 @@ static off_t FindNextIFrame(const char *RecFileName, const char *AbsDirectory, d
             if (isHD)
             {
               // HD:
-              // Suche nach 00 00 01 01
-              // mit        FF FF FF 9F
-              // (dword & 0x9fffffff) == 0x01010000
+              // Suche nach erstem 00 00 01 06  nach  00 00 01 08
+              // mit               FF FF FF 9F        FF FF FF 9F
 
-              IFrameFound = ((*Header & 0x9fffffff) == 0x01010000);
-              if (IFrameFound)
+              if ((*Header & 0x9fffffff) == 0x08010000)
               {
-                pos += (p - Buffer);
+                IFrameFound = TRUE;
+                SEI = pos + (p - Buffer);
+              }
+              else if (IFrameFound && ((*Header & 0x9fffffff) == 0x06010000))
+              {
+                if (pos + (p - Buffer) <= SEI + 3*192)
+                  SEI = pos + (p - Buffer);
                 break;
               }
             }
@@ -650,20 +656,15 @@ static off_t FindNextIFrame(const char *RecFileName, const char *AbsDirectory, d
               // (dword == 0x00010000) && (word & 0xf800 == 0x0800)
 
               if (*Header == 0xB3010000)
-                B3pos = p;
-              else
+                SEI = pos + (p - Buffer);
+              else if (SEI)
               {
-                IFrameFound = ((*Header == 0x00010000) && ((p[5] & 0xf8) == 0x08));
-                if (IFrameFound)
-                {
-                  if (B3pos >= p) pos -= 9024;
-                  pos += (B3pos - Buffer);
-                  break;
-                }
+                IFrameFound = ((*Header == 0x00010000) && (((p[5] >> 3) & 0x03) == 1));
+                break;
               }
             }
           }
-          if (!IFrameFound)
+          if (!IFrameFound || !SEI)
             pos += BytesRead;
         }
       }
@@ -673,7 +674,7 @@ static off_t FindNextIFrame(const char *RecFileName, const char *AbsDirectory, d
   }
 
   TRACEEXIT();
-  return (IFrameFound) ? pos : 0;
+  return (IFrameFound) ? SEI : 0;
 }
 
 bool isNavAvailable(const char *RecFileName, const char *AbsDirectory)
@@ -1709,10 +1710,10 @@ tTimeStamp* NavLoad(const char *RecFileName, const char *AbsDirectory, int *cons
     if(CurNavRec->FrameType == 1)  // erfasse nur noch I-Frames
     {
       AbsPos = ((ulong64)(CurNavRec->PHOffsetHigh) << 32) | CurNavRec->PHOffset;
-      if(CurNavRec->Timems == LastTime)
+/*      if(CurNavRec->Timems == LastTime)
       {
 TAP_PrintNet("Achtung! I-Frame an %llu hat denselben Timestamp wie sein Vorgänger!\n", AbsPos);
-      }
+      } */
       TimeStampBuffer[NrTimeStamps].BlockNr   = CalcBlockSize(AbsPos);
       TimeStampBuffer[NrTimeStamps].Timems    = CurNavRec->Timems;
 
