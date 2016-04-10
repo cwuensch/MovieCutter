@@ -3334,8 +3334,8 @@ bool CutFileDecodeBin(FILE *fCut, __off64_t *OutSavedSize)
     {
       case 1:
       {
-        rewind(fCut);
         tCutHeader1 CutHeader;
+        rewind(fCut);
         ret = (fread(&CutHeader, sizeof(CutHeader), 1, fCut) == 1);
         if (ret)
         {
@@ -3499,7 +3499,7 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
           while (Buffer[ReadBytes] && (Buffer[ReadBytes] == ' ' || Buffer[ReadBytes] == ';'))  ReadBytes++;
           if (Buffer[ReadBytes])
           {
-            SegmentMarker[NrSegmentMarker].pCaption = (char*)TAP_MemAlloc(strlen(&Buffer[ReadBytes])+1);
+            SegmentMarker[NrSegmentMarker].pCaption = (char*)TAP_MemAlloc(strlen(&Buffer[ReadBytes]) + 1);
             strcpy(SegmentMarker[NrSegmentMarker].pCaption, &Buffer[ReadBytes]);
           }
           NrSegmentMarker++;
