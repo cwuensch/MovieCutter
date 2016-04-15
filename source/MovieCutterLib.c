@@ -635,6 +635,9 @@ static off_t FindNextIFrame(const char *RecFileName, const char *AbsDirectory, d
               // HD:
               // Suche nach erstem 00 00 01 06  nach  00 00 01 08
               // mit               FF FF FF 9F        FF FF FF 9F
+              //
+              // oder nach erstem 00 00 01 09 00
+              // mit              FF FF FF 9F E0
 
               if ((*Header & 0x9fffffff) == 0x08010000)
               {

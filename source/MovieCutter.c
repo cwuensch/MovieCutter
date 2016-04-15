@@ -2613,8 +2613,13 @@ int AddSegmentMarker(dword *pNewBlock, bool MoveToIFrame, bool RejectSmallSegmen
     if (!LinearTimeMode && newTime)
     {
 //TAP_PrintNet("AddSegment: Verschiebe SegmentMarker. WunschPos=%lu, MarkerPos=%lu, Differenz=%ld.\n", *pNewBlock, LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024), LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024) - *pNewBlock);
-      *pNewBlock = LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024);
-      newTime = LastTimeStamp->Timems;
+      *pNewBlock = 0;
+      newTime = 0;
+      if (LastTimeStamp->BlockNr > (dword)(CUTPOINTSEARCHRADIUS/9024))
+      {
+        *pNewBlock = LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024);
+        newTime = LastTimeStamp->Timems;
+      }
     }
 /*    else if (!MediaFileMode && VideoDetected)  // bei MediaFileMode ist isHD nicht bekannt, bei Radio keine I-Frame-Verschiebung
     {
@@ -2746,8 +2751,13 @@ bool MoveSegmentMarker(int MarkerIndex, dword *pNewBlock, bool MoveToIFrame, boo
       if (!LinearTimeMode && newTime)
       {
 //TAP_PrintNet("MoveSegment: Verschiebe SegmentMarker. WunschPos=%lu, MarkerPos=%lu, Differenz=%ld.\n", *pNewBlock, LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024), LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024) - *pNewBlock);
-        *pNewBlock = LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024);
-        newTime = LastTimeStamp->Timems;
+        *pNewBlock = 0;
+        newTime = 0;
+        if (LastTimeStamp->BlockNr > (dword)(CUTPOINTSEARCHRADIUS/9024))
+        {
+          *pNewBlock = LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024);
+          newTime = LastTimeStamp->Timems;
+        }
       }
 /*    else if (!MediaFileMode && VideoDetected)  // bei MediaFileMode ist isHD nicht bekannt, bei Radio keine I-Frame-Verschiebung
       {
