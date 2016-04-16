@@ -2006,7 +2006,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             strcpy(StripName2, StripName); StrReplace(StripName2, "\"", "\\\"");
             strcpy(PlaybackName2, PlaybackName); StrReplace(PlaybackName2, "\"", "\\\"");
             strcpy(AbsPlaybackDir2, AbsPlaybackDir); StrReplace(AbsPlaybackDir2, "\"", "\\\"");
-            TAP_SPrint(CommandLine, sizeof(CommandLine), "( rm /tmp/RecStrip.* ; " RECSTRIPPATH "/RecStrip %s \"%s/%s\" \"%s/%s\" 2>&1 >> /tmp/RecStrip.log ; echo $? > /tmp/RecStrip.out ) & echo $!", (RecStrip_DoCut ? "-c" : "-s"), AbsPlaybackDir2, PlaybackName2, AbsPlaybackDir2, StripName2);
+            TAP_SPrint(CommandLine, sizeof(CommandLine), "( rm /tmp/RecStrip.* ; " RECSTRIPPATH "/RecStrip %s \"%s/%s\" \"%s/%s\" 2>&1 >> /tmp/RecStrip.log ; echo $? > /tmp/RecStrip.out ) & echo $!", (RecStrip_DoCut ? "-c" : "-s -e"), AbsPlaybackDir2, PlaybackName2, AbsPlaybackDir2, StripName2);
             FILE* fPidFile = popen(CommandLine, "r");
             if(fPidFile)
             {
@@ -2615,9 +2615,9 @@ int AddSegmentMarker(dword *pNewBlock, bool MoveToIFrame, bool RejectSmallSegmen
 //TAP_PrintNet("AddSegment: Verschiebe SegmentMarker. WunschPos=%lu, MarkerPos=%lu, Differenz=%ld.\n", *pNewBlock, LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024), LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024) - *pNewBlock);
       *pNewBlock = 0;
       newTime = 0;
-      if (LastTimeStamp->BlockNr > (dword)(CUTPOINTSEARCHRADIUS/9024))
+      if (LastTimeStamp->BlockNr > (dword)(CUTPOINTSEARCHRADIUS/9024) + 1)
       {
-        *pNewBlock = LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024);
+        *pNewBlock = LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024) - 1;
         newTime = LastTimeStamp->Timems;
       }
     }
@@ -2753,9 +2753,9 @@ bool MoveSegmentMarker(int MarkerIndex, dword *pNewBlock, bool MoveToIFrame, boo
 //TAP_PrintNet("MoveSegment: Verschiebe SegmentMarker. WunschPos=%lu, MarkerPos=%lu, Differenz=%ld.\n", *pNewBlock, LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024), LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024) - *pNewBlock);
         *pNewBlock = 0;
         newTime = 0;
-        if (LastTimeStamp->BlockNr > (dword)(CUTPOINTSEARCHRADIUS/9024))
+        if (LastTimeStamp->BlockNr > (dword)(CUTPOINTSEARCHRADIUS/9024) + 1)
         {
-          *pNewBlock = LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024);
+          *pNewBlock = LastTimeStamp->BlockNr - (CUTPOINTSEARCHRADIUS/9024) - 1;
           newTime = LastTimeStamp->Timems;
         }
       }
