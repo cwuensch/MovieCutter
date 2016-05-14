@@ -1199,7 +1199,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         if (LastTotalBlocks > 0)
         {
 #ifdef FULLDEBUG
-  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_ActiveOSD, !isPlaybackRunning --> Aufruf von CutFileSave()");
+  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_ActiveOSD, !isPlaybackRunning --> Aufruf CutFileSave()");
 #endif
           CutFileSave();
         }
@@ -1280,7 +1280,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           {        
             // MC deaktivieren
 #ifdef FULLDEBUG
-  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_ActiveOSD, Key=RKEY_Exit --> Aufruf von CutFileSave()");
+  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_ActiveOSD, Key=RKEY_Exit --> Aufruf CutFileSave()");
 #endif
             if (OSDMode != MD_NoOSD)
               LastOSDMode = OSDMode;
@@ -2126,7 +2126,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       if (LastTotalBlocks > 0)
       {
 #ifdef FULLDEBUG
-  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_Exit --> Aufruf von CutFileSave()");
+  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_Exit --> Aufruf CutFileSave()");
 #endif
         if (isPlaybackRunning() && (LastTotalBlocks == PlayInfo.totalBlock))
           CutSaveToBM(TRUE);
@@ -3197,7 +3197,7 @@ void UndoAddEvent(bool Segment, dword PreviousBlock, dword NewBlock, bool Segmen
       UndoLastItem = 0;
     NextAction = &UndoStack[UndoLastItem];
     #ifdef FULLDEBUG
-      TAP_PrintNet("MovieCutter: UndoAddEvent %d (%s, PreviousBlock=%lu, NewBlock=%lu)\n", UndoLastItem, (Segment) ? "SegmentMarker" : "Bookmark", PreviousBlock, NewBlock);
+      TAP_PrintNet("MovieCutter: UndoAddEvent %d (%s, PrevBlock=%lu, NewBlock=%lu)\n", UndoLastItem, (Segment) ? "Segment" : "Bookmark", PreviousBlock, NewBlock);
     #endif
 
     NextAction->Segment            = Segment;
@@ -3225,7 +3225,7 @@ bool UndoLastAction(void)
   }
   LastAction = &UndoStack[UndoLastItem];
   #ifdef FULLDEBUG
-    TAP_PrintNet("MovieCutter: UndoLastAction %d (%s, PreviousBlock=%lu, NewBlock=%lu)\n", UndoLastItem, (LastAction->Segment) ? "SegmentMarker" : "Bookmark", LastAction->PrevBlockNr, LastAction->NewBlockNr);
+    TAP_PrintNet("MovieCutter: UndoLastAction %d (%s, PrevBlock=%lu, NewBlock=%lu)\n", UndoLastItem, (LastAction->Segment) ? "Segment" : "Bookmark", LastAction->PrevBlockNr, LastAction->NewBlockNr);
   #endif
 
   if (LastAction->Segment)
