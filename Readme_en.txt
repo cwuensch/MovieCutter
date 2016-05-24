@@ -11,10 +11,11 @@ Alternative:
 For manual installation, just copy the file "MovieCutter.tap" via USB or FTP into the directory "/Program Files" on the Toppy.
 
 In addition, the following (optional) features can be installed:
-- For file system check (!):	Copy the program "jfs_fsck" (specially modified version 1.1.15-TF) into the directory "/ProgramFiles". (highly recommended!)
-- Cleanup orphaned .cut-Files:	Copy the file "DeleteCuts.sh" to folder "/ProgramFiles/Settings/MovieCutter".
-- Multilanguage support:	Copy The language file "MovieCutter.lng" to folder "/ProgramFiles/Settings/MovieCutter".
-- Support additional devices:	Should your Toppy not be natively supported, then please install the "FirmwareTMS.dat" by FireBird.
+- For stripping and copying segemts:	Copy the programm "RecStrip" v0.8 (or higher) into the directory "/ProgramFiles". (recommended!)
+- For file system check (!):		Copy the program "jfs_fsck" (specially modified version 1.1.15-TF) into the directory "/ProgramFiles". (highly recommended!)
+- Cleanup orphaned .cut-Files:		Copy the file "DeleteCuts.sh" to folder "/ProgramFiles/Settings/MovieCutter".
+- Multilanguage support:		Copy The language file "MovieCutter.lng" to folder "/ProgramFiles/Settings/MovieCutter".
+- Support additional devices:		Should your Toppy not be natively supported, then please install the "FirmwareTMS.dat" by FireBird.
 
 Starting / Stopping
 ===================
@@ -82,6 +83,8 @@ Keys
 - Menu:		Pauses the playback and opens the action menu.
 - White:	Switches between 3 display modes (full OSD , hiding the segment list, minimal mode). (V. 2.1)
 - Info:		Deactivates MovieCutter and shows EPG information. (V. 2.1)
+- Subt:		Shows the window for segment-texts (captions). (V. 3.6)
+- Teletext:	Changes the segment-text for the current segment, if segment-text-window is active. (V. 3.6)
 
 
 Actions in the action menu
@@ -90,12 +93,16 @@ If one or more segments were selected with the blue button (dark blue frame), th
 
 * "Save selected segments":	The active segment or selected segments are removed from the original recording and stored into a separate file each. The newly created files get the name of the original recording, with addition of "(Cut-1)", "(Cut-2)", etc.
 * "Delete selected segments":	The active segment or selected segments are canceled out from the recording. These parts are lost forever!
+* "Copy selected segments":	The active segment or selected segments are copied in a new recording (together). The original recording will not be modified.
 * "Split movie here":		The movie is split into two parts at the current playback position. Bookmarks and segment markers are kept.
 * "Select padding":		Mark the first and last of three segments.
 * "Select even/odd segments":	Selects all segments with even resp. odd number. (counting starts at 1)
 * "Import Bookmarks":		The Bookmarks from the recording are imported and used as new segment markers.
-* "Delete this file":		The current recording is deleted and TAP exits.
+* "Strip recording":		Cleans the recording from unnecessary filler data (Filler-NALUs, Zero-Byte-Stuffing and EPG-track). A backup copy of the original recording is stored.
+* "Check file system":		The file system integrity of internal HDD is checked. In particular, files that have been damaged during cutting process get repaired. (-> prevents deletion)
 * "Exit MovieCutter":		Exits the TAP completely. To use it again, it must be restarted from the TAP Overview.
+
+Not every action is availably at any time. If some action is missing, try changing between Bookmark- or Segment-mode.
 
 
 Options in the MovieCutter.ini

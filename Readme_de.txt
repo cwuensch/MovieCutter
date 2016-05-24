@@ -11,6 +11,7 @@ Alternative:
 Zur manuellen Installation genügt es (im Normalfall), die Datei "MovieCutter.tap" per USB oder FTP ins Verzeichnis "/ProgramFiles" auf dem Topf zu kopieren.
 
 Zusätzlich können folgende (optionale) Features installiert werden:
+- Für Strippen und Segmente kopieren:	Das Programm "RecStrip" v0.8 (oder höher) ins Verzeichnis "/ProgramFiles" kopieren. (empfohlen!)
 - Für Dateisystemüberprüfung (!):	Das Programm "jfs_fsck" (speziell modifizierte Version 1.1.15-TF) ins Verzeichnis "/ProgramFiles" kopieren. (dringend empfohlen!)
 - Bereinigung verwaister .cut-Files:	Die Datei "DeleteCuts.sh" ins Verzeichnis "/ProgramFiles/Settings/MovieCutter" kopieren.
 - Multilanguage-Unterstützung:		Die Sprach-Datei "MovieCutter.lng" ins Verzeichnis "/ProgramFiles/Settings/MovieCutter" kopieren.
@@ -82,7 +83,9 @@ Tasten
 - Ok:		während der Wiedergabe: Wiedergabe wird angehalten (Pause). - während Pause oder Spulen: Play.
 - Menu:		Pausiert die Wiedergabe und blendet das Schnittmenü ein.
 - Weiß:		Wechselt zwischen 3 Darstellungs-Modi (vollständiges OSD, Ausblenden der Segmentliste, Minimal-Modus). (ab V. 2.1)
-- Info:         Deaktiviert den MovieCutter und zeigt die EPG-Informationen an.
+- Info:		Deaktiviert den MovieCutter und zeigt die EPG-Informationen an.
+- Subt:		Blendet das Fenster für die Anzeige der Segment-Texte (Captions) ein. (ab V. 3.6)
+- Teletext:	Dient bei aktivierter Segment-Text-Anzeige zum Ändern der Caption des aktiven Segments. (ab V. 3.6)
 
 
 Aktionen im Schnittmenü
@@ -91,12 +94,16 @@ Falls ein oder mehrere Segmente mit der blauen Tasten selektiert wurden (dunkelb
 
 * "Markierte Segmente speichern":	Das aktive Segment bzw. die selektierten Segmente werden aus der Original-Aufnahme entfernt und in jeweils einer eigenen Datei gespeichert. Die neu erzeugten Dateien bekommen den Namen der Original-Aufnahme, ergänzt um den Zusatz "(Cut-1)", "(Cut-2)", usw.
 * "Markierte Segmente löschen":		Das aktive Segment bzw. die selektierten Segmente werden aus der Aufnahme herausgelöscht. Diese Teile sind unwiderruflich verloren!
+* "Markierte Segmente kopieren":	Das aktive Segment bzw. die selektierten Segmente werden (gemeinsam) in eine neue Aufnahme kopiert. Die Original-Aufnahme wird hierbei nicht verändert.
 * "Aufnahme hier teilen":		Die Aufnahme wird an der aktuellen Abspielposition in zwei Teilstücke zerteilt. Sämtliche Bookmarks und Segment-Marker bleiben erhalten.
 * "Vor-/Nachlauf markieren":		Markiert das erste und letzte von 3 Segmenten.
 * "(Un)gerade Segmente markieren":	Markiert alle Segmente mit gerader bzw. alle mit ungerader Nummer. (Die Zählung beginnt bei 1.)
 * "Importiere Bookmarks":		Die für die Aufnahme angelegten Bookmarks werden importiert und als Segmentmarker verwendet.
-* "Diese Datei löschen":		Die aktuelle Aufnahme wird gelöscht und das TAP beendet.
+* "Aufnahme strippen":			Bereinigt die Aufnahme von überflüssigen Fülldaten (Filler-NALUs, Zero-Byte-Stuffing und EPG-Spur). Ein Backup der Original-Aufnahme bleibt erhalten.
+* "Dateisystem prüfen":			Die Integrität des Dateisystems der internen Festplatte wird überprüft. Insbesondere werden Dateien, die beim Schneiden beschädigt wurden, repariert. (-> verhindert Aufnahmenfresser)
 * "MovieCutter beenden":		Beendet das TAP vollständig. Um es wieder zu verwenden, muss es über die TAP-Übersicht neu gestartet werden.
+
+Nicht alle Aktionen stehen jederzeit zur Verfügung. Sollte ein Eintrag fehlen, versuchen Sie zwischen dem Bookmark- bzw. Segment-Modus zu wechseln.
 
 
 Optionen in der MovieCutter.ini

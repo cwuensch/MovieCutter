@@ -1938,7 +1938,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           if (RecStrip_Pid)
           {
             char KillCommand[16];
-            TAP_SPrint(KillCommand, sizeof(KillCommand), "kill %lu", RecStrip_Pid);
+            TAP_SPrint(KillCommand, sizeof(KillCommand), "pkill -P %lu", RecStrip_Pid);
             system(KillCommand);
             RecStrip_Cancelled = TRUE;
           }
@@ -2014,6 +2014,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               pclose(fPidFile); fPidFile = NULL;
             }
             TAP_SPrint(PidFile, sizeof(PidFile), "/proc/%lu", RecStrip_Pid);
+//TAP_PrintNet("RecStrip-PID: %d\n", RecStrip_Pid);
           }
         }
 

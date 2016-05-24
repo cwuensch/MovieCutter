@@ -1,3 +1,24 @@
+2016-04-30 v3.6  NEU:
+                  ** Zu jedem Segment kann eine Kurzbeschreibung (Caption) hinterlegt werden, die mittels Subt-Taste angezeigt wird
+                     Wenn Caption angezeigt wird, kann diese mittels Teletext-Taste bearbeitet werden (Eingabe ist möglich über FB, TMSRemote und USB-Keyboard)
+                  ** Bei Anlegen und Verschieben eines SegmentMarkers rastet dieser kurz vor dem vorhergehenden I-Frame ein
+                   * Kopieren von ein oder mehreren Segmenten in eine neue Aufnahme, ohne das Original zu verändern
+                   * Strippen von Aufnahmen (Bereinigung von Filler-NALUs, Zero-Byte-Stuffing und EPG-Spur)
+
+                 INTERNALS:
+                   - Ergänzung des cut-File-Formats um Captions (abwärtskompatibel)
+                   - TimeStamps-Array speichert nur noch die TimeStamps von I-Frames
+                     (Zeitbestimmung etwas unpräziser, dafür Speicherplatzersparnis, FrameType muss nicht mit gespeichert werden)
+
+                 BUGFIX:
+                   - Bei Aufnahme teilen wurde cut-File nicht gespeichert!
+                   - Beim Speichern des letzten Segments mit SpecialEnd-Modus wurde das cut-File der Source in das Cut kopiert (wegen HDD_Rename2)
+                   - Beim Schneiden wurde ServiceID in der inf gelöscht
+                   - Verzögerung nach Segment-Sprung (JumpPerformedTime) auf 2 sek erhöht (bei HD-Sat gab es sonst Sprünge)
+                   - Beim Speichern eines Segments ohne nav wurde die Laufzeit des Cutfiles falsch gesetzt (i.d.R. auf 0:00 min)
+                   - Kein Crash mehr, wenn PlayInfo.Duration==0 ist (fehlerhaft geschnittene Aufnahme)
+                   - Pause am Aufnahmeende kann durch (einmaliges!) Play-Drücken fortgesetzt werden
+
 2015-12-15 v3.5b* NEU:
                     * OSD-Keyboard bei Aufnahme umbenennen unterstützt auch Eingabe über USB-Tastatur
 

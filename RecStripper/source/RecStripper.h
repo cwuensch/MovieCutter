@@ -6,9 +6,9 @@
 
 #define PROGRAM_NAME          "RecStripper"
 #ifdef FULLDEBUG
-  #define VERSION             "V0.5 (debug)"
+  #define VERSION             "v0.6 (Debug)"
 #else
-  #define VERSION             "V0.5"
+  #define VERSION             "v0.6"
 #endif
 #define TAPID                 0x2A0A0004
 #define AUTHOR                "chris86"
