@@ -1864,7 +1864,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                     CutFileSave();
                     TAP_Hdd_StopTs();
                     State = ST_RecStrip;
-                    Cleanup(TRUE);
+                    ClearOSD(TRUE);
                   }
                   else
                   {
@@ -2009,8 +2009,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             {
               pipefd[0] = 0;  pipefd[1] = 0;
             }
-//else
-//  TAP_PrintNet("Pipe erzeugt: READ[0] = %d, WRITE[1] = %d.\n", pipefd[0], pipefd[1]);
             if (pipefd[0])
               ioctl(pipefd[0], FIONBIO, &flags);
 //            flags = fcntl(pipefd[0], F_GETFL, 0);
@@ -2028,7 +2026,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 char Buffer[128];
                 time_t StartTime; byte sec;
                 StartTime = PvrTimeToLinux(Now(&sec)) + sec;
-                TAP_SPrint(Buffer, sizeof(Buffer), "\r\n=========================================================\r\n*** RecStrip started %s\r\n", ctime(&StartTime));
+                TAP_SPrint(Buffer, sizeof(Buffer), "\r\n=========================================================\r\n*** RecStrip started %s \r\n", ctime(&StartTime));
                 write(fd, Buffer, strlen(Buffer));
                 dup2(fd, 1);
                 close(fd);
@@ -2169,9 +2167,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             WriteLogMCf(PROGRAM_NAME, "RecStrip returned error code %d!", RecStrip_Return);
             ShowErrorMessage(LangGetString(LS_StripFailed), NULL);
           }
-          State = (AutoOSDPolicy) ? ST_WaitForPlayback : ST_InactiveMode;
           RecStrip_DoCut = FALSE;
           RecStrip_Return = -1;
+          State = (AutoOSDPolicy) ? ST_WaitForPlayback : ST_InactiveMode;
+          if(InodeMonitoring) HDD_FixInodeList(AbsPlaybackDir, TRUE);
+          Cleanup(FALSE);
         }
       }
       break;
