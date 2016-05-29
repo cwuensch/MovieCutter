@@ -127,9 +127,10 @@ de_100=Text eingeben
 de_101=Mark. Seg. in neue Rec kopieren
 de_102=Aktuelles Seg. in neue Rec kopieren
 de_103=Aufnahme strippen
-de_104=Kopie erstellen...
-de_105=Aktion erfolgreich abgeschlossen.\n\n%.1f von %.1f MB (%.1f %%) kopiert.
-de_106=Kopieren ist fehlgeschlagen!\nBitte das Log prüfen!
+de_104=Aufnahme bereits gestrippt
+de_105=Kopie erstellen...
+de_106=Aktion erfolgreich abgeschlossen.\n\n%.1f von %.1f MB (%.1f %%) kopiert.
+de_107=Kopieren ist fehlgeschlagen!\nBitte das Log prüfen!
 
 
 #English
@@ -237,9 +238,10 @@ en_100=Enter text
 en_101=Copy selected seg. into new rec
 en_102=Copy current seg. into new rec
 en_103=Strip recording
-en_104=Creating copy...
-en_105=Action successfully completed.\n\n%.1f of %.1f MB (%.1f %%) copied.
-en_106=Copying has failed!\nPlease check the log!
+en_104=Rec already stripped
+en_105=Creating copy...
+en_106=Action successfully completed.\n\n%.1f of %.1f MB (%.1f %%) copied.
+en_107=Copying has failed!\nPlease check the log!
 
 
 #French
@@ -347,9 +349,10 @@ fr_100=Entrer le texte
 fr_101=Copier seg. marqué ds nouv. enreg.
 fr_102=Copier seg. en cours ds nouv. enreg.
 fr_103=Épurer enregistrement
-fr_104=Création de la copie...
-fr_105=Action terminée avec succès.\n\n%.1f de %.1f MB (%.1f %%) copiés.
-fr_106=La copie a échoué !\nConsulter le log.
+fr_104=Enregistrement est purer
+fr_105=Création de la copie...
+fr_106=Action terminée avec succès.\n\n%.1f de %.1f MB (%.1f %%) copiés.
+fr_107=La copie a échoué !\nConsulter le log.
 
 
 #Dutch
@@ -457,6 +460,7 @@ nl_100=Enter text
 nl_101=Copy selected seg. into new rec
 nl_102=Copy current seg. into new rec
 nl_103=Opname strippen
-nl_104=Creating copy...
-nl_105=Action successfully completed.\n\n%.1f of %.1f MB (%.1f %%) copied.
-nl_106=Copying has failed!\nPlease check the log!
+nl_104=Opname is gestripped
+nl_105=Creating copy...
+nl_106=Action successfully completed.\n\n%.1f of %.1f MB (%.1f %%) copied.
+nl_107=Copying has failed!\nPlease check the log!

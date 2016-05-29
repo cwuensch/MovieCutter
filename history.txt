@@ -1,4 +1,12 @@
-2016-04-30 v3.6  NEU:
+2016-05-30 v3.6beta2  INTERNALS:
+                  ** alle Hintergrundprozesse auf fork/exec und Pipes umgestellt
+
+                 BUGFIX:
+                   - RecStrip-Prozess kann abgebrochen werden
+                   - verlässliche Prozent-Anzeige während Strip-Prozess
+                   - CPU- und HDD-Last während Strippen reduziert
+
+2016-04-30 v3.6beta  NEU:
                   ** Zu jedem Segment kann eine Kurzbeschreibung (Caption) hinterlegt werden, die mittels Subt-Taste angezeigt wird
                      Wenn Caption angezeigt wird, kann diese mittels Teletext-Taste bearbeitet werden (Eingabe ist möglich über FB, TMSRemote und USB-Keyboard)
                   ** Bei Anlegen und Verschieben eines SegmentMarkers rastet dieser kurz vor dem vorhergehenden I-Frame ein

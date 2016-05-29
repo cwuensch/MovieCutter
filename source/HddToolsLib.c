@@ -14,6 +14,8 @@
 #include                <unistd.h>
 #include                <fcntl.h>
 #include                <sys/stat.h>
+#include                <sys/wait.h>
+#include                <signal.h>
 #include                <tap.h>
 #include                "libFireBird.h"
 #include                "CWTapApiLib.h"
@@ -33,7 +35,7 @@ static void         ShowInfoBox(char *MessageStr, char *TitleStr);
 static tInodeData*  ReadListFileAlloc(const char *AbsListFileName, int *OutNrInodes, int AddEntries);
 static bool         WriteListFile(const char *AbsListFileName, const tInodeData InodeList[], const int NrInodes);
 static bool         AddTempListToDevice(const char *AbsDeviceList, const char *AbsTempList, int *const OutMarkedFiles, int *const OutNewMarkedFiles);
-static tReturnCode  RunIcheckWithLog(const char *DeviceNode, const char *ParamString, char *const OutLastLine);
+static tReturnCode  RunIcheckWithLog(char *const args[], char *const OutLastLine);
 static bool         HDD_FixInodeList2(const char *ListFile, const char *DeviceNode, bool DeleteOldEntries);
 */
 
@@ -80,6 +82,23 @@ static void ShowInfoBox(char *MessageStr, char *TitleStr)
 void HDD_CancelCheckFS()
 {
   fsck_Cancelled = TRUE;
+}
+
+static int SplitInodeNrs(char *InodeNrs, char* InodeArr[])
+{
+  int i = 0;
+  char *p;
+  
+  if (InodeNrs)
+  {
+    p = strtok(InodeNrs, " ");
+    while (p && p[0])
+    {
+      InodeArr[i++] = p;
+      p = strtok(NULL, " ");
+    }
+  }
+  return i;
 }
 
 // ----------------------------------------------------------------------------------------------------------
@@ -270,7 +289,7 @@ static bool AddTempListToDevice(const char *AbsDeviceList, const char *AbsTempLi
 
 // ----------------------------------------------------------------------------------------------------------
 
-bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgBar, TMessageHandler pShowErrorMessage, int DoFix, bool Quick, bool InodeMonitoring, bool NoOkInfo, char *InodeNrs, char *SuccessString, char *ErrorStrFmt, char *AbortedString)
+bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgBar, TMessageHandler pShowErrorMessage, int DoFix, bool Quick, bool InodeMonitoring, bool NoOkInfo, const char *InodeNrs, char *SuccessString, char *ErrorStrFmt, char *AbortedString)
 {
   TProgBarHandler       RefreshProgBar = pRefreshProgBar;
   TMessageHandler       ShowErrorMessage = pShowErrorMessage;
@@ -282,11 +301,11 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
   char                  MessageString[512];
   dword                 LastPlaybackPos = 0;
 
-  FILE                 *fPidFile = NULL, *fLogFileIn = NULL, *fLogFileOut = NULL;
+  FILE                 *fLogFileIn = NULL, *fLogFileOut = NULL;
   char                  DeviceNode[FBLIB_DIR_SIZE], MountPoint[FBLIB_DIR_SIZE];
   char                  CommandLine[1024], Buffer[512]; //, PidStr[13];
   char                  FirstErrorFile[50];
-  dword                 fsck_Pid = 0;
+  pid_t                 fsck_Pid = 0;
   long                  StartTime;  byte sec = 0;
   int                   NrDefectFiles = 0, NrRepairedFiles = 0, NrMarkedFiles = 0, NrNewMarkedFiles = 0, ActivePhase = 0;
   bool                  fsck_Errors = FALSE;
@@ -350,25 +369,52 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
   StartTime = PvrTimeToLinux(Now(&sec)) + sec;
   if (DeviceUnmounted || (DoFix != 2))
   {
-    TAP_SPrint(CommandLine, sizeof(CommandLine), FSCKPATH "/jfs_fsck -v %s %s %s -L /tmp/FixInodes.tmp %s %s &> /tmp/fsck.log & echo $!", ((DoFix) ? ((DoFix==2) ? "-f" : "-n -r") : "-n"), ((Quick && DoFix!=2) ? "-q" : ""), ((Quick && InodeNrs) ? "-i" : ""), DeviceNode, ((InodeNrs) ? InodeNrs : ""));  // > /tmp/fsck.pid
-//-    system(CommandLine);
+    pid_t CurPid;
 
-    //Get the PID of the fsck-Process
-//    fPidFile = fopen("/tmp/fsck.pid", "rb");
-    fPidFile = popen(CommandLine, "r");
-    if(fPidFile)
+    CurPid = fork();
+    if (CurPid == 0)
     {
-//      if (fgets(PidStr, 13, fPidFile))
-//        fsck_Pid = atoi(PidStr);
-      fscanf(fPidFile, "%ld", &fsck_Pid);
-      pclose(fPidFile);
+      // Child-Process
+      char* args[11 + NRSEGMENTMARKER], InodeNrs2[768];
+      int i = 0;
+      int fd = open("/tmp/fsck.log", O_WRONLY | O_CREAT);
+      dup2(fd, 1);
+      dup2(fd, 2);
+      close(fd);
+
+      args[i++] = "jfs_fsck";
+      args[i++] = "-v";
+      if (DoFix == 2)
+        args[i++] = "-f";
+      else
+      {
+        args[i++] = "-n";
+        if (DoFix) args[i++] = "-r";
+        if (Quick) args[i++] = "-q";
+      }
+      if (Quick && InodeNrs)
+        args[i++] = "-i";
+      args[i++] = "-L";
+      args[i++] = "/tmp/FixNodes.tmp";
+      args[i++] = DeviceNode;
+      if (Quick && InodeNrs)
+      {
+        strncpy(InodeNrs2, InodeNrs, sizeof(InodeNrs2));
+        i += SplitInodeNrs(InodeNrs2, &args[i]);
+      }
+      args[i] = (char*)0;
+
+      execv(FSCKPATH "/jfs_fsck", args); 
+      exit(-1);
     }
+    else if (CurPid > 0)
+      // Parent-Process
+      fsck_Pid = CurPid;
   }
 
   //Wait for termination of fsck
   i = 0;
-  TAP_SPrint(CommandLine, sizeof(CommandLine), "/proc/%lu", fsck_Pid);
-  while (access(CommandLine, F_OK) != -1)
+  while (fsck_Pid && waitpid(fsck_Pid, NULL, WNOHANG) != fsck_Pid)
   {
 //    BytesRead += fread(&LogBuffer[BytesRead], 1, BufSize-BytesRead-1, fLogFile);
 //    LogBuffer[BytesRead] = '\0';
@@ -387,11 +433,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
     }
     TAP_SystemProc();
     if(fsck_Cancelled && !(DoFix==2 || Quick || InodeNrs))
-    {
-      char KillCommand[16];
-      TAP_SPrint(KillCommand, sizeof(KillCommand), "kill %lu", fsck_Pid);
-      system(KillCommand);
-    }
+      kill(fsck_Pid, SIGKILL);
   }
   fsck_Pid = 0;
 
@@ -678,10 +720,12 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
 
 // ----------------------------------------------------------------------------------------------------------
 
-static tReturnCode RunIcheckWithLog(const char *DeviceNode, const char *ParamString, char *const OutLastLine)
+static tReturnCode RunIcheckWithLog(char *const args[], char *const OutLastLine)
 {
   FILE                 *LogStream;
-  char                  CommandLine[1024], FullLog[512], LastLine[512], CurLine[512];
+  char                  FullLog[512], LastLine[512], CurLine[512];
+  pid_t                 CurPid;
+  int                   pipefd[2];
   int                   ret = -1;
   TRACEENTER();
 
@@ -694,29 +738,55 @@ static tReturnCode RunIcheckWithLog(const char *DeviceNode, const char *ParamStr
 
   // Execute jfs_icheck and read its output (last line separately)
   FullLog[0] = '\0'; LastLine[0] = '\0'; CurLine[0] = '\0';
-  TAP_SPrint(CommandLine, sizeof(CommandLine), FSCKPATH "/jfs_fsck icheck %s %s 2>&1", DeviceNode, ParamString);
 
-  LogStream = popen(CommandLine, "r");
-  if(LogStream)
+  if (pipe(pipefd) < 0)
   {
-    fgets(CurLine, sizeof(CurLine), LogStream);
-    CurLine[0] = '\0';
-    while (fgets(CurLine, sizeof(CurLine), LogStream))
+    pipefd[0] = 0;
+    pipefd[1] = 0;
+  }
+
+  CurPid = fork();
+  if (CurPid == 0)
+  {
+    // Child-Process
+    if (pipefd[0]) close(pipefd[0]);    // close reading end in the child
+    if (pipefd[1])
     {
-      dword len = strlen(FullLog);
-      if(FullLog[0] && (len < sizeof(FullLog) - 2))
-      {
-        FullLog[len] = '\r';
-        FullLog[len+1] = '\n';
-        FullLog[len+2] = '\0';
-      }
-//      if (strlen(FullLog) < sizeof(FullLog) - 1)
-        TAP_SPrint(&FullLog[strlen(FullLog)], sizeof(FullLog) - strlen(FullLog) - 1, LastLine);
-      FullLog[sizeof(FullLog) - 1] = '\0';
-      RemoveEndLineBreak(CurLine);
-      strcpy(LastLine, CurLine);
+      dup2(pipefd[1], 1);  // send stdout to the pipe
+      close(pipefd[1]);    // this descriptor is no longer needed
     }
-    ret = pclose(LogStream) / 256;
+    execv(FSCKPATH "/jfs_fsck", args);
+    exit(-1);
+  }
+  else if (CurPid > 0)
+  {
+    // Parent-Process
+    int status = 0;
+    if (pipefd[1]) close(pipefd[1]);    // close writing end in the parent
+    waitpid(CurPid, &status, 0);
+    if (WIFEXITED(status))
+      ret = WEXITSTATUS(status);
+    if (pipefd[0] && (LogStream = fdopen(pipefd[0], "r")))
+    {
+      fgets(CurLine, sizeof(CurLine), LogStream);
+      CurLine[0] = '\0';
+      while (fgets(CurLine, sizeof(CurLine), LogStream))
+      {
+        dword len = strlen(FullLog);
+        if(FullLog[0] && (len < sizeof(FullLog) - 2))
+        {
+          FullLog[len] = '\r';
+          FullLog[len+1] = '\n';
+          FullLog[len+2] = '\0';
+        }
+  //      if (strlen(FullLog) < sizeof(FullLog) - 1)
+          TAP_SPrint(&FullLog[strlen(FullLog)], sizeof(FullLog) - strlen(FullLog) - 1, LastLine);
+        FullLog[sizeof(FullLog) - 1] = '\0';
+        RemoveEndLineBreak(CurLine);
+        strcpy(LastLine, CurLine);
+      }
+      fclose(LogStream);
+    }
   }
 
 /*  if (DoFix)
@@ -752,7 +822,8 @@ bool HDD_CheckInode(const char *FileName, const char *AbsDirectory, bool DoFix, 
 {
   char                  DeviceNode[FBLIB_DIR_SIZE], ListFile[FBLIB_DIR_SIZE];
   char                  AbsFilePath[FBLIB_DIR_SIZE];
-  char                  ParamString[1024];
+  char*                 args[7];
+  int                   i = 0;
   tReturnCode           ret = rc_UNKNOWN;
 
   TRACEENTER();
@@ -771,9 +842,17 @@ bool HDD_CheckInode(const char *FileName, const char *AbsDirectory, bool DoFix, 
 
   // Execute jfs_icheck and read its output
   TAP_SPrint(AbsFilePath, sizeof(AbsFilePath), "%s/%s", AbsDirectory, FileName);
-  StrReplace(AbsFilePath, "\"", "\\\"");
-  TAP_SPrint(ParamString, sizeof(ParamString), "%s \"%s\"", ((DoFix) ? "-f -L /tmp/FixInodes.tmp" : ""), AbsFilePath);
-  ret = RunIcheckWithLog(DeviceNode, ParamString, NULL);
+
+  args[i++] = "jfs_icheck";
+  args[i++] = DeviceNode;
+  if (DoFix)
+  {
+    args[i++] = "-f";
+    args[i++] = "-L";  args[i++] = "/tmp/FixInodes.tmp";
+  }
+  args[i++] = AbsFilePath;
+  args[i]   = (char*) 0;
+  ret = RunIcheckWithLog(args, NULL);
 
   // Add the damaged inodes list to the device list
   if(InodeMonitoring && DoFix)
@@ -793,9 +872,10 @@ bool HDD_CheckInode(const char *FileName, const char *AbsDirectory, bool DoFix, 
 
 int HDD_CheckInodes(const char *InodeNrs, const char *AbsMountPath, bool DoFix, bool InodeMonitoring)
 {
-  char                  DeviceNode[FBLIB_DIR_SIZE], ListFile[FBLIB_DIR_SIZE];
-  char                  ParamString[1024], LastLine[512];
-  int                   NrDefectFiles = -1, ret = -1;
+  char                  DeviceNode[FBLIB_DIR_SIZE], ListFile[FBLIB_DIR_SIZE], InodeNrs2[786];
+  char*                 args[7 + NRSEGMENTMARKER];
+  char                  LastLine[512];
+  int                   NrDefectFiles = -1, ret = -1, i = 0;
 
   TRACEENTER();
   // Get the device and list file name
@@ -812,8 +892,18 @@ int HDD_CheckInodes(const char *InodeNrs, const char *AbsMountPath, bool DoFix, 
   if(InodeMonitoring && DoFix) remove("/tmp/FixInodes.tmp");
 
   // Execute jfs_icheck and read its output (last line separately)
-  TAP_SPrint(ParamString, sizeof(ParamString), "%s %s -i", ((DoFix) ? "-f -L /tmp/FixInodes.tmp" : ""), InodeNrs);
-  ret = RunIcheckWithLog(DeviceNode, ParamString, LastLine);
+  args[i++] = "jfs_icheck";
+  args[i++] = DeviceNode;
+  if (DoFix)
+  {
+    args[i++] = "-f";
+    args[i++] = "-L";  args[i++] = "/tmp/FixInodes.tmp";
+  }
+  args[i++] = "-i";
+  strncpy(InodeNrs2, InodeNrs, sizeof(InodeNrs2));
+  i += SplitInodeNrs(InodeNrs2, &args[i]);
+  args[i] = (char*) 0;
+  ret = RunIcheckWithLog(args, LastLine);
 
   // Add the damaged inodes list to the device list
   if(InodeMonitoring && DoFix)
@@ -843,9 +933,10 @@ int HDD_CheckInodes(const char *InodeNrs, const char *AbsMountPath, bool DoFix, 
 }
 
 
-static bool HDD_FixInodeList2(const char *ListFile, const char *DeviceNode, bool DeleteOldEntries)
+static bool HDD_FixInodeList2(char *ListFile, char *DeviceNode, bool DeleteOldEntries)
 {
-  char                  ParamString[512];
+  char*                 args[6];
+  int                   i = 0;
   tReturnCode           ret = rc_UNKNOWN;
 
   TRACEENTER();
@@ -864,8 +955,13 @@ static bool HDD_FixInodeList2(const char *ListFile, const char *DeviceNode, bool
 //  SetSystemTimeToCurrent();
 
   // Execute jfs_icheck and read its output (last line separately)
-  TAP_SPrint(ParamString, sizeof(ParamString), "-f %s \"%s\"", ((DeleteOldEntries) ? "-L" : "-l"), ListFile);
-  ret = RunIcheckWithLog(DeviceNode, ParamString, NULL);
+  args[i++] = "jfs_icheck";
+  args[i++] = DeviceNode;
+  args[i++] = "-f";
+  args[i++] = (DeleteOldEntries ? "-L" : "-l");
+  args[i++] = ListFile;
+  args[i]   = (char*) 0;
+  ret = RunIcheckWithLog(args, NULL);
 
   // Write result state to Logfile
   if (!(ret == rc_NOFILEFOUND || ret == rc_ALLFILESOKAY || ret == rc_ALLFILESFIXED))  // NICHT: keine gefunden, alle ok oder alle gefixt
