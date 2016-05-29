@@ -5397,7 +5397,7 @@ void ActionMenuDraw(void)
       {
         if (!BookmarkMode)
         {
-          DisplayStr = (isStripped) ? LangGetString(LS_StripRec) : LangGetString(LS_StrippedRec);
+          DisplayStr = (isStripped) ? LangGetString(LS_StrippedRec) : LangGetString(LS_StripRec);
           DisplayColor = (RecStrip_present) ? ((isStripped) ? RGB(80, 240, 80) : RGB(255, 150, 150)) : Color_Inactive;
         }
         else
