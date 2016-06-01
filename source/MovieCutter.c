@@ -1,6 +1,5 @@
-#define _LARGEFILE_SOURCE
-#define _LARGEFILE64_SOURCE
-#define __USE_LARGEFILE64  1
+#define _LARGEFILE_SOURCE   1
+#define _LARGEFILE64_SOURCE 1
 #define _FILE_OFFSET_BITS  64
 #ifdef _MSC_VER
   #define __const const
@@ -161,7 +160,7 @@ typedef enum
   MI_SelectFunction,
   MI_SaveSegments,
   MI_DeleteSegments,
-  MI_SplitMovieCopySeg,
+  MI_CopySegSplitMovie,
   MI_SelectEvOddSegments,
   MI_ClearAll,
   MI_ImExportBookmarks,
@@ -1792,7 +1791,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 break;
 
               // Aktionen mit Confirmation-Dialog
-              if (ActionMenuItem==MI_SaveSegments || ActionMenuItem==MI_DeleteSegments || (ActionMenuItem==MI_SplitMovieCopySeg && !BookmarkMode) || (ActionMenuItem==MI_ClearAll && (BookmarkMode || NrSelectedSegments==0)) || (ActionMenuItem==MI_ImExportBookmarks && ((!BookmarkMode && NrSegmentMarker>2) || (BookmarkMode && NrBookmarks>0))))
+              if (ActionMenuItem==MI_SaveSegments || ActionMenuItem==MI_DeleteSegments || (ActionMenuItem==MI_CopySegSplitMovie && BookmarkMode) || (ActionMenuItem==MI_ClearAll && (BookmarkMode || NrSelectedSegments==0)) || (ActionMenuItem==MI_ImExportBookmarks && ((!BookmarkMode && NrSegmentMarker>2) || (BookmarkMode && NrBookmarks>0))))
               {
                 if(AskBeforeEdit && !ShowConfirmationDialog(LangGetString(LS_AskConfirmation)))
                 {
@@ -1842,8 +1841,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 }  
                 case MI_RenameMovie:         MovieCutterRenameFile(); break;
 
-                case MI_SplitMovieCopySeg:
-                  if (!BookmarkMode)
+                case MI_CopySegSplitMovie:
+                  if (BookmarkMode)
                   {
                     MovieCutterSplitMovie(); break;
                   }
@@ -1857,7 +1856,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
                 case MI_RecStripCheckFS:
                 {
-                  if ((ActionMenuItem == MI_SplitMovieCopySeg) || (ActionMenuItem == MI_RecStripCheckFS && !BookmarkMode))
+                  if ((ActionMenuItem == MI_CopySegSplitMovie) || (ActionMenuItem == MI_RecStripCheckFS && !BookmarkMode))
                   {
                     WriteLogMCf(PROGRAM_NAME, "[Action '%s' started...]", (RecStrip_DoCut ? "Copy parts" : "Strip movie"));
                     CutSaveToBM(FALSE);
@@ -5318,17 +5317,9 @@ void ActionMenuDraw(void)
         }
         break;
       }
-      case MI_SplitMovieCopySeg:
+      case MI_CopySegSplitMovie:
       {
         if (!BookmarkMode)
-        {
-          DisplayStr = LangGetString(LS_SplitMovie);
-          if (PlayInfo.currentBlock == 0)
-            DisplayColor = Color_Inactive;
-          else if (isLargeSegment(PlayInfo.currentBlock, SegmentMarker[NrSegmentMarker-1].Block, TRUE, TRUE))
-            DisplayColor = Color_Warning;
-        }
-        else
         {
           if (NrSelectedSegments == 0)
             DisplayStr = LangGetString(LS_CopyCurSegment);
@@ -5336,6 +5327,14 @@ void ActionMenuDraw(void)
             DisplayStr = LangGetString(LS_CopySegments);
           if (!RecStrip_present || (NrSegmentMarker <= 2))
             DisplayColor = Color_Inactive;
+        }
+        else
+        {
+          DisplayStr = LangGetString(LS_SplitMovie);
+          if (PlayInfo.currentBlock == 0)
+            DisplayColor = Color_Inactive;
+          else if (isLargeSegment(PlayInfo.currentBlock, SegmentMarker[NrSegmentMarker-1].Block, TRUE, TRUE))
+            DisplayColor = Color_Warning;
         }
         break;
       }
@@ -5428,7 +5427,7 @@ void ActionMenuDraw(void)
 
 bool ActionMenuItemInactive(int MenuItem)
 {
-  return (((MenuItem==MI_SaveSegments||MenuItem==MI_DeleteSegments||MenuItem==MI_SelectEvOddSegments) && NrSegmentMarker<=2) || (MenuItem==MI_SplitMovieCopySeg && BookmarkMode && (NrSegmentMarker<=2 || !RecStrip_present)) || (MenuItem==MI_SplitMovieCopySeg && !BookmarkMode && PlayInfo.currentBlock==0) || (MenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && (NrSegmentMarker>2 || NrSelectedSegments>0)))) || (MenuItem==MI_ImExportBookmarks && ((!BookmarkMode && NrBookmarks<=0) || (BookmarkMode && (NrSegmentMarker<=2 || MediaFileMode))) ) || (MenuItem==MI_RecStripCheckFS && ((!BookmarkMode && !RecStrip_present) || (BookmarkMode && !jfs_fsck_present))));
+  return (((MenuItem==MI_SaveSegments||MenuItem==MI_DeleteSegments||MenuItem==MI_SelectEvOddSegments) && NrSegmentMarker<=2) || (MenuItem==MI_CopySegSplitMovie && BookmarkMode && PlayInfo.currentBlock==0) || (MenuItem==MI_CopySegSplitMovie && !BookmarkMode && (NrSegmentMarker<=2 || !RecStrip_present)) || (MenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && (NrSegmentMarker>2 || NrSelectedSegments>0)))) || (MenuItem==MI_ImExportBookmarks && ((!BookmarkMode && NrBookmarks<=0) || (BookmarkMode && (NrSegmentMarker<=2 || MediaFileMode))) ) || (MenuItem==MI_RecStripCheckFS && ((!BookmarkMode && !RecStrip_present) || (BookmarkMode && !jfs_fsck_present))));
 }
 
 void ActionMenuDown(void)
