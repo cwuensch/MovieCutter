@@ -17,6 +17,7 @@
     <ClInclude Include="..\source\MovieCutter.h" />
     <ClInclude Include="..\source\MovieCutterLib.h" />
     <ClInclude Include="..\source\MovieCutter_TAPCOM.h" />
+    <ClInclude Include="..\source\RecHeader.h" />
     <ClInclude Include="..\source\TMSCommander.h" />
   </ItemGroup>
   <ItemGroup>

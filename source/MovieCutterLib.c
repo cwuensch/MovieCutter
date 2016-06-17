@@ -15,6 +15,7 @@
 #include                <sys/stat.h>
 #include                <tap.h>
 #include                "libFireBird.h"
+#include                "RecHeader.h"
 #include                "CWTapApiLib.h"
 #include                "MovieCutterLib.h"
 
@@ -1296,21 +1297,21 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   dword p = strlen(RecHeader->EventInfo.EventNameDescription);
   if (p < sizeof(RecHeader->EventInfo.EventNameDescription))
     memset(&RecHeader->EventInfo.EventNameDescription[p], 0, sizeof(RecHeader->EventInfo.EventNameDescription) - p);
-  p = RecHeader->ExtEventInfo.ExtEventTextLength;
-  if (p < sizeof(RecHeader->ExtEventInfo.ExtEventText))
-    memset(&RecHeader->ExtEventInfo.ExtEventText[p], 0, sizeof(RecHeader->ExtEventInfo.ExtEventText) - p);
+  p = RecHeader->ExtEventInfo.TextLength;
+  if (p < sizeof(RecHeader->ExtEventInfo.Text))
+    memset(&RecHeader->ExtEventInfo.Text[p], 0, sizeof(RecHeader->ExtEventInfo.Text) - p);
 
-  strncpy(OldEventText, RecHeader->ExtEventInfo.ExtEventText, min((dword)RecHeader->ExtEventInfo.ExtEventTextLength+1, sizeof(OldEventText)));
+  strncpy(OldEventText, RecHeader->ExtEventInfo.Text, min((dword)RecHeader->ExtEventInfo.TextLength+1, sizeof(OldEventText)));
   OldEventText[sizeof(OldEventText) - 1] = '\0';
   if (pSourceCaption)
   {
     if ((NewEventText = (char*)TAP_MemAlloc(2 * strlen(pSourceCaption))))
     {
       StrToUTF8(pSourceCaption, NewEventText, 9);
-      TAP_SPrint(RecHeader->ExtEventInfo.ExtEventText, sizeof(RecHeader->ExtEventInfo.ExtEventText), "%s\r\n\r\n%s", NewEventText, OldEventText);
-      if (RecHeader->ExtEventInfo.ExtEventText[sizeof(RecHeader->ExtEventInfo.ExtEventText) - 2] != 0)
-        TAP_SPrint(&RecHeader->ExtEventInfo.ExtEventText[sizeof(RecHeader->ExtEventInfo.ExtEventText) - 4], 4, "...");
-      RecHeader->ExtEventInfo.ExtEventTextLength = strlen(RecHeader->ExtEventInfo.ExtEventText);
+      TAP_SPrint(RecHeader->ExtEventInfo.Text, sizeof(RecHeader->ExtEventInfo.Text), "%s\r\n\r\n%s", NewEventText, OldEventText);
+      if (RecHeader->ExtEventInfo.Text[sizeof(RecHeader->ExtEventInfo.Text) - 2] != 0)
+        TAP_SPrint(&RecHeader->ExtEventInfo.Text[sizeof(RecHeader->ExtEventInfo.Text) - 4], 4, "...");
+      RecHeader->ExtEventInfo.TextLength = strlen(RecHeader->ExtEventInfo.Text);
       TAP_MemFree(NewEventText);
     }
   }
@@ -1328,7 +1329,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   }
   else
   {
-    SourcePlayTime = 60 * RecHeaderInfo->HeaderDuration + RecHeaderInfo->HeaderDurationSec;
+    SourcePlayTime = 60 * RecHeaderInfo->DurationMin + RecHeaderInfo->DurationSec;
     SecToTimeString(SourcePlayTime, T1);
     CutPlayTime    = (dword)((CutPlayTime + 500) / 1000);
     SourcePlayTime -= min(CutPlayTime, SourcePlayTime);
@@ -1337,13 +1338,13 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   WriteLogMCf("MovieCutterLib", "Playtimes: Orig = %s, Cut = %s, New = %s", T1, T2, T3);
 
   //Change the new source play time
-  RecHeaderInfo->HeaderDuration = (word)(SourcePlayTime / 60);
-  RecHeaderInfo->HeaderDurationSec = SourcePlayTime % 60;
+  RecHeaderInfo->DurationMin = (word)(SourcePlayTime / 60);
+  RecHeaderInfo->DurationSec = SourcePlayTime % 60;
 
   //Set recording time of the source file
-  OrigHeaderStartTime = RecHeaderInfo->HeaderStartTime;
+  OrigHeaderStartTime = RecHeaderInfo->StartTime;
   if (CutStartPoint->BlockNr == 0)
-    RecHeaderInfo->HeaderStartTime = AddTime(OrigHeaderStartTime, BehindCutPoint->Timems / 60000);
+    RecHeaderInfo->StartTime = AddTime(OrigHeaderStartTime, BehindCutPoint->Timems / 60000);
 
   //Save all bookmarks to a temporary array
   memcpy(Bookmarks, BookmarkInfo->Bookmarks, NRBOOKMARKS * sizeof(dword));
@@ -1422,29 +1423,29 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   // ggf. Caption in den ExtEventText einfügen
   if (pSourceCaption || pCutCaption)
   {
-    memset(RecHeader->ExtEventInfo.ExtEventText, 0, sizeof(RecHeader->ExtEventInfo.ExtEventText));
+    memset(RecHeader->ExtEventInfo.Text, 0, sizeof(RecHeader->ExtEventInfo.Text));
     if (pCutCaption)
     {
       if ((NewEventText = (char*)TAP_MemAlloc(2 * strlen(pCutCaption))))
       {
         StrToUTF8(pCutCaption, NewEventText, 9);
-        TAP_SPrint(RecHeader->ExtEventInfo.ExtEventText, sizeof(RecHeader->ExtEventInfo.ExtEventText), "%s\r\n\r\n%s", NewEventText, OldEventText);
-        if (RecHeader->ExtEventInfo.ExtEventText[sizeof(RecHeader->ExtEventInfo.ExtEventText) - 2] != 0)
-          TAP_SPrint(&RecHeader->ExtEventInfo.ExtEventText[sizeof(RecHeader->ExtEventInfo.ExtEventText) - 4], 4, "...");
+        TAP_SPrint(RecHeader->ExtEventInfo.Text, sizeof(RecHeader->ExtEventInfo.Text), "%s\r\n\r\n%s", NewEventText, OldEventText);
+        if (RecHeader->ExtEventInfo.Text[sizeof(RecHeader->ExtEventInfo.Text) - 2] != 0)
+          TAP_SPrint(&RecHeader->ExtEventInfo.Text[sizeof(RecHeader->ExtEventInfo.Text) - 4], 4, "...");
         TAP_MemFree(NewEventText);
       }
     }
     else
-      TAP_SPrint(RecHeader->ExtEventInfo.ExtEventText, sizeof(RecHeader->ExtEventInfo.ExtEventText), OldEventText);
-    RecHeader->ExtEventInfo.ExtEventTextLength = strlen(RecHeader->ExtEventInfo.ExtEventText);
+      TAP_SPrint(RecHeader->ExtEventInfo.Text, sizeof(RecHeader->ExtEventInfo.Text), OldEventText);
+    RecHeader->ExtEventInfo.TextLength = strlen(RecHeader->ExtEventInfo.Text);
   }
 
   //Set the length of the cut file
-  RecHeaderInfo->HeaderDuration = (word)(CutPlayTime / 60);
-  RecHeaderInfo->HeaderDurationSec = CutPlayTime % 60;
+  RecHeaderInfo->DurationMin = (word)(CutPlayTime / 60);
+  RecHeaderInfo->DurationSec = CutPlayTime % 60;
 
   //Set recording time of the cut file
-  RecHeaderInfo->HeaderStartTime = AddTime(OrigHeaderStartTime, CutStartPoint->Timems / 60000);
+  RecHeaderInfo->StartTime = AddTime(OrigHeaderStartTime, CutStartPoint->Timems / 60000);
 
   //Clear all source Bookmarks
   memset(BookmarkInfo->Bookmarks, 0, NRBOOKMARKS * sizeof(dword));

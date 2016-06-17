@@ -18,6 +18,7 @@
 #include                <sys/ioctl.h>
 #include                <tap.h>
 #include                "libFireBird.h"   // <libFireBird.h>
+#include                "RecHeader.h"
 #include                "CWTapApiLib.h"
 #include                "HddToolsLib.h"
 #include                "MovieCutterLib.h"

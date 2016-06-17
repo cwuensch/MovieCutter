@@ -36,6 +36,9 @@
     <ClInclude Include="..\source\libFireBird.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
+    <ClInclude Include="..\source\RecHeader.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\source\MovieCutter.c">

@@ -19,6 +19,7 @@
 #include                <sys/statvfs.h>
 #include                <tap.h>
 #include                "libFireBird.h"
+#include                "RecHeader.h"
 #include                "CWTapApiLib.h"
 
 
@@ -294,7 +295,7 @@ bool GetRecInfosFromInf(const char *RecFileName, const char *AbsDirectory, bool 
     {
       if (isCrypted)  *isCrypted  = ((RecHeaderInfo.CryptFlag & 1) != 0);
       if (isStripped) *isStripped = RecHeaderInfo.rs_HasBeenStripped;
-      if (DateTime)   *DateTime   = RecHeaderInfo.HeaderStartTime;
+      if (DateTime)   *DateTime   = RecHeaderInfo.StartTime;
 
       if (isHDVideo)
       {

@@ -1,9 +1,6 @@
 #ifndef __CWTAPAPILIB__
 #define __CWTAPAPILIB__
 
-#include                "../../../../../Topfield/FireBirdLib/flash/FBLib_flash.h"
-
-
 // ============================================================================
 //                               TAP-API-Lib
 // ============================================================================
@@ -19,126 +16,6 @@
 #define LOGDIR          "/ProgramFiles/Settings/MovieCutter"
 #define LOGFILENAME     "MovieCutter.log"
 #define NRBOOKMARKS     177   // eigentlich werden nur 48 Bookmarks unterstützt!! (SRP2401)
-
-typedef struct
-{
-  char                  HeaderMagic[4];
-  word                  HeaderVersion;
-  byte                  HeaderUnknown2;
-  byte                  rbn_HasBeenScanned:1;
-  byte                  iqt_UnencryptedRec:1;
-  byte                  rs_HasBeenStripped:1;
-  byte                  rs_ToBeStripped:1;
-  byte                  Reserved:4;
-  dword                 HeaderStartTime;
-  word                  HeaderDuration;
-  word                  HeaderDurationSec;
-
-  word                  CryptFlag:2;  // Reihenfolge?? - stimmt mit DecodeRecHeader() überein!
-  word                  Flags:6;
-  word                  Flags2:6;
-  word                  TSFlag:1;
-  word                  CopyFlag:1;
-
-  byte                  HeaderUnknown4[10];
-} TYPE_RecHeader_Info;
-
-typedef struct
-{
-  byte                  SatIdx;
-  byte                  ServiceType;
-
-  word                  TPIdx:10;   // Reihenfolge?? - stimmt mit DecodeRecHeader() überein!
-  word                  TunerNum:2;
-  word                  DelFlag:1;
-  word                  CASFlag:1;
-  word                  LockFlag:1;
-  word                  SkipFlag:1;
-
-  word                  SVCID;
-  word                  PMTPID;
-  word                  PCRPID;
-  word                  VideoPID;
-  word                  AudioPID;
-
-  char                  ServiceName[24];
-
-  byte                  VideoStreamType;
-  byte                  AudioStreamType;
-} TYPE_Service_Info;
-
-typedef struct
-{
-  byte                  EventUnknown1[2];
-  byte                  EventDurationMin;
-  byte                  EventDurationHr;
-  dword                 EventID;
-  dword                 EventStartTime;
-  dword                 EventEndTime;
-  byte                  EventRunningStatus;
-  byte                  EventTextLength;
-  byte                  EventParentalRate;
-  char                  EventNameDescription[257];
-  word                  ServiceID;
-  byte                  unknown[14];
-} TYPE_Event_Info;
-
-typedef struct
-{
-  word                  ExtEventServiceID;
-  word                  ExtEventTextLength;
-  dword                 ExtEventEventID;
-  char                  ExtEventText[1024];
-} TYPE_ExtEvent_Info;
-
-typedef struct
-{
-  dword                 NrBookmarks;
-  dword                 Bookmarks[177];
-  dword                 Resume;
-} TYPE_Bookmark_Info;
-
-typedef struct
-{
-  TYPE_RecHeader_Info   RecHeaderInfo;
-  TYPE_Service_Info     ServiceInfo;
-  TYPE_Event_Info       EventInfo;
-  TYPE_ExtEvent_Info    ExtEventInfo;
-  byte                  TpUnknown1[4];
-  TYPE_TpInfo_TMSS      TransponderInfo;
-  TYPE_Bookmark_Info    BookmarkInfo;
-//  byte                  HeaderUnused[8192];
-//  word                  NrImages;
-//  word                  Unknown1;
-} TYPE_RecHeader_TMSS;
-
-typedef struct
-{
-  TYPE_RecHeader_Info   RecHeaderInfo;
-  TYPE_Service_Info     ServiceInfo;
-  TYPE_Event_Info       EventInfo;
-  TYPE_ExtEvent_Info    ExtEventInfo;
-  byte                  TpUnknown1[4];
-  TYPE_TpInfo_TMSC      TransponderInfo;
-  TYPE_Bookmark_Info    BookmarkInfo;
-//  byte                  HeaderUnused[8192];
-//  word                  NrImages;
-//  word                  Unknown1;
-} TYPE_RecHeader_TMSC;
-
-typedef struct
-{
-  TYPE_RecHeader_Info   RecHeaderInfo;
-  TYPE_Service_Info     ServiceInfo;
-  TYPE_Event_Info       EventInfo;
-  TYPE_ExtEvent_Info    ExtEventInfo;
-  byte                  TpUnknown1[4];
-  TYPE_TpInfo_TMST      TransponderInfo;
-  TYPE_Bookmark_Info    BookmarkInfo;
-//  byte                  HeaderUnused[8192];
-//  word                  NrImages;
-//  word                  Unknown1;
-} TYPE_RecHeader_TMST;
 
 
 void       GetCutNameFromRec(const char *RecFileName, const char *AbsDirectory, char *const OutCutFileName);  // needs FBLIB_DIR_SIZE chars
