@@ -333,6 +333,7 @@ typedef enum
   LS_StrippingMsg,
   LS_StripSuccess,
   LS_StripFailed,
+  LS_AbortRecStrip,
   LS_NrStrings
 } tLngStrings;
 
@@ -449,7 +450,8 @@ static char* DefaultStrings[LS_NrStrings] =
   "Aufnahme bereits gestrippt",
   "Kopie erstellen...",
   "Aktion erfolgreich abgeschlossen.\n\n%.1f von %.1f MB (%.1f %%) kopiert.",
-  "Kopieren ist fehlgeschlagen!\nBitte das Log prüfen!"
+  "Kopieren ist fehlgeschlagen!\nBitte das Log prüfen!",
+  "Strippen jetzt abbrechen?\n'Nein' zum Herunterfahren nach Ende."
 };
 #ifdef MC_MULTILANG
   #define LangGetString(x)  LangGetStringDefault(x, DefaultStrings[x])
@@ -757,7 +759,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   }
 
 
-  if(DoNotReenter)
+  // Vorsicht! Ausnahme von DoNotReenter für den Fall, dass RecStrip arbeitet und der "RecStrip abbrechen?"-Dialog geöffnet ist
+  if(DoNotReenter && !(State == ST_RecStrip && event == EVT_IDLE))
   {
     TRACEEXIT();
     return param1;
@@ -786,7 +789,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       TAPCOM_Reject(Channel);
   }
 
-  if((event == EVT_STOP) && (param1 != 2))
+  if((event == EVT_STOP) && (param1 != 2) && (State != ST_RecStrip))
   {
     State = (State==ST_ActiveOSD || State==ST_ActionMenu) ? ST_Exit : ST_ExitNoSave;
   }
@@ -1930,15 +1933,24 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     // --------------------------------------------------------------
     case ST_RecStrip:         //RecStrip ProgressBar is visible
     {
-      static char       StripName[MAX_FILE_NAME_SIZE], BakName[MAX_FILE_NAME_SIZE];
-//      static __off64_t  OrigFileSize = 0;
-      static dword      LastRefresh;
-      static int        RecStrip_Return = -1;
-      static int        pipefd[2];
-      static char       PercentBuf[7];
-      static int        ReadBytes = 0;
-      __off64_t         StripFileSize;
-  
+      static char       PercentBuf[7];  PercentBuf[0] = '\0';
+      static bool       ShutdownAfterRS = FALSE;
+
+      if((event == EVT_STOP) && (param1 != 2))
+      {
+        ShutdownAfterRS = TRUE;
+        if (RecStrip_Pid && !rgnStripProgBar)
+          OSDRecStripProgressBar(atoi(PercentBuf));
+        if (RecStrip_Pid)
+          if (ShowConfirmationDialog(LangGetString(LS_AbortRecStrip)))
+            kill(RecStrip_Pid, SIGKILL);
+        while (State == ST_RecStrip)
+        {
+          TAP_Sleep(10);
+          TAP_SystemProc();
+        }
+      }
+
       if (event == EVT_KEY)
       {
         if ((rgnStripProgBar && (param1 == RKEY_Exit || param1 == FKEY_Exit)) || param1 == RKEY_Sleep)
@@ -1956,10 +1968,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             TAP_Osd_Sync();
           }
           else
-          {
-            OSDRecStripProgressBar(0);
-            LastRefresh = 0;
-          }
+            OSDRecStripProgressBar(atoi(PercentBuf));
           param1 = 0;
         }
         if (rgnStripProgBar && !(param1 >= RKEY_0 && param1 <= RKEY_9))
@@ -1968,6 +1977,14 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
       else if (event == EVT_IDLE)
       {
+        static char       StripName[MAX_FILE_NAME_SIZE], BakName[MAX_FILE_NAME_SIZE];
+//        static __off64_t  OrigFileSize = 0;
+        static dword      LastRefresh;
+        static int        RecStrip_Return = -1;
+        static int        pipefd[2];
+        static int        ReadBytes = 0;
+        __off64_t         StripFileSize;
+
         // INIT: Starte RecStrip
         if (!RecStrip_Pid && RecStrip_Return == -1)
         {
@@ -2112,6 +2129,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         // FINISHED: Nachverarbeitung
         if (!RecStrip_Pid)
         {
+          if (ShutdownAfterRS && OSDMenuMessageBoxIsVisible())
+            OSDMenuMessageBoxDestroy();
+
           if (RecStrip_Return == 0)
           {
             // Set Date of Recording
@@ -2160,21 +2180,32 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             char MessageStr[128];
             TAP_SPrint(MessageStr, sizeof(MessageStr), LangGetString(LS_StripSuccess), CalcBlockSize(StripFileSize)/116.1986, CalcBlockSize(RecFileSize)/116.1986, ((double)CalcBlockSize(StripFileSize)/CalcBlockSize(RecFileSize))*100);
             WriteLogMC(PROGRAM_NAME, MessageStr);
-            ShowErrorMessage(MessageStr, NULL);
+            if (!ShutdownAfterRS)
+              ShowErrorMessage(MessageStr, NULL);
           }
           else if (RecStrip_Return > 0)
           {
             WriteLogMCf(PROGRAM_NAME, "RecStrip returned error code %d!", RecStrip_Return);
-            ShowErrorMessage(LangGetString(LS_StripFailed), NULL);
+            if (!ShutdownAfterRS)
+              ShowErrorMessage(LangGetString(LS_StripFailed), NULL);
           }
           RecStrip_DoCut = FALSE;
           RecStrip_Return = -1;
+
           State = (AutoOSDPolicy) ? ST_WaitForPlayback : ST_InactiveMode;
-          if(InodeMonitoring) HDD_FixInodeList(AbsPlaybackDir, TRUE);
-          Cleanup(FALSE);
+          if (!ShutdownAfterRS)
+          {
+            if(InodeMonitoring) HDD_FixInodeList(AbsPlaybackDir, TRUE);
+            Cleanup(FALSE);
+          }
+          else
+            State = ST_ExitNoSave;
         }
       }
-      break;
+
+      if (State != ST_Exit && State != ST_ExitNoSave) break;
+      LastTotalBlocks = 0;
+      // sonst fortsetzen mit ST_Exit ...
     }
       
     // Beendigung des TAPs

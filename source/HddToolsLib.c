@@ -74,7 +74,7 @@ static void ShowInfoBox(char *MessageStr, char *TitleStr)
   OSDMenuSaveMyRegion(RegionToSave);
   OSDMenuInfoBoxShow(TitleStr, MessageStr, 0);
   TAP_SystemProc();
-  TAP_Delay(300);
+  TAP_Sleep(3000);
   OSDMenuInfoBoxDestroyNoOSDUpdate();
 }
 

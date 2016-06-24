@@ -131,6 +131,7 @@ de_104=Aufnahme bereits gestrippt
 de_105=Kopie erstellen...
 de_106=Aktion erfolgreich abgeschlossen.\n\n%.1f von %.1f MB (%.1f %%) kopiert.
 de_107=Kopieren ist fehlgeschlagen!\nBitte das Log prüfen!
+de_108=Strippen jetzt abbrechen?\n'Nein' zum Herunterfahren nach Ende.
 
 
 #English
@@ -242,6 +243,7 @@ en_104=Rec already stripped
 en_105=Creating copy...
 en_106=Action successfully completed.\n\n%.1f of %.1f MB (%.1f %%) copied.
 en_107=Copying has failed!\nPlease check the log!
+en_108=Abort stripping now?\n'No' to shutdown after finish.
 
 
 #French
@@ -353,6 +355,7 @@ fr_104=L'enregistrement est déjà épuré
 fr_105=Copie en cours...
 fr_106=Action terminée avec succès.\n\n%.1f de %.1f MB (%.1f %%) copiés.
 fr_107=La copie a échoué !\nConsulter le log.
+fr_108=Abort stripping now?\n'No' to shutdown after finish.
 
 
 #Dutch
@@ -464,3 +467,4 @@ nl_104=Opname is gestripped
 nl_105=Creating copy...
 nl_106=Action successfully completed.\n\n%.1f of %.1f MB (%.1f %%) copied.
 nl_107=Copying has failed!\nPlease check the log!
+nl_108=Abort stripping now?\n'No' to shutdown after finish.
