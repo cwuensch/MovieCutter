@@ -760,7 +760,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
 
   // Vorsicht! Ausnahme von DoNotReenter für den Fall, dass RecStrip arbeitet und der "RecStrip abbrechen?"-Dialog geöffnet ist
-  if(DoNotReenter && !(State == ST_RecStrip && event == EVT_IDLE))
+  if(DoNotReenter && !(State==ST_RecStrip && (event==EVT_IDLE || (event==EVT_KEY && (param1==RKEY_Exit || param1==FKEY_Exit || param1==RKEY_Sleep)))))
   {
     TRACEEXIT();
     return param1;
@@ -2199,11 +2199,20 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             Cleanup(FALSE);
           }
           else
+          {
             State = ST_ExitNoSave;
+            break;
+          }
         }
       }
 
-      if (State != ST_Exit && State != ST_ExitNoSave) break;
+      if (State != ST_Exit && State != ST_ExitNoSave)
+      {
+        if (!ShutdownAfterRS) break;  // wenn keine EVT_STOP-Schleife, hier den EventHandler normal beenden
+        TRACEEXIT();
+        return param1;                // während EVT_STOP-Schleife, DoNotReenter nicht zurücksetzen!
+      }
+
       LastTotalBlocks = 0;
       // sonst fortsetzen mit ST_Exit ...
     }
