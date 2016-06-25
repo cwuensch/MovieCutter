@@ -1971,7 +1971,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             OSDRecStripProgressBar(atoi(PercentBuf));
           param1 = 0;
         }
-        if (rgnStripProgBar && !(param1 >= RKEY_0 && param1 <= RKEY_9))
+        if (rgnStripProgBar && !((param1 >= RKEY_0 && param1 <= RKEY_9) || param1 == RKEY_Ok))
           param1 = 0;
       }
 
