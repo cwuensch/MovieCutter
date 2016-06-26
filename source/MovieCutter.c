@@ -334,6 +334,7 @@ typedef enum
   LS_StripSuccess,
   LS_StripFailed,
   LS_AbortRecStrip,
+  LS_ShutdownAfterRS,
   LS_NrStrings
 } tLngStrings;
 
@@ -451,7 +452,8 @@ static char* DefaultStrings[LS_NrStrings] =
   "Kopie erstellen...",
   "Aktion erfolgreich abgeschlossen.\n\n%.1f von %.1f MB (%.1f %%) kopiert.",
   "Kopieren ist fehlgeschlagen!\nBitte das Log prüfen!",
-  "Strippen jetzt abbrechen?\n'Nein' zum Herunterfahren nach Ende."
+  "Strippen jetzt abbrechen?",
+  "'Nein' zum Herunterfahren nach Ende."
 };
 #ifdef MC_MULTILANG
   #define LangGetString(x)  LangGetStringDefault(x, DefaultStrings[x])
@@ -760,7 +762,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
 
   // Vorsicht! Ausnahme von DoNotReenter für den Fall, dass RecStrip arbeitet und der "RecStrip abbrechen?"-Dialog geöffnet ist
-  if(DoNotReenter && !(State==ST_RecStrip && (event==EVT_IDLE || (event==EVT_KEY && (param1==RKEY_Exit || param1==FKEY_Exit || param1==RKEY_Sleep)))))
+  if(DoNotReenter && !(State==ST_RecStrip && (event==EVT_IDLE || (event==EVT_KEY && ((rgnStripProgBar && (param1==RKEY_Exit || param1==FKEY_Exit)) || param1==RKEY_Sleep)))))
   {
     TRACEEXIT();
     return param1;
@@ -1936,14 +1938,18 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       static char       PercentBuf[7];  PercentBuf[0] = '\0';
       static bool       ShutdownAfterRS = FALSE;
 
-      if((event == EVT_STOP) && (param1 != 2))
+      if ((event == EVT_STOP) && (param1 != 2))
       {
         ShutdownAfterRS = TRUE;
         if (RecStrip_Pid && !rgnStripProgBar)
           OSDRecStripProgressBar(atoi(PercentBuf));
         if (RecStrip_Pid)
+        {
+          char Msg[128];
+          TAP_SPrint(Msg, sizeof(Msg), "%s\n%s", LangGetString(LS_AbortRecStrip), LangGetString(LS_ShutdownAfterRS));
           if (ShowConfirmationDialog(LangGetString(LS_AbortRecStrip)))
-            kill(RecStrip_Pid, SIGKILL);
+            if (RecStrip_Pid) kill(RecStrip_Pid, SIGKILL);
+        }
         while (State == ST_RecStrip)
         {
           TAP_Sleep(10);
@@ -1955,8 +1961,18 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       {
         if ((rgnStripProgBar && (param1 == RKEY_Exit || param1 == FKEY_Exit)) || param1 == RKEY_Sleep)
         {
+          if (RecStrip_Pid && !rgnStripProgBar)
+            OSDRecStripProgressBar(atoi(PercentBuf));
           if (RecStrip_Pid)
-            kill(RecStrip_Pid, SIGKILL);
+          {
+           if (ShowConfirmationDialog(LangGetString(LS_AbortRecStrip)))
+              if (RecStrip_Pid) kill(RecStrip_Pid, SIGKILL);  // Wenn RS während Dialog beendet wird, führt der "Aktion erfolgreich" Dialog zu einer positiven Auswertung von ShowConfirmDialog -> kill(0)
+            if (!RecStrip_Pid)
+            {
+              TRACEEXIT();
+              return 0;  // Wenn RS während Dialogfeld beendet wird (EventHandler wurde normal verlassen), darf DoNotReenter nicht nochmals zurückgesetzt werden!
+            }
+          }
           param1 = 0;
         }
         else if (param1 == RKEY_Option || param1 == RKEY_Ab)
@@ -1971,7 +1987,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             OSDRecStripProgressBar(atoi(PercentBuf));
           param1 = 0;
         }
-        if (rgnStripProgBar && !((param1 >= RKEY_0 && param1 <= RKEY_9) || param1 == RKEY_Ok))
+        if (rgnStripProgBar && !(param1 >= RKEY_0 && param1 <= RKEY_9))
           param1 = 0;
       }
 
@@ -2129,9 +2145,12 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         // FINISHED: Nachverarbeitung
         if (!RecStrip_Pid)
         {
-          if (ShutdownAfterRS && OSDMenuMessageBoxIsVisible())
-            OSDMenuMessageBoxDestroy();
-
+          if (OSDMenuMessageBoxIsVisible())
+          {
+            word p_Event = EVT_KEY;
+            dword p_Key = RKEY_Exit;
+            OSDMenuEvent(&p_Event, &p_Key, NULL);
+          }
           if (RecStrip_Return == 0)
           {
             // Set Date of Recording
@@ -2170,9 +2189,14 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             HDD_Delete2(StripName, AbsPlaybackDir, TRUE);
 
           // END: Ausgabe
-          TAP_Osd_Delete(rgnStripProgBar);
-          rgnStripProgBar = 0;
+          if (rgnStripProgBar)
+          {
+            TAP_Osd_Delete(rgnStripProgBar);
+            rgnStripProgBar = 0;
+          }
           TAP_Osd_Sync();
+
+          State = (AutoOSDPolicy) ? ST_WaitForPlayback : ST_InactiveMode;  // State muss vor Message gesetzt werden, da für ST_RecStrip eine Ausnahme von DoNotReenter bei geöffnetem Dialog besteht
 
           // Output RecStrip return
           if (RecStrip_Return == 0)
@@ -2192,7 +2216,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           RecStrip_DoCut = FALSE;
           RecStrip_Return = -1;
 
-          State = (AutoOSDPolicy) ? ST_WaitForPlayback : ST_InactiveMode;
           if (!ShutdownAfterRS)
           {
             if(InodeMonitoring) HDD_FixInodeList(AbsPlaybackDir, TRUE);
