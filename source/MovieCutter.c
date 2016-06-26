@@ -762,7 +762,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
 
   // Vorsicht! Ausnahme von DoNotReenter für den Fall, dass RecStrip arbeitet und der "RecStrip abbrechen?"-Dialog geöffnet ist
-  if(DoNotReenter && !(State==ST_RecStrip && (event==EVT_IDLE || (event==EVT_KEY && ((rgnStripProgBar && (param1==RKEY_Exit || param1==FKEY_Exit)) || param1==RKEY_Sleep)))))
+  if(DoNotReenter && !(State==ST_RecStrip && (event==EVT_IDLE || (event==EVT_KEY && (param1==RKEY_Exit || param1==FKEY_Exit || param1==RKEY_Sleep)))))
   {
     TRACEEXIT();
     return param1;
@@ -1965,7 +1965,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             OSDRecStripProgressBar(atoi(PercentBuf));
           if (RecStrip_Pid)
           {
-           if (ShowConfirmationDialog(LangGetString(LS_AbortRecStrip)))
+            if (ShowConfirmationDialog(LangGetString(LS_AbortRecStrip)))
               if (RecStrip_Pid) kill(RecStrip_Pid, SIGKILL);  // Wenn RS während Dialog beendet wird, führt der "Aktion erfolgreich" Dialog zu einer positiven Auswertung von ShowConfirmDialog -> kill(0)
             if (!RecStrip_Pid)
             {
