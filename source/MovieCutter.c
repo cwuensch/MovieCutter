@@ -733,7 +733,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     TAP_PrintNet("Status = %u\n", State);
   #endif
 
-
   // Behandlung offener MessageBoxen (rekursiver Aufruf, auch bei DoNotReenter)
 //  if(MCShowMessageBox)
 //  {
@@ -759,25 +758,14 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   // Abbruch von fsck ermöglichen (selbst bei DoNotReenter)
   if(DoNotReenter && OSDMenuProgressBarIsVisible())
   {
-    if(event == EVT_KEY && (param1 == RKEY_Exit || param1 == FKEY_Exit || param1 == RKEY_Sleep))
+    if((event==EVT_KEY && (param1==RKEY_Exit || param1==FKEY_Exit || param1==RKEY_Sleep)) || (event==EVT_STOP && param1!=2))
       HDD_CancelCheckFS();
     param1 = 0;
   }
 
-  // Stop-Event (PowerOff) abfangen, und solange warten, bis aktuelle Aktion beendet ist
-  if((event == EVT_STOP) && (param1 != 2) && (State != ST_RecStrip))
-  {
-    while (DoNotReenter)
-    {
-      TAP_Sleep(10);
-      TAP_SystemProc();
-    }
-    State = (State==ST_ActiveOSD || State==ST_ActionMenu) ? ST_Exit : ST_ExitNoSave;
-  }
-
 
   // Vorsicht! Ausnahme von DoNotReenter für den Fall, dass RecStrip arbeitet und der "RecStrip abbrechen?"-Dialog geöffnet ist
-  if(DoNotReenter && !(State==ST_RecStrip && event==EVT_IDLE))
+  if(DoNotReenter && !(State==ST_RecStrip && (event==EVT_IDLE || event==EVT_STOP)))
   {
     TRACEEXIT();
     return param1;
@@ -785,13 +773,15 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   DoNotReenter = TRUE;
 
 
+  // Stop-Event (PowerOff) wird nur abgefangen, wenn kein DoNotReenter aktiv ist
+  if((event == EVT_STOP) && (param1 != 2) && (State != ST_RecStrip))
+  {
+    State = (State==ST_ActiveOSD || State==ST_ActionMenu) ? ST_Exit : ST_ExitNoSave;
+  }
+
   if(event == EVT_TMSCommander)
   {
-    dword ret = TMSCommander_handler(param1);
-
-    DoNotReenter = FALSE;
-    TRACEEXIT();
-    return ret;
+    param1 = TMSCommander_handler(param1);
   }
 
   if(event == EVT_TAPCOM)
@@ -2325,7 +2315,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 // ----------------------------------------------------------------------------
 //                           MessageBox-Funktionen
 // ----------------------------------------------------------------------------
-// Die Funktion zeigt eineB estätigungsfrage (Ja/Nein) an, und wartet auf die Bestätigung des Benutzers.
+// Die Funktion zeigt eine Bestätigungsfrage (Ja/Nein) an, und wartet auf die Bestätigung des Benutzers.
 // Nach Beendigung der Message kehrt das TAP in den Normal-Mode zurück, FALLS dieser zuvor aktiv war.
 // Beim Beenden wird das entsprechende OSDRange gelöscht. Überdeckte Bereiche anderer OSDs werden NICHT wiederhergestellt.
 bool ShowConfirmationDialog(char *MessageStr)
