@@ -326,7 +326,8 @@ typedef enum
  // Strippen und Teile kopieren (8)
   LS_SegmentNr,
   LS_EnterText,
-  LS_CopySegments,
+  LS_CopyNrSegments,
+  LS_Copy1Segment,
   LS_CopyCurSegment,
   LS_StripRec,
   LS_StrippedRec,
@@ -353,9 +354,9 @@ static char* DefaultStrings[LS_NrStrings] =
   "",   // Konnte F/W-Funktion _bookmarkTime nicht finden.
   "",   // Nächster Bookmark
   "",   // Vorhergehender Bookmark
-  "Import Bookmarks -> Segmente",
+  "Import: Bookmarks -> Segmente",
   "OK",
-  "Vor-/Nachlauf entfernen",
+  "Löschen: Vor-/Nachlauf",
   "",   // Ausgewählte Segmente speichern
   "Segmente",
 #ifdef MC_UNICODE
@@ -366,22 +367,22 @@ static char* DefaultStrings[LS_NrStrings] =
   "Der Schnitt ist fehlgeschlagen!\nBitte das Log prüfen!",
   "Die Aufnahme ist (teilweise) verschlüsselt.",
   "Schneide Aufnahme...\n(Schnitt %d von %d)",
-  "Ungerade Segmente löschen",
-  "Gerade Segmente löschen",   // Gerade Segmente löschen
-  "Markierte %d Segmente speichern",
-  "Markiertes Segment speichern",
-  "Aktuelles Segment speichern",
-  "Markierte %d Segmente löschen",
-  "Markiertes Segment löschen",
-  "Aktuelles Segment löschen",
-  "Ungerade Segmente markieren",   // Ungerade Segmente markieren
-  "Vor-/Nachlauf markieren",
-  "Gerade Segmente markieren",   // Gerade Segmente markieren
-  "Mittelstück markieren",
-  "Alle abwählen",
-  "Segmentliste zurücksetzen",
-  "Alle Bookmarks löschen",
-  "Export Segmente -> Bookmarks",
+  "Löschen: Ungerade Segmente",
+  "Löschen: Gerade Segmente",   // Gerade Segmente löschen
+  "Speichern: %d markierte Segmente",
+  "Speichern: Markiertes Segment",
+  "Speichern: Aktuelles Segment",
+  "Löschen: %d markierte Segmente",
+  "Löschen: Markiertes Segment",
+  "Löschen: Aktuelles Segment",
+  "Markieren: Ungerade Segmente",
+  "Markieren: Vor-/Nachlauf",
+  "Markieren: Gerade Segmente",
+  "Markieren: Mittelstück",
+  "Auswahl zurücksetzen",
+  "Schnittmarken löschen",
+  "Bookmarks löschen",
+  "Export: Segmente -> Bookmarks",
   "Segmente",
   "Bookmarks",
   "Seite",
@@ -445,8 +446,9 @@ static char* DefaultStrings[LS_NrStrings] =
   "Speichern",
   "%hd. Segment",
   "Text eingeben",
-  "Mark. Seg. in neue Rec kopieren",
-  "Aktuelles Seg. in neue Rec kopieren",
+  "Teile kopieren: %d markierte Seg.",
+  "Teile kopieren: Markiertes Seg.",
+  "Teile kopieren: Aktuelles Seg.",
   "Aufnahme strippen",
   "Aufnahme bereits gestrippt",
   "Kopie erstellen...",
@@ -5384,8 +5386,13 @@ void ActionMenuDraw(void)
         {
           if (NrSelectedSegments == 0)
             DisplayStr = LangGetString(LS_CopyCurSegment);
+          else if (NrSelectedSegments == 1)
+            DisplayStr = LangGetString(LS_Copy1Segment);
           else
-            DisplayStr = LangGetString(LS_CopySegments);
+          {
+            TAP_SPrint(TempStr, sizeof(TempStr), LangGetString(LS_CopyNrSegments), NrSelectedSegments);
+            DisplayStr = TempStr;
+          }
           if (!RecStrip_present || (NrSegmentMarker <= 2))
             DisplayColor = Color_Inactive;
         }
