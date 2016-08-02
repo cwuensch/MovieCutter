@@ -448,7 +448,7 @@ static char* DefaultStrings[LS_NrStrings] =
   "Text eingeben",
   "Teile kopieren: %d markierte Seg.",
   "Teile kopieren: Markiertes Seg.",
-  "Teile kopieren: Aktuelles Seg.",
+  "Teile kopieren: Aktuelles Segment",
   "Aufnahme strippen",
   "Aufnahme bereits gestrippt",
   "Kopie erstellen...",
