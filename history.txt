@@ -1,3 +1,16 @@
+2016-07-31 v3.6beta3  INTERNALS:
+                  ** vollständige Integration von RecStrip in die State-Machine
+
+                 NEU:
+                  ** Herunterfahren während des Stripping-Prozesses wird abgefangen
+                   * Rückfrage, wenn Stripping abgebrochen werden soll
+                   * leicht veränderte Texte im Action-Menu
+                   * Tastatur: Unterstützt nun auch Handy-Buchstaben
+                   * Tastatur: Zeigt beim Scrollen rechts/links immer ein Zeichen mehr nach Cursor an
+
+                 BUGFIX:
+                   - Tastatur: Key für Leertaste funktionierte nicht
+
 2016-05-30 v3.6beta2  INTERNALS:
                   ** alle Hintergrundprozesse auf fork/exec und Pipes umgestellt
 
