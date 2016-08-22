@@ -94,7 +94,7 @@ static void  OSDInfoDrawPlayIcons(bool Force, bool DoSync);
 static void  OSDInfoDrawProgressbar(bool Force, bool DoSync);
 static void  OSDInfoDrawRecName(void);
 static void  OSDRedrawEverything(void);
-static void  OSDRecStripProgressBar(int percent);
+static void  OSDRecStripProgressBar(void);
 static void  OSDSegmentListDrawList(bool DoSync);
 static void  OSDSegmentTextDraw(bool Force);
 static void  OSDTextStateWindow(int MessageID);
