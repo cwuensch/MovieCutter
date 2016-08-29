@@ -1,3 +1,10 @@
+2016-07-31 v3.6RC  NEU:
+                  ** Während RecStrip im Hintergrund arbeitet, bleibt MC bedienbar!
+                   * Prozent-Anzeige während Strippen im ActionMenu
+
+                 INTERNALS:
+                  ** (unnötige?) sync-Aufrufe aus MovieCutter.c entfernt
+
 2016-07-31 v3.6beta3  INTERNALS:
                   ** vollständige Integration von RecStrip in die State-Machine
 

@@ -560,7 +560,7 @@ static int              ActionMenuItem;
 static dword            LastPlayStateChange = 0;
 static int              SegmentTextStartLine = 0;
 static bool             jfs_fsck_present = FALSE;
-static bool             RecStrip_present = FALSE, RecStrip_active = FALSE, RecStrip_DoCut = FALSE, RecStrip_Msg = FALSE;
+static bool             RecStrip_present = FALSE, RecStrip_active = FALSE, RecStrip_DoCut = FALSE;
 static pid_t            RecStrip_Pid = 0;
 static int              RecStrip_Percent = 0;
 
@@ -768,7 +768,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
 
   // Vorsicht! Ausnahme von DoNotReenter für den Fall, dass RecStrip arbeitet und der "RecStrip abbrechen?"-Dialog geöffnet ist
-  if(DoNotReenter && !(RecStrip_active && (event==EVT_IDLE || event==EVT_STOP || (event==EVT_KEY && param1==RKEY_Sleep))))
+  if(DoNotReenter && !(RecStrip_active && (event==EVT_IDLE || event==EVT_STOP)))
   {
     TRACEEXIT();
     return param1;
@@ -817,7 +817,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   } */
 #endif
 
- if(!DoNotReenter || (RecStrip_active && (event==EVT_IDLE || event==EVT_STOP || (event==EVT_KEY && param1==RKEY_Sleep))))
+  if(!WasNotReenter)
   switch(State)
   {
     // Initialisierung bei TAP-Start
@@ -1684,11 +1684,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 //            }
           }
 
-/*          case RKEY_Sleep:
+          case RKEY_Sleep:
           {
             if(RecStrip_active) ReturnKey = TRUE;
             break;
-          } */
+          }
 //          case RKEY_Stop:
           case RKEY_Mute:
           case RKEY_Power:
@@ -1941,7 +1941,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           }
         }
         
-        if ((param1 != RKEY_Mute) && (param1 != RKEY_Power) /*&& !(param1 == RKEY_Sleep && RecStrip_active)*/ )
+        if ((param1 != RKEY_Mute) && (param1 != RKEY_Power) && !(param1 == RKEY_Sleep && RecStrip_active))
           param1 = 0;
       }
       break;
@@ -2119,13 +2119,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       // FINISHED: Nachverarbeitung
       if (!RecStrip_Pid)
       {
-        if (RecStrip_Msg && OSDMenuMessageBoxIsVisible())
-        {
-          word p_Event = EVT_KEY;
-          dword p_Key = RKEY_Exit;
-          OSDMenuEvent(&p_Event, &p_Key, NULL);
-          RecStrip_Msg = FALSE;
-        }
         if (RecStrip_Return == 0)
         {
           // Set Date of Recording
@@ -2165,6 +2158,12 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 //          HDD_Delete2(RS_StripName, RS_OrigDir, TRUE);
 
         RecStrip_active = FALSE;  // State muss vor Message gesetzt werden, da für RecStrip_active eine Ausnahme von DoNotReenter bei geöffnetem Dialog besteht
+        if (OSDMenuMessageBoxIsVisible())  // "RecStrip abbrechen?" Dialog entfernen (evtl. blöd, wenn es ein anderer Dialog ist)
+        {
+          word p_Event = EVT_KEY;
+          dword p_Key = RKEY_Exit;
+          OSDMenuEvent(&p_Event, &p_Key, NULL);
+        }
 
         // END: Ausgabe
         if (rgnStripProgBar)
@@ -2217,10 +2216,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           OSDRecStripProgressBar();
         if (RecStrip_Pid)
         {
-          RecStrip_Msg = TRUE;
           if (ShowConfirmationDialog(LangGetString(LS_AbortRecStrip)))
             if (RecStrip_Pid) kill(RecStrip_Pid, SIGKILL);  // Wenn RS während Dialog beendet wird, führt der "Aktion erfolgreich" Dialog zu einer positiven Auswertung von ShowConfirmDialog -> kill(0)
-          RecStrip_Msg = FALSE;
 /*            if (!RecStrip_Pid)
           {
             TRACEEXIT();
@@ -2242,9 +2239,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       {
         char Msg[128];
         TAP_SPrint(Msg, sizeof(Msg), "%s\n\n%s", LangGetString(LS_AbortRecStrip), LangGetString(LS_ShutdownAfterRS));
-        RecStrip_Msg = TRUE;
         ShowErrorMessage(Msg, NULL);
-        RecStrip_Msg = FALSE;
         while (RecStrip_Pid)
         {
           kill (RecStrip_Pid, SIGKILL);
