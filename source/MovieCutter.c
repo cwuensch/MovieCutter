@@ -1304,6 +1304,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             PlaybackRepeatSet(OldRepeatMode);
             State = ST_InactiveModePlaying;
             ClearOSD(TRUE);
+            if (RecStrip_active && (param1 == RKEY_Exit || param1 == FKEY_Exit || param1 == RKEY_Stop))
+              OSDRecStripProgressBar();
             if ((param1 != RKEY_Exit) && (param1 != FKEY_Exit)) ReturnKey = TRUE;
 //            else if (param1 == RKEY_Info) TAP_GenerateEvent(EVT_KEY, RKEY_Info, 0);
             break;
@@ -2226,7 +2228,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         }
         param1 = 0;
       }
-      else if (rgnStripProgBar && !(param1 >= RKEY_0 && param1 <= RKEY_9))
+      else if (rgnStripProgBar && !(param1==RKEY_Stop || (param1>=RKEY_0 && param1<=RKEY_9)))
         param1 = 0;
     }
 
@@ -2482,9 +2484,6 @@ void ClearOSD(bool EnterNormal)
     rgnInfoBarMini = 0;
   }
   TAP_Osd_Sync();
-
-  if (RecStrip_active)
-    OSDRecStripProgressBar();
 
   CloseLogMC();
   if(EnterNormal)
