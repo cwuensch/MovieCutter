@@ -1,4 +1,4 @@
-2016-07-31 v3.6RC  NEU:
+2016-08-31 v3.6  NEU:
                   ** Während RecStrip im Hintergrund arbeitet, bleibt MC bedienbar!
                    * Prozent-Anzeige während Strippen im ActionMenu
 

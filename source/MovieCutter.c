@@ -1212,7 +1212,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         if (LastTotalBlocks > 0)
         {
 #ifdef FULLDEBUG
-  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_ActiveOSD, !isPlaybackRunning --> Aufruf CutFileSave()");
+  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_ActiveOSD, !isPlaybackRunning --> Aufruf von CutFileSave()");
 #endif
           CutFileSave();
         }
@@ -1293,7 +1293,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           {        
             // MC deaktivieren
 #ifdef FULLDEBUG
-  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_ActiveOSD, Key=RKEY_Exit --> Aufruf CutFileSave()");
+  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_ActiveOSD, Key=RKEY_Exit --> Aufruf von CutFileSave()");
 #endif
             if (OSDMode != MD_NoOSD)
               LastOSDMode = OSDMode;
@@ -2262,7 +2262,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       if (LastTotalBlocks > 0)
       {
 #ifdef FULLDEBUG
-  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_Exit --> Aufruf CutFileSave()");
+  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_Exit --> Aufruf von CutFileSave()");
 #endif
         if (isPlaybackRunning() && (LastTotalBlocks == PlayInfo.totalBlock))
           CutSaveToBM(TRUE);
