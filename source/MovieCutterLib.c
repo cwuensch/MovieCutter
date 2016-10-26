@@ -1510,7 +1510,7 @@ bool PatchNavFiles(const char *SourceFileName, const char *CutFileName, const ch
   FILE                 *fOldNav = NULL, *fSourceNav = NULL, *fCutNav = NULL;
   tnavSD                NavBuffer[2], *CurNavRec = &NavBuffer[0];
   off_t                 PictureHeaderOffset = 0;
-  bool                  IFrameCut, IFrameSource;
+  bool                  IFrameCut, IFrameSrc, PFrame;
   dword                 FirstCutTime, LastCutTime, FirstSourceTime, LastSourceTime;
   bool                  ret = FALSE;
 
@@ -1562,8 +1562,7 @@ bool PatchNavFiles(const char *SourceFileName, const char *CutFileName, const ch
     rewind(fOldNav);
 
   //Loop through the nav
-  IFrameCut = FALSE;
-  IFrameSource = TRUE;
+  IFrameCut = FALSE; IFrameSrc = TRUE; PFrame = TRUE;
   FirstCutTime = 0xFFFFFFFF;
   LastCutTime = 0;
   FirstSourceTime = 0;
@@ -1588,15 +1587,18 @@ bool PatchNavFiles(const char *SourceFileName, const char *CutFileName, const ch
 
       //Subtract CutStartPos from the cut .nav PH address
       PictureHeaderOffset = PictureHeaderOffset - CutStartPos;
-      if((CurNavRec->FrameType) == 1) IFrameCut = TRUE;
-      if(IFrameCut)
+      if(!IFrameCut && CurNavRec->FrameType == 1) {
+        IFrameCut = TRUE; PFrame = FALSE; }
+      if (!PFrame && CurNavRec->FrameType <= 2)
+        PFrame = TRUE;
+      if(IFrameCut && (isHD || PFrame || CurNavRec->FrameType == 1))
       {
         CurNavRec->PHOffsetHigh = PictureHeaderOffset >> 32;
         CurNavRec->PHOffset = PictureHeaderOffset & 0xffffffff;
         CurNavRec->Timems = CurNavRec->Timems - FirstCutTime;
         ret = fwrite(CurNavRec, sizeof(tnavSD) * (isHD ? 2 : 1), 1, fCutNav) && ret;
       }
-      IFrameSource = FALSE;
+      IFrameSrc = FALSE;
     }
     else
     {
@@ -1607,8 +1609,11 @@ bool PatchNavFiles(const char *SourceFileName, const char *CutFileName, const ch
         if (IgnoreRecordsAfterCut) break;
       }
 
-      if((CurNavRec->FrameType) == 1) IFrameSource = TRUE;
-      if(IFrameSource)
+      if(!IFrameSrc && CurNavRec->FrameType == 1) {
+        IFrameSrc = TRUE; PFrame = FALSE; }
+      if (!PFrame && CurNavRec->FrameType <= 2)
+        PFrame = TRUE;
+      if(IFrameSrc && (isHD || PFrame || CurNavRec->FrameType == 1))
       {
         //if ph offset >= BehindCutPos, subtract (BehindCutPos - CutStartPos)
         if(PictureHeaderOffset >= BehindCutPos)
