@@ -1587,11 +1587,11 @@ bool PatchNavFiles(const char *SourceFileName, const char *CutFileName, const ch
 
       //Subtract CutStartPos from the cut .nav PH address
       PictureHeaderOffset = PictureHeaderOffset - CutStartPos;
-      if(!IFrameCut && CurNavRec->FrameType == 1) {
-        IFrameCut = TRUE; PFrame = FALSE; }
       if (!PFrame && CurNavRec->FrameType <= 2)
         PFrame = TRUE;
-      if(IFrameCut && (isHD || PFrame || CurNavRec->FrameType == 1))
+      if(!IFrameCut && CurNavRec->FrameType == 1) {
+        IFrameCut = TRUE; PFrame = FALSE; }
+      if(IFrameCut && (/*isHD ||*/ PFrame || CurNavRec->FrameType <= 2))
       {
         CurNavRec->PHOffsetHigh = PictureHeaderOffset >> 32;
         CurNavRec->PHOffset = PictureHeaderOffset & 0xffffffff;
@@ -1609,11 +1609,11 @@ bool PatchNavFiles(const char *SourceFileName, const char *CutFileName, const ch
         if (IgnoreRecordsAfterCut) break;
       }
 
-      if(!IFrameSrc && CurNavRec->FrameType == 1) {
-        IFrameSrc = TRUE; PFrame = FALSE; }
       if (!PFrame && CurNavRec->FrameType <= 2)
         PFrame = TRUE;
-      if(IFrameSrc && (isHD || PFrame || CurNavRec->FrameType == 1))
+      if(!IFrameSrc && CurNavRec->FrameType == 1) {
+        IFrameSrc = TRUE; PFrame = FALSE; }
+      if(IFrameSrc && (/*isHD ||*/ PFrame || CurNavRec->FrameType <= 2))
       {
         //if ph offset >= BehindCutPos, subtract (BehindCutPos - CutStartPos)
         if(PictureHeaderOffset >= BehindCutPos)
