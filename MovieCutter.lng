@@ -134,6 +134,10 @@ de_107=Aktion erfolgreich abgeschlossen.\n\n%.1f von %.1f MB (%.1f %%) kopiert.
 de_108=Kopieren ist fehlgeschlagen!\nBitte das Log prüfen!
 de_109=Strippen jetzt abbrechen?
 de_110=(Dialog stehen lassen, um zu warten.)
+de_111=Separat in einzelne Rec-Files
+de_112=Gemeinsam in eine Aufnahme
+de_113=Separat, mit Strippen
+de_114=Gemeinsam, mit Strippen
 
 
 #English
@@ -248,6 +252,10 @@ en_107=Action successfully completed.\n\n%.1f of %.1f MB (%.1f %%) copied.
 en_108=Copying has failed!\nPlease check the log!
 en_109=Abort stripping now?
 en_110=(Leave this dialog open to wait.)
+en_111=Into separate Rec-Files
+en_112=Into one common recording
+en_113=Separate, with stripping
+en_114=Common, with stripping
 
 
 #French
@@ -362,6 +370,10 @@ fr_107=Action terminée avec succès.\n\n%.1f de %.1f MB (%.1f %%) copiés.
 fr_108=La copie a échoué !\nConsulter le log.
 fr_109=Interrompre l'épurage maintenant ?
 fr_110=(Laisser ce dialogue ouvert pour attendre.)
+fr_111=Into separate Rec-Files
+fr_112=Into one common recording
+fr_113=Separate, with stripping
+fr_114=Common, with stripping
 
 
 #Dutch
@@ -476,3 +488,7 @@ nl_107=Action successfully completed.\n\n%.1f of %.1f MB (%.1f %%) copied.
 nl_108=Copying has failed!\nPlease check the log!
 nl_109=Abort stripping now?
 nl_110=(Leave this dialog open to wait.)
+nl_111=Into separate Rec-Files
+nl_112=Into one common recording
+nl_113=Separate, with stripping
+nl_114=Common, with stripping

@@ -39,6 +39,7 @@ static void  ActionMenuDown(void);
 static void  ActionMenuDraw(void);
 static void  ActionMenuRemove(void);
 static void  ActionMenuUp(void);
+static void  ActionSubMenuDraw(void);
 static int   AddBookmark(dword newBlock, bool RejectSmallScenes);
 static void  AddDefaultSegmentMarker(void);
 static int   AddSegmentMarker(dword *pNewBlock, bool MoveToIFrame, bool RejectSmallSegments);
