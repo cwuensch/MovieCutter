@@ -1358,9 +1358,14 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   WriteLogMC("MovieCutterLib", LogString);
 
   //Clear all source Bookmarks
+//  memset(BookmarkInfo, 0, sizeof(TYPE_Bookmark_Info));
   memset(BookmarkInfo->Bookmarks, 0, NRBOOKMARKS * sizeof(dword));
   BookmarkInfo->NrBookmarks = 0;
-  BookmarkInfo->Resume = 0;
+
+//  if (BookmarkInfo->Resume >= BehindCutPoint->BlockNr)  // unnötig
+//    BookmarkInfo->Resume -= (BehindCutPoint->BlockNr - CutStartPoint->BlockNr);
+//  else if (BookmarkInfo->Resume > CutStartPoint->BlockNr)
+    BookmarkInfo->Resume = 0;
 
   //Copy all bookmarks which are < CutPointA or >= CutPointB
   //Move the second group by (CutPointB - CutPointA)
@@ -1448,8 +1453,10 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   RecHeaderInfo->StartTime = AddTime(OrigHeaderStartTime, CutStartPoint->Timems / 60000);
 
   //Clear all source Bookmarks
+//  memset(BookmarkInfo, 0, sizeof(TYPE_Bookmark_Info));
   memset(BookmarkInfo->Bookmarks, 0, NRBOOKMARKS * sizeof(dword));
   BookmarkInfo->NrBookmarks = 0;
+  BookmarkInfo->Resume = 0;
 
   //Copy all bookmarks which are >= CutPointA and < CutPointB
   //Move them by CutPointA

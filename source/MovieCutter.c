@@ -3616,7 +3616,7 @@ bool CutFileDecodeBin(FILE *fCut, __off64_t *OutSavedSize)
     if (ret)
     {
       SavedNrSegments = min(SavedNrSegments, NRSEGMENTMARKER);
-      while (fread(&SegmentMarker[NrSegmentMarker], sizeof(tSegmentMarker)-4, 1, fCut))
+      while (fread(&SegmentMarker[NrSegmentMarker], sizeof(tSegmentMarker)-sizeof(char*), 1, fCut))
       {
         SegmentMarker[NrSegmentMarker].pCaption = NULL;
         NrSegmentMarker++;
