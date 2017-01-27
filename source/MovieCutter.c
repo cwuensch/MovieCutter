@@ -3654,6 +3654,7 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
   char                 *Buffer = NULL;
   size_t                BufSize = 0;
   __off64_t             SavedSize = 0;
+  int                   Version = 3;
   int                   SavedNrSegments = 0;
   bool                  HeaderMode=FALSE, SegmentsMode=FALSE;
   char                  TimeStamp[16];
@@ -3671,7 +3672,7 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
     // Check the first line
     if (getline(&Buffer, &BufSize, fCut) >= 0)
     {
-      if (strncmp(Buffer, "[MCCut3]", 8) == 0)
+      if ((strncmp(Buffer, "[MCCut3]", 8)==0) || ((strncmp(Buffer, "[MCCut4]", 8)==0) && ((Version = 4))))
       {
         HeaderMode = TRUE;
         ret = TRUE;
@@ -3740,12 +3741,15 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
       // Segmente einlesen
       else if (SegmentsMode)
       {
+        __off64_t       Value;
+
         //[Segments]
         //#Nr. ; Sel ; StartBlock ; StartTime ; Percent
-        if (sscanf(Buffer, "%*i ; %c ; %lu ; %15[^;\r\n] ; %f%%%n", &Selected, &SegmentMarker[NrSegmentMarker].Block, TimeStamp, &SegmentMarker[NrSegmentMarker].Percent, &ReadBytes) >= 3)
+        if (sscanf(Buffer, "%*i ; %c ; %lld ; %15[^;\r\n] ; %f%%%n", &Selected, &Value, TimeStamp, &SegmentMarker[NrSegmentMarker].Percent, &ReadBytes) >= 3)
         {
           SegmentMarker[NrSegmentMarker].Selected = (Selected == '*');
-          SegmentMarker[NrSegmentMarker].Timems = (TimeStringToMSec(TimeStamp));
+          SegmentMarker[NrSegmentMarker].Block    = ((Version >= 4) ? CalcBlockSize(Value) : (dword)Value);
+          SegmentMarker[NrSegmentMarker].Timems   = (TimeStringToMSec(TimeStamp));
           SegmentMarker[NrSegmentMarker].pCaption = NULL;
           while (Buffer[ReadBytes] && (Buffer[ReadBytes] == ' ' || Buffer[ReadBytes] == ';'))  ReadBytes++;
           if (Buffer[ReadBytes])
@@ -3825,7 +3829,11 @@ bool CutFileLoad(void)
     if(fCut)
     {
       Version = fgetc(fCut);
-      if (Version == '[') Version = 3;
+      if (Version == '[')
+      {
+        fseek(fCut, 6, SEEK_SET);
+        Version = fgetc(fCut) - '0';
+      }
       rewind(fCut);
 
       #ifdef FULLDEBUG
@@ -3840,7 +3848,7 @@ bool CutFileLoad(void)
           break;
         }
         case 3:
-        default:
+        case 4:
         {
           ret = CutFileDecodeTxt(fCut, &SavedSize);
           break;
