@@ -1583,13 +1583,6 @@ bool PatchNavFiles(const char *SourceFileName, const char *CutFileName, const ch
     PictureHeaderOffset = ((off_t)(CurNavRec->PHOffsetHigh) << 32) | CurNavRec->PHOffset;
     if((PictureHeaderOffset >= CutStartPos) && (PictureHeaderOffset < BehindCutPos))
     {
-      if (FirstCutTime == 0xFFFFFFFF) 
-      {
-        if (CutStartPos == 0)
-          FirstCutTime = 0;
-        else
-          FirstCutTime = CurNavRec->Timems;
-      }
       LastCutTime = CurNavRec->Timems;
 
       //Subtract CutStartPos from the cut .nav PH address
@@ -1600,6 +1593,14 @@ bool PatchNavFiles(const char *SourceFileName, const char *CutFileName, const ch
         IFrameCut = TRUE; PFrame = FALSE; }
       if(IFrameCut && (/*isHD ||*/ PFrame || CurNavRec->FrameType <= 2))
       {
+        if (FirstCutTime == 0xFFFFFFFF) 
+        {
+          if (CutStartPos == 0)
+            FirstCutTime = 0;
+          else
+            FirstCutTime = CurNavRec->Timems;
+        }
+
         CurNavRec->PHOffsetHigh = PictureHeaderOffset >> 32;
         CurNavRec->PHOffset = PictureHeaderOffset & 0xffffffff;
         CurNavRec->Timems = CurNavRec->Timems - FirstCutTime;
@@ -1611,7 +1612,6 @@ bool PatchNavFiles(const char *SourceFileName, const char *CutFileName, const ch
     {
       if (PictureHeaderOffset >= BehindCutPos)
       {
-        if (FirstSourceTime == 0) FirstSourceTime = CurNavRec->Timems;
         LastSourceTime = CurNavRec->Timems;
         if (IgnoreRecordsAfterCut) break;
       }
@@ -1625,6 +1625,7 @@ bool PatchNavFiles(const char *SourceFileName, const char *CutFileName, const ch
         //if ph offset >= BehindCutPos, subtract (BehindCutPos - CutStartPos)
         if(PictureHeaderOffset >= BehindCutPos)
         {
+          if (FirstSourceTime == 0) FirstSourceTime = CurNavRec->Timems;
           PictureHeaderOffset = PictureHeaderOffset - (BehindCutPos - CutStartPos);
           CurNavRec->PHOffsetHigh = PictureHeaderOffset >> 32;
           CurNavRec->PHOffset = PictureHeaderOffset & 0xffffffff;

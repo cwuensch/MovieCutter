@@ -2093,7 +2093,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           int i;
           for (i = 0; i < NrSegmentMarker-2; i++)
             if (SegmentMarker[i].Selected)
-              RS_OrigSize += (SegmentMarker[i+1].Block - SegmentMarker[i].Block) * 9024; */
+              RS_OrigSize += (SegmentMarker[i+1].Block - SegmentMarker[i].Block) * 9024LL; */
         }
         else
         {
@@ -3653,9 +3653,9 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
 {
   char                 *Buffer = NULL;
   size_t                BufSize = 0;
-  __off64_t             SavedSize = 0;
+  __off64_t             SavedSize = -1;
   int                   Version = 3;
-  int                   SavedNrSegments = 0;
+  int                   SavedNrSegments = -1;
   bool                  HeaderMode=FALSE, SegmentsMode=FALSE;
   char                  TimeStamp[16];
   char                 *c, Selected;
@@ -3707,7 +3707,7 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
         {
           HeaderMode = FALSE;
           // Header überprüfen
-          if ((SavedSize <= 0) || (SavedNrSegments < 0))
+          if ((SavedSize < 0) || (SavedNrSegments < 0))
           {
             ret = FALSE;
             break;
@@ -3922,7 +3922,7 @@ bool CutFileLoad(void)
             if (CurTimeStamp->BlockNr < PlayInfo.totalBlock)
             {
               SegmentMarker[i].Block = CurTimeStamp->BlockNr;
-              SegmentMarker[i].Timems = NavGetBlockTimeStamp(SegmentMarker[i].Block);
+              SegmentMarker[i].Timems = CurTimeStamp->Timems;   // NavGetBlockTimeStamp(SegmentMarker[i].Block);
 //              SegmentMarker[i].Selected = FALSE;
               MSecToTimeString(SegmentMarker[i].Timems, curTimeStr);
               TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "  -->  newBlock=%lu   newTimeStamp=%s", SegmentMarker[i].Block, curTimeStr);
