@@ -328,13 +328,13 @@ typedef enum
  // Strippen und Teile kopieren (8)
   LS_SegmentNr,
   LS_EnterText,
-  LS_CopyNrSegments,
-  LS_Copy1Segment,
-  LS_CopyCurSegment,
+  LS_CopySegments,
   LS_StripRec,
   LS_StrippedRec,
   LS_StrippingMsg,
-  LS_StripSuccess,
+  LS_Success,
+  LS_BytesCopied,
+  LS_SegmentsCopied,
   LS_StripFailed,
   LS_AbortRecStrip,
   LS_ShutdownAfterRS,
@@ -452,13 +452,13 @@ static char* DefaultStrings[LS_NrStrings] =
   "Speichern",
   "%hd. Segment",
   "Text eingeben",
-  "Teile kopieren: %d markierte Seg.",
-  "Teile kopieren: Markiertes Segm.",
-  "Teile kopieren: Aktuelles Segment",
+  "Teile kopieren...",
   "Aufnahme strippen",
   "Aufnahme bereits gestrippt",
   "Kopie erstellen...",
-  "Aktion erfolgreich abgeschlossen.\n\n%.1f von %.1f MB (%.1f %%) kopiert.",
+  "Aktion erfolgreich abgeschlossen.",
+  "%.1f von %.1f MB (%.1f %%) kopiert.",
+  "%d Segmente kopiert.",
   "Kopieren ist fehlgeschlagen!\nBitte das Log prüfen!",
   "Strippen jetzt abbrechen?",
   "(Dialog stehen lassen, um zu warten.)",
@@ -1228,7 +1228,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         if (LastTotalBlocks > 0)
         {
 #ifdef FULLDEBUG
-  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_ActiveOSD, !isPlaybackRunning --> Aufruf von CutFileSave()");
+  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_ActiveOSD, !isPlaybackRunning --> CutFileSave()");
 #endif
           CutFileSave();
         }
@@ -1309,7 +1309,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           {        
             // MC deaktivieren
 #ifdef FULLDEBUG
-  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_ActiveOSD, Key=RKEY_Exit --> Aufruf von CutFileSave()");
+  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_ActiveOSD, Key=RKEY_Exit --> CutFileSave()");
 #endif
             if (OSDMode != MD_NoOSD)
               LastOSDMode = OSDMode;
@@ -1984,7 +1984,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           case RKEY_3:
           case RKEY_4:
           {
-            ActionSubMenuItem = param1 & 0x0f;
+            ActionSubMenuItem = (param1 & 0x0f) - 1;
             ActionSubMenuDraw();
             // fortsetzen mit OK-Button ...
           }
@@ -1999,11 +1999,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             ActionMenuRemove();
             State = ST_ActiveOSD;
 
-            WriteLogMCf(PROGRAM_NAME, "[Action 'Copy parts' started...]");
+            RecStrip_DoCut = ActionSubMenuItem + 1;
+            WriteLogMCf(PROGRAM_NAME, "[Action 'Copy parts' [%d] started...]", RecStrip_DoCut);
             CutSaveToBM(FALSE);
             CutFileSave();
             TAP_Hdd_StopTs();
-            RecStrip_DoCut = ActionSubMenuItem + 1;
             RecStrip_active = TRUE;
             RecStrip_Percent = 0;
 //            ClearOSD(TRUE);
@@ -2068,7 +2068,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       static char       RS_StripName[MAX_FILE_NAME_SIZE], RS_BakName[MAX_FILE_NAME_SIZE];
       static __off64_t  RS_OrigSize;
       static dword      LastRefresh;
-      static int        RecStrip_Return = -1;
+      static int        RS_NrSegments, RecStrip_Return = -1;
       static int        pipefd[2];
       static int        ReadBytes = 0;
       __off64_t         StripFileSize;
@@ -2084,6 +2084,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         strcpy(RS_OrigDir, AbsPlaybackDir);
         strcpy(RS_OrigName, PlaybackName);
         RS_OrigSize = RecFileSize;
+        RS_NrSegments = NrSelectedSegments;
 
         // Neue Dateinamen berechnen
         if (RecStrip_DoCut)
@@ -2287,7 +2288,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         if (RecStrip_Return == 0)
         {
           char MessageStr[128];
-          TAP_SPrint(MessageStr, sizeof(MessageStr), LangGetString(LS_StripSuccess), CalcBlockSize(StripFileSize)/116.1986, CalcBlockSize(RS_OrigSize)/116.1986, ((double)CalcBlockSize(StripFileSize)/CalcBlockSize(RS_OrigSize))*100);
+          TAP_SPrint(MessageStr, sizeof(MessageStr), "%s\n\n", LangGetString(LS_Success));
+          if (RecStrip_DoCut == 1 || RecStrip_DoCut == 3)
+            TAP_SPrint(&MessageStr[strlen(MessageStr)], sizeof(MessageStr)-strlen(MessageStr), LangGetString(LS_SegmentsCopied), RS_NrSegments);
+          else
+            TAP_SPrint(&MessageStr[strlen(MessageStr)], sizeof(MessageStr)-strlen(MessageStr), LangGetString(LS_BytesCopied), CalcBlockSize(StripFileSize)/116.1986, CalcBlockSize(RS_OrigSize)/116.1986, ((double)CalcBlockSize(StripFileSize)/CalcBlockSize(RS_OrigSize))*100);
           WriteLogMC(PROGRAM_NAME, MessageStr);
           if (!ShutdownAfterRS)
             ShowErrorMessage(MessageStr, NULL);
@@ -2369,7 +2374,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       if (LastTotalBlocks > 0)
       {
 #ifdef FULLDEBUG
-  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_Exit --> Aufruf von CutFileSave()");
+  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_Exit --> CutFileSave()");
 #endif
         if (isPlaybackRunning() && (LastTotalBlocks == PlayInfo.totalBlock))
           CutSaveToBM(TRUE);
@@ -2637,9 +2642,9 @@ void CleanupCut(void)
   if (DeleteCutFiles)
   {
     if (DeleteCutFiles != 2)
-      system("sh " TAPFSROOT LOGDIR "/DeleteCuts.sh &");
+      system("bash " TAPFSROOT LOGDIR "/DeleteCuts.sh &");
     else
-      system("sh " TAPFSROOT LOGDIR "/DeleteCuts.sh --recursive &");
+      system("bash " TAPFSROOT LOGDIR "/DeleteCuts.sh --recursive &");
   }
   TRACEEXIT();
 }
@@ -4825,7 +4830,7 @@ void OSDInfoDrawRecName(void)
   int                   TitleHeight, TitleTop;
   char                  TitleStr[MAX_FILE_NAME_SIZE];
   char                  TimeStr[8];
-  dword                 TimeVal, Hours, Minutes, Seconds;
+  dword                 TimeVal;
 
   #ifdef MC_UNICODE
     tFontDataUC        *UseTitleFont = NULL;
@@ -4895,27 +4900,7 @@ void OSDInfoDrawRecName(void)
 //    if(PLAYINFOVALID())  // bei ungültiger PlayInfo lautet schlimmstenfalls die Zeitanzeige 99:99
 //    {
       TimeVal = PlayInfo.duration * 60 + PlayInfo.durationSec;
-      if (TimeVal >= 3600)
-      {
-        Hours    = (int)(TimeVal / 3600);
-        Minutes  = (int)(TimeVal / 60) % 60;
-        if (Hours >= 100) {Hours = 99; Minutes = 99;}
-        TAP_SPrint(TimeStr, 8, "%lu:%02lu h", Hours, Minutes);
-      }
-      else if (TimeVal >= 60)
-      {
-        Minutes  = (int)(TimeVal / 60) % 60;
-        Seconds  = TimeVal % 60;
-        if (Minutes < 10)
-          TAP_SPrint(TimeStr, 7, "%lu:%02lu m", Minutes, Seconds);
-        else
-          TAP_SPrint(TimeStr, 7, "%lu min", Minutes);
-      }
-      else
-      {
-        Seconds  = TimeVal % 60;
-        TAP_SPrint(TimeStr, 7, "%lu sek", Seconds);
-      }
+      SecToDurationStr(TimeVal, TimeStr);
       FM_PutString(rgnInfoBar, TimeLeft, TimeTop, TimeLeft + TimeWidth - 1, TimeStr, COLOR_White, ColorInfoBarTitle, &Calibri_12_FontData, FALSE, ALIGN_CENTER);
 //    }
   }
@@ -5284,11 +5269,15 @@ void OSDSegmentTextDraw(bool Force)
       SecToTimeString((SegmentMarker[CurrentSegment + 1].Timems) / 1000, EndTime);
       TAP_SPrint(curLine, sizeof(curLine), "%s - %s", StartTime, EndTime);
       FM_PutString(rgnSegmentText, RegionWidth/2-80, 4, RegionWidth/2+80, curLine, COLOR_White, ColorInfoBarLightSub, &Calibri_12_FontData, TRUE, ALIGN_CENTER);
-      SecToTimeString((SegmentMarker[CurrentSegment + 1].Timems - SegmentMarker[CurrentSegment].Timems) / 1000, EndTime);
+/*      SecToTimeString((SegmentMarker[CurrentSegment + 1].Timems - SegmentMarker[CurrentSegment].Timems) / 1000, EndTime);
       if ((SegmentMarker[CurrentSegment + 1].Timems - SegmentMarker[CurrentSegment].Timems) / 1000 < 3600)
-        TAP_SPrint(curLine, sizeof(curLine), "%s min", &EndTime[2]);
+        TAP_SPrint(curLine, sizeof(curLine), "%s min", (EndTime[2]=='0') ? &EndTime[3] : &EndTime[2]);
       else
+      {
+        strrchr(EndTime, ':')[0] = '\0';
         TAP_SPrint(curLine, sizeof(curLine), "%s h", EndTime);
+      } */
+      SecToDurationStr((SegmentMarker[CurrentSegment + 1].Timems - SegmentMarker[CurrentSegment].Timems) / 1000, curLine);
       FM_PutString(rgnSegmentText, RegionWidth-100, 4, RegionWidth-15-_Icon_SegmentText_Gd.width, curLine, COLOR_White, ColorInfoBarLightSub, &Calibri_12_FontData, TRUE, ALIGN_RIGHT);
       TAP_Osd_PutGd(rgnSegmentText, RegionWidth-_Icon_SegmentText_Gd.width-5, 9, &_Icon_SegmentText_Gd, TRUE);
 
@@ -5521,7 +5510,7 @@ void ActionMenuDraw(void)
       {
         if (!BookmarkMode)
         {
-          if (NrSelectedSegments == 0)
+/*          if (NrSelectedSegments == 0)
             DisplayStr = LangGetString(LS_CopyCurSegment);
           else if (NrSelectedSegments == 1)
             DisplayStr = LangGetString(LS_Copy1Segment);
@@ -5529,12 +5518,13 @@ void ActionMenuDraw(void)
           {
             TAP_SPrint(TempStr, sizeof(TempStr), LangGetString(LS_CopyNrSegments), NrSelectedSegments);
             DisplayStr = TempStr;
-          }
+          } */
+          DisplayStr = LangGetString(LS_CopySegments);
           if (RecStrip_active && RecStrip_DoCut)
           {
             char *p;
             TAP_SPrint(TempStr, sizeof(TempStr), DisplayStr);
-            p = strchr(TempStr, ':');
+            p = strchr(TempStr, '.');
             if (p) *p = '\0';
             TAP_SPrint(&TempStr[strlen(TempStr)], sizeof(TempStr)-strlen(TempStr), " (%d %%)", RecStrip_Percent);
             DisplayStr = TempStr;
@@ -7236,6 +7226,32 @@ void CheckLastSeconds(void)
     LastSecondsPaused = FALSE;
 
   TRACEEXIT();
+}
+
+void SecToDurationStr(dword Time, char *const OutTimeStr)  // needs max. 8 chars
+{
+  dword Hours, Minutes, Seconds;
+  if (Time >= 3600)
+  {
+    Hours    = (int)(Time / 3600);
+    Minutes  = (int)(Time / 60) % 60;
+    if (Hours >= 100) {Hours = 99; Minutes = 99;}
+    TAP_SPrint(OutTimeStr, 8, "%lu:%02lu h", Hours, Minutes);
+  }
+  else if (Time >= 60)
+  {
+    Minutes  = (int)(Time / 60) % 60;
+    Seconds  = Time % 60;
+    if (Minutes < 10)
+      TAP_SPrint(OutTimeStr, 7, "%lu:%02lu m", Minutes, Seconds);
+    else
+      TAP_SPrint(OutTimeStr, 7, "%lu min", Minutes);
+  }
+  else
+  {
+    Seconds  = Time % 60;
+    TAP_SPrint(OutTimeStr, 7, "%lu sek", Seconds);
+  }
 }
 
 

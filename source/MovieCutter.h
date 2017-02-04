@@ -25,7 +25,7 @@ typedef struct
   float                 Percent;
   bool                  Selected;
   char                 *pCaption;
-} tSegmentMarker;
+}__attribute__((packed)) tSegmentMarker;
 
 
 int fseeko64 (FILE *__stream, __off64_t __off, int __whence);
@@ -115,6 +115,7 @@ static void  Playback_Slow(void);
 static void  Playback_Slower(void);
 static void  ResetSegmentMarkers(void);
 static void  SaveINI(void);
+static void  SecToDurationStr(dword Time, char *const OutTimeStr);  // needs max. 8 chars
 static bool  SelectSegmentMarker(void);
 static void  SetCurrentSegment(void);
 static bool  SetPlaybackSpeed(TYPE_TrickMode newTrickMode, byte newTrickModeSpeed);

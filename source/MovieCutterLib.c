@@ -783,10 +783,12 @@ bool WriteByteToFile(const char *FileName, const char *AbsDirectory, off_t ByteP
   }
 
   // Print to log
-  if (NewValue != 'G')
+  WriteLogMCf("MovieCutterLib", "%s Sync-Byte: File '%s', position %llu: Changed value %#4hhx -> %#4hhx.", ((NewValue=='G') ? "Restore" : "Remove"), FileName, BytePosition, OldValue, NewValue);
+/* if (NewValue != 'G')
     WriteLogMCf("MovieCutterLib", "Remove Sync-Byte: Changed value in file '%s' at position %llu from %#4hhx to %#4hhx.", FileName, BytePosition, OldValue, NewValue);
   else
     WriteLogMCf("MovieCutterLib", "Restore Sync-Byte: Changed value in file '%s' at position %llu from %#4hhx to %#4hhx.", FileName, BytePosition, OldValue, NewValue);
+*/
 
   TRACEEXIT();
   return TRUE;
@@ -1293,7 +1295,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   }
 
   //Captions in den ExtEventText einfügen und Event-Strings von Datenmüll reinigen
-  TYPE_RecHeader_TMSC *RecHeader = (TYPE_RecHeader_TMSC*)Buffer;
+  TYPE_RecHeader_TMSS *RecHeader = (TYPE_RecHeader_TMSS*)Buffer;
   dword p = strlen(RecHeader->EventInfo.EventNameDescription);
   if (p < sizeof(RecHeader->EventInfo.EventNameDescription))
     memset(&RecHeader->EventInfo.EventNameDescription[p], 0, sizeof(RecHeader->EventInfo.EventNameDescription) - p);
@@ -1583,6 +1585,13 @@ bool PatchNavFiles(const char *SourceFileName, const char *CutFileName, const ch
     PictureHeaderOffset = ((off_t)(CurNavRec->PHOffsetHigh) << 32) | CurNavRec->PHOffset;
     if((PictureHeaderOffset >= CutStartPos) && (PictureHeaderOffset < BehindCutPos))
     {
+      if (FirstCutTime == 0xFFFFFFFF)
+      {
+        if (CutStartPos == 0)
+          FirstCutTime = 0;
+        else
+          FirstCutTime = CurNavRec->Timems;
+      }
       LastCutTime = CurNavRec->Timems;
 
       //Subtract CutStartPos from the cut .nav PH address
@@ -1593,14 +1602,6 @@ bool PatchNavFiles(const char *SourceFileName, const char *CutFileName, const ch
         IFrameCut = TRUE; PFrame = FALSE; }
       if(IFrameCut && (/*isHD ||*/ PFrame || CurNavRec->FrameType <= 2))
       {
-        if (FirstCutTime == 0xFFFFFFFF) 
-        {
-          if (CutStartPos == 0)
-            FirstCutTime = 0;
-          else
-            FirstCutTime = CurNavRec->Timems;
-        }
-
         CurNavRec->PHOffsetHigh = PictureHeaderOffset >> 32;
         CurNavRec->PHOffset = PictureHeaderOffset & 0xffffffff;
         CurNavRec->Timems = CurNavRec->Timems - FirstCutTime;
@@ -1612,6 +1613,7 @@ bool PatchNavFiles(const char *SourceFileName, const char *CutFileName, const ch
     {
       if (PictureHeaderOffset >= BehindCutPos)
       {
+        if (FirstSourceTime == 0) FirstSourceTime = CurNavRec->Timems;
         LastSourceTime = CurNavRec->Timems;
         if (IgnoreRecordsAfterCut) break;
       }
@@ -1625,7 +1627,6 @@ bool PatchNavFiles(const char *SourceFileName, const char *CutFileName, const ch
         //if ph offset >= BehindCutPos, subtract (BehindCutPos - CutStartPos)
         if(PictureHeaderOffset >= BehindCutPos)
         {
-          if (FirstSourceTime == 0) FirstSourceTime = CurNavRec->Timems;
           PictureHeaderOffset = PictureHeaderOffset - (BehindCutPos - CutStartPos);
           CurNavRec->PHOffsetHigh = PictureHeaderOffset >> 32;
           CurNavRec->PHOffset = PictureHeaderOffset & 0xffffffff;

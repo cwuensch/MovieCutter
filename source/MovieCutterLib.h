@@ -44,7 +44,7 @@ typedef struct
   dword                 NextPH;
   dword                 Timems;
   dword                 Zero5;
-} tnavSD;
+}__attribute__((packed)) tnavSD;
 
 typedef struct
 {
@@ -71,7 +71,7 @@ typedef struct
   dword                 Zero6;
   dword                 Zero7;
   dword                 Zero8;
-} tnavHD;
+}__attribute__((packed)) tnavHD;
 
 
 extern int  CUTPOINTSEARCHRADIUS;
