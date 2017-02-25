@@ -25,7 +25,7 @@ typedef struct
   float                 Percent;
   bool                  Selected;
   char                 *pCaption;
-}__attribute__((packed)) tSegmentMarker;
+} tSegmentMarker;
 
 
 int fseeko64 (FILE *__stream, __off64_t __off, int __whence);

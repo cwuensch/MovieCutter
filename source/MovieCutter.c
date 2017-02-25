@@ -2000,7 +2000,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             State = ST_ActiveOSD;
 
             RecStrip_DoCut = ActionSubMenuItem + 1;
-            WriteLogMCf(PROGRAM_NAME, "[Action 'Copy parts' [%d] started...]", RecStrip_DoCut);
+            WriteLogMCf(PROGRAM_NAME, "[Action 'Copy parts' (%d) started...]", RecStrip_DoCut);
             CutSaveToBM(FALSE);
             CutFileSave();
             TAP_Hdd_StopTs();
@@ -2642,9 +2642,9 @@ void CleanupCut(void)
   if (DeleteCutFiles)
   {
     if (DeleteCutFiles != 2)
-      system("bash " TAPFSROOT LOGDIR "/DeleteCuts.sh &");
+      system("sh " TAPFSROOT LOGDIR "/DeleteCuts.sh &");
     else
-      system("bash " TAPFSROOT LOGDIR "/DeleteCuts.sh --recursive &");
+      system("sh " TAPFSROOT LOGDIR "/DeleteCuts.sh --recursive &");
   }
   TRACEEXIT();
 }

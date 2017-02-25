@@ -1443,7 +1443,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
       }
     }
     else
-      TAP_SPrint(RecHeader->ExtEventInfo.Text, sizeof(RecHeader->ExtEventInfo.Text), OldEventText);
+      strncpy(RecHeader->ExtEventInfo.Text, OldEventText, sizeof(RecHeader->ExtEventInfo.Text));
     RecHeader->ExtEventInfo.TextLength = strlen(RecHeader->ExtEventInfo.Text);
   }
 
