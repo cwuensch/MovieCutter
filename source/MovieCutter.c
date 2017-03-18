@@ -2203,7 +2203,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             }
 //else if (ReadBytes > 0)
 //  TAP_PrintNet("ACHTUNG Teil: %s\n", PercentBuf);
-/*                if (fStripFile < 0)
+/*            if (fStripFile < 0)
               fStripFile = open(AbsStripName, O_RDONLY);
             if (fStripFile >= 0)
               fsync(fStripFile);
@@ -2231,15 +2231,15 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       {
         if (RecStrip_Return == 0)
         {
-          // Set Date of Recording
-          char FileName[FBLIB_DIR_SIZE];
-//          dword FileDate;
-
 //          sync();
 //          TAP_Sleep(1);
           HDD_GetFileSizeAndInode2(RS_StripName, RS_OrigDir, NULL, &StripFileSize);
 
-/*          TAP_SPrint(FileName, sizeof(FileName), "%s/%s", RS_OrigDir, RS_OrigName);
+/*          // Set Date of Recording
+          char FileName[FBLIB_DIR_SIZE];
+          dword FileDate;
+
+          TAP_SPrint(FileName, sizeof(FileName), "%s/%s", RS_OrigDir, RS_OrigName);
           FileDate = Unix2TFTime(HDD_GetFileTimeByAbsFileName(FileName));
 
           TAP_SPrint(FileName, sizeof(FileName), "%s.inf", RS_OrigName);    HDD_SetFileDateTime(FileName, RS_OrigDir, FileDate); 
@@ -2254,7 +2254,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           // Falls erfolgreich, Aufnahmen umbenennen
           if (!RecStrip_DoCut)
           {
-            if (HDD_Exist2(FileName, RS_OrigDir))
+            if (HDD_Exist2(RS_StripName, RS_OrigDir))
             {
               WriteLogMCf(PROGRAM_NAME, "Renaming original recording '%s' to '%s'", RS_OrigName, RS_BakName);
               HDD_Rename2(RS_OrigName, RS_BakName, RS_OrigDir, TRUE, TRUE);

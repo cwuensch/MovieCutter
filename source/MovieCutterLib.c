@@ -1295,7 +1295,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   }
 
   //Captions in den ExtEventText einfügen und Event-Strings von Datenmüll reinigen
-  TYPE_RecHeader_TMSS *RecHeader = (TYPE_RecHeader_TMSS*)Buffer;
+  TYPE_RecHeader_TMSC *RecHeader = (TYPE_RecHeader_TMSC*)Buffer;
   dword p = strlen(RecHeader->EventInfo.EventNameDescription);
   if (p < sizeof(RecHeader->EventInfo.EventNameDescription))
     memset(&RecHeader->EventInfo.EventNameDescription[p], 0, sizeof(RecHeader->EventInfo.EventNameDescription) - p);
