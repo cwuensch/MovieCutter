@@ -360,7 +360,7 @@ fr_097=Annuler
 fr_098=Sauveg.
 fr_099=Segment %hd
 fr_100=Entrer le texte
-fr_101=Créer copie...
+fr_101=Copier les segments...
 fr_102=Épurer l'enregistrement
 fr_103=L'enregistrement est déjà épuré
 fr_104=Copie en cours...
@@ -370,10 +370,10 @@ fr_107=%d segments copiés.
 fr_108=La copie a échoué !\nConsulter le log.
 fr_109=Interrompre l'épurage maintenant ?
 fr_110=(Laisser ce dialogue ouvert pour attendre.)
-fr_111=Into separate Rec-Files
-fr_112=Into one common recording
-fr_113=Separate, with stripping
-fr_114=Common, with stripping
+fr_111=dans fichiers Rec séparés
+fr_112=ensemble dans un fichier
+fr_113=séparés, avec épuration
+fr_114=ensemble, avec épuration
 
 
 #Dutch
