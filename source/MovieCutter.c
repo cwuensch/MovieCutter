@@ -4693,7 +4693,7 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
       {
 //        if(Bookmarks[i] <= PlayInfo.totalBlock)
 //        {
-          curPos     = min((dword)((float)Bookmarks[i] * ProgBarWidth / PlayInfo.totalBlock), (dword)ProgBarWidth + 1);
+          curPos = min((dword)((float)Bookmarks[i] * ProgBarWidth / PlayInfo.totalBlock), (dword)ProgBarWidth + 1);
           if (BookmarkMode)
           {
             if (i == NearestMarker)
@@ -7027,12 +7027,11 @@ CutDumpList();
         break;
       }
 
-//      ReadBookmarks(Bookmarks, &NrBookmarks);
-      CutSaveToBM(TRUE);
+      ReadBookmarks(Bookmarks, &NrBookmarks);
+      CutSaveToBM(FALSE);
 
       JumpRequestedSegment = 0xFFFF;
       JumpRequestedBlock = (dword) -1;
-      NrBookmarks = 0;
       OSDSegmentListDrawList(FALSE);
       OSDInfoDrawProgressbar(TRUE, TRUE);
 
