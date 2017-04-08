@@ -107,6 +107,8 @@ Not every action is availably at any time. If some action is missing, try changi
 
 Options in the MovieCutter.ini
 ==============================
+[since V. 3.6]
+  - StripMode:			0: Remove only filler data when stripping. - 1: also the EPG-track. - 2: also the die teletext track. - 3: both
 [since V. 3.3]
   - CutFileMode:		0: Save the cut markers in cut- and inf-file. - 1: cut-file only. - 2: inf-file only.
   - DeleteCutFiles:		0: Never delete orphaned cut files. - 1: only in /DataFiles. - 2: recursively in subdirectories.

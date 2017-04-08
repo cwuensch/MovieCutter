@@ -1,3 +1,16 @@
+2017-03-31 v3.6b NEU:
+                  ** neues Submenü für "Teile kopieren" (separat/gemeinsam, mit/ohne Strippen)
+                  ** nav-Erzeugung: nicht darstellbare B-Frames vor/nach dem ersten I-Frame werden ignoriert
+                   * liest cut-Format v4 (Byte-Positionen statt Block-Nummern)
+
+                 RecStrip 1.0
+                   - separates Kopieren mehrerer Segmente möglich
+                   - Filler-NALUs, die genau am Paketanfang beginnen, werden komplett entfernt (anstatt ein Paket zu belassen)
+                   - Bestimmung von Sender und Startzeit aus TS
+
+                 jfs_icheck 0.4
+                   - Workaround für weiteren Bug in Schnittfunktion (inkorrekte Anpassung der Subtree-Size bei stark fragmentierten Aufnahmen)
+
 2016-08-31 v3.6  NEU:
                   ** Während RecStrip im Hintergrund arbeitet, bleibt MC bedienbar!
                    * Prozent-Anzeige während Strippen im ActionMenu

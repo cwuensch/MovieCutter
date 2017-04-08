@@ -5446,7 +5446,7 @@ void ActionMenuDraw(void)
   for (i = 0; i < MI_NrMenuItems; i++)
   {
     DisplayStr = NULL;
-    DisplayColor = (ActionMenuItem == i ? COLOR_Black : COLOR_White);
+    DisplayColor = (i == ActionMenuItem ? COLOR_Black : COLOR_White);
     switch(i)
     {
       case MI_SelectFunction:
@@ -5671,7 +5671,7 @@ void ActionSubMenuDraw(void)
   // Menü-Einträge zeichnen
   for (i = 0; i < 4; i++)
   {
-    FM_PutString(rgnActionSubMenu, TextFieldStart_X + 5, TextFieldStart_Y + (TextFieldHeight+TextFieldDist) * i + 1, ShortButtonLeft, LangGetString(LS_CopySeparate+i), COLOR_White, COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT);
+    FM_PutString(rgnActionSubMenu, TextFieldStart_X + 5, TextFieldStart_Y + (TextFieldHeight+TextFieldDist) * i + 1, ShortButtonLeft, LangGetString(LS_CopySeparate+i), (i==ActionSubMenuItem ? COLOR_Black : COLOR_White), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT);
   }
 
   TAP_Osd_Sync();
