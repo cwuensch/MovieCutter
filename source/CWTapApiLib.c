@@ -585,12 +585,22 @@ bool ConvertUTFStr(char *DestStr, char *SourceStr, int MaxLen, bool ToUnicode)
     else
       StrToISO(SourceStr, TempStr);
 
-    if (!ToUnicode && (SourceStr[0] >= 0x20) && (strlen(TempStr) < strlen(SourceStr)))
+    if (!ToUnicode)
     {
-      DestStr[0] = 0x05;
-      DestStr++;
-      MaxLen--;
+      if ((SourceStr[0] >= 0x20) && (strlen(TempStr) < strlen(SourceStr)))
+      {
+        DestStr[0] = 0x05;
+        DestStr++;
+        MaxLen--;
+      }
+      else if (SourceStr[0] >= 0x15)
+      {
+        DestStr[0] = 0x05;
+        DestStr++;
+        SourceStr++;
+      }
     }
+
     TempStr[MaxLen-1] = 0;
     if (ToUnicode && ((TempStr[strlen(TempStr)-1] & 0xC0) == 0xC0))
       TempStr[strlen(TempStr)-1] = 0;

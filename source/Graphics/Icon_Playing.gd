@@ -1,6 +1,6 @@
 #include "tap.h"
 
-byte _Icon_Playing_Cpm[] =
+static byte _Icon_Playing_Cpm[] =
 {
   0x00, 0x08, 0x1B, 0x90, 0xFF, 0xFF, 0x00, 0x01, 0x00, 0x01, 
   0x00, 0x4A, 0x40, 0xE0, 0xFF, 0xFF, 0x06, 0x40, 
@@ -11,7 +11,7 @@ byte _Icon_Playing_Cpm[] =
   0x7D, 0x78, 0xBF, 0xB8, 
 };
 
-TYPE_GrData _Icon_Playing_Gd =
+static TYPE_GrData _Icon_Playing_Gd =
 {
   1,                              //version
   0,                              //reserved

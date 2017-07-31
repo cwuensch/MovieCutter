@@ -1,6 +1,6 @@
 #include "tap.h"
 
-byte _Icon_Ffwd_Cpm[] =
+static byte _Icon_Ffwd_Cpm[] =
 {
   0x00, 0x08, 0x1B, 0x90, 0xFF, 0xFF, 0x00, 0x01, 0x00, 0x01, 
   0x00, 0x48, 0xE9, 0x2B, 0xFF, 0xFF, 0x06, 0x40, 
@@ -11,7 +11,7 @@ byte _Icon_Ffwd_Cpm[] =
   0x34, 0x00, 
 };
 
-TYPE_GrData _Icon_Ffwd_Gd =
+static TYPE_GrData _Icon_Ffwd_Gd =
 {
   1,                              //version
   0,                              //reserved

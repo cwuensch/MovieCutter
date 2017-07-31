@@ -1,6 +1,6 @@
 #include "tap.h"
 
-byte _Button_Exit_Cpm[] =
+static byte _Button_Exit_Cpm[] =
 {
   0x00, 0x08, 0x1B, 0x90, 0xFF, 0xFF, 0x00, 0x01, 0x00, 0x01, 
   0x01, 0xE8, 0x14, 0x15, 0xFF, 0xFF, 0x0B, 0xE0, 
@@ -37,7 +37,7 @@ byte _Button_Exit_Cpm[] =
   0x98, 0x98, 
 };
 
-TYPE_GrData _Button_Exit_Gd =
+static TYPE_GrData _Button_Exit_Gd =
 {
   1,                              //version
   0,                              //reserved

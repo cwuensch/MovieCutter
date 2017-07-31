@@ -27,7 +27,7 @@
 #include                "Graphics/ActionMenu9.gd"
 #include                "Graphics/ActionMenu_Bar.gd"
 #include                "Graphics/SubMenu_Bar.gd"
-#include                "Graphics/SegmentList_Background.gd"
+//#include                "Graphics/SegmentList_Background.gd"
 #include                "Graphics/SegmentList_ScrollBar.gd"
 #include                "Graphics/SegmentList_ScrollButton.gd"
 #include                "Graphics/Selection_Blue.gd"
@@ -83,8 +83,13 @@
 #include                "Graphics/Button_7_small.gd"
 #include                "Graphics/Button_8_small.gd"
 //#include                "Graphics/Button_9_small.gd"
+//#include                "Graphics/Keyb_ScrollLeft.gd"
+//#include                "Graphics/Keyb_ScrollRight.gd"
+#include                "Graphics/Checkbox.gd"
+#include                "Graphics/Checkbox_checked.gd"
 #include                "TMSCommander.h"
 extern TYPE_GrData      _Button_Green_Gd, _Button_Yellow_Gd, _Button_Blue_Gd;
+extern TYPE_GrData      _Keyb_ScrollLeft_Gd, _Keyb_ScrollRight_Gd;
 //extern TYPE_GrData      _Button_red_Gd, _Button_green_Gd, _Button_yellow_Gd, _Button_blue_Gd, _Button_white_Gd;
 //extern TYPE_GrData      _Button_recall_Gd, _Button_menu_Gd, _Button_vf_Gd;
 
@@ -114,8 +119,6 @@ extern char            *LangStrings;
   extern tFontData      Calibri_12_FontData;
   extern tFontData      Calibri_14_FontData;
 #endif
-
-#define PLAYINFOVALID() (((int)PlayInfo.totalBlock > 0) && ((int)PlayInfo.currentBlock >= 0))
 
 typedef struct
 {
@@ -172,6 +175,27 @@ typedef enum
   MI_ExitMC,
   MI_NrMenuItems
 } tMenuItem;
+
+typedef enum
+{
+  SI_CopySeparate,
+  SI_CopyCommon,
+  SI_CopyAppendToSaved,
+  SI_CopyMergeWithSaved,
+  SI_CopySaveName,
+  SI_CopyDoStrip,
+  SI_CopySetOutDir,
+  SI_NrMenuItems
+} tSubMenuItem;
+
+typedef enum
+{
+  SO_CopySeparate = 1,
+  SO_CopyCommon = 2,
+  SO_CopyAppendToSaved = 3,
+  SO_CopyMergeWithSaved = 4,
+  SO_CopyDoStrip = 8
+} tStripOption;
 
 typedef enum
 {
@@ -340,8 +364,12 @@ typedef enum
   LS_ShutdownAfterRS,
   LS_CopySeparate,
   LS_CopyCommon,
-  LS_CopySeparateStrip,
-  LS_CopyCommonStrip,
+  LS_CopyAppendToSaved,
+  LS_CopyMergeWithSaved,
+  LS_CopySaveName,
+  LS_CopyWithStripping,
+  LS_CopySetOutDir,
+  LS_CopyOriginalDir,
   LS_NrStrings
 } tLngStrings;
 
@@ -464,8 +492,12 @@ static char* DefaultStrings[LS_NrStrings] =
   "(Dialog stehen lassen, um zu warten.)",
   "Separat in einzelne Rec-Files",
   "Gemeinsam in eine Aufnahme",
-  "Separat, mit Strippen",
-  "Gemeinsam, mit Strippen"
+  "Anfügen an gemerkte Rec",
+  "Mit gemerkter in neue Rec",
+  "Merken für Zusammenfügen",
+  "mit Strippen",
+  "Ziel:",
+  "(Originalverzeichnis)"
 };
 #ifdef MC_MULTILANG
   #define LangGetString(x)  LangGetStringDefault(x, DefaultStrings[x])
@@ -486,6 +518,8 @@ static const int        InfoBarModeAreaWidth   = 72;
 static const int        InfoBarLine1_Y         = 49,   InfoBarLine1Height = 30;
 static const int        InfoBarLine2_Y         = 84;
 static const int        InfoBarLine3_Y         = 128;  // alternativ: 135
+static const int        SegmentListWidth       = 168;
+static const int        SegmentListHeight      = 330;
 
 static TYPE_GrData* ShortButtons[]       =  {&_Button_1_small_Gd, &_Button_2_small_Gd, &_Button_3_small_Gd, &_Button_4_small_Gd, &_Button_5_small_Gd, &_Button_6_small_Gd, &_Button_7_small_Gd, &_Button_8_small_Gd, &_Button_Sleep_small_Gd};
 
@@ -506,6 +540,8 @@ static tiCheckMode      DoiCheckTest       = IM_ROEnd;  // [0] nie, [1] gesammel
 static tCheckFSMode     CheckFSAfterCut    = FM_Auto;   // [0] nie, [1] auto, [2] immer, [3] beim Beenden
 static bool             InodeMonitoring    = FALSE;
 static int              StripMode          = 1;         // [0] normal, [1] EPG strippen, [2] Teletext strippen, [3] beides
+static bool             CopyDoStrip        = FALSE;
+static char             CopyOutDir[FBLIB_DIR_SIZE];     // Output-Directory für "Teile kopieren"
 static dword            Overscan_X         = 56;  // 50
 static dword            Overscan_Y         = 25;
 static dword            SegmentList_X      = 55;
@@ -553,8 +589,8 @@ static dword            BlockNrLast10Seconds;
 // Video parameters
 static tSegmentMarker  *SegmentMarker = NULL;       //[0]=Start of file, [x]=End of file
 static dword           *Bookmarks = NULL;
-static int              NrSegmentMarker;
-static int              ActiveSegment;
+static int              NrSegmentMarker = 0;
+static int              ActiveSegment = 0;
 static int              NrBookmarks = 0;
 static int              NrTimeStamps = 0;
 static tTimeStamp      *TimeStamps = NULL;
@@ -576,10 +612,16 @@ static dword            LastPlayStateChange = 0;
 static int              SegmentTextStartLine = 0;
 static bool             jfs_fsck_present = FALSE;
 static bool             RecStrip_present = FALSE, RecStrip_active = FALSE;
+static bool             RecStrip_UseOutDir = FALSE;
 static int              RecStrip_DoCut = FALSE;
 static pid_t            RecStrip_Pid = 0;
 static int              RecStrip_Percent = 0;
+static char             RecStrip_SavedName[MAX_FILE_NAME_SIZE], RecStrip_SavedDir[FBLIB_DIR_SIZE];
 
+
+#define minmax(v,d,a,b)  ( ( ((v) < (a)) || ((v) > (b)) ) ? (d) : (v) )
+
+#define PLAYINFOVALID()  (((int)PlayInfo.totalBlock > 0) && ((int)PlayInfo.currentBlock >= 0))
 
 static inline dword currentVisibleBlock()
 {
@@ -648,7 +690,7 @@ int TAP_Main(void)
   // Load Language Strings
   #ifdef MC_MULTILANG
     if (TAP_GetSystemVar(SYSVAR_OsdLan) != LAN_German)
-      if(!LangLoadStrings(LNGFILENAME, LS_NrStrings, LAN_English, PROGRAM_NAME))
+      if(!LangLoadStrings(TAPFSROOT LOGDIR "/" LNGFILENAME, LS_NrStrings, LAN_English))
       {
 /*        char LogString[512];
         TAP_SPrint(LogString, sizeof(LogString), "Language file '%s' not found!", LNGFILENAME);
@@ -728,6 +770,7 @@ int TAP_Main(void)
   memset(SegmentMarker, 0, NRSEGMENTMARKER * sizeof(tSegmentMarker));
   memset(UndoStack,     0, NRUNDOEVENTS    * sizeof(tUndoEvent));
   memset(SuspectHDDs,   0, SIZESUSPECTHDDS);
+  RecStrip_SavedName[0] = '\0';
 
   TRACEEXIT();
   return 1;
@@ -855,6 +898,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       LoadINI();
       WriteLogMCf(PROGRAM_NAME, "Options: SpecialEnd=%s, DoiCheckTest=%d, CheckFSAfterCut=%d, InodeMonitoring=%d", (!DisableSpecialEnd ? (ForceSpecialEnd ? "always" : "only_safe") : "never"), DoiCheckTest, CheckFSAfterCut, InodeMonitoring);
       OSDMode = DefaultOSDMode;
+      MinuteJump = DefaultMinuteJump;
 
       // Set the system time to current time
 //      /*if (InodeMonitoring)*/ SetSystemTimeToCurrent();
@@ -884,9 +928,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
 //        OSDMode = DefaultOSDMode;  // unnötig
         BookmarkMode = FALSE;
-        ResetSegmentMarkers();
-        ActiveSegment = 0;
-        MinuteJump = DefaultMinuteJump;
+        ResetSegmentMarkers();  // eigentlich unnötig, wenn in Cleanup()
+//        ActiveSegment = 0;
+//        MinuteJump = DefaultMinuteJump;
         JumpRequestedSegment = 0xFFFF;    // eigentlich unnötig
         JumpRequestedBlock = (dword) -1;  //   "
 //        JumpRequestedTime = 0;            //   "
@@ -1180,6 +1224,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         TAP_GetState(&SysState, &SysSubState);
         if(SysState != STATE_Normal || (SysSubState != SUBSTATE_Normal && SysSubState != SUBSTATE_PvrPlayingSearch)) break;  // (nur wenn kein OSD eingeblendet ist!)
 
+        // wenn RecStrip-Fortschritt ausgeblendet werden soll, nicht reagieren
+        if (RecStrip_active && rgnStripProgBar)
+          break;
+
         // beim erneuten Einblenden kann man sich das Neu-Berechnen aller Werte sparen (AUCH wenn 2 Aufnahmen gleiche Blockzahl haben!!)
         if ((int)PlayInfo.currentBlock >= 0)
         {
@@ -1209,6 +1257,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       // if cut-key is pressed -> show MovieCutter OSD (ST_WaitForPlayback)
       if((event == EVT_KEY) && (param1 == RKEY_Ab || param1 == RKEY_Option))
       {
+        // wenn RecStrip-Fortschritt ausgeblendet werden soll, nicht reagieren
+        if (RecStrip_active && rgnStripProgBar)
+          break;
+
         TAP_GetState(&SysState, &SysSubState);
         if(SysState != STATE_Normal || (SysSubState != SUBSTATE_Normal && SysSubState != SUBSTATE_PvrPlayingSearch)) break;  // (nur wenn kein OSD eingeblendet ist!)
         if (!isPlaybackRunning()) break;
@@ -1815,9 +1867,13 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
           case RKEY_Ok:
           case FKEY_Ok:
+          case RKEY_Right:
           {
             if(ActionMenuItem != MI_SelectFunction)
             {
+              if ((param1 == RKEY_Right) && !(ActionMenuItem == MI_CopySegSplitMovie && !BookmarkMode))
+                break;
+              
               // Deaktivierte Aktionen
               if (ActionMenuItemInactive(ActionMenuItem))
                 break;
@@ -1837,7 +1893,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               if (!(isPlaybackRunning() && PLAYINFOVALID()) && (ActionMenuItem != MI_ExitMC) && (ActionMenuItem != MI_RenameMovie) && (ActionMenuItem != MI_RecStripCheckFS))   // PlayInfo wird nicht aktualisiert
                 break;
 
-              ActionMenuRemove();
+              if (!(ActionMenuItem == MI_CopySegSplitMovie && !BookmarkMode))
+                ActionMenuRemove();
               State = ST_ActiveOSD;
 
               switch(ActionMenuItem)
@@ -1885,7 +1942,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                     State = ST_ActionSubMenu;
                     ActionSubMenuItem = 0;
                     OSDSegmentListDrawList(FALSE);
-                    OSDInfoDrawProgressbar(TRUE, TRUE);
+                    OSDInfoDrawProgressbar(TRUE, FALSE);
                     ActionMenuDraw();
                     ActionSubMenuDraw();
                     break;
@@ -1899,7 +1956,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                     CutSaveToBM(FALSE);
                     CutFileSave();
                     TAP_Hdd_StopTs();
-//                    RecStrip_DoCut = FALSE;
+                    RecStrip_DoCut = FALSE;
+//                    RecStrip_UseOutDir = FALSE;
                     RecStrip_active = TRUE;
                     RecStrip_Percent = 0;
 //                    ClearOSD(TRUE);
@@ -1983,8 +2041,14 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           case RKEY_2:
           case RKEY_3:
           case RKEY_4:
+          case RKEY_5:
+          case RKEY_6:
+          case RKEY_7:
           {
-            ActionSubMenuItem = (param1 & 0x0f) - 1;
+            dword SelectedMenuItem = (param1 & 0x0f) - 1;
+            if (ActionSubMenuItemInactive(SelectedMenuItem))
+              break;
+            ActionSubMenuItem = SelectedMenuItem;
             ActionSubMenuDraw();
             // fortsetzen mit OK-Button ...
           }
@@ -1992,21 +2056,79 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           case RKEY_Ok:
           case FKEY_Ok:
           {
+            // Deaktivierte Aktionen
+            if (ActionSubMenuItemInactive(ActionSubMenuItem))
+              break;
+
             // PlayInfo prüfen
             if (!(isPlaybackRunning() && PLAYINFOVALID()))   // PlayInfo wird nicht aktualisiert
               break;
 
-            ActionMenuRemove();
-            State = ST_ActiveOSD;
+            if (ActionSubMenuItem == SI_CopySetOutDir)
+            {
+              if (RecStrip_UseOutDir)
+              {
+                MovieCutterChangeOutDir();
+                OSDSegmentListDrawList(FALSE);
+                ActionMenuDraw();
+              }
+              else
+                RecStrip_UseOutDir = TRUE;
+              ActionSubMenuDraw();
+              break;
+            }
+            else if (ActionSubMenuItem == SI_CopyDoStrip)
+            {
+              CopyDoStrip = !CopyDoStrip;
+              ActionSubMenuDraw();
+              break;
+            }
+            else if (ActionSubMenuItem != SI_CopySaveName)
+            {
+              ActionMenuRemove();
+              State = ST_ActiveOSD;
 
-            RecStrip_DoCut = ActionSubMenuItem + 1;
-            WriteLogMCf(PROGRAM_NAME, "[Action 'Copy parts' (%d) started...]", RecStrip_DoCut);
-            CutSaveToBM(FALSE);
-            CutFileSave();
-            TAP_Hdd_StopTs();
-            RecStrip_active = TRUE;
-            RecStrip_Percent = 0;
-//            ClearOSD(TRUE);
+              RecStrip_DoCut = ActionSubMenuItem + 1 + (CopyDoStrip ? 8 : 0);
+              WriteLogMCf(PROGRAM_NAME, "[Action 'Copy parts' (%d) started...]", RecStrip_DoCut);
+              CutSaveToBM(FALSE);
+              CutFileSave();
+              TAP_Hdd_StopTs();
+              RecStrip_active = TRUE;
+              RecStrip_Percent = 0;
+//              ClearOSD(TRUE);
+              break;
+            }
+            else  // (ActionSubMenuItem == SI_CopySaveName)
+            {
+              strncpy(RecStrip_SavedName, PlaybackName, sizeof(RecStrip_SavedName));
+              strncpy(RecStrip_SavedDir, AbsPlaybackDir, sizeof(RecStrip_SavedDir));
+              ActionSubMenuDraw();
+              // fortsetzen mit RKEY_Exit
+            }
+          }
+
+          case RKEY_Exit:
+          case FKEY_Exit:
+          case RKEY_Left:
+          {
+            if ((param1 != RKEY_Left) || (ActionSubMenuItem != SI_CopySetOutDir))
+            {
+              TAP_Osd_Delete(rgnActionSubMenu);
+              rgnActionSubMenu = 0;
+              State = ST_ActionMenu;
+              ActionMenuDraw();
+              break;
+            }
+            // sonst fortsetzen mit RKEY_RIGHT ...
+          }
+
+          case RKEY_Right:
+          {
+            if (ActionSubMenuItem == SI_CopySetOutDir)
+            {
+              RecStrip_UseOutDir = !RecStrip_UseOutDir;
+              ActionSubMenuDraw();
+            }
             break;
           }
 
@@ -2014,8 +2136,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           case RKEY_ChDown:
           case FKEY_ChDown:
           {
-            ActionSubMenuItem = (ActionSubMenuItem+1) % 4;
-            ActionSubMenuDraw();
+            ActionSubMenuDown();
             break;
           }
 
@@ -2023,22 +2144,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           case RKEY_ChUp:
           case FKEY_ChUp:
           {
-            if (ActionSubMenuItem > 0)
-              ActionSubMenuItem--;
-            else
-              ActionSubMenuItem = 3;
-            ActionSubMenuDraw();
-            break;
-          }
-
-          case RKEY_Exit:
-          case FKEY_Exit:
-          case RKEY_Left:
-          {
-            TAP_Osd_Delete(rgnActionSubMenu);
-            rgnActionSubMenu = 0;
-            State = ST_ActionMenu;
-            ActionMenuDraw();
+            ActionSubMenuUp();
             break;
           }
         }
@@ -2064,7 +2170,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
     if (event == EVT_IDLE)
     {
-      static char       RS_OrigDir[FBLIB_DIR_SIZE], RS_OrigName[MAX_FILE_NAME_SIZE];
+      static char       RS_OrigDir[FBLIB_DIR_SIZE], RS_OutDir[FBLIB_DIR_SIZE], RS_OrigName[MAX_FILE_NAME_SIZE];
       static char       RS_StripName[MAX_FILE_NAME_SIZE], RS_BakName[MAX_FILE_NAME_SIZE];
       static __off64_t  RS_OrigSize;
       static dword      LastRefresh;
@@ -2081,15 +2187,23 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         OSDRecStripProgressBar();
 
         // Aktuelle Playback-Daten speichern (da Playback gestoppt wurde)
-        strcpy(RS_OrigDir, AbsPlaybackDir);
+        strcpy(RS_OrigDir,  AbsPlaybackDir);
         strcpy(RS_OrigName, PlaybackName);
+        strcpy(RS_OutDir,   AbsPlaybackDir);
+        if(RecStrip_DoCut && RecStrip_UseOutDir && *CopyOutDir)
+          strcpy(RS_OutDir, CopyOutDir);
         RS_OrigSize = RecFileSize;
         RS_NrSegments = NrSelectedSegments;
 
         // Neue Dateinamen berechnen
-        if (RecStrip_DoCut)
+        if ((RecStrip_DoCut % 8) == SO_CopyAppendToSaved)
         {
-          GetNextFreeCutName(RS_OrigName, RS_StripName, RS_OrigDir, 0);
+          strcpy(RS_StripName, RecStrip_SavedName);
+          strcpy(RS_OutDir, RecStrip_SavedDir);
+        }
+        else if (RecStrip_DoCut)
+        {
+          GetNextFreeCutName(RS_OrigName, RS_StripName, RS_OutDir, 0);
 /*            RS_OrigSize = 0;
           int i;
           for (i = 0; i < NrSegmentMarker-2; i++)
@@ -2108,12 +2222,13 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           TAP_SPrint(&RS_StripName[NameLength], sizeof(RS_StripName)-NameLength, "_strip%s", ExtensionStart);
           TAP_SPrint(&RS_BakName[NameLength], sizeof(RS_BakName)-NameLength, "_bak%s", ExtensionStart);
         }
-        HDD_Delete2(RS_StripName, RS_OrigDir, TRUE);
+        HDD_Delete2(RS_StripName, RS_OutDir, TRUE);
         ReadBytes = 0;
 
         // RecStrip starten
         {
-          char AbsStripName[FBLIB_DIR_SIZE], AbsOrigName[FBLIB_DIR_SIZE];
+          char AbsStripName[FBLIB_DIR_SIZE], AbsOrigName[FBLIB_DIR_SIZE], AbsSavedName[FBLIB_DIR_SIZE];
+          char LogString[512];
           pid_t CurPid;  int flags = 1;
 
           if (pipe(pipefd) < 0)
@@ -2130,7 +2245,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           {
             // Child-Process
             char* args[7];
-            int i = 0;
+            int i = 0, j;
             int fd = open("/mnt/hd/ProgramFiles/Settings/RecStripper/RecStrip.log", O_WRONLY | O_APPEND | O_CREAT);
             if (fd >= 0)
             {
@@ -2150,25 +2265,44 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             }
 
             TAP_SPrint(AbsOrigName, sizeof(AbsOrigName), "%s/%s", RS_OrigDir, RS_OrigName);
-            TAP_SPrint(AbsStripName, sizeof(AbsStripName), "%s/%s", RS_OrigDir, RS_StripName);
+            TAP_SPrint(AbsStripName, sizeof(AbsStripName), "%s/%s", RS_OutDir, RS_StripName);
+            TAP_SPrint(AbsSavedName, sizeof(AbsSavedName), "%s/%s", RecStrip_SavedDir, RecStrip_SavedName);
             args[i++] = "RecStrip";
             if (RecStrip_DoCut)
             {
-              if (RecStrip_DoCut == 1 || RecStrip_DoCut == 3)
-                args[i++] = "-c";
+              if ((RecStrip_DoCut % 8) == SO_CopySeparate)              args[i++] = "-c";
               else
-                args[i++] = "-r";
+              {
+                if ((RecStrip_DoCut % 8) == SO_CopyMergeWithSaved)      args[i++] = "-m";
+                else if ((RecStrip_DoCut % 8) == SO_CopyAppendToSaved)  args[i++] = "-a";            
+                if (NrSegmentMarker > 2 && NrSelectedSegments > 0)      args[i++] = "-r";
+              }
             }
-            if (!RecStrip_DoCut || RecStrip_DoCut >= 3)
+            if (!RecStrip_DoCut || RecStrip_DoCut >= 8)
             {
               args[i++] = "-s";
               if (StripMode & 0x1) args[i++] = "-e";
-              if (StripMode & 0x2) args[i++] = "-t";
+              if (StripMode & 0x2) args[i++] = "-tt";
             }
-            args[i++] = AbsOrigName;
-            args[i++] = AbsStripName;
+            if ((RecStrip_DoCut % 8) < SO_CopyMergeWithSaved)
+            {
+              args[i++] = AbsOrigName;
+              args[i++] = AbsStripName;
+            }
+            else
+            {
+              args[i++] = AbsStripName;
+              args[i++] = AbsSavedName;
+              args[i++] = AbsOrigName;
+            }
             args[i]   = (char*) 0;
             execv(RECSTRIPPATH "/RecStrip", args);
+
+            TAP_SPrint(LogString, sizeof(LogString), "Calling:");
+            for (j = 0; j < i; j++)
+              TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), (strchr(args[j], ' ') ? " \"%s\"" : " %s"), args[j]);
+            WriteLogMC(PROGRAM_NAME, LogString);
+
             exit(-1);
           }
           else if (CurPid > 0)
@@ -2207,7 +2341,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               fStripFile = open(AbsStripName, O_RDONLY);
             if (fStripFile >= 0)
               fsync(fStripFile);
-            if (HDD_GetFileSizeAndInode2(RS_StripName, RS_OrigDir, NULL, &StripFileSize))
+            if (HDD_GetFileSizeAndInode2(RS_StripName, RS_OutDir, NULL, &StripFileSize))
               OSDRecStripProgressBar(CalcBlockSize(StripFileSize) / (CalcBlockSize(RS_OrigSize) / 100)); */
             LastRefresh = TAP_GetTick();
           }
@@ -2233,7 +2367,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         {
 //          sync();
 //          TAP_Sleep(1);
-          HDD_GetFileSizeAndInode2(RS_StripName, RS_OrigDir, NULL, &StripFileSize);
+          HDD_GetFileSizeAndInode2(RS_StripName, RS_OutDir, NULL, &StripFileSize);
 
 /*          // Set Date of Recording
           char FileName[FBLIB_DIR_SIZE];
@@ -2246,10 +2380,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
           if (RecDateTime)
             FileDate = RecDateTime;
-          HDD_SetFileDateTime(RS_StripName, RS_OrigDir, FileDate); 
-          GetCutNameFromRec(RS_StripName, RS_OrigDir, FileName);            HDD_SetFileDateTime(FileName, RS_OrigDir, FileDate);
-          TAP_SPrint(FileName, sizeof(FileName), "%s.nav", RS_StripName);   HDD_SetFileDateTime(FileName, RS_OrigDir, FileDate);
-          TAP_SPrint(FileName, sizeof(FileName), "%s.inf", RS_StripName);   HDD_SetFileDateTime(FileName, RS_OrigDir, FileDate); 
+          HDD_SetFileDateTime(RS_StripName, RS_OutDir, FileDate); 
+          GetCutNameFromRec(RS_StripName, RS_OutDir, FileName);             HDD_SetFileDateTime(FileName, RS_OutDir, FileDate);
+          TAP_SPrint(FileName, sizeof(FileName), "%s.nav", RS_StripName);   HDD_SetFileDateTime(FileName, RS_OutDir, FileDate);
+          TAP_SPrint(FileName, sizeof(FileName), "%s.inf", RS_StripName);   HDD_SetFileDateTime(FileName, RS_OutDir, FileDate); 
 */
           // Falls erfolgreich, Aufnahmen umbenennen
           if (!RecStrip_DoCut)
@@ -2265,7 +2399,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           }
         }
 //        else if (RecStrip_Return < 0)
-//          HDD_Delete2(RS_StripName, RS_OrigDir, TRUE);
+//          HDD_Delete2(RS_StripName, RS_OutDir, TRUE);
 
         RecStrip_active = FALSE;  // State muss vor Message gesetzt werden, da für RecStrip_active eine Ausnahme von DoNotReenter bei geöffnetem Dialog besteht
         if (OSDMenuMessageBoxIsVisible())  // "RecStrip abbrechen?" Dialog entfernen (evtl. blöd, wenn es ein anderer Dialog ist)
@@ -2289,10 +2423,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         {
           char MessageStr[128];
           TAP_SPrint(MessageStr, sizeof(MessageStr), "%s\n\n", LangGetString(LS_Success));
-          if (RecStrip_DoCut == 1 || RecStrip_DoCut == 3)
+          if ((RecStrip_DoCut % 8) == SO_CopySeparate)
             TAP_SPrint(&MessageStr[strlen(MessageStr)], sizeof(MessageStr)-strlen(MessageStr), LangGetString(LS_SegmentsCopied), RS_NrSegments);
           else
-            TAP_SPrint(&MessageStr[strlen(MessageStr)], sizeof(MessageStr)-strlen(MessageStr), LangGetString(LS_BytesCopied), CalcBlockSize(StripFileSize)/116.1986, CalcBlockSize(RS_OrigSize)/116.1986, ((double)CalcBlockSize(StripFileSize)/CalcBlockSize(RS_OrigSize))*100);
+            TAP_SPrint(&MessageStr[strlen(MessageStr)], sizeof(MessageStr)-strlen(MessageStr), LangGetString(LS_BytesCopied), CalcBlockSize(StripFileSize)/116.1986, CalcBlockSize(RS_OrigSize)/116.1986, ((float)CalcBlockSize(StripFileSize)/CalcBlockSize(RS_OrigSize))*100);
           WriteLogMC(PROGRAM_NAME, MessageStr);
           if (!ShutdownAfterRS)
             ShowErrorMessage(MessageStr, NULL);
@@ -2303,6 +2437,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           if (!ShutdownAfterRS)
             ShowErrorMessage(LangGetString(LS_StripFailed), NULL);
         }
+        if(((RecStrip_DoCut % 8) == SO_CopyAppendToSaved) || ((RecStrip_DoCut % 8) == SO_CopyMergeWithSaved)) RecStrip_SavedName[0] = '\0';
         RecStrip_DoCut = FALSE;
         RecStrip_Return = -1;
       }
@@ -2414,10 +2549,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
     if(isPlaybackRunning()) PlaybackRepeatSet(OldRepeatMode);
     Cleanup(TRUE);
+//    SaveINI();
     TAP_MemFree(SuspectHDDs);
     TAP_MemFree(UndoStack);
     TAP_MemFree(Bookmarks);
-    ResetSegmentMarkers();
     TAP_MemFree(SegmentMarker);
     #ifdef MC_MULTILANG
       LangUnloadStrings();
@@ -2619,6 +2754,10 @@ void Cleanup(bool DoClearOSD)
   JumpRequestedBlock = (dword) -1;
   JumpRequestedTime = 0;
   JumpPerformedTime = 0;
+  OSDMode = DefaultOSDMode;
+  MinuteJump = DefaultMinuteJump;
+  ShowSegmentText = FALSE;
+  UndoResetStack();
   NrBookmarks = 0;
   if(TimeStamps)
   {
@@ -2627,9 +2766,6 @@ void Cleanup(bool DoClearOSD)
   }
 //  LastTimeStamp = NULL;
 //  NrTimeStamps = 0;
-  OSDMode = DefaultOSDMode;
-  ShowSegmentText = FALSE;
-  UndoResetStack();
   if (DoClearOSD) ClearOSD(TRUE);
   CloseLogMC();
 
@@ -2653,6 +2789,107 @@ void CleanupCut(void)
 //                             INI-Funktionen
 // ----------------------------------------------------------------------------
 void LoadINI(void)
+{
+  FILE                 *f = NULL;
+  char                 *Buffer = NULL;
+  size_t                BufSize = 0;
+  char                 *c = NULL;
+  int                   p;
+  char                  Name[50];
+  long                  Value = 0;
+
+  TRACEENTER();
+
+  strcpy(CopyOutDir, "/mnt/sda2/DataFiles");
+
+  if ((f = fopen(TAPFSROOT LOGDIR "/" INIFILENAME, "rb")) != NULL)
+  {
+    while (getline(&Buffer, &BufSize, f) >= 0)
+    {
+      //Interpret the following characters as remarks: //
+      c = strstr(Buffer, "//");
+      if(c) *c = '\0';
+
+      // Remove line breaks in the end
+      p = strlen(Buffer);
+      while (p && (Buffer[p-1] == '\r' || Buffer[p-1] == '\n' || Buffer[p-1] == ';'))
+        Buffer[--p] = '\0';
+
+      if (strncmp(Buffer, "CopyOutDir", 10) == 0)
+      {
+        c = strchr(&Buffer[9], '=');
+        if(c)
+        {
+          do c++; while (*c == ' ');
+          strncpy(CopyOutDir, c, sizeof(CopyOutDir));
+        }
+      }
+      else if (sscanf(Buffer, "%49[^= ] = %lu", Name, &Value) == 2)
+      {
+        if      (strncmp(Name, "AutoOSDPolicy",     13) == 0)   AutoOSDPolicy      =  (Value != 0);
+        else if (strncmp(Name, "DefaultOSDMode",    14) == 0)   DefaultOSDMode     =  (tOSDMode)      minmax(Value,  MD_FullOSD,   0,    3);
+        else if (strncmp(Name, "DefaultMinuteJump", 17) == 0)   DefaultMinuteJump  =                  minmax(Value,           0,   0,   99);
+        else if (strncmp(Name, "ShowRebootMessage", 17) == 0)   ShowRebootMessage  =  (Value != 0);
+        else if (strncmp(Name, "MaxNavDiscrepancy", 17) == 0)   MaxNavDiscrepancy  =                  minmax(Value,        5000,   0,  86400000);       // = 24 Stunden
+        else if (strncmp(Name, "AskBeforeEdit",     13) == 0)   AskBeforeEdit      =  (Value != 0);
+        else if (strncmp(Name, "CutFileMode",       11) == 0)   CutFileMode        =  (tCutSaveMode)  minmax(Value,     CM_Both,   0,    2);
+        else if (strncmp(Name, "SaveCutBak",        10) == 0)   SaveCutBak         =  (Value != 0);
+        else if (strncmp(Name, "DeleteCutFiles",    14) == 0)   DeleteCutFiles     =                  minmax(Value,           1,   0,    2);
+        else if (strncmp(Name, "SpecialEndMode",    14) == 0) {long SpecialEndMode =                  minmax(Value,           1,   0,    2);
+          DisableSpecialEnd  = (SpecialEndMode == 0);
+          ForceSpecialEnd    = (SpecialEndMode == 2);
+        }
+        else if (strncmp(Name, "DoiCheckTest",      12) == 0)   DoiCheckTest       =  (tiCheckMode)   minmax(Value,    IM_ROEnd,   0,    4);
+        else if (strncmp(Name, "CheckFSAfterCut",   15) == 0)   CheckFSAfterCut    =  (tCheckFSMode)  minmax(Value,     FM_Auto,   0,    3);
+        else if (strncmp(Name, "InodeMonitoring",   15) == 0)   InodeMonitoring    =  (Value == 1);
+        else if (strncmp(Name, "StripMode",          9) == 0)   StripMode          =                  minmax(Value,           1,   0,    3);
+        else if (strncmp(Name, "CopyDoStrip",        9) == 0)   CopyDoStrip        =  (Value == 1);
+
+        else if (strncmp(Name, "Overscan_X",        10) == 0)   Overscan_X         =                  minmax(Value,          50,   0,  100);
+        else if (strncmp(Name, "Overscan_Y",        10) == 0)   Overscan_Y         =                  minmax(Value,          25,   0,  100);
+        else if (strncmp(Name, "SegmentList_X",     13) == 0)   SegmentList_X      =                  minmax(Value,          50,   0,  ScreenWidth - SegmentListWidth);
+        else if (strncmp(Name, "SegmentList_Y",     13) == 0)   SegmentList_Y      =                  minmax(Value,          82,   0,  ScreenHeight - SegmentListHeight);
+
+        else if (strncmp(Name, "RCUMode",            7) == 0)   RCUMode            =  (tRCUMode)      minmax(Value,     RC_auto,   0,    5);
+        else if (strncmp(Name, "DirectSegmentsCut", 17) == 0)   DirectSegmentsCut  =  (Value == 1);
+        else if (strncmp(Name, "DisableSleepKey",   15) == 0)   DisableSleepKey    =  (Value == 1);
+      }
+    }
+    fclose(f);
+  }
+  else
+    SaveINI();
+
+  if (!AutoOSDPolicy && DefaultOSDMode == MD_NoOSD)
+    DefaultOSDMode = MD_FullOSD;
+//  if (DisableSpecialEnd) ForceSpecialEnd = FALSE;
+
+  if (RCUMode == RC_auto)
+  {
+    switch(GetSysID())
+    {
+      case 22010:    // TMS-2100
+      case 22121:    // SRP-2410
+      case 22122:    // SRP-2410M
+      case 22570:    // SRP-2401CI+ Eco
+      case 42561:    // CRP-2401CI+ Conax
+        RCUMode = RC_SRP2410;
+        break;
+      case 22120:    // SRP-2401CI+
+      case 22130:    // SRP-2401CI+
+        RCUMode = RC_SRP2401;
+        break;
+      case 42031:    // CRP-2401CI+
+        RCUMode = RC_CRP;
+        break;
+      default:
+        RCUMode = RC_SRP2401;
+    }
+  }
+
+  TRACEEXIT();
+}
+/* void LoadINI(void)
 {
   long                  SpecialEndMode;
   TRACEENTER();
@@ -2679,11 +2916,13 @@ void LoadINI(void)
     CheckFSAfterCut     = (tCheckFSMode) INIGetInt("CheckFSAfterCut",      FM_Auto,   0,    3);
     InodeMonitoring     =                INIGetInt("InodeMonitoring",            0,   0,    1)   ==   1;
     StripMode           =                INIGetInt("StripMode",                  1,   0,    3);
+    CopyDoStrip         =                INIGetInt("CopyDoStrip",                0,   0,    1)   ==   1;
+                                         INIGetString("CopyOutDir", CopyOutDir, "", sizeof(CopyOutDir));
 
     Overscan_X          =                INIGetInt("Overscan_X",                50,   0,  100);
     Overscan_Y          =                INIGetInt("Overscan_Y",                25,   0,  100);
-    SegmentList_X       =                INIGetInt("SegmentList_X",             50,   0,  ScreenWidth - _SegmentList_Background_Gd.width);
-    SegmentList_Y       =                INIGetInt("SegmentList_Y",             82,   0,  ScreenHeight - _SegmentList_Background_Gd.height);
+    SegmentList_X       =                INIGetInt("SegmentList_X",             50,   0,  ScreenWidth - SegmentListWidth);
+    SegmentList_Y       =                INIGetInt("SegmentList_Y",             82,   0,  ScreenHeight - SegmentListHeight);
 
     RCUMode             =     (tRCUMode) INIGetInt("RCUMode",              RC_auto,   0,    5);
     DirectSegmentsCut   =                INIGetInt("DirectSegmentsCut",          0,   0,    1)   ==   1;
@@ -2722,12 +2961,12 @@ void LoadINI(void)
   HDD_TAP_PopDir();
 
   TRACEEXIT();
-}
+} */
 
 void SaveINI(void)
 {
-  TRACEENTER();
   FILE *f = NULL;
+  TRACEENTER();
 
   if ((f = fopen(TAPFSROOT LOGDIR "/" INIFILENAME, "wb")) != NULL)
   {
@@ -2746,6 +2985,8 @@ void SaveINI(void)
     fprintf(f, "%s=%d\r\n",  "CheckFSAfterCut",     CheckFSAfterCut);
     fprintf(f, "%s=%d\r\n",  "InodeMonitoring",     InodeMonitoring     ?  1  :  0);
     fprintf(f, "%s=%d\r\n",  "StripMode",           StripMode);
+    fprintf(f, "%s=%d\r\n",  "CopyDoStrip",         CopyDoStrip         ?  1  :  0);
+    fprintf(f, "%s=%s\r\n",  "CopyOutDir",          CopyOutDir);
     fprintf(f, "%s=%lu\r\n", "Overscan_X",          Overscan_X);
     fprintf(f, "%s=%lu\r\n", "Overscan_Y",          Overscan_Y);
     fprintf(f, "%s=%lu\r\n", "SegmentList_X",       SegmentList_X);
@@ -3102,6 +3343,7 @@ static void ResetSegmentMarkers(void)
       TAP_MemFree(SegmentMarker[i].pCaption);
   memset(SegmentMarker, 0, NRSEGMENTMARKER * sizeof(tSegmentMarker));
   NrSegmentMarker = 0;
+  ActiveSegment = 0;
 
   TRACEEXIT();
 }
@@ -3699,8 +3941,6 @@ bool CutFileDecodeTxt(FILE *fCut, __off64_t *OutSavedSize)
       switch (Buffer[0])
       {
         case '\0':
-          continue;
-
         case '%':
         case ';':
         case '#':
@@ -4314,7 +4554,7 @@ void CreateOSD(void)
 
   if (OSDMode == MD_FullOSD)
     if(!rgnSegmentList)
-      rgnSegmentList = TAP_Osd_Create(SegmentList_X, SegmentList_Y, _SegmentList_Background_Gd.width, _SegmentList_Background_Gd.height, 0, 0);
+      rgnSegmentList = TAP_Osd_Create(SegmentList_X, SegmentList_Y, SegmentListWidth, SegmentListHeight, 0, 0);
 
   if ((OSDMode == MD_FullOSD) || (OSDMode == MD_NoSegmentList))
     if(!rgnInfoBar)
@@ -4371,7 +4611,6 @@ bool isLargeSegment(dword SegStartBlock, dword SegEndBlock, bool isLastSegment, 
 // -------------
 void OSDSegmentListDrawList(bool DoSync)
 {
-  const int             RegionWidth        = _SegmentList_Background_Gd.width;
   const int             TextFieldStart_X   =    5,   EndTextField_X  = 152;
   const int             TextFieldStart_Y   =   29,   TextFieldHeight =  26,   TextFieldDist = 2;
   const int             Scrollbar_X        =  154,   Scrollbar_Y     =  40,  /*ScrollbarWidth = 10,*/    ScrollbarHeight = 256;
@@ -4401,8 +4640,13 @@ void OSDSegmentListDrawList(bool DoSync)
       CurrentSegment = NrSegmentMarker - 2;
 
     // Hintergrund, Überschrift, Buttons
-    TAP_Osd_PutGd(rgnSegmentList, 0, 0, &_SegmentList_Background_Gd, FALSE);
-    FM_PutString(rgnSegmentList, 2, 2, RegionWidth-3, LangGetString(LS_SegmentList), COLOR_White, ColorLightBackground, &Calibri_14_FontData, TRUE, ALIGN_CENTER);
+//    TAP_Osd_PutGd(rgnSegmentList, 0, 0, &_SegmentList_Background_Gd, FALSE);
+    TAP_Osd_FillBox(rgnSegmentList, 0, 0, SegmentListWidth, SegmentListHeight, ColorLightBackground);
+    TAP_Osd_DrawRectangle(rgnSegmentList, 0, 0, SegmentListWidth, SegmentListHeight, 2, COLOR_Gray);
+    for (i = 0; i < 10; i++)
+      TAP_Osd_FillBox(rgnSegmentList, TextFieldStart_X, TextFieldStart_Y + (TextFieldHeight+TextFieldDist) * i, SegmentListWidth-(2*TextFieldStart_X), TextFieldHeight, ColorInfoBarDarkSub);
+
+    FM_PutString(rgnSegmentList, 2, 2, SegmentListWidth-3, LangGetString(LS_SegmentList), COLOR_White, ColorLightBackground, &Calibri_14_FontData, TRUE, ALIGN_CENTER);
     TAP_Osd_PutGd(rgnSegmentList, EndTextField_X - 2*19 - 3, BelowTextArea_Y + 6, &_Button_Up_small_Gd, TRUE);
     TAP_Osd_PutGd(rgnSegmentList, EndTextField_X - 19,       BelowTextArea_Y + 6, &_Button_Down_small_Gd, TRUE);
 
@@ -4610,7 +4854,7 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
       if (Force || (TrickMode!=TRICKMODE_Normal && TrickMode!=TRICKMODE_Forward && TrickMode!=TRICKMODE_Slow) || (PlayInfo.currentBlock > VisibleBlock) || (PlayInfo.currentBlock + 100 < VisibleBlock))
         VisibleBlock = PlayInfo.currentBlock;
 
-    pos = (dword)((float)VisibleBlock * ProgBarWidth / PlayInfo.totalBlock);
+    pos = (dword)(((float)VisibleBlock / PlayInfo.totalBlock) * ProgBarWidth);
     if(Force || (pos != LastPos))
     {
       // Draw the background
@@ -4627,7 +4871,8 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
       NearestMarker = (BookmarkMode) ? FindNearestBookmark(VisibleBlock) : FindNearestSegmentMarker(VisibleBlock);
 
       // For each Segment
-      nextPos = (dword)((float)SegmentMarker[0].Block * ProgBarWidth / PlayInfo.totalBlock);  // Idealfall: 0
+      nextPos = (dword)(((float)SegmentMarker[0].Block / PlayInfo.totalBlock) * ProgBarWidth);  // Idealfall: 0
+
       for(i = 0; i < NrSegmentMarker - 1; i++)
       {
 //        if ((SegmentMarker[i].Block > SegmentMarker[i+1].Block) || (SegmentMarker[i+1].Block > PlayInfo.totalBlock))
@@ -4652,7 +4897,7 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
 
         // Calculate segment position and width
         curPos = min(nextPos, (dword)ProgBarWidth);
-        nextPos = (dword)((float)SegmentMarker[i+1].Block * ProgBarWidth / PlayInfo.totalBlock);
+        nextPos = (dword)(((float)SegmentMarker[i+1].Block / PlayInfo.totalBlock) * ProgBarWidth);
         curWidth = min(nextPos - curPos, (dword)ProgBarWidth + 1 - curPos);
 
         // Fill the active segment
@@ -4693,7 +4938,7 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
       {
 //        if(Bookmarks[i] <= PlayInfo.totalBlock)
 //        {
-          curPos = min((dword)((float)Bookmarks[i] * ProgBarWidth / PlayInfo.totalBlock), (dword)ProgBarWidth + 1);
+          curPos = min((dword)(((float)Bookmarks[i] / PlayInfo.totalBlock) * ProgBarWidth), (dword)ProgBarWidth + 1);
           if (BookmarkMode)
           {
             if (i == NearestMarker)
@@ -5052,7 +5297,7 @@ void OSDInfoDrawCurrentPlayTime(bool Force)
     {
       const int Frame1Width = 78,                                                   Frame2Width = InfoBarRightAreaWidth - Frame1Width - 1;
       const int Frame1Left  = ScreenWidth - Overscan_X - InfoBarRightAreaWidth,     Frame2Left  = Frame1Left + Frame1Width + 1;
-      PercentWidth = (dword)((float)PlayInfo.currentBlock * InfoBarRightAreaWidth / PlayInfo.totalBlock);
+      PercentWidth = (dword)(((float)PlayInfo.currentBlock / PlayInfo.totalBlock) * InfoBarRightAreaWidth);
       PercentWidth = min(PercentWidth, InfoBarRightAreaWidth + 1);
 
       TAP_Osd_FillBox      (rgnInfoBar, Frame1Left,               InfoBarLine1_Y, InfoBarRightAreaWidth, InfoBarLine1Height, ColorInfoBarDarkSub);
@@ -5084,7 +5329,7 @@ void OSDInfoDrawCurrentPlayTime(bool Force)
 
       FM_PutString(rgnPlayState, PlayTimeLeft, PlayTimeTop, PlayTimeLeft + PlayTimeWidth - 1, TimeString, COLOR_White, ColorDarkBackground, &Calibri_10_FontData, FALSE, ALIGN_RIGHT);
 
-      PercentWidth = (dword)((float)PlayInfo.currentBlock * ProgBarWidth / PlayInfo.totalBlock);
+      PercentWidth = (dword)(((float)PlayInfo.currentBlock / PlayInfo.totalBlock) * ProgBarWidth);
       PercentWidth = min(PercentWidth, (dword)ProgBarWidth + 1);
       TAP_Osd_FillBox(rgnPlayState, ProgBarLeft, ProgBarTop, ProgBarWidth, ProgBarHeight, COLOR_Gray);
       TAP_Osd_FillBox(rgnPlayState, ProgBarLeft, ProgBarTop, PercentWidth, ProgBarHeight, RGB(250,0,0));
@@ -5235,7 +5480,7 @@ void OSDTextStateWindow(int MessageID)
 void OSDSegmentTextDraw(bool Force)
 {
   const int             RegionHeight = 100;
-  const int             RegionWidth = (rgnSegmentList) ? (ScreenWidth - Overscan_X - SegmentList_X - _SegmentList_Background_Gd.width - 15) : (ScreenWidth - 2*Overscan_X - 100);
+  const int             RegionWidth = (rgnSegmentList) ? (ScreenWidth - Overscan_X - SegmentList_X - SegmentListWidth - 15) : (ScreenWidth - 2*Overscan_X - 100);
   const int             RegionLeft  = (rgnSegmentList) ? (ScreenWidth - RegionWidth - (int)Overscan_X) : ((ScreenWidth-RegionWidth) / 2);
   const int             RegionTop   = (rgnInfoBar) ? (ScreenHeight - 160 - RegionHeight - 2) : (ScreenHeight - Overscan_Y - 38 - 32 - RegionHeight - 8);
   const int             SpaceWidth  = FM_GetStringWidth(" ", &Calibri_12_FontData);
@@ -5510,15 +5755,6 @@ void ActionMenuDraw(void)
       {
         if (!BookmarkMode)
         {
-/*          if (NrSelectedSegments == 0)
-            DisplayStr = LangGetString(LS_CopyCurSegment);
-          else if (NrSelectedSegments == 1)
-            DisplayStr = LangGetString(LS_Copy1Segment);
-          else
-          {
-            TAP_SPrint(TempStr, sizeof(TempStr), LangGetString(LS_CopyNrSegments), NrSelectedSegments);
-            DisplayStr = TempStr;
-          } */
           DisplayStr = LangGetString(LS_CopySegments);
           if (RecStrip_active && RecStrip_DoCut)
           {
@@ -5529,7 +5765,7 @@ void ActionMenuDraw(void)
             TAP_SPrint(&TempStr[strlen(TempStr)], sizeof(TempStr)-strlen(TempStr), " (%d %%)", RecStrip_Percent);
             DisplayStr = TempStr;
           }
-          if (!RecStrip_present || RecStrip_active || (NrSegmentMarker <= 2))
+          if (!RecStrip_present)
             DisplayColor = Color_Inactive;
         }
         else
@@ -5639,9 +5875,12 @@ void ActionSubMenuDraw(void)
 {
   const int             TextFieldStart_X  =   5,   TextFieldStart_Y  = 5;
   const int             TextFieldHeight   =  26,   TextFieldDist     = 2;
-  const int             SubMenuHeight     =  2*TextFieldStart_Y + 4*(TextFieldHeight+TextFieldDist);
+  const int             SubMenuHeight     =  2*TextFieldStart_Y + SI_NrMenuItems*(TextFieldHeight+TextFieldDist);
   const int             SubMenuWidth      =  2*TextFieldStart_X + _SubMenu_Bar_Gd.width;
   const int             ShortButtonLeft   =  TextFieldStart_X + _SubMenu_Bar_Gd.width - _Button_Sleep_small_Gd.width - 5;
+  const int             CopyOutDirWidth   =  FM_GetStringWidth(LangGetString(LS_CopySetOutDir), &Calibri_14_FontData);
+  const dword           Color_Inactive    =  RGB(120, 120, 120);
+  char                  TempDirISO[FBLIB_DIR_SIZE];
   int                   i;
 
   TRACEENTER();
@@ -5650,16 +5889,21 @@ void ActionSubMenuDraw(void)
   // Region erzeugen und Hintergrund zeichnen
   if(!rgnActionSubMenu)
   {
-    rgnActionSubMenu = TAP_Osd_Create(((ScreenWidth - _ActionMenu9_Gd.width) / 2) +29 +86, 70+TextFieldStart_Y + 3*(TextFieldHeight+TextFieldDist) +2, SubMenuWidth, SubMenuHeight, 0, 0);
+    rgnActionSubMenu = TAP_Osd_Create(((ScreenWidth - _ActionMenu9_Gd.width) / 2) +29 +86, 70+TextFieldStart_Y + 3*(TextFieldHeight+TextFieldDist) -10, SubMenuWidth, SubMenuHeight, 0, 0);
   }
   TAP_Osd_FillBox(rgnActionSubMenu, 0, 0, SubMenuWidth, SubMenuHeight, ColorLightBackground);
   TAP_Osd_DrawRectangle(rgnActionSubMenu, 0, 0, SubMenuWidth, SubMenuHeight, 2, COLOR_Gray);
 
   // Rahmen und ShortCut-Buttons zeichnen
-  for (i = 0; i < 4; i++)
+  for (i = 0; i < SI_NrMenuItems; i++)
   {
     TAP_Osd_FillBox(rgnActionSubMenu, TextFieldStart_X, TextFieldStart_Y + (TextFieldHeight+TextFieldDist) * i, _SubMenu_Bar_Gd.width, TextFieldHeight, ColorInfoBarDarkSub);
-    TAP_Osd_PutGd(rgnActionSubMenu,   ShortButtonLeft,  TextFieldStart_Y + (TextFieldHeight+TextFieldDist) * i + 4, ShortButtons[i], TRUE);
+    if (ActionSubMenuItemInactive(i))
+    {
+      if(i==ActionSubMenuItem)  ActionSubMenuItem++;
+    }
+    else
+      TAP_Osd_PutGd(rgnActionSubMenu, ShortButtonLeft,  TextFieldStart_Y + (TextFieldHeight+TextFieldDist) * i + 4, ShortButtons[i], TRUE);
   }
 
   // Grünen Auswahlrahmen zeichnen
@@ -5669,10 +5913,26 @@ void ActionSubMenuDraw(void)
 //    TAP_Osd_Copy(rgnActionMenu, rgnActionSubMenu, 7 +10, 4 + (TextFieldHeight+TextFieldDist)*3, 2, TextFieldHeight, TextFieldStart_X + i, TextFieldStart_Y + (TextFieldHeight+TextFieldDist) * ActionSubMenuItem, FALSE); 
 
   // Menü-Einträge zeichnen
-  for (i = 0; i < 4; i++)
+  for (i = 0; i < SI_NrMenuItems; i++)
   {
-    FM_PutString(rgnActionSubMenu, TextFieldStart_X + 5, TextFieldStart_Y + (TextFieldHeight+TextFieldDist) * i + 1, ShortButtonLeft, LangGetString(LS_CopySeparate+i), (i==ActionSubMenuItem ? COLOR_Black : COLOR_White), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT);
+    dword DisplayColor = (ActionSubMenuItemInactive(i) ? Color_Inactive : ((i==ActionSubMenuItem) ? COLOR_Black : COLOR_White));
+    dword TextOffset_X = (i == SI_CopyDoStrip) ? _CheckBox_Gd.width + 12 : 5;
+    if (i == SI_CopyDoStrip)
+      TAP_Osd_PutGd(rgnActionSubMenu, TextFieldStart_X + 5,            TextFieldStart_Y + (TextFieldHeight+TextFieldDist) * i + 5, (CopyDoStrip ? &_CheckBox_checked_Gd : &_CheckBox_Gd), FALSE);
+    FM_PutString(rgnActionSubMenu,    TextFieldStart_X + TextOffset_X, TextFieldStart_Y + (TextFieldHeight+TextFieldDist) * i + 1, ShortButtonLeft, LangGetString(LS_CopySeparate+i), DisplayColor, COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT);
   }
+
+  // OutDir ausgeben
+  if (RecStrip_UseOutDir)
+  {
+    if (isUTFToppy())
+      StrToISO(CopyOutDir, TempDirISO);
+    else
+      strcpy(TempDirISO, CopyOutDir);
+  }
+  TAP_Osd_PutGd(rgnActionSubMenu, TextFieldStart_X + CopyOutDirWidth + 10,                             TextFieldStart_Y + (TextFieldHeight+TextFieldDist) * SI_CopySetOutDir + (TextFieldHeight-_Keyb_ScrollLeft_Gd.height)/2 + 1,  &_Keyb_ScrollLeft_Gd,  TRUE);
+  TAP_Osd_PutGd(rgnActionSubMenu, ShortButtonLeft - _Keyb_ScrollRight_Gd.width - 5,                    TextFieldStart_Y + (TextFieldHeight+TextFieldDist) * SI_CopySetOutDir + (TextFieldHeight-_Keyb_ScrollRight_Gd.height)/2 + 1, &_Keyb_ScrollRight_Gd, TRUE);
+  FM_PutString(rgnActionSubMenu,  TextFieldStart_X + CopyOutDirWidth + _Keyb_ScrollLeft_Gd.width + 15, TextFieldStart_Y + (TextFieldHeight+TextFieldDist) * SI_CopySetOutDir + 1, ShortButtonLeft - _Keyb_ScrollRight_Gd.width - 5, (RecStrip_UseOutDir ? TempDirISO : LangGetString(LS_CopyOriginalDir)), ((ActionSubMenuItem==SI_CopySetOutDir) ? COLOR_DarkGray : COLOR_Gray), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT);
 
   TAP_Osd_Sync();
   TRACEEXIT();
@@ -5680,7 +5940,11 @@ void ActionSubMenuDraw(void)
 
 bool ActionMenuItemInactive(int MenuItem)
 {
-  return (((MenuItem==MI_SaveSegments||MenuItem==MI_DeleteSegments||MenuItem==MI_SelectEvOddSegments) && NrSegmentMarker<=2) || (MenuItem==MI_CopySegSplitMovie && BookmarkMode && PlayInfo.currentBlock==0) || (MenuItem==MI_CopySegSplitMovie && !BookmarkMode && (NrSegmentMarker<=2 || !RecStrip_present || RecStrip_active)) || (MenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && (NrSegmentMarker>2 || NrSelectedSegments>0)))) || (MenuItem==MI_ImExportBookmarks && ((!BookmarkMode && NrBookmarks<=0) || (BookmarkMode && (NrSegmentMarker<=2 || MediaFileMode))) ) || (MenuItem==MI_RecStripCheckFS && ((!BookmarkMode && (!RecStrip_present||RecStrip_active)) || (BookmarkMode && !jfs_fsck_present))));
+  return (((MenuItem==MI_SaveSegments||MenuItem==MI_DeleteSegments||MenuItem==MI_SelectEvOddSegments) && NrSegmentMarker<=2) || (MenuItem==MI_CopySegSplitMovie && BookmarkMode && PlayInfo.currentBlock==0) || (MenuItem==MI_CopySegSplitMovie && !BookmarkMode && (!RecStrip_present /*|| RecStrip_active*/)) || (MenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && (NrSegmentMarker>2 || NrSelectedSegments>0)))) || (MenuItem==MI_ImExportBookmarks && ((!BookmarkMode && NrBookmarks<=0) || (BookmarkMode && (NrSegmentMarker<=2 || MediaFileMode))) ) || (MenuItem==MI_RecStripCheckFS && ((!BookmarkMode && (!RecStrip_present||RecStrip_active)) || (BookmarkMode && !jfs_fsck_present))));
+}
+bool ActionSubMenuItemInactive(int MenuItem)
+{
+  return ((MenuItem<2 && NrSegmentMarker<=2) || (MenuItem<4 && RecStrip_active) || ((MenuItem==SI_CopyAppendToSaved || MenuItem==SI_CopyMergeWithSaved) && !*RecStrip_SavedName));
 }
 
 void ActionMenuDown(void)
@@ -5698,6 +5962,21 @@ void ActionMenuDown(void)
 
   TRACEEXIT();
 }
+void ActionSubMenuDown(void)
+{
+  TRACEENTER();
+
+  do
+  {
+    if(ActionSubMenuItem >= (SI_NrMenuItems - 1))
+      ActionSubMenuItem = 0;
+    else
+      ActionSubMenuItem++;
+  } while (ActionSubMenuItemInactive(ActionSubMenuItem));
+  ActionSubMenuDraw();
+
+  TRACEEXIT();
+}
 
 void ActionMenuUp(void)
 {
@@ -5711,6 +5990,21 @@ void ActionMenuUp(void)
       ActionMenuItem = MI_NrMenuItems - 1;
   } while (ActionMenuItemInactive(ActionMenuItem));
   ActionMenuDraw();
+
+  TRACEEXIT();
+}
+void ActionSubMenuUp(void)
+{
+  TRACEENTER();
+
+  do
+  {
+    if(ActionSubMenuItem > 0)
+      ActionSubMenuItem--;
+    else
+      ActionSubMenuItem = SI_NrMenuItems - 1;
+  } while (ActionSubMenuItemInactive(ActionSubMenuItem));
+  ActionSubMenuDraw();
 
   TRACEEXIT();
 }
@@ -6427,6 +6721,42 @@ void MovieCutterDeleteFile(void)
   TRACEEXIT();
 }
 
+void MovieCutterChangeOutDir(void)
+{
+  char TempDirISO[FBLIB_DIR_SIZE];
+  TRACEENTER();
+
+  if (isUTFToppy())
+    StrToISO(CopyOutDir, TempDirISO);
+  else
+    strcpy(TempDirISO, CopyOutDir);
+
+  // OSD-Tastatur anzeigen   ACHTUNG!!! ToDo: UTF-8 Support testen!
+  OSDMenuKeyboard_Setup(LangGetString(LS_EnterText), TempDirISO, sizeof(TempDirISO)-1, TRUE);
+  #ifdef MC_MULTILANG
+    if (LangStrings)
+      OSDMenuKeyboard_SetLegendStrings(LangGetString(LS_KeybSpace), LangGetString(LS_KeybDelete1), LangGetString(LS_KeybDelete2), LangGetString(LS_KeybOriginal), LangGetString(LS_KeybClearAll), LangGetString(LS_KeybCopy), LangGetString(LS_KeybPaste), LangGetString(LS_KeybCancel), LangGetString(LS_KeybSave));
+  #endif
+  OSDMenuKeyboard_Show();
+  while (OSDMenuKeyboard_isVisible())
+  {
+    TAP_SystemProc();
+    TAP_Sleep(1);
+  }
+
+  if (OSDMenuKeyboard_Saved())
+  {
+    if (*TempDirISO)
+    {
+      if (isUTFToppy())
+        ConvertUTFStr(CopyOutDir, TempDirISO, sizeof(CopyOutDir), TRUE);
+    }
+    else
+      RecStrip_UseOutDir = FALSE;
+  }
+  TRACEEXIT();
+}
+
 bool MovieCutterRenameFile(void)
 {
   char                  NewName[MAX_FILE_NAME_SIZE], TempNameISO[MAX_FILE_NAME_SIZE];
@@ -6446,7 +6776,7 @@ bool MovieCutterRenameFile(void)
 
   ExtensionStart = strrchr(PlaybackName, '.');
   if (!ExtensionStart) ExtensionStart = "";
-  if (isUTFToppy() && PlaybackName[0] >= 0x20)
+  if (isUTFToppy() && PlaybackName[0] >= 0x15)
     StrToISO(PlaybackName, TempNameISO);
   else
     strcpy(TempNameISO, PlaybackName);
@@ -6493,7 +6823,7 @@ bool MovieCutterRenameFile(void)
 
         TempNameFull = (TempNameISO[0] >= 0x20) ? &TempNameBuffer[1] : TempNameBuffer;
         strcpy(TempNameFull, TempNameISO);
-        if (isUTFToppy() && TempNameISO[0] >= 0x20)
+        if (isUTFToppy() && TempNameISO[0] >= 0x15)
           ConvertUTFStr(NewName, TempNameFull, sizeof(NewName) - strlen(ExtensionStart) - 4, TRUE);
         else
           strcpy(NewName, TempNameFull);  // TempNameBuffer wenn ISO-Dateiname immer mit TypeChar (0x05) beginnen soll

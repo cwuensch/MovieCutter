@@ -1,6 +1,6 @@
 #include "tap.h"
 
-byte _Selection_Blue_Cpm[] =
+static byte _Selection_Blue_Cpm[] =
 {
   0x00, 0x08, 0x1B, 0x90, 0xFF, 0xFF, 0x00, 0x01, 0x00, 0x01, 
   0x00, 0xBA, 0x70, 0x98, 0xFF, 0xFF, 0x40, 0x30, 
@@ -18,7 +18,7 @@ byte _Selection_Blue_Cpm[] =
   0x70, 0x44, 0x47, 0xF2, 
 };
 
-TYPE_GrData _Selection_Blue_Gd =
+static TYPE_GrData _Selection_Blue_Gd =
 {
   1,                              //version
   0,                              //reserved

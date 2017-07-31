@@ -1,3 +1,10 @@
+2017-07-31 v3.6c NEU:
+                  ** neue Funktion: Zusammenfügen zweier Aufnahmen (über Submenü "Teile kopieren")
+
+                 RecStrip 2.0
+                   - Zusammenfügen von Aufnahmen
+                   - zahlreiche Bugfixes
+
 2017-03-31 v3.6b NEU:
                   ** neues Submenü für "Teile kopieren" (separat/gemeinsam, mit/ohne Strippen)
                   ** nav-Erzeugung: nicht darstellbare B-Frames vor/nach dem ersten I-Frame werden ignoriert

@@ -91,13 +91,13 @@ Actions in the action menu
 ==========================
 If one or more segments were selected with the blue button (dark blue frame), the Save/Delete actions refer to this segment/these segments. Otherwise, the functions are related to the active segment (in blue).
 
-* "Save selected segments":	The active segment or selected segments are removed from the original recording and stored into a separate file each. The newly created files get the name of the original recording, with addition of "(Cut-1)", "(Cut-2)", etc.
-* "Delete selected segments":	The active segment or selected segments are canceled out from the recording. These parts are lost forever!
-* "Copy selected segments":	The active segment or selected segments are copied in a new recording (together). The original recording will not be modified.
+* "Save segments":		The active segment or selected segments are removed from the original recording and stored into a separate file each. The newly created files get the name of the original recording, with addition of "(Cut-1)", "(Cut-2)", etc.
+* "Delete segments":		The active segment or selected segments are canceled out from the recording. These parts are lost forever!
+* "Copy segments...":		Shows a submenu that allows for copying the selected segments into a new recording, optional with stripping and/or merging of two recordings (only from the same service).
 * "Split movie here":		The movie is split into two parts at the current playback position. Bookmarks and segment markers are kept.
-* "Select padding":		Mark the first and last of three segments.
 * "Select even/odd segments":	Selects all segments with even resp. odd number. (counting starts at 1)
 * "Import Bookmarks":		The Bookmarks from the recording are imported and used as new segment markers.
+* "Rename recording":		Lets you change the name of the active recording via an on-screen-keyboard (controllable via remote control, wireless keyboard or TMSRemote).
 * "Strip recording":		Cleans the recording from unnecessary filler data (Filler-NALUs, Zero-Byte-Stuffing and EPG-track). A backup copy of the original recording is stored.
 * "Check file system":		The file system integrity of internal HDD is checked. In particular, files that have been damaged during cutting process get repaired. (-> prevents deletion)
 * "Exit MovieCutter":		Exits the TAP completely. To use it again, it must be restarted from the TAP Overview.
@@ -107,6 +107,8 @@ Not every action is availably at any time. If some action is missing, try changi
 
 Options in the MovieCutter.ini
 ==============================
+[since V. 3.6c]
+  - CopyOutDir=...		Alternative output directory for function "Copy parts" (default: source folder of recording)
 [since V. 3.6]
   - StripMode:			0: Remove only filler data when stripping. - 1: also the EPG-track. - 2: also the die teletext track. - 3: both
 [since V. 3.3]

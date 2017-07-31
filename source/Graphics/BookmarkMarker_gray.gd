@@ -1,6 +1,6 @@
 #include "tap.h"
 
-byte _BookmarkMarker_gray_Cpm[] =
+static byte _BookmarkMarker_gray_Cpm[] =
 {
   0x00, 0x08, 0x1B, 0x90, 0xFF, 0xFF, 0x00, 0x01, 0x00, 0x01, 
   0x00, 0x28, 0xF1, 0x7F, 0xFF, 0xFF, 0x01, 0x20, 
@@ -9,7 +9,7 @@ byte _BookmarkMarker_gray_Cpm[] =
   0x66, 0xFA, 
 };
 
-TYPE_GrData _BookmarkMarker_gray_Gd =
+static TYPE_GrData _BookmarkMarker_gray_Gd =
 {
   1,                              //version
   0,                              //reserved

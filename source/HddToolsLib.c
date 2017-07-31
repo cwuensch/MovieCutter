@@ -394,7 +394,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
       if (Quick && InodeNrs)
         args[i++] = "-i";
       args[i++] = "-L";
-      args[i++] = "/tmp/FixNodes.tmp";
+      args[i++] = "/tmp/FixInodes.tmp";
       args[i++] = DeviceNode;
       if (Quick && InodeNrs)
       {

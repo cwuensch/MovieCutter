@@ -1,6 +1,6 @@
 #include "tap.h"
 
-byte _Button_Slow_Inactive_Cpm[] =
+static byte _Button_Slow_Inactive_Cpm[] =
 {
   0x00, 0x08, 0x1B, 0x90, 0xFF, 0xFF, 0x00, 0x01, 0x00, 0x01, 
   0x00, 0xDA, 0xE5, 0x6C, 0xFF, 0xFF, 0x06, 0xC0, 
@@ -20,7 +20,7 @@ byte _Button_Slow_Inactive_Cpm[] =
   0xF7, 0x4D, 0xCC, 0xD8, 
 };
 
-TYPE_GrData _Button_Slow_Inactive_Gd =
+static TYPE_GrData _Button_Slow_Inactive_Gd =
 {
   1,                              //version
   0,                              //reserved

@@ -1227,7 +1227,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
 {
   char                  AbsSourceInfName[FBLIB_DIR_SIZE], AbsCutInfName[FBLIB_DIR_SIZE];
   char                  T1[16], T2[16], T3[16];
-  char                 *NewEventText, OldEventText[1024], LogString[1024];
+  char                 *NewEventText, OldEventText[1025], LogString[1024];
   FILE                 *fSourceInf = NULL, *fCutInf = NULL;
   byte                 *Buffer = NULL;
   TYPE_RecHeader_Info  *RecHeaderInfo = NULL;
@@ -1303,17 +1303,47 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   if (p < sizeof(RecHeader->ExtEventInfo.Text))
     memset(&RecHeader->ExtEventInfo.Text[p], 0, sizeof(RecHeader->ExtEventInfo.Text) - p);
 
-  strncpy(OldEventText, RecHeader->ExtEventInfo.Text, min((dword)RecHeader->ExtEventInfo.TextLength+1, sizeof(OldEventText)));
-  OldEventText[sizeof(OldEventText) - 1] = '\0';
+  // ggf. Itemized Items in ExtEventText entfernen
+  memset(OldEventText, 0, sizeof(OldEventText));
+  if (pSourceCaption || pCutCaption)
+  {
+    int j = 0, k = 0; dword p = 0;
+    while ((j < 2*RecHeader->ExtEventInfo.NrItemizedPairs) && (p < RecHeader->ExtEventInfo.TextLength))
+      if (RecHeader->ExtEventInfo.Text[p++] == '\0')  j++;
+
+    if (j == 2*RecHeader->ExtEventInfo.NrItemizedPairs)
+    {
+      strncpy(OldEventText, &RecHeader->ExtEventInfo.Text[p], min(RecHeader->ExtEventInfo.TextLength - p, sizeof(OldEventText)-1));
+
+      p = 0;
+      for (k = 0; k < j; k++)
+      {
+        if(RecHeader->ExtEventInfo.Text[p] < 0x20)  p++;
+        TAP_SPrint(&OldEventText[strlen(OldEventText)], sizeof(OldEventText)-strlen(OldEventText), ((k % 2 == 0) ? ((isUTFToppy() && OldEventText[0]>=0x15) ? "\xC2\x8A%s: " : "\x8A%s: ") : "%s"), &RecHeader->ExtEventInfo.Text[p]);
+        p += strlen(&RecHeader->ExtEventInfo.Text[p]) + 1;
+      }
+    }
+    else
+      strncpy(OldEventText, RecHeader->ExtEventInfo.Text, min(RecHeader->ExtEventInfo.TextLength, (int)sizeof(OldEventText)-1));
+  }
+
   if (pSourceCaption)
   {
-    if ((NewEventText = (char*)TAP_MemAlloc(2 * strlen(pSourceCaption))))
+    if ((NewEventText = (char*)TAP_MemAlloc(2 * strlen(pSourceCaption) + strlen(OldEventText) + 5)))
     {
-      StrToUTF8(pSourceCaption, NewEventText, 9);
-      TAP_SPrint(RecHeader->ExtEventInfo.Text, sizeof(RecHeader->ExtEventInfo.Text), "%s\r\n\r\n%s", NewEventText, OldEventText);
+      if (isUTFToppy() && OldEventText[0]>=0x15)
+      {
+        StrToUTF8(pSourceCaption, NewEventText, 9);
+        if (*OldEventText)
+          sprintf(&NewEventText[strlen(NewEventText)], "\xC2\x8A\xC2\x8A%s", &OldEventText[(OldEventText[0]<0x20) ? 1 : 0]);
+      }
+      else
+        sprintf(NewEventText, "\5%s\x8A\x8A%s", pSourceCaption, &OldEventText[(OldEventText[0]<0x20) ? 1 : 0]);
+      strncpy(RecHeader->ExtEventInfo.Text, NewEventText, sizeof(RecHeader->ExtEventInfo.Text) - 1);
       if (RecHeader->ExtEventInfo.Text[sizeof(RecHeader->ExtEventInfo.Text) - 2] != 0)
         TAP_SPrint(&RecHeader->ExtEventInfo.Text[sizeof(RecHeader->ExtEventInfo.Text) - 4], 4, "...");
       RecHeader->ExtEventInfo.TextLength = strlen(RecHeader->ExtEventInfo.Text);
+      RecHeader->ExtEventInfo.NrItemizedPairs = 0;
       TAP_MemFree(NewEventText);
     }
   }
@@ -1433,10 +1463,17 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
     memset(RecHeader->ExtEventInfo.Text, 0, sizeof(RecHeader->ExtEventInfo.Text));
     if (pCutCaption)
     {
-      if ((NewEventText = (char*)TAP_MemAlloc(2 * strlen(pCutCaption))))
+      if ((NewEventText = (char*)TAP_MemAlloc(2 * strlen(pCutCaption) + strlen(OldEventText) + 5)))
       {
-        StrToUTF8(pCutCaption, NewEventText, 9);
-        TAP_SPrint(RecHeader->ExtEventInfo.Text, sizeof(RecHeader->ExtEventInfo.Text), "%s\r\n\r\n%s", NewEventText, OldEventText);
+        if (isUTFToppy() && OldEventText[0]>=0x15)
+        {
+          StrToUTF8(pCutCaption, NewEventText, 9);
+          if (*OldEventText)
+            sprintf(&NewEventText[strlen(NewEventText)], "\xC2\x8A\xC2\x8A%s", &OldEventText[(OldEventText[0]<0x20) ? 1 : 0]);
+        }
+        else
+          sprintf(NewEventText, "\5%s\x8A\x8A%s", pCutCaption, &OldEventText[(OldEventText[0]<0x20) ? 1 : 0]);
+        strncpy(RecHeader->ExtEventInfo.Text, NewEventText, sizeof(RecHeader->ExtEventInfo.Text) - 1);
         if (RecHeader->ExtEventInfo.Text[sizeof(RecHeader->ExtEventInfo.Text) - 2] != 0)
           TAP_SPrint(&RecHeader->ExtEventInfo.Text[sizeof(RecHeader->ExtEventInfo.Text) - 4], 4, "...");
         TAP_MemFree(NewEventText);
@@ -1444,7 +1481,8 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
     }
     else
       strncpy(RecHeader->ExtEventInfo.Text, OldEventText, sizeof(RecHeader->ExtEventInfo.Text));
-    RecHeader->ExtEventInfo.TextLength = strlen(RecHeader->ExtEventInfo.Text);
+    RecHeader->ExtEventInfo.TextLength = min(strlen(RecHeader->ExtEventInfo.Text), sizeof(RecHeader->ExtEventInfo.Text));
+    RecHeader->ExtEventInfo.NrItemizedPairs = 0;
   }
 
   //Set the length of the cut file

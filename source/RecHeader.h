@@ -71,8 +71,10 @@ typedef struct
 {
   word                  ServiceID;
   word                  TextLength;
-  dword                 EventID;
+  dword                 Reserved;
   char                  Text[1024];
+  byte                  NrItemizedPairs;
+  byte                  Unknown1[3];
 } TYPE_ExtEvent_Info;
 
 /* typedef struct
@@ -153,7 +155,6 @@ typedef struct
   TYPE_Service_Info     ServiceInfo;
   TYPE_Event_Info       EventInfo;
   TYPE_ExtEvent_Info    ExtEventInfo;
-  byte                  TpUnknown1[4];
   TYPE_TpInfo_TMSS      TransponderInfo;
   TYPE_Bookmark_Info    BookmarkInfo;
 //  byte                  HeaderUnused[8192];
@@ -166,7 +167,6 @@ typedef struct
   TYPE_Service_Info     ServiceInfo;
   TYPE_Event_Info       EventInfo;
   TYPE_ExtEvent_Info    ExtEventInfo;
-  byte                  TpUnknown1[4];
   TYPE_TpInfo_TMSC      TransponderInfo;
   TYPE_Bookmark_Info    BookmarkInfo;
 //  byte                  HeaderUnused[8192];
@@ -179,7 +179,6 @@ typedef struct
   TYPE_Service_Info     ServiceInfo;
   TYPE_Event_Info       EventInfo;
   TYPE_ExtEvent_Info    ExtEventInfo;
-  byte                  TpUnknown1[4];
   TYPE_TpInfo_TMST      TransponderInfo;
   TYPE_Bookmark_Info    BookmarkInfo;
 //  byte                  HeaderUnused[8192];

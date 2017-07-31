@@ -1,6 +1,6 @@
 #include "tap.h"
 
-byte _SegmentList_ScrollButton_Cpm[] =
+static byte _SegmentList_ScrollButton_Cpm[] =
 {
   0x00, 0x08, 0x1B, 0x90, 0xFF, 0xFF, 0x00, 0x01, 0x00, 0x01, 
   0x00, 0x29, 0xE3, 0x40, 0xFF, 0xFF, 0x00, 0x28, 
@@ -9,7 +9,7 @@ byte _SegmentList_ScrollButton_Cpm[] =
   0x24, 0x44, 0x00, 
 };
 
-TYPE_GrData _SegmentList_ScrollButton_Gd =
+static TYPE_GrData _SegmentList_ScrollButton_Gd =
 {
   1,                              //version
   0,                              //reserved

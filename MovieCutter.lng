@@ -1,4 +1,4 @@
-# To add a new language, copy a block and translate it
+f# To add a new language, copy a block and translate it
 # the following codes are supported:
 #
 # LAN_Arab          ar
@@ -136,8 +136,12 @@ de_109=Strippen jetzt abbrechen?
 de_110=(Dialog stehen lassen, um zu warten.)
 de_111=Separat in einzelne Rec-Files
 de_112=Gemeinsam in eine Aufnahme
-de_113=Separat, mit Strippen
-de_114=Gemeinsam, mit Strippen
+de_113=Anfügen an gemerkte Rec
+de_114=Mit gemerkter in neue Rec
+de_115=Merken für Zusammenfügen
+de_116=mit Strippen
+de_117=Ziel:
+de_118=(Originalverzeichnis)
 
 
 #English
@@ -254,8 +258,12 @@ en_109=Abort stripping now?
 en_110=(Leave this dialog open to wait.)
 en_111=Into separate Rec-Files
 en_112=Into one common recording
-en_113=Separate, with stripping
-en_114=Common, with stripping
+en_113=Append to stored rec
+en_114=With stored into new rec
+en_115=Use file for merging
+en_116=with stripping
+en_117=Dest.:
+en_118=(original folder)
 
 
 #French
@@ -370,10 +378,14 @@ fr_107=%d segments copiés.
 fr_108=La copie a échoué !\nConsulter le log.
 fr_109=Interrompre l'épurage maintenant ?
 fr_110=(Laisser ce dialogue ouvert pour attendre.)
-fr_111=dans fichiers Rec séparés
-fr_112=ensemble dans un fichier
-fr_113=séparés, avec épuration
-fr_114=ensemble, avec épuration
+fr_111=Dans fichiers Rec séparés
+fr_112=Ensemble dans un fichier
+fr_113=Joindre à l'enreg. marqué
+fr_114=With stored into new rec
+fr_115=Marquer pour assemblage
+fr_116=avec épuration
+fr_117=Dest. :
+fr_118=(dossier original)
 
 
 #Dutch
@@ -463,32 +475,36 @@ nl_082=Minutensprong uit
 nl_083=Vrije schijfruimte is laag!\nToch doorgaan?
 nl_084=SystemType is onbekend.\nAUB de FirmwareTMS.dat kontroleren!
 nl_085=Film hier delen
-nl_086=Rename movie
-nl_087=The entered file name is invalid.\nCharacter '/' is not allowed.
-nl_088=File name already exists!\nOverwrite?
-nl_089=Renaming of file has failed.
-nl_090=Space
+nl_086=Opname hernoemen
+nl_087=De ingevoerde bestandsnaam is fout.\nKarakter '/' is niet toegestaan.
+nl_088=Bestandsnaam bestaat al!\nOverschrijven?
+nl_089=Hernoemen van bestand is mislukt.
+nl_090=Spatie
 nl_091=Del
 nl_092=ete
-nl_093=Original
-nl_094=Delete all
-nl_095=Copy
-nl_096=Paste
-nl_097=Cancel
-nl_098=Save
+nl_093=Origineel
+nl_094=Verwijder alles
+nl_095=Kopieer
+nl_096=Plak
+nl_097=Afbreken
+nl_098=Opslaan
 nl_099=Segment %hd
-nl_100=Enter text
-nl_101=Copy parts...
+nl_100=Voer tekst in
+nl_101=Delen kopiëren...
 nl_102=Opname strippen
-nl_103=Opname is gestripped
-nl_104=Creating copy...
-nl_105=Action successfully completed.
-nl_106=%.1f of %.1f MB (%.1f %%) copied.
-nl_107=%d segments copied.
-nl_108=Copying has failed!\nPlease check the log!
-nl_109=Abort stripping now?
-nl_110=(Leave this dialog open to wait.)
-nl_111=Into separate Rec-Files
-nl_112=Into one common recording
-nl_113=Separate, with stripping
-nl_114=Common, with stripping
+nl_103=Opname is gestript
+nl_104=Kopie maken...
+nl_105=Actie successvol afgewerkt.
+nl_106=%.1f van %.1f MB (%.1f %%) gekopieerd.
+nl_107=%d segmenten gekopieerd.
+nl_108=Kopiëren is mislukt!\nControleer het logbestand!
+nl_109=Strippen nu afbreken?
+nl_110=(Laat deze dialoog open om te wachten.)
+nl_111=Apparte opnames
+nl_112=Samengevoegde opname
+nl_113=Samenvoegen met gekozen Rec
+nl_114=Met gekozen in nieuwe Rec
+nl_115=Markeer om samen te voegen
+nl_116=met strippen
+nl_117=Doel:
+nl_118=(originele map)

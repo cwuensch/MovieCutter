@@ -1,6 +1,6 @@
 #include "tap.h"
 
-byte _Icon_Pause_Cpm[] =
+static byte _Icon_Pause_Cpm[] =
 {
   0x00, 0x08, 0x1B, 0x90, 0xFF, 0xFF, 0x00, 0x01, 0x00, 0x01, 
   0x00, 0x28, 0x60, 0x5A, 0xFF, 0xFF, 0x06, 0x40, 
@@ -9,7 +9,7 @@ byte _Icon_Pause_Cpm[] =
   0x1F, 0xF0, 
 };
 
-TYPE_GrData _Icon_Pause_Gd =
+static TYPE_GrData _Icon_Pause_Gd =
 {
   1,                              //version
   0,                              //reserved

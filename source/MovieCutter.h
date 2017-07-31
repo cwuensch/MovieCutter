@@ -2,7 +2,7 @@
 #define __MOVIECUTTERH__
 
 #define PROGRAM_NAME          "MovieCutter"
-#define VERSION               "V3.6b"  // alpha = α,  beta = β, � = ü
+#define VERSION               "V3.6c"  // alpha = α,  beta = β, � = ü
 #define TAPID                 0x8E0A4247
 //#define AUTHOR                "FireBird / Christian W�nsch"
 #define AUTHOR                "FireBird / C. Wünsch"
@@ -34,12 +34,15 @@ int   TAP_Main(void);
 dword TAP_EventHandler(word event, dword param1, dword param2);
 static dword TMSCommander_handler(dword param1);
 
-static bool  ActionMenuItemInactive(int MenuItem);
-static void  ActionMenuDown(void);
 static void  ActionMenuDraw(void);
 static void  ActionMenuRemove(void);
+static void  ActionMenuDown(void);
 static void  ActionMenuUp(void);
+static bool  ActionMenuItemInactive(int MenuItem);
 static void  ActionSubMenuDraw(void);
+static void  ActionSubMenuDown(void);
+static void  ActionSubMenuUp(void);
+static bool  ActionSubMenuItemInactive(int MenuItem);
 static int   AddBookmark(dword newBlock, bool RejectSmallScenes);
 static void  AddDefaultSegmentMarker(void);
 static int   AddSegmentMarker(dword *pNewBlock, bool MoveToIFrame, bool RejectSmallSegments);
@@ -79,6 +82,7 @@ static bool  MoveBookmark(int BookmarkIndex, dword newBlock, bool RejectSmallSce
 static bool  MoveSegmentMarker(int MarkerIndex, dword *pNewBlock, bool MoveToIFrame, bool RejectSmallSegments);
 static void  MovieCutterDeleteFile(void);
 static void  MovieCutterDeleteSegments(void);
+static void  MovieCutterChangeOutDir(void);
 static bool  MovieCutterRenameFile(void);
 static void  MovieCutterSelectEvOddSegments(void);
 static void  MovieCutterSplitMovie(void);

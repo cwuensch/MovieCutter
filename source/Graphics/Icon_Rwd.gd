@@ -1,6 +1,6 @@
 #include "tap.h"
 
-byte _Icon_Rwd_Cpm[] =
+static byte _Icon_Rwd_Cpm[] =
 {
   0x00, 0x08, 0x1B, 0x90, 0xFF, 0xFF, 0x00, 0x01, 0x00, 0x01, 
   0x00, 0x47, 0x9F, 0xD0, 0xFF, 0xFF, 0x06, 0x40, 
@@ -11,7 +11,7 @@ byte _Icon_Rwd_Cpm[] =
   0xC8, 
 };
 
-TYPE_GrData _Icon_Rwd_Gd =
+static TYPE_GrData _Icon_Rwd_Gd =
 {
   1,                              //version
   0,                              //reserved

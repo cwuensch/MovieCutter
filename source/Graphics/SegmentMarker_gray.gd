@@ -1,6 +1,6 @@
 #include "tap.h"
 
-byte _SegmentMarker_gray_Cpm[] =
+static byte _SegmentMarker_gray_Cpm[] =
 {
   0x00, 0x08, 0x1B, 0x90, 0xFF, 0xFF, 0x00, 0x01, 0x00, 0x01, 
   0x00, 0x2A, 0x3E, 0xA6, 0xFF, 0xFF, 0x01, 0x20, 
@@ -9,7 +9,7 @@ byte _SegmentMarker_gray_Cpm[] =
   0xC7, 0xDA, 0xF5, 0xE0, 
 };
 
-TYPE_GrData _SegmentMarker_gray_Gd =
+static TYPE_GrData _SegmentMarker_gray_Gd =
 {
   1,                              //version
   0,                              //reserved
