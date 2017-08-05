@@ -1,6 +1,7 @@
-2017-07-31 v3.6c NEU:
+2017-08-01 v3.6c NEU:
                   ** neue Funktion: Zusammenfügen zweier Aufnahmen (über Submenü "Teile kopieren")
                   ** Umwandlung von Itemized Event Text
+                   * beim Umbenennen / Löschen von Aufnahmen werden *.srt mit behandelt
 
                  INTERNALS:
                    - Laden von ini und lng durch eigene Implementierung
@@ -8,6 +9,7 @@
 
                  BUGFIXES:
                    - FixInodes-Bug behoben!! (gespeicherte inodes wurden nicht überwacht)
+                   - bei Schnitt mit SpecialEnd verblieb eine (falsche) Kopie der cut mit Namen des letzten Segments
 
                  RecStrip 2.0
                    - Zusammenfügen von Aufnahmen

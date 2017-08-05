@@ -2222,7 +2222,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           TAP_SPrint(&RS_StripName[NameLength], sizeof(RS_StripName)-NameLength, "_strip%s", ExtensionStart);
           TAP_SPrint(&RS_BakName[NameLength], sizeof(RS_BakName)-NameLength, "_bak%s", ExtensionStart);
         }
-        HDD_Delete2(RS_StripName, RS_OutDir, TRUE);
+        HDD_Delete2(RS_StripName, RS_OutDir, TRUE, TRUE);
         ReadBytes = 0;
 
         // RecStrip starten
@@ -2381,7 +2381,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           if (RecDateTime)
             FileDate = RecDateTime;
           HDD_SetFileDateTime(RS_StripName, RS_OutDir, FileDate); 
-          GetCutNameFromRec(RS_StripName, RS_OutDir, FileName);             HDD_SetFileDateTime(FileName, RS_OutDir, FileDate);
+          GetFileNameFromRec(RS_StripName, RS_OutDir, ".cut", FileName);    HDD_SetFileDateTime(FileName, RS_OutDir, FileDate);
           TAP_SPrint(FileName, sizeof(FileName), "%s.nav", RS_StripName);   HDD_SetFileDateTime(FileName, RS_OutDir, FileDate);
           TAP_SPrint(FileName, sizeof(FileName), "%s.inf", RS_StripName);   HDD_SetFileDateTime(FileName, RS_OutDir, FileDate); 
 */
@@ -2399,7 +2399,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           }
         }
 //        else if (RecStrip_Return < 0)
-//          HDD_Delete2(RS_StripName, RS_OutDir, TRUE);
+//          HDD_Delete2(RS_StripName, RS_OutDir, TRUE, TRUE);
 
         RecStrip_active = FALSE;  // State muss vor Message gesetzt werden, da für RecStrip_active eine Ausnahme von DoNotReenter bei geöffnetem Dialog besteht
         if (OSDMenuMessageBoxIsVisible())  // "RecStrip abbrechen?" Dialog entfernen (evtl. blöd, wenn es ein anderer Dialog ist)
@@ -4069,7 +4069,7 @@ bool CutFileLoad(void)
   // Schaue zuerst im Cut-File nach
 //  if (CutFileMode != CM_InfOnly)
   {
-    GetCutNameFromRec(PlaybackName, AbsPlaybackDir, AbsCutName);
+    GetFileNameFromRec(PlaybackName, AbsPlaybackDir, ".cut", AbsCutName);
     fCut = fopen(AbsCutName, "rb");
     if(fCut)
     {
@@ -4283,7 +4283,7 @@ bool CutFileSave2(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
     if (!HDD_GetFileSizeAndInode2(RecFileName, AbsPlaybackDir, NULL, &RecFileSize))
       WriteLogMC(PROGRAM_NAME, "CutFileSave: Could not detect size of recording!"); 
 
-    GetCutNameFromRec(RecFileName, AbsPlaybackDir, AbsCutName);
+    GetFileNameFromRec(RecFileName, AbsPlaybackDir, ".cut", AbsCutName);
     fCut = fopen(AbsCutName, "wb");
     if(fCut)
     {
@@ -4459,8 +4459,8 @@ void CutFileDelete(void)
   TRACEENTER();
 
 //  HDD_ChangeDir(PlaybackDir);
-  GetCutNameFromRec(PlaybackName, "", CutName);
-  HDD_Delete2(&CutName[1], AbsPlaybackDir, FALSE);
+  GetFileNameFromRec(PlaybackName, "", ".cut", CutName);
+  HDD_Delete2(&CutName[1], AbsPlaybackDir, FALSE, FALSE);
 
   TRACEEXIT();
 }
@@ -6712,7 +6712,7 @@ void MovieCutterDeleteFile(void)
 //  HDD_ChangeDir(PlaybackDir);
 //  NoPlaybackCheck = TRUE;
   CutFileDelete();
-  HDD_Delete2(PlaybackName, AbsPlaybackDir, TRUE);
+  HDD_Delete2(PlaybackName, AbsPlaybackDir, TRUE, TRUE);
 //  NoPlaybackCheck = FALSE;
 
   Cleanup(TRUE);
@@ -6868,12 +6868,12 @@ bool MovieCutterRenameFile(void)
       TAP_Hdd_StopTs();
 
     // Umbenennen
-    HDD_Delete2(NewName, AbsPlaybackDir, TRUE);
+    HDD_Delete2(NewName, AbsPlaybackDir, TRUE, TRUE);
     HDD_Rename2(PlaybackName, NewName, AbsPlaybackDir, TRUE, TRUE);
 
     char OldCutBak[FBLIB_DIR_SIZE+4], NewCutBak[FBLIB_DIR_SIZE+4];
-    GetCutNameFromRec(PlaybackName, AbsPlaybackDir, OldCutBak); strcat(OldCutBak, ".bak");
-    GetCutNameFromRec(NewName, AbsPlaybackDir, NewCutBak); strcat(NewCutBak, ".bak");
+    GetFileNameFromRec(PlaybackName, AbsPlaybackDir, ".cut.bak", OldCutBak);  // strcat(OldCutBak, ".bak");
+    GetFileNameFromRec(NewName, AbsPlaybackDir, ".cut.bak", NewCutBak);  // strcat(NewCutBak, ".bak");
     rename(PlaybackName, NewName);
 
     // Playback wieder starten
@@ -6976,9 +6976,9 @@ void MovieCutterProcess(bool KeepCut, bool SplitMovie)  // Splittet am linken Se
   {
     CutFileSave();
     char AbsCutName[FBLIB_DIR_SIZE], AbsBackupCutName[FBLIB_DIR_SIZE];
-    GetCutNameFromRec(PlaybackName, AbsPlaybackDir, AbsCutName);
+    GetFileNameFromRec(PlaybackName, AbsPlaybackDir, ".cut", AbsCutName);
     TAP_SPrint(AbsBackupCutName, sizeof(AbsBackupCutName), "%s.bak", AbsCutName);    
-//    if (HDD_Exist2(&AbsBackupCutName[1], "")) HDD_Delete2(&AbsBackupCutName[1], "", FALSE);
+//    if (HDD_Exist2(&AbsBackupCutName[1], "")) HDD_Delete2(&AbsBackupCutName[1], "", FALSE, FALSE);
     rename(AbsCutName, AbsBackupCutName);
   }
   CutFileSave();
@@ -7082,7 +7082,7 @@ if (HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, &InodeNr, NULL))
         TAP_SPrint(TempFileName, sizeof(TempFileName), PlaybackName);
         char *p = strrchr(TempFileName, '.');
         TAP_SPrint(((p) ? p : &TempFileName[strlen(TempFileName)]), 10, "_temp%s", ((p) ? &PlaybackName[p-TempFileName] : ""));
-        HDD_Delete2(TempFileName, AbsPlaybackDir, TRUE);
+        HDD_Delete2(TempFileName, AbsPlaybackDir, TRUE, TRUE);
       }
 
       //Flush the caches *experimental*
@@ -7106,7 +7106,7 @@ if (DoiCheckTest >= 3)
     icheckErrors++;
 }
 //if (!KeepCut && !CutEnding)
-//  HDD_Delete2(CutFileName, AbsPlaybackDir, TRUE);  // wenn diese Zeile gelöscht wird, stattdessen das TRUE im MovieCutter-Aufruf wieder rausnehmen
+//  HDD_Delete2(CutFileName, AbsPlaybackDir, TRUE, TRUE);  // wenn diese Zeile gelöscht wird, stattdessen das TRUE im MovieCutter-Aufruf wieder rausnehmen
 
 // INFplus
 if (KeepCut || CutEnding)
@@ -7145,7 +7145,7 @@ if (KeepCut || CutEnding)
             HDD_Rename2(PlaybackName, CutFileName, AbsPlaybackDir, TRUE, FALSE);
           }
           else
-            HDD_Delete2(PlaybackName, AbsPlaybackDir, TRUE);
+            HDD_Delete2(PlaybackName, AbsPlaybackDir, TRUE, FALSE);
           if (!HDD_Exist2(PlaybackName, AbsPlaybackDir))
           {
             WriteLogMCf(PROGRAM_NAME, "Renaming original recording '%s' back to '%s'", TempFileName, PlaybackName);
@@ -7719,7 +7719,7 @@ bool PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isH
   if (!ret)
   {
     WriteLogMC(PROGRAM_NAME, "PatchOldNavFile() E1a03.");
-    HDD_Delete2(NavFileName, AbsDirectory, FALSE);
+    HDD_Delete2(NavFileName, AbsDirectory, FALSE, FALSE);
     HDD_Rename2(BakFileName, NavFileName, AbsDirectory, FALSE, FALSE);
     TRACEEXIT();
     return FALSE;

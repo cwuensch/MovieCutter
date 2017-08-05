@@ -26,7 +26,7 @@
 // ============================================================================
 //                               TAP-API-Lib
 // ============================================================================
-void GetCutNameFromRec(const char *RecFileName, const char *AbsDirectory, char *const OutCutFileName)
+void GetFileNameFromRec(const char *RecFileName, const char *AbsDirectory, const char *NewExt, char *const OutCutFileName)
 {
   char *p = NULL;
   TRACEENTER();
@@ -36,12 +36,12 @@ void GetCutNameFromRec(const char *RecFileName, const char *AbsDirectory, char *
     TAP_SPrint(OutCutFileName, FBLIB_DIR_SIZE, "%s/%s", AbsDirectory, RecFileName);
     if ((p = strrchr(OutCutFileName, '.')) == NULL)
       p = &OutCutFileName[strlen(OutCutFileName)];
-    TAP_SPrint(p, 5, ".cut");
+    strcpy(p, NewExt);
   }
   TRACEEXIT();
 }
 
-void HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNav, bool RenameCut)
+void HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNav, bool RenameCutSRT)
 {
   char AbsFileName[FBLIB_DIR_SIZE], AbsNewFileName[FBLIB_DIR_SIZE];
   TRACEENTER();
@@ -52,12 +52,15 @@ void HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsD
     TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.inf", AbsDirectory, FileName);  TAP_SPrint(AbsNewFileName, sizeof(AbsNewFileName), "%s/%s.inf", AbsDirectory, NewFileName);  rename(AbsFileName, AbsNewFileName);
     TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.nav", AbsDirectory, FileName);  TAP_SPrint(AbsNewFileName, sizeof(AbsNewFileName), "%s/%s.nav", AbsDirectory, NewFileName);  rename(AbsFileName, AbsNewFileName);
   }
-  if (RenameCut)
-    GetCutNameFromRec(FileName, AbsDirectory, AbsFileName);                             GetCutNameFromRec(NewFileName, AbsDirectory, AbsNewFileName);                                rename(AbsFileName, AbsNewFileName);   
+  if (RenameCutSRT)
+  {
+    GetFileNameFromRec(FileName, AbsDirectory, ".cut", AbsFileName);                    GetFileNameFromRec(NewFileName, AbsDirectory, ".cut", AbsNewFileName);                       rename(AbsFileName, AbsNewFileName);
+    GetFileNameFromRec(FileName, AbsDirectory, ".srt", AbsFileName);                    GetFileNameFromRec(NewFileName, AbsDirectory, ".srt", AbsNewFileName);                       rename(AbsFileName, AbsNewFileName);
+  }
   TRACEEXIT();
 }
 
-void HDD_Delete2(const char *FileName, const char *AbsDirectory, bool DeleteInfNavCut)
+void HDD_Delete2(const char *FileName, const char *AbsDirectory, bool DeleteInfNavCut, bool DeleteSRT)
 {
   char AbsFileName[FBLIB_DIR_SIZE];
   TRACEENTER();
@@ -67,9 +70,12 @@ void HDD_Delete2(const char *FileName, const char *AbsDirectory, bool DeleteInfN
   {
     TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.inf", AbsDirectory, FileName);  remove(AbsFileName);
     TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.nav", AbsDirectory, FileName);  remove(AbsFileName);
-    GetCutNameFromRec(FileName, AbsDirectory, AbsFileName);                             remove(AbsFileName);
+    GetFileNameFromRec(FileName, AbsDirectory, ".cut", AbsFileName);                    remove(AbsFileName);
   }
-
+  if (DeleteSRT)
+  {
+    GetFileNameFromRec(FileName, AbsDirectory, ".srt", AbsFileName);                    remove(AbsFileName);
+  }
   TRACEEXIT();
 }
 

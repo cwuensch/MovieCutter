@@ -360,7 +360,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
   if (HDD_Exist2(FileName, AbsDirectory))
   {
     if (HDD_Exist2(BakFileName, AbsDirectory))
-      HDD_Delete2(BakFileName, AbsDirectory, FALSE);
+      HDD_Delete2(BakFileName, AbsDirectory, FALSE, FALSE);
     HDD_Rename2(FileName, BakFileName, AbsDirectory, FALSE, FALSE);
   }
 
@@ -368,15 +368,15 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
   if(!SuppressNavGeneration)
   {
     if(PatchNavFiles(SourceFileName, CutFileName, AbsDirectory, CutStartPos, BehindCutPos, isHD, TruncateEnding, &(CutStartPoint->Timems), &(BehindCutPoint->Timems), &SourcePlayTime))
-      HDD_Delete2(BakFileName, AbsDirectory, FALSE);
+      HDD_Delete2(BakFileName, AbsDirectory, FALSE, FALSE);
     else
     {
       WriteLogMC("MovieCutterLib", "MovieCutter() W0009: nav creation failed.");
       SuppressNavGeneration = TRUE;
       TAP_SPrint(FileName, sizeof(FileName), "%s.nav", SourceFileName);
-      HDD_Delete2(FileName, AbsDirectory, FALSE);
+      HDD_Delete2(FileName, AbsDirectory, FALSE, FALSE);
       TAP_SPrint(FileName, sizeof(FileName), "%s.nav", CutFileName);
-      HDD_Delete2(FileName, AbsDirectory, FALSE);
+      HDD_Delete2(FileName, AbsDirectory, FALSE, FALSE);
     }
   }
 
@@ -415,9 +415,9 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
     if(LogString[0])
       WriteLogMC("MovieCutterLib", LogString);
   }
-//  if(!KeepSource) HDD_Delete2(SourceFileName, Directory, TRUE);
+//  if(!KeepSource) HDD_Delete2(SourceFileName, Directory, TRUE, TRUE);
   if(!KeepCut)
-    HDD_Delete2(CutFileName, AbsDirectory, TRUE);
+    HDD_Delete2(CutFileName, AbsDirectory, TRUE, TRUE);
 
   WriteLogMC("MovieCutterLib", "MovieCutter() finished.");
 
@@ -445,7 +445,7 @@ bool FileCut(char *SourceFileName, char *CutFileName, char *AbsDirectory, dword 
     Appl_StopPlaying();
     Appl_WaitEvt(0xE507, &x, 1, 0xFFFFFFFF, 300);
   }
-  HDD_Delete2(CutFileName, AbsDirectory, TRUE);
+  HDD_Delete2(CutFileName, AbsDirectory, TRUE, TRUE);
   CloseLogMC();
 
   //Flush the caches *experimental*
