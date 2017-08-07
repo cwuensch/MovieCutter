@@ -190,11 +190,11 @@ typedef enum
 
 typedef enum
 {
+  SO_Nothing = 0,
   SO_CopySeparate = 1,
   SO_CopyCommon = 2,
   SO_CopyAppendToSaved = 3,
   SO_CopyMergeWithSaved = 4,
-  SO_CopyDoStrip = 8
 } tStripOption;
 
 typedef enum
@@ -281,7 +281,7 @@ typedef enum
   LS_SelectPadding,
   LS_SelectEvenSegments,
   LS_SelectMiddle,
-  LS_UnselectAll,
+  LS_SelectNone,
   LS_ClearSegmentList,
   LS_DeleteAllBookmarks,
   LS_ExportToBM,
@@ -413,8 +413,8 @@ static char* DefaultStrings[LS_NrStrings] =
   "Markieren: Vor-/Nachlauf",
   "Markieren: Gerade Segmente",
   "Markieren: Mittelstück",
-  "Auswahl zurücksetzen",
-  "Schnittmarken löschen",
+  "Markieren: keine",
+  "Schnittliste löschen",
   "Bookmarks löschen",
   "Export: Segmente -> Bookmarks",
   "Segmente",
@@ -613,9 +613,10 @@ static int              SegmentTextStartLine = 0;
 static bool             jfs_fsck_present = FALSE;
 static bool             RecStrip_present = FALSE, RecStrip_active = FALSE;
 static bool             RecStrip_UseOutDir = FALSE;
-static int              RecStrip_DoCut = FALSE;
+static tStripOption     RecStrip_DoCut = SO_Nothing;
+static bool             RecStrip_DoStrip = FALSE;
 static pid_t            RecStrip_Pid = 0;
-static int              RecStrip_Percent = 0;
+static int              RecStrip_SavedNrSeg = 0, RecStrip_Percent = 0;
 static char             RecStrip_SavedName[MAX_FILE_NAME_SIZE], RecStrip_SavedDir[FBLIB_DIR_SIZE];
 
 
@@ -1879,7 +1880,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                 break;
 
               // Aktionen mit Confirmation-Dialog
-              if (ActionMenuItem==MI_SaveSegments || ActionMenuItem==MI_DeleteSegments || (ActionMenuItem==MI_CopySegSplitMovie && BookmarkMode) || (ActionMenuItem==MI_ClearAll && (BookmarkMode || NrSelectedSegments==0)) || (ActionMenuItem==MI_ImExportBookmarks && ((!BookmarkMode && NrSegmentMarker>2) || (BookmarkMode && NrBookmarks>0))))
+              if (ActionMenuItem==MI_SaveSegments || ActionMenuItem==MI_DeleteSegments || (ActionMenuItem==MI_CopySegSplitMovie && BookmarkMode) || (ActionMenuItem==MI_ClearAll) || (ActionMenuItem==MI_ImExportBookmarks && ((!BookmarkMode && NrSegmentMarker>2) || (BookmarkMode && NrBookmarks>0))))
               {
                 if(AskBeforeEdit && !ShowConfirmationDialog(LangGetString(LS_AskConfirmation)))
                 {
@@ -1901,21 +1902,12 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               {
                 case MI_SaveSegments:        MovieCutterSaveSegments(); break;
                 case MI_DeleteSegments:      MovieCutterDeleteSegments(); break;
-                case MI_SelectEvOddSegments: MovieCutterSelectEvOddSegments(); break;
-                case MI_ClearAll:            
+                case MI_SelectEvOddSegments:
+                  (ActionMenuEvenOdd > 0) ?  MovieCutterSelectEvOddSegments() : MovieCutterUnselectAll();
+                  break;
+                case MI_ClearAll:
                 {  
-                  if(BookmarkMode)
-                    DeleteAllBookmarks();
-                  else
-                  {
-                    if(NrSelectedSegments > 0)
-                    {
-                      MovieCutterUnselectAll();
-                      break;
-                    }
-                    else
-                      DeleteAllSegmentMarkers();
-                  }
+                  (BookmarkMode) ? DeleteAllBookmarks() : DeleteAllSegmentMarkers();
                   OSDSegmentListDrawList(FALSE);
                   OSDInfoDrawProgressbar(TRUE, TRUE);
                   break;
@@ -1956,7 +1948,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                     CutSaveToBM(FALSE);
                     CutFileSave();
                     TAP_Hdd_StopTs();
-                    RecStrip_DoCut = FALSE;
+                    RecStrip_DoCut = SO_Nothing;
+                    RecStrip_DoStrip = TRUE;
 //                    RecStrip_UseOutDir = FALSE;
                     RecStrip_active = TRUE;
                     RecStrip_Percent = 0;
@@ -2088,7 +2081,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               ActionMenuRemove();
               State = ST_ActiveOSD;
 
-              RecStrip_DoCut = ActionSubMenuItem + 1 + (CopyDoStrip ? 8 : 0);
+              RecStrip_DoCut = (tStripOption) (ActionSubMenuItem + 1);
+              RecStrip_DoStrip = CopyDoStrip;
               WriteLogMCf(PROGRAM_NAME, "[Action 'Copy parts' (%d) started...]", RecStrip_DoCut);
               CutSaveToBM(FALSE);
               CutFileSave();
@@ -2102,6 +2096,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             {
               strncpy(RecStrip_SavedName, PlaybackName, sizeof(RecStrip_SavedName));
               strncpy(RecStrip_SavedDir, AbsPlaybackDir, sizeof(RecStrip_SavedDir));
+              RecStrip_SavedNrSeg = NrSelectedSegments;
               ActionSubMenuDraw();
               // fortsetzen mit RKEY_Exit
             }
@@ -2194,9 +2189,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           strcpy(RS_OutDir, CopyOutDir);
         RS_OrigSize = RecFileSize;
         RS_NrSegments = NrSelectedSegments;
+        if (RecStrip_DoCut == SO_CopyMergeWithSaved)
+          RS_NrSegments += RecStrip_SavedNrSeg;
 
         // Neue Dateinamen berechnen
-        if ((RecStrip_DoCut % 8) == SO_CopyAppendToSaved)
+        if (RecStrip_DoCut == SO_CopyAppendToSaved)
         {
           strcpy(RS_StripName, RecStrip_SavedName);
           strcpy(RS_OutDir, RecStrip_SavedDir);
@@ -2270,24 +2267,27 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             args[i++] = "RecStrip";
             if (RecStrip_DoCut)
             {
-              if ((RecStrip_DoCut % 8) == SO_CopySeparate)              args[i++] = "-c";
+              if (RecStrip_DoCut == SO_CopySeparate)                  args[i++] = "-c";
               else
               {
-                if ((RecStrip_DoCut % 8) == SO_CopyMergeWithSaved)      args[i++] = "-m";
-                else if ((RecStrip_DoCut % 8) == SO_CopyAppendToSaved)  args[i++] = "-a";            
-                if (NrSegmentMarker > 2 && NrSelectedSegments > 0)      args[i++] = "-r";
+                if (RecStrip_DoCut == SO_CopyMergeWithSaved)          args[i++] = "-m";
+                else if (RecStrip_DoCut == SO_CopyAppendToSaved)      args[i++] = "-a";            
+                if (NrSegmentMarker > 2 && NrSelectedSegments > 0)    args[i++] = "-r";
               }
             }
-            if (!RecStrip_DoCut || RecStrip_DoCut >= 8)
+            if (RecStrip_DoStrip)
             {
               args[i++] = "-s";
               if (StripMode & 0x1) args[i++] = "-e";
               if (StripMode & 0x2) args[i++] = "-tt";
             }
-            if ((RecStrip_DoCut % 8) < SO_CopyMergeWithSaved)
+            if (RecStrip_DoCut < SO_CopyMergeWithSaved)
             {
               args[i++] = AbsOrigName;
-              args[i++] = AbsStripName;
+              if (RecStrip_DoCut == SO_CopySeparate)
+                args[i++] = RS_OutDir;
+              else
+                args[i++] = AbsStripName;
             }
             else
             {
@@ -2423,7 +2423,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         {
           char MessageStr[128];
           TAP_SPrint(MessageStr, sizeof(MessageStr), "%s\n\n", LangGetString(LS_Success));
-          if ((RecStrip_DoCut % 8) == SO_CopySeparate)
+          if (RecStrip_DoCut == SO_CopyCommon)
             TAP_SPrint(&MessageStr[strlen(MessageStr)], sizeof(MessageStr)-strlen(MessageStr), LangGetString(LS_SegmentsCopied), RS_NrSegments);
           else
             TAP_SPrint(&MessageStr[strlen(MessageStr)], sizeof(MessageStr)-strlen(MessageStr), LangGetString(LS_BytesCopied), CalcBlockSize(StripFileSize)/116.1986, CalcBlockSize(RS_OrigSize)/116.1986, ((float)CalcBlockSize(StripFileSize)/CalcBlockSize(RS_OrigSize))*100);
@@ -2437,8 +2437,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           if (!ShutdownAfterRS)
             ShowErrorMessage(LangGetString(LS_StripFailed), NULL);
         }
-        if(((RecStrip_DoCut % 8) == SO_CopyAppendToSaved) || ((RecStrip_DoCut % 8) == SO_CopyMergeWithSaved)) RecStrip_SavedName[0] = '\0';
-        RecStrip_DoCut = FALSE;
+        if((RecStrip_DoCut == SO_CopyAppendToSaved) || (RecStrip_DoCut == SO_CopyMergeWithSaved)) RecStrip_SavedName[0] = '\0';
+        RecStrip_DoCut = SO_Nothing;
         RecStrip_Return = -1;
       }
     }
@@ -5780,15 +5780,18 @@ void ActionMenuDraw(void)
       }
       case MI_SelectEvOddSegments:
       {
-        if (ActionMenuEvenOdd == 1)
+        if (ActionMenuEvenOdd == 0)
+          DisplayStr = LangGetString(LS_SelectNone);
+        else if (ActionMenuEvenOdd == 1)
           DisplayStr = (NrSegmentMarker == 4) ? LangGetString(LS_SelectPadding) : LangGetString(LS_SelectOddSegments);
         else
           DisplayStr = (NrSegmentMarker == 4) ? LangGetString(LS_SelectMiddle) : LangGetString(LS_SelectEvenSegments);
+
         if (DirectSegmentsCut)
         {
           if (ActionMenuEvenOdd == 1)
             DisplayStr = (NrSegmentMarker == 4) ? LangGetString(LS_RemovePadding) : LangGetString(LS_DeleteOddSegments);
-          else
+          else if (ActionMenuEvenOdd == 2)
             DisplayStr = LangGetString(LS_DeleteEvenSegments);
         }
         if (NrSegmentMarker <= 2) DisplayColor = Color_Inactive;
@@ -5803,13 +5806,8 @@ void ActionMenuDraw(void)
         }
         else
         {
-          if (NrSelectedSegments > 0)
-            DisplayStr = LangGetString(LS_UnselectAll);
-          else
-          {
-            DisplayStr = LangGetString(LS_ClearSegmentList);
-            if (NrSegmentMarker <= 2) DisplayColor = Color_Inactive;
-          }
+          DisplayStr = LangGetString(LS_ClearSegmentList);
+          if (NrSegmentMarker <= 2) DisplayColor = Color_Inactive;
         }
         break;
       }
@@ -5940,11 +5938,11 @@ void ActionSubMenuDraw(void)
 
 bool ActionMenuItemInactive(int MenuItem)
 {
-  return (((MenuItem==MI_SaveSegments||MenuItem==MI_DeleteSegments||MenuItem==MI_SelectEvOddSegments) && NrSegmentMarker<=2) || (MenuItem==MI_CopySegSplitMovie && BookmarkMode && PlayInfo.currentBlock==0) || (MenuItem==MI_CopySegSplitMovie && !BookmarkMode && (!RecStrip_present /*|| RecStrip_active*/)) || (MenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && (NrSegmentMarker>2 || NrSelectedSegments>0)))) || (MenuItem==MI_ImExportBookmarks && ((!BookmarkMode && NrBookmarks<=0) || (BookmarkMode && (NrSegmentMarker<=2 || MediaFileMode))) ) || (MenuItem==MI_RecStripCheckFS && ((!BookmarkMode && (!RecStrip_present||RecStrip_active)) || (BookmarkMode && !jfs_fsck_present))));
+  return (((MenuItem==MI_SaveSegments||MenuItem==MI_DeleteSegments||MenuItem==MI_SelectEvOddSegments) && NrSegmentMarker<=2) || (MenuItem==MI_CopySegSplitMovie && BookmarkMode && PlayInfo.currentBlock==0) || (MenuItem==MI_CopySegSplitMovie && !BookmarkMode && (!RecStrip_present /*|| RecStrip_active*/)) || (MenuItem==MI_ClearAll && !((BookmarkMode && NrBookmarks>0) || (!BookmarkMode && NrSegmentMarker>2))) || (MenuItem==MI_ImExportBookmarks && ((!BookmarkMode && NrBookmarks<=0) || (BookmarkMode && (NrSegmentMarker<=2 || MediaFileMode))) ) || (MenuItem==MI_RecStripCheckFS && ((!BookmarkMode && (!RecStrip_present||RecStrip_active)) || (BookmarkMode && !jfs_fsck_present))));
 }
 bool ActionSubMenuItemInactive(int MenuItem)
 {
-  return ((MenuItem<2 && NrSegmentMarker<=2) || (MenuItem<4 && RecStrip_active) || ((MenuItem==SI_CopyAppendToSaved || MenuItem==SI_CopyMergeWithSaved) && !*RecStrip_SavedName));
+  return (/*(MenuItem==SI_CopySeparate && NrSegmentMarker<=2) ||*/ (MenuItem<4 && RecStrip_active) || ((MenuItem==SI_CopyAppendToSaved || MenuItem==SI_CopyMergeWithSaved) && !*RecStrip_SavedName));
 }
 
 void ActionMenuDown(void)
@@ -6654,7 +6652,7 @@ void MovieCutterSelectEvOddSegments(void)
 
   int i;
   for(i = 0; i < NrSegmentMarker-1; i++)
-    SegmentMarker[i].Selected = ((i & 1) == !ActionMenuEvenOdd);
+    SegmentMarker[i].Selected = ((i & 1) == (ActionMenuEvenOdd-1));
 
   OSDSegmentListDrawList(FALSE);
   OSDInfoDrawProgressbar(TRUE, TRUE);
@@ -6673,8 +6671,8 @@ void MovieCutterSelectEvOddSegments(void)
     }
   }
 
+  ActionMenuEvenOdd = (ActionMenuEvenOdd + 1) % 3;
   State = ST_ActionMenu;
-  ActionMenuEvenOdd = !ActionMenuEvenOdd;
   ActionMenuDraw();
   TRACEEXIT();
 }
@@ -6691,6 +6689,7 @@ void MovieCutterUnselectAll(void)
   OSDInfoDrawProgressbar(TRUE, TRUE);
 //  OSDRedrawEverything();
 
+  ActionMenuEvenOdd = 1;
   if (NrSegmentMarker > 2)
   {
     State = ST_ActionMenu;

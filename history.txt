@@ -2,6 +2,7 @@
                   ** neue Funktion: Zusammenfügen zweier Aufnahmen (über Submenü "Teile kopieren")
                   ** Umwandlung von Itemized Event Text
                    * beim Umbenennen / Löschen von Aufnahmen werden *.srt mit behandelt
+                   * Menü: 3 Optionen für Markieren - ungerade / gerade / keine
 
                  INTERNALS:
                    - Laden von ini und lng durch eigene Implementierung
