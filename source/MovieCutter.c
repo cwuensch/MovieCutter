@@ -361,6 +361,7 @@ typedef enum
   LS_SegmentsCopied,
   LS_StripFailed,
   LS_AbortRecStrip,
+  LS_HideRSProgress,
   LS_ShutdownAfterRS,
   LS_CopySeparate,
   LS_CopyCommon,
@@ -489,6 +490,7 @@ static char* DefaultStrings[LS_NrStrings] =
   "%d Segment(e) kopiert.",
   "Kopieren ist fehlgeschlagen!\nBitte das Log prüfen!",
   "Strippen jetzt abbrechen?",
+  "(Weiße Taste blendet die Anzeige aus.)",
   "(Dialog stehen lassen, um zu warten.)",
   "Separat in einzelne Rec-Files",
   "Gemeinsam in eine Aufnahme",
@@ -2243,22 +2245,14 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             // Child-Process
             char* args[7];
             int i = 0, j;
-            int fd = open("/mnt/hd/ProgramFiles/Settings/RecStripper/RecStrip.log", O_WRONLY | O_APPEND | O_CREAT);
+            int fd = open(TAPFSROOT LOGDIR "/RecStrip.log", O_WRONLY | O_APPEND | O_CREAT);
             if (fd >= 0)
             {
-              char Buffer[128];
+              char LogString[128];
               time_t StartTime; byte sec;
               StartTime = PvrTimeToLinux(Now(&sec)) + sec;
-              TAP_SPrint(Buffer, sizeof(Buffer), "\r\n=========================================================\r\n*** RecStrip started %s \r\n", ctime(&StartTime));
-              write(fd, Buffer, strlen(Buffer));
-              dup2(fd, 1);
-              close(fd);
-            }
-            if (pipefd[0]) close(pipefd[0]);    // close reading end in the child
-            if (pipefd[1])
-            {
-              dup2(pipefd[1], 2);  // send stderr to the pipe
-              close(pipefd[1]);    // this descriptor is no longer needed
+              TAP_SPrint(LogString, sizeof(LogString), "\r\n=========================================================\r\n*** RecStrip started %s \r\n", ctime(&StartTime));
+              write(fd, LogString, strlen(LogString));
             }
 
             TAP_SPrint(AbsOrigName, sizeof(AbsOrigName), "%s/%s", RS_OrigDir, RS_OrigName);
@@ -2295,14 +2289,26 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               args[i++] = AbsSavedName;
               args[i++] = AbsOrigName;
             }
-            args[i]   = (char*) 0;
-            execv(RECSTRIPPATH "/RecStrip", args);
+            args[i] = (char*) 0;
 
-            TAP_SPrint(LogString, sizeof(LogString), "Calling:");
+            TAP_SPrint(LogString, sizeof(LogString), "Called: ");
             for (j = 0; j < i; j++)
               TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), (strchr(args[j], ' ') ? " \"%s\"" : " %s"), args[j]);
-            WriteLogMC(PROGRAM_NAME, LogString);
+            TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "\r\n");
 
+            if (fd >= 0)
+            {
+              write(fd, LogString, strlen(LogString));
+              dup2(fd, 1);
+              close(fd);
+            }
+            if (pipefd[0]) close(pipefd[0]);    // close reading end in the child
+            if (pipefd[1])
+            {
+              dup2(pipefd[1], 2);  // send stderr to the pipe
+              close(pipefd[1]);    // this descriptor is no longer needed
+            }
+            execv(RECSTRIPPATH "/RecStrip", args);
             exit(-1);
           }
           else if (CurPid > 0)
@@ -2465,7 +2471,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           OSDRecStripProgressBar();
         if (RecStrip_Pid)
         {
-          if (ShowConfirmationDialog(LangGetString(LS_AbortRecStrip)))
+          char Msg[128];
+          TAP_SPrint(Msg, sizeof(Msg), "%s\n\n%s", LangGetString(LS_AbortRecStrip), LangGetString(LS_HideRSProgress));
+          if (ShowConfirmationDialog(Msg))
             if (RecStrip_Pid) kill(RecStrip_Pid, SIGKILL);  // Wenn RS während Dialog beendet wird, führt der "Aktion erfolgreich" Dialog zu einer positiven Auswertung von ShowConfirmDialog -> kill(0)
 /*            if (!RecStrip_Pid)
           {
