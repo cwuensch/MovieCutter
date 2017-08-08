@@ -486,7 +486,7 @@ static char* DefaultStrings[LS_NrStrings] =
   "Kopie erstellen...",
   "Aktion erfolgreich abgeschlossen.",
   "%.1f von %.1f MB (%.1f %%) kopiert.",
-  "%d Segmente kopiert.",
+  "%d Segment(e) kopiert.",
   "Kopieren ist fehlgeschlagen!\nBitte das Log prüfen!",
   "Strippen jetzt abbrechen?",
   "(Dialog stehen lassen, um zu warten.)",
@@ -2424,9 +2424,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           char MessageStr[128];
           TAP_SPrint(MessageStr, sizeof(MessageStr), "%s\n\n", LangGetString(LS_Success));
           if (RecStrip_DoCut == SO_CopyCommon)
-            TAP_SPrint(&MessageStr[strlen(MessageStr)], sizeof(MessageStr)-strlen(MessageStr), LangGetString(LS_SegmentsCopied), RS_NrSegments);
-          else
             TAP_SPrint(&MessageStr[strlen(MessageStr)], sizeof(MessageStr)-strlen(MessageStr), LangGetString(LS_BytesCopied), CalcBlockSize(StripFileSize)/116.1986, CalcBlockSize(RS_OrigSize)/116.1986, ((float)CalcBlockSize(StripFileSize)/CalcBlockSize(RS_OrigSize))*100);
+          else
+            TAP_SPrint(&MessageStr[strlen(MessageStr)], sizeof(MessageStr)-strlen(MessageStr), LangGetString(LS_SegmentsCopied), RS_NrSegments);
           WriteLogMC(PROGRAM_NAME, MessageStr);
           if (!ShutdownAfterRS)
             ShowErrorMessage(MessageStr, NULL);
