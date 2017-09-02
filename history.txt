@@ -19,7 +19,7 @@
                    - Zusammenfügen von Aufnahmen
                    - diverse Bugfixes (z.B. SectionLength in RebuildInf, Remaining Bytes kopieren in PESProcessor)
                    - Extraktion der Teletext-Untertitel (RecStrip 2.1)
-                   - benötigt nun RecStrip 2.2 (anderes Parameterformat für append)
+                   - benötigt nun RecStrip 2.2 (geänderte Parameterfolge für append)
 
 2017-03-31 v3.6b NEU:
                   ** neues Submenü für "Teile kopieren" (separat/gemeinsam, mit/ohne Strippen)
