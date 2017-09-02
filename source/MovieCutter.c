@@ -2275,18 +2275,16 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               if (StripMode & 0x1) args[i++] = "-e";
               if (StripMode & 0x2) args[i++] = "-tt";
             }
-            if (RecStrip_DoCut < SO_CopyMergeWithSaved)
+
+            if (RecStrip_DoCut <= SO_CopyCommon)
             {
               args[i++] = AbsOrigName;
-              if (RecStrip_DoCut == SO_CopySeparate)
-                args[i++] = RS_OutDir;
-              else
-                args[i++] = AbsStripName;
+              args[i++] = (RecStrip_DoCut==SO_CopySeparate) ? RS_OutDir : AbsStripName;
             }
             else
             {
               args[i++] = AbsStripName;
-              args[i++] = AbsSavedName;
+              if (RecStrip_DoCut==SO_CopyMergeWithSaved)   args[i++] = AbsSavedName;
               args[i++] = AbsOrigName;
             }
             args[i] = (char*) 0;
@@ -4056,6 +4054,8 @@ bool CutDecodeFromBM(void)
       SegmentMarker[i].Timems = NavGetBlockTimeStamp(SegmentMarker[i].Block);
       SegmentMarker[i].Percent = 0;
       SegmentMarker[i].pCaption = NULL;
+      if ((i == 0) && (SegmentMarker[0].Block == 0) && (SegmentMarker[0].Timems < 1000))
+        SegmentMarker[0].Timems = 0;
     }
   }
 

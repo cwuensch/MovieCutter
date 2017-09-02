@@ -1,4 +1,4 @@
-2017-08-08 v3.6c NEU:
+2017-08-31 v3.6c NEU:
                   ** neue Funktion: Zusammenfügen zweier Aufnahmen (über Submenü "Teile kopieren")
                   ** bei "Teile kopieren" kann ein alternatives Zielverzeichnis (z.B. NAS) angegeben werden
                   ** Umwandlung von Itemized Event Text
@@ -19,6 +19,7 @@
                    - Zusammenfügen von Aufnahmen
                    - diverse Bugfixes (z.B. SectionLength in RebuildInf, Remaining Bytes kopieren in PESProcessor)
                    - Extraktion der Teletext-Untertitel (RecStrip 2.1)
+                   - benötigt nun RecStrip 2.2 (anderes Parameterformat für append)
 
 2017-03-31 v3.6b NEU:
                   ** neues Submenü für "Teile kopieren" (separat/gemeinsam, mit/ohne Strippen)
