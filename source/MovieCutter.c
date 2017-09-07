@@ -2221,7 +2221,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           TAP_SPrint(&RS_StripName[NameLength], sizeof(RS_StripName)-NameLength, "_strip%s", ExtensionStart);
           TAP_SPrint(&RS_BakName[NameLength], sizeof(RS_BakName)-NameLength, "_bak%s", ExtensionStart);
         }
-        HDD_Delete2(RS_StripName, RS_OutDir, TRUE, TRUE);
+//        if (RecStrip_DoCut != SO_CopyAppendToSaved)
+//          HDD_Delete2(RS_StripName, RS_OutDir, TRUE, TRUE);
         ReadBytes = 0;
 
         // RecStrip starten
@@ -2284,7 +2285,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             else
             {
               args[i++] = AbsStripName;
-              if (RecStrip_DoCut==SO_CopyMergeWithSaved)   args[i++] = AbsSavedName;
+              if (RecStrip_DoCut==SO_CopyMergeWithSaved)  args[i++] = AbsSavedName;
               args[i++] = AbsOrigName;
             }
             args[i] = (char*) 0;
