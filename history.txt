@@ -1,4 +1,4 @@
-2017-08-31 v3.6c NEU:
+2017-09-01 v3.6c NEU:
                   ** neue Funktion: Zusammenfügen zweier Aufnahmen (über Submenü "Teile kopieren")
                   ** bei "Teile kopieren" kann ein alternatives Zielverzeichnis (z.B. NAS) angegeben werden
                   ** Umwandlung von Itemized Event Text
