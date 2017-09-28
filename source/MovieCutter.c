@@ -1293,7 +1293,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         break;
       }
 
-      if ((int)PlayInfo.currentBlock < 0)
+      if ((int)PlayInfo.currentBlock == -1)
         break;  // *** kritisch ***
 
       TAP_GetState(&SysState, &SysSubState);
@@ -1377,7 +1377,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             ClearOSD(TRUE);
             if (RecStrip_active && (param1 == RKEY_Exit || param1 == FKEY_Exit || param1 == RKEY_Stop))
               OSDRecStripProgressBar();
-            if ((param1 != RKEY_Exit) && (param1 != FKEY_Exit)) ReturnKey = TRUE;
+            if ((param1 != RKEY_Exit) && (param1 != FKEY_Exit) && (param1 != RKEY_PlayList)) ReturnKey = TRUE;
+            else if (param1 == RKEY_PlayList) TAP_GenerateEvent(EVT_KEY, RKEY_PlayList, 0);
 //            else if (param1 == RKEY_Info) TAP_GenerateEvent(EVT_KEY, RKEY_Info, 0);
             break;
           }
@@ -1944,12 +1945,15 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
                 case MI_RecStripCheckFS:
                 {
+#ifdef FULLDEBUG
+  WriteLogMC(PROGRAM_NAME, "TAP_EventHandler: State=ST_ActionMenu, MI_RecStripCheckFS --> CutFileSave()");
+#endif
+                  CutSaveToBM(FALSE);
+                  CutFileSave();
+                  TAP_Hdd_StopTs();
                   if ((ActionMenuItem == MI_CopySegSplitMovie) || (ActionMenuItem == MI_RecStripCheckFS && !BookmarkMode))
                   {
                     WriteLogMCf(PROGRAM_NAME, "[Action 'Strip movie' started...]");
-                    CutSaveToBM(FALSE);
-                    CutFileSave();
-                    TAP_Hdd_StopTs();
                     RecStrip_DoCut = SO_Nothing;
                     RecStrip_DoStrip = TRUE;
 //                    RecStrip_UseOutDir = FALSE;
@@ -1960,7 +1964,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
                   else
                   {
                     WriteLogMC(PROGRAM_NAME, "[Action 'Check file system' started...]");
+                    State = AutoOSDPolicy ? ST_WaitForPlayback : ST_InactiveMode;
+                    Cleanup(FALSE);
+                    ClearOSD(FALSE);
                     CheckFileSystem(AbsPlaybackDir, 0, 1, 1, TRUE, FALSE, FALSE, TRUE, 0, NULL);
+                    TAP_EnterNormalNoInfo();
                   }
                   break;
                 }
@@ -2428,7 +2436,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         {
           char MessageStr[128];
           TAP_SPrint(MessageStr, sizeof(MessageStr), "%s\n\n", LangGetString(LS_Success));
-          if (RecStrip_DoCut == SO_CopyCommon)
+          if (!RecStrip_DoCut || (RecStrip_DoCut == SO_CopyCommon))
             TAP_SPrint(&MessageStr[strlen(MessageStr)], sizeof(MessageStr)-strlen(MessageStr), LangGetString(LS_BytesCopied), CalcBlockSize(StripFileSize)/116.1986, CalcBlockSize(RS_OrigSize)/116.1986, ((float)CalcBlockSize(StripFileSize)/CalcBlockSize(RS_OrigSize))*100);
           else
             TAP_SPrint(&MessageStr[strlen(MessageStr)], sizeof(MessageStr)-strlen(MessageStr), LangGetString(LS_SegmentsCopied), RS_NrSegments);
@@ -2543,6 +2551,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         if (CheckFSAfterCut == FM_Shutdown)
         {
 //            WriteLogMCf(PROGRAM_NAME, "Inode-Check (%d/%d) mit fsck für Mount: %s", i+1, NrHDDs, p);
+          ClearOSD(FALSE);
+          if(isPlaybackRunning()) TAP_Hdd_StopTs();
           CheckFileSystem(p, i, i+1, NrHDDs, TRUE, TRUE, FALSE, FALSE, NrAllSuspectInodes, NULL);
         }
         else if (InodeMonitoring)
