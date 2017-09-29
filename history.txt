@@ -1,16 +1,18 @@
-2017-09-01 v3.6c NEU:
+2017-09-30 v3.6c NEU:
                   ** neue Funktion: Zusammenfügen zweier Aufnahmen (über Submenü "Teile kopieren")
                   ** bei "Teile kopieren" kann ein alternatives Zielverzeichnis (z.B. NAS) angegeben werden
                   ** Umwandlung von Itemized Event Text
                    * beim Umbenennen / Löschen von Aufnahmen werden *.srt mit behandelt
                    * Menü: 3 Optionen für Markieren - ungerade / gerade / keine
                    * RecStrip: bei Rückfrage wird auf Ausblenden durch weiße Taste hingewiesen
+                   * vor Dateisystem-Prüfung wird das OSD ausgeblendet und die Wiedergabe beendet
 
                  INTERNALS:
                    - Laden von ini und lng durch eigene Implementierung
                    - Zeichnen der SegmentList ohne Background-Image
 
                  BUGFIXES:
+                   - (PlayInfo.currentBlock == -1) statt negativ abfragen
                    - FixInodes-Bug behoben!! (gespeicherte inodes wurden nicht überwacht)
                    - bei Schnitt mit SpecialEnd verblieb eine (falsche) Kopie der cut mit Namen des letzten Segments
                    - RecStrip-Aufruf wurde nicht im Logfile ausgegeben
