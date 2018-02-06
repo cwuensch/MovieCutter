@@ -6,11 +6,12 @@
 function DeleteCuts() {
     # Simple version: just look in the current folder
     # (from http://unix.stackexchange.com/questions/214477)
-    for f in *.cut *.cut.bak
+    for f in *.cut *.cut.bak *.nav.bak
     do
         f="${f%%.bak}"
         f="${f%%.cut}"
-        [ "$f" = '*' ] || [ -f "$f.rec.inf" ] || [ -f "$f.mpg.inf" ] || rm -f -- "$f.cut" "$f.cut.bak"
+        f="${f%%.rec.nav}"
+        [ "$f" = '*' ] || [ -f "$f.rec.inf" ] || [ -f "$f.mpg.inf" ] || rm -f -- "$f.cut" "$f.cut.bak" "$f.rec.nav.bak" "$f.mpg.nav.bak"
     done
 
     # Extended version: also look into subdirectories
