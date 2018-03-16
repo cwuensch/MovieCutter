@@ -728,6 +728,9 @@ int TAP_Main(void)
       OSDMenuEvent(NULL, NULL, NULL);
     } while(OSDMenuInfoBoxIsVisible());
 
+    #ifdef MC_MULTILANG
+      LangUnloadStrings();
+    #endif
     #ifdef MC_UNICODE
       FMUC_FreeFontFile(&Calibri_10_FontData);
       FMUC_FreeFontFile(&Calibri_12_FontData);
