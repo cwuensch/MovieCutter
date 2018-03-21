@@ -657,7 +657,7 @@ int TAP_Main(void)
 
   WriteLogMC (PROGRAM_NAME, "***  MovieCutter " VERSION " started! (FBLib " __FBLIB_VERSION__ ") ***");
   WriteLogMC (PROGRAM_NAME, "=======================================================");
-  WriteLogMCf(PROGRAM_NAME, "Receiver Model: %s (%u), System Type: TMS-%c (%d)", GetToppyString(GetSysID()), GetSysID(), SysTypeToStr(), GetSystemType());
+  WriteLogMCf(PROGRAM_NAME, "Receiver Model: %s (%lu), System Type: TMS-%c (%d)", GetToppyString(TAP_GetSystemId()), TAP_GetSystemId(), SysTypeToStr(), GetSystemType());
   WriteLogMCf(PROGRAM_NAME, "Firmware: %s", GetApplVer());
   if (HDD_GetHddID(HDDModel, HDDSerial, HDDFirmware))
     WriteLogMCf(PROGRAM_NAME, "Hard disk: %s, FW %s, Serial: %s", HDDModel, HDDFirmware, HDDSerial);
@@ -2886,7 +2886,7 @@ void LoadINI(void)
 
   if (RCUMode == RC_auto)
   {
-    switch(GetSysID())
+    switch(TAP_GetSystemId())
     {
       case 22010:    // TMS-2100
       case 22121:    // SRP-2410
@@ -2895,7 +2895,7 @@ void LoadINI(void)
       case 42561:    // CRP-2401CI+ Conax
         RCUMode = RC_SRP2410;
         break;
-      case 22120:    // SRP-2401CI+
+      case 22120:    // SRP-2401CI+ Conax
       case 22130:    // SRP-2401CI+
         RCUMode = RC_SRP2401;
         break;
@@ -2958,7 +2958,7 @@ void LoadINI(void)
 
   if (RCUMode == RC_auto)
   {
-    switch(GetSysID())
+    switch(TAP_GetSystemId())
     {
       case 22010:    // TMS-2100
       case 22121:    // SRP-2410
