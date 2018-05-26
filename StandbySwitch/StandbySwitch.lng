@@ -1,0 +1,49 @@
+# To add a new language, copy a block and translate it
+# the following codes are supported:
+#
+# LAN_Arab          ar
+# LAN_Czech         cs
+# LAN_Danish        da
+# LAN_Dutch         nl
+# LAN_English       en
+# LAN_French        fr
+# LAN_German        de
+# LAN_Greek         el
+# LAN_Italy         it
+# LAN_Norwegian     no
+# LAN_Persian       fa
+# LAN_Polish        pl
+# LAN_Russian       ru
+# LAN_Slovak        sk
+# LAN_Spain         es
+# LAN_Suomi         fi
+# LAN_Swedish       sv
+# LAN_Thai          th
+# LAN_Turk          tr
+
+
+#Deutsch
+de_000=Standby-Verhalten einstellen
+de_001=Standby-Modus:
+de_002=SCART durchschleifen
+de_003=Tuner durchschleifen
+de_004=Display leuchtet
+de_005=Übernehmen
+de_006=Aktiv
+de_007=Passiv
+de_008=Ein
+de_009=Aus
+de_010=Fehler beim Lesen des Standby-Modus.\n\nUnerwarteter Wert im EEPROM gefunden.
+
+#English
+en_000=Change standby settings
+en_001=Standby mode:
+en_002=SCART loop through
+en_003=Tuner loop through
+en_004=Display enabled
+en_005=Save & Exit
+en_006=Active
+en_007=Passive
+en_008=On
+en_009=Off
+en_010=Error reading standby settings.\n\nUnexpected value found in EEPROM.

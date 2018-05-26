@@ -1,0 +1,38 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <None Include="..\source\build_TMS.bat">
+      <Filter>Ressourcendateien</Filter>
+    </None>
+    <None Include="..\source\Makedebug">
+      <Filter>Ressourcendateien</Filter>
+    </None>
+    <None Include="..\source\Makefile">
+      <Filter>Ressourcendateien</Filter>
+    </None>
+    <None Include="..\StandbySwitch.lng">
+      <Filter>Ressourcendateien</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Headerdateien">
+      <UniqueIdentifier>{b74d1bfe-a05c-474b-b0df-0519bb5c9599}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Ressourcendateien">
+      <UniqueIdentifier>{26b110df-459c-4d12-9a93-fa13bc78c46b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Quelldateien">
+      <UniqueIdentifier>{4db280fe-ffa3-4dbe-9bab-d0eb74bb1c9c}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\source\StandbySwitch.c">
+      <Filter>Quelldateien</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\source\StandbySwitch.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
