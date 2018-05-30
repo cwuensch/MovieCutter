@@ -49,6 +49,7 @@ typedef enum
   LS_Tuner,
   LS_VFD,
   LS_Save,
+  LS_Exit,
   LS_active,
   LS_passive,
   LS_on,
@@ -65,6 +66,7 @@ char* DefaultStrings[LS_NrStrings] =
   "Tuner durchschleifen",
   "Display leuchtet",
   "Übernehmen",
+  "Beenden",
   "Aktiv",
   "Passiv",
   "Ein",
@@ -149,6 +151,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         OSDMenuItemAdd(hString, LangGetString((curStandby.VFD ? LS_on : LS_off)), NULL, NULL, curStandby.Active1, TRUE, MI_VFD);
 //        OSDMenuItemAdd(" ", NULL, NULL, NULL, FALSE, FALSE, MI_Dummy);
         OSDMenuItemAdd(LangGetString(LS_Save), NULL, NULL, NULL, TRUE, FALSE, MI_Save);
+
+        OSDMenuButtonAdd(1, BI_Green, NULL, LangGetString(LS_Save));
+        OSDMenuButtonAdd(1, BI_Exit, NULL, LangGetString(LS_Exit));
         OSDMenuUpdate(FALSE);
 
         State = ST_Menu;
@@ -206,8 +211,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           OSDMenuUpdate(FALSE);
           param1 = 0;
         }
-        else if ((event == EVT_KEY) && (param1 == RKEY_Exit))
+        else if ((event == EVT_KEY) && (param1 == RKEY_Green || param1 == RKEY_Exit))
         {
+          if (param1 == RKEY_Green)
+            SetStandbyMode(&curStandby);
           State = ST_Finished;
           param1 = 0;
         }
@@ -259,9 +266,10 @@ bool GetStandbyMode(tStandbyMode *outMode)
   if(!__etcInfo) return FALSE;
 
   Result.ModeByte = __etcInfo[GetStandbyOffset()];
-  if (Result.Zeros == 0)
+  TAP_PrintNet("StandbyMode: Byte=0x%hhx (Active1=%hhu, Active2=%hhu, Zeros=%hhu, Scart=%hhu, Tuner=%hhu, VFD=%hhu)\n", Result.ModeByte, Result.Active1, Result.Active2, Result.Zeros, Result.Scart, Result.Tuner, Result.VFD);
+  if (Result.Zeros == 0 || Result.ModeByte == 0xff)
   {
-    TAP_PrintNet("StandbyMode: Byte=0x%hhx (Active1=%hhu, Active2=%hhu, Zeros=%hhu, Scart=%hhu, Tuner=%hhu, VFD=%hhu)\n", Result.ModeByte, Result.Active1, Result.Active2, Result.Zeros, Result.Scart, Result.Tuner, Result.VFD);
+Result.Zeros = 0;
     if(outMode) *outMode = Result;
     return TRUE;
   }
@@ -287,7 +295,7 @@ bool SetStandbyMode(tStandbyMode *const newMode)
 
   address = GetStandbyOffset();
   curMode.ModeByte = __etcInfo[address];
-  if((curMode.Zeros!=0) || (newMode->Zeros!=0)) return FALSE;
+  if(/*(curMode.Zeros!=0) ||*/ (newMode->Zeros!=0)) return FALSE;
 
   if(newMode->ModeByte != curMode.ModeByte)
   {
