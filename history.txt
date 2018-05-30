@@ -23,6 +23,9 @@
                    - Extraktion der Teletext-Untertitel (RecStrip 2.1)
                    - benötigt nun RecStrip 2.2 (geänderte Parameterfolge für append)
 
+                 jfs_icheck 0.5 (31.05.2018)
+                   - berücksichtigt bei der Berechnung von realblocks die zur indirekten Adressierung genutzten Blöcke
+
 2017-03-31 v3.6b NEU:
                   ** neues Submenü für "Teile kopieren" (separat/gemeinsam, mit/ohne Strippen)
                   ** nav-Erzeugung: nicht darstellbare B-Frames vor/nach dem ersten I-Frame werden ignoriert
