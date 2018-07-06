@@ -1,3 +1,10 @@
+2018-06-30 v3.6c RecStrip 2.3:
+                   - auch Filler-NALUs am Dateianfang und nach Bruchstellen werden entfernt
+                   - erweiterter Continuity-Check: bis zu 8 PIDs werden geprüft (alle Audio und ggf. Teletext/EPG)
+                   - Aufnahmen ohne Video-PID werden akzeptiert
+                   - Bugfix: Continuity-Check in NALUDump wurde nach Schnitt dauerhaft ausgesetzt
+                   - Bugfix: Bei PMT-Analyse wurde die verbleibende SectionLength falsch berechnet
+
 2017-09-30 v3.6c NEU:
                   ** neue Funktion: Zusammenfügen zweier Aufnahmen (über Submenü "Teile kopieren")
                   ** bei "Teile kopieren" kann ein alternatives Zielverzeichnis (z.B. NAS) angegeben werden
