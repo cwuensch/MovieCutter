@@ -239,6 +239,7 @@ static int sysfs_find_attr_file_path (const char *start_path, char **dest_path, 
 
 			return 0;
 		}
+		depth++;   // [CW] Hinzugefügt, um Endlosschleife zu vermeiden!
 	}
 
 	return EINVAL;
@@ -252,9 +253,7 @@ int sysfs_get_attr_recursive (int fd, const char *attr, const char *fmt, void *v
 
 	err = sysfs_find_fd(fd, &path, verbose);
 	if (!err) {
-TAP_PrintNet("[CW] VORHER: apt_is_apt=%d\n", apt_is_apt());
-		err = sysfs_find_attr_file_path(path, &attr_path, attr);  // [CW] Hier wird apt_data.is_apt auf 0x46 statt 0 gesetzt -> warum??
-TAP_PrintNet("[CW] NACHHER: apt_is_apt=%d\n", apt_is_apt());
+		err = sysfs_find_attr_file_path(path, &attr_path, attr);  // [CW] Hier erfolgt ein Buffer overflow! (apt_data.is_apt wird auf 0x46 statt 0 gesetzt)
 
 		if (!err) {
 			err = sysfs_read_attr(attr_path, attr, fmt, val1, val2, verbose);

@@ -152,7 +152,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     {
       case ST_Init:
       {
-        char* hString = (char*)TAP_MemAlloc(256);
+//        char* hString = (char*)TAP_MemAlloc(256);
 
         OSDMenuInitialize(FALSE, TRUE, FALSE, TRUE, LangGetString(LS_MenuTitle), NULL);
         OSDMenuItemAdd("Set Standby to:", "off", NULL, NULL, TRUE, TRUE, DC_SetStandbyTo);

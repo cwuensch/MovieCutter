@@ -85,12 +85,10 @@ int apt_detect (int fd, int verbose)
 	int err;
 	unsigned int i;
 
-TAP_PrintNet("apt_detect\n");
     apt_data.is_apt = 0;
 
 	err = sysfs_get_attr_recursive(fd, "idVendor", "%x", &apt_data.id.vendor_id, NULL, verbose);
 	if (err) {
-TAP_PrintNet("apt_data.isapt=%d, apt_is_apt=%d\n", apt_data.is_apt, apt_is_apt());
 		apt_data.is_apt = 0;  // [CW] apt_data.is_apt wieder zurücksetzen (siehe sysfs.c Z.253)
 		if (verbose) printf("APT: No idVendor found -> not USB bridge device\n");
 		return 0;
