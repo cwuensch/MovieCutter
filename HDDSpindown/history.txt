@@ -1,2 +1,5 @@
+v0.2          - Bugfix in hdparm
+(2018-08-06)  - Setzen des Standby-Timers per AutoStart
+
 v0.1          First release
 (2018-05-26)

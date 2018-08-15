@@ -23,29 +23,17 @@
 
 
 #Deutsch
-de_000=Standby-Verhalten einstellen
-de_001=Standby-Modus:
-de_002=SCART durchschleifen
-de_003=Tuner durchschleifen
-de_004=Display leuchtet
-de_005=Übernehmen
-de_006=Beenden
-de_007=Aktiv
-de_008=Passiv
-de_009=Ein
-de_010=Aus
-de_011=Fehler beim Lesen des Standby-Modus.\n\nUnerwarteter Wert im EEPROM gefunden.
+de_000=Standby-Modus der Festplatte
+de_001=Laufwerk wählen:
+de_002=Standby aktivieren nach:
+de_003=Standby jetzt aktivieren
+de_004=Übernehmen
+de_005=Beenden
 
 #English
-en_000=Change standby settings
-en_001=Standby mode:
-en_002=SCART loop through
-en_003=Tuner loop through
-en_004=Display enabled
-en_005=Save & Exit
-en_006=Cancel
-en_007=Active
-en_008=Passive
-en_009=On
-en_010=Off
-en_011=Error reading standby settings.\n\nUnexpected value found in EEPROM.
+en_000=Standby-Modus der Festplatte
+en_001=Select device:
+en_002=Set standby to:
+en_003=Set standby now
+en_004=Save & Exit
+en_005=Cancel
