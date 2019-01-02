@@ -350,6 +350,11 @@ static int process_dev (char *devname, tDriveCommand command, int standby)
   {
     uint8_t args1[4] = {ATA_OP_STANDBYNOW1, 0, 0, 0};
     uint8_t args2[4] = {ATA_OP_STANDBYNOW2, 0, 0, 0};
+
+    sync();
+    sync();
+    TAP_Sleep(1);
+
 //    if (get_standbynow)
       printf(" issuing standby command\n");
     if (do_drive_cmd(fd, args1, 0) || do_drive_cmd(fd, args2, 0)) {
@@ -367,7 +372,7 @@ static int process_dev (char *devname, tDriveCommand command, int standby)
 // ----------------------------------------------------------------------------
 
 // Die Funktionen zeigt einen Informationsdialog (OK) an, und wartet auf die Bestätigung des Benutzers.
-void ShowErrorMessage(char *MessageStr, char *TitleStr)
+static void ShowErrorMessage(char *MessageStr, char *TitleStr)
 {
   dword OldSysState, OldSysSubState;
 

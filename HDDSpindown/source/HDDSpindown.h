@@ -4,7 +4,7 @@
 #define TAP_SPrint    snprintf
 
 #define PROGRAM_NAME          "HDDSpindown"
-#define VERSION               "0.2"
+#define VERSION               "0.2a"
 #define TAPID                 0x2A0A0006
 #define AUTHOR                "chris86"
 #define DESCRIPTION           "Activates/changes hard disk standby mode."

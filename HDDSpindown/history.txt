@@ -1,3 +1,6 @@
+v0.2a         - Vor Spindown erfolgt ein sync(), um sofortiges
+(2019-01-01)    Wiederanlaufen zu verhindern
+
 v0.2          - Bugfix in hdparm
 (2018-08-06)  - Setzen des Standby-Timers per AutoStart
 

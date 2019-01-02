@@ -1,0 +1,5 @@
+v0.1          First release
+(2018-05-26)
+
+v0.2          - "EPG-Daten auf Festplatte speichern" einstellbar
+(2019-01-01)  - EEPROM-Dump kann erzeugt werden

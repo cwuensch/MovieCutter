@@ -13,6 +13,7 @@
 //#define  STACKTRACE     TRUE
 #define _GNU_SOURCE
 #include                <stdio.h>
+#include                <sys/stat.h>
 #include                <tap.h>
 #include                <libFireBird.h>
 #include                "StandbySwitch.h"
@@ -26,6 +27,7 @@ TAP_ETCINFO             (__DATE__);
 
 typedef enum
 {
+  ST_None,
   ST_Init,
   ST_Menu,
   ST_Finished
@@ -37,6 +39,8 @@ typedef enum {
   MI_Tuner,
   MI_VFD,
 //  MI_Dummy,
+  MI_EPGMode,
+  MI_DumpEEPROM,
   MI_Save,
   MI_NrMenuItems
 } tMenuItem;
@@ -48,12 +52,17 @@ typedef enum
   LS_Scart,
   LS_Tuner,
   LS_VFD,
+  LS_SaveEPG,
+  LS_DumpEEPROM,
   LS_Save,
   LS_Exit,
   LS_active,
   LS_passive,
   LS_on,
   LS_off,
+  LS_yes,
+  LS_no,
+  LS_EEPDumped,
   LS_ErrorReading,
   LS_NrStrings
 } tLngStrings;
@@ -65,27 +74,36 @@ char* DefaultStrings[LS_NrStrings] =
   "SCART durchschleifen",
   "Tuner durchschleifen",
   "Display leuchtet",
+  "EPG-Daten auf Festplatte speichern",
+  "EEPROM Abbild speichern",
   "Übernehmen",
   "Beenden",
   "Aktiv",
   "Passiv",
   "Ein",
   "Aus",
+  "Ja",
+  "Nein",
+  "EEPROM Abbild gespeichert.",
   "Fehler beim Lesen des Standby-Modus.\n\nUnerwarteter Wert im EEPROM gefunden."
 };
 
 
 #define LangGetString(x)  LangGetStringDefault(x, DefaultStrings[x])
 
+static void  CreateSettingsDir(void);
 static int   GetStandbyOffset();
-static bool  GetStandbyMode(tStandbyMode *outMode);
-static bool  SetStandbyMode(tStandbyMode *const newMode);
+static int   GetEPGOffset();
+static bool  DumpEEPROM(int length);
+static bool  GetStandbyMode(tStandbyMode *outMode, bool *outEPG);
+static bool  SetStandbyMode(tStandbyMode *const newMode, bool newEPG);
 static void  ShowErrorMessage(char *MessageStr, char *TitleStr);
 
 
 // Globale Variablen
-tState                  State = ST_Init;
+tState                  State = ST_None;
 tStandbyMode            curStandby;
+bool                    curSaveEPG;
 
 
 // ============================================================================
@@ -94,8 +112,9 @@ tStandbyMode            curStandby;
 int TAP_Main(void)
 {
   TRACEENTER();
+  CreateSettingsDir();
 
-  if (GetStandbyMode(&curStandby))
+  if (GetStandbyMode(&curStandby, &curSaveEPG))
   {
     State = ST_Init;
   }
@@ -120,7 +139,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   TRACEENTER();
 
   // Behandlung offener MessageBoxen (rekursiver Aufruf, auch bei DoNotReenter)
-/*  if(OSDMenuMessageBoxIsVisible() || OSDMenuInfoBoxIsVisible())
+  if(OSDMenuMessageBoxIsVisible() || OSDMenuInfoBoxIsVisible())
   {
     if(OSDMenuMessageBoxIsVisible())
     {
@@ -130,7 +149,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     }
     OSDMenuEvent(&event, &param1, &param2);
     param1 = 0;
-  } */
+  }
 
   if (!DoNotReenter)
   {
@@ -149,6 +168,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         OSDMenuItemAdd(hString, LangGetString((curStandby.Tuner ? LS_on : LS_off)), NULL, NULL, curStandby.Active1, TRUE, MI_Tuner);
         TAP_SPrint(hString, 256, "    %s", LangGetString(LS_VFD));
         OSDMenuItemAdd(hString, LangGetString((curStandby.VFD ? LS_on : LS_off)), NULL, NULL, curStandby.Active1, TRUE, MI_VFD);
+        OSDMenuItemAdd(LangGetString(LS_SaveEPG), LangGetString(curSaveEPG ? LS_yes : LS_no), NULL, NULL, isUTFToppy(), TRUE, MI_EPGMode);
+        OSDMenuItemAdd(LangGetString(LS_DumpEEPROM), NULL, NULL, NULL, TRUE, FALSE, MI_DumpEEPROM);
 //        OSDMenuItemAdd(" ", NULL, NULL, NULL, FALSE, FALSE, MI_Dummy);
         OSDMenuItemAdd(LangGetString(LS_Save), NULL, NULL, NULL, TRUE, FALSE, MI_Save);
 
@@ -201,9 +222,20 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
               OSDMenuItemModifyValue(curItem, LangGetString((curStandby.VFD ? LS_on : LS_off)));
               break;
 
+            case MI_EPGMode:
+              curSaveEPG = !curSaveEPG;
+              OSDMenuItemModifyValue(curItem, LangGetString((curSaveEPG ? LS_yes : LS_no)));
+              break;
+
+            case MI_DumpEEPROM:
+              if (param1 == RKEY_Ok)
+                if (DumpEEPROM(1024))
+                  ShowErrorMessage(LangGetString(LS_EEPDumped), PROGRAM_NAME);
+              break;
+
             case MI_Save:
               if (param1 == RKEY_Ok)
-                SetStandbyMode(&curStandby);
+                SetStandbyMode(&curStandby, curSaveEPG);
               State = ST_Finished;
               break;
           }
@@ -214,7 +246,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         else if ((event == EVT_KEY) && (param1 == RKEY_Green || param1 == RKEY_Exit))
         {
           if (param1 == RKEY_Green)
-            SetStandbyMode(&curStandby);
+            SetStandbyMode(&curStandby, curSaveEPG);
           State = ST_Finished;
           param1 = 0;
         }
@@ -226,12 +258,28 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         OSDMenuDestroy();
         TAP_Exit();
       }
+
+      default:
+        break;
     }
     DoNotReenter = FALSE;
   }
 
   TRACEEXIT();
   return param1;
+}
+
+void CreateSettingsDir(void)
+{
+  TRACEENTER();
+
+//  struct stat64 st;
+//  if (lstat64(TAPFSROOT "/ProgramFiles/Settings", &st) == -1)
+    mkdir(TAPFSROOT "/ProgramFiles/Settings", 0666);
+//  if (lstat64(TAPFSROOT LOGDIR, &st) == -1)
+    mkdir(TAPFSROOT LOGDIR, 0666);
+
+  TRACEEXIT();
 }
 
 
@@ -249,38 +297,80 @@ int GetStandbyOffset()
     case 22122:    // SRP-2410M
     case 22120:    // SRP-2401CI+ Conax
     case 22130:    // SRP-2401CI+
+    case 22010:    // TMS-2100
       return 0x2b;
-/*    case 22010:    // TMS-2100
-    case 22570:    // SRP-2401CI+ Eco */
+/*    case 22570:    // SRP-2401CI+ Eco */
     default:
       return 0x2b;
   }
 }
+int GetEPGOffset()
+{
+  switch(TAP_GetSystemId())
+  {
+    case 42561:    // CRP-2401CI+ Conax
+      return 0x1c;
+    case 42031:    // CRP-2401CI+
+      return 0x1f; // 0x1c ??
+    case 22010:    // TMS-2100
+      return 0x1b;
+/*    case 22121:    // SRP-2410
+    case 22122:    // SRP-2410M
+    case 22120:    // SRP-2401CI+ Conax
+    case 22130:    // SRP-2401CI+
+    case 22570:    // SRP-2401CI+ Eco */
+    default:
+      return 0x1b;
+  }
+}
 
-bool GetStandbyMode(tStandbyMode *outMode)
+bool DumpEEPROM(int length)
 {
   byte                 *__etcInfo;
-  tStandbyMode          Result;
+  FILE                 *fp;
 
   __etcInfo = (byte*)FIS_vEtcInfo();
   if(!__etcInfo) return FALSE;
 
-  Result.ModeByte = __etcInfo[GetStandbyOffset()];
-  TAP_PrintNet("StandbyMode: Byte=0x%hhx (Active1=%hhu, Active2=%hhu, Zeros=%hhu, Scart=%hhu, Tuner=%hhu, VFD=%hhu)\n", Result.ModeByte, Result.Active1, Result.Active2, Result.Zeros, Result.Scart, Result.Tuner, Result.VFD);
-  if (Result.Zeros == 0 || Result.ModeByte == 0xff)
+  if ((fp = fopen(TAPFSROOT LOGDIR "/EEPROM.dump", "wb")))
   {
-Result.Zeros = 0;
-    if(outMode) *outMode = Result;
+    fwrite(__etcInfo, 1, length, fp);
+    fclose(fp);
     return TRUE;
   }
   return FALSE;
 }
 
-bool SetStandbyMode(tStandbyMode *const newMode)
+bool GetStandbyMode(tStandbyMode *outMode, bool *outEPG)
+{
+  byte                 *__etcInfo;
+  tStandbyMode          curMode;
+  tEPGMode              curEPG;
+
+  __etcInfo = (byte*)FIS_vEtcInfo();
+  if(!__etcInfo) return FALSE;
+
+  curMode.ModeByte = __etcInfo[GetStandbyOffset()];
+  curEPG.ModeByte = __etcInfo[GetEPGOffset()];
+  TAP_PrintNet("Standby mode: Byte=0x%02hhx (Active1=%hhu, Active2=%hhu, Zeros=%hhu, Scart=%hhu, Tuner=%hhu, VFD=%hhu)\n", curMode.ModeByte, curMode.Active1, curMode.Active2, curMode.Zeros, curMode.Scart, curMode.Tuner, curMode.VFD);
+  TAP_PrintNet("SaveEPG mode: Byte=0x%02hhx (active=%d)\n", curEPG.ModeByte, curEPG.SaveEPG);
+  if (curMode.Zeros == 0 || curMode.ModeByte == 0xff)
+  {
+curMode.Zeros = 0;
+    if(outMode) *outMode = curMode;
+    if(outEPG)  *outEPG = curEPG.SaveEPG;
+    return TRUE;
+  }
+  return FALSE;
+}
+
+bool SetStandbyMode(tStandbyMode *const newMode, bool newEPG)
 {
   byte                 *__etcInfo;
   int                   address;
   tStandbyMode          curMode;
+  tEPGMode              curEPG;
+  bool                  doWrite = FALSE;
 
   static void (*__Appl_WriteEeprom)(bool) = NULL;
 
@@ -293,6 +383,7 @@ bool SetStandbyMode(tStandbyMode *const newMode)
   __etcInfo = (byte*)FIS_vEtcInfo();
   if(!__etcInfo) return FALSE;
 
+  // Standby-Modus setzen
   address = GetStandbyOffset();
   curMode.ModeByte = __etcInfo[address];
   if(/*(curMode.Zeros!=0) ||*/ (newMode->Zeros!=0)) return FALSE;
@@ -300,9 +391,28 @@ bool SetStandbyMode(tStandbyMode *const newMode)
   if(newMode->ModeByte != curMode.ModeByte)
   {
     __etcInfo[address] = newMode->ModeByte;
-    __Appl_WriteEeprom(FALSE);
-    TAP_PrintNet("NEW StandbyMode: Byte=0x%hhx (Active1=%hhu, Active2=%hhu, Zeros=%hhu, Scart=%hhu, Tuner=%hhu, VFD=%hhu)\n", newMode->ModeByte, newMode->Active1, newMode->Active2, newMode->Zeros, newMode->Scart, newMode->Tuner, newMode->VFD);
+    TAP_PrintNet("NEW Standby mode: Byte=0x%02hhx (Active1=%hhu, Active2=%hhu, Zeros=%hhu, Scart=%hhu, Tuner=%hhu, VFD=%hhu)\n", newMode->ModeByte, newMode->Active1, newMode->Active2, newMode->Zeros, newMode->Scart, newMode->Tuner, newMode->VFD);
+    doWrite = TRUE;
   }
+
+  // EPG-Modus setzen
+  address = GetEPGOffset();
+  curEPG.ModeByte = __etcInfo[address];
+
+  if(newEPG != curEPG.SaveEPG)
+  {
+    int i;
+    curEPG.SaveEPG = (newEPG ? 1 : 0);
+    __etcInfo[address] = curEPG.ModeByte;
+
+    for (i = 0; i < 0x120; i++)
+      __etcInfo[i] = (newEPG ? 0xff : 0);
+
+    TAP_PrintNet("NEW SaveEPG mode: Byte=0x%02hhx (active=%d)\n", curEPG.ModeByte, newEPG);
+    doWrite = TRUE;
+  }
+
+  if(doWrite) __Appl_WriteEeprom(FALSE);
   return TRUE;
 }
 

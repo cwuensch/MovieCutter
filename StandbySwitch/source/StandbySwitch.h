@@ -4,7 +4,7 @@
 #define TAP_SPrint    snprintf
 
 #define PROGRAM_NAME          "StandbySwitch"
-#define VERSION               "0.1"
+#define VERSION               "0.2"
 #define TAPID                 0x2A0A0005
 #define AUTHOR                "chris86"
 #define DESCRIPTION           "De-/activation of the passive standby mode."
@@ -24,6 +24,15 @@ typedef union {
     byte              Active1:1;
   };
 } tStandbyMode;
+
+typedef union {
+  byte                ModeByte;
+  struct
+  {
+    byte              SaveEPG:1;
+    byte              Unknown:7;
+  };
+} tEPGMode;
 
 int   TAP_Main(void);
 dword TAP_EventHandler(word event, dword param1, dword param2);
