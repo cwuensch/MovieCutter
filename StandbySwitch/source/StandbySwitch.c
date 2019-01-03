@@ -94,7 +94,7 @@ char* DefaultStrings[LS_NrStrings] =
 static void  CreateSettingsDir(void);
 static int   GetStandbyOffset();
 static int   GetEPGOffset();
-static bool  DumpEEPROM(int length);
+static bool  DumpEEPROM(unsigned int length);
 static bool  GetStandbyMode(tStandbyMode *outMode, bool *outEPG);
 static bool  SetStandbyMode(tStandbyMode *const newMode, bool newEPG);
 static void  ShowErrorMessage(char *MessageStr, char *TitleStr);
@@ -311,7 +311,7 @@ int GetEPGOffset()
     case 42561:    // CRP-2401CI+ Conax
       return 0x1c;
     case 42031:    // CRP-2401CI+
-      return 0x1f; // 0x1c ??
+      return 0x1c; // 0x1f ??
     case 22010:    // TMS-2100
       return 0x1b;
 /*    case 22121:    // SRP-2410
@@ -324,19 +324,20 @@ int GetEPGOffset()
   }
 }
 
-bool DumpEEPROM(int length)
+bool DumpEEPROM(unsigned int length)
 {
   byte                 *__etcInfo;
   FILE                 *fp;
+  bool                  ret = FALSE;
 
   __etcInfo = (byte*)FIS_vEtcInfo();
   if(!__etcInfo) return FALSE;
 
   if ((fp = fopen(TAPFSROOT LOGDIR "/EEPROM.dump", "wb")))
   {
-    fwrite(__etcInfo, 1, length, fp);
+    ret = (fwrite(__etcInfo, 1, length, fp) == length);
     fclose(fp);
-    return TRUE;
+    return ret;
   }
   return FALSE;
 }
@@ -401,13 +402,8 @@ bool SetStandbyMode(tStandbyMode *const newMode, bool newEPG)
 
   if(newEPG != curEPG.SaveEPG)
   {
-    int i;
     curEPG.SaveEPG = (newEPG ? 1 : 0);
     __etcInfo[address] = curEPG.ModeByte;
-
-    for (i = 0; i < 0x120; i++)
-      __etcInfo[i] = (newEPG ? 0xff : 0);
-
     TAP_PrintNet("NEW SaveEPG mode: Byte=0x%02hhx (active=%d)\n", curEPG.ModeByte, newEPG);
     doWrite = TRUE;
   }
