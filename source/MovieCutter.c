@@ -48,7 +48,7 @@
 #include                "Graphics/Button_Up_small.gd"
 #include                "Graphics/Button_Down.gd"
 #include                "Graphics/Button_Down_small.gd"
-#include                "Graphics/Button_red.gd"
+//#include                "Graphics/Button_red.gd"
 //#include                "Graphics/Button_green.gd"
 //#include                "Graphics/Button_yellow.gd"
 //#include                "Graphics/Button_blue.gd"
@@ -88,7 +88,7 @@
 #include                "Graphics/Checkbox.gd"
 #include                "Graphics/Checkbox_checked.gd"
 #include                "TMSCommander.h"
-extern TYPE_GrData      _Button_Green_Gd, _Button_Yellow_Gd, _Button_Blue_Gd;
+extern TYPE_GrData      _Button_Red_Gd, _Button_Green_Gd, _Button_Yellow_Gd, _Button_Blue_Gd;
 extern TYPE_GrData      _Keyb_ScrollLeft_Gd, _Keyb_ScrollRight_Gd;
 //extern TYPE_GrData      _Button_red_Gd, _Button_green_Gd, _Button_yellow_Gd, _Button_blue_Gd, _Button_white_Gd;
 //extern TYPE_GrData      _Button_recall_Gd, _Button_menu_Gd, _Button_vf_Gd;
@@ -474,7 +474,7 @@ static char* DefaultStrings[LS_NrStrings] =
   "Lös",
   "chen",
   "Original",
-  "Alles löschen",
+  "Leeren",
   "Kopieren",
   "Einfügen",
   "Abbrechen",
@@ -701,7 +701,7 @@ int TAP_Main(void)
         OSDMenuInfoBoxShow(PROGRAM_NAME " " VERSION, LogString, 500);
         do
         {
-          OSDMenuEvent(NULL, NULL, NULL);
+          OSDMessageEvent(NULL, NULL, NULL);
         } while(OSDMenuInfoBoxIsVisible());
 
         #ifdef MC_UNICODE
@@ -725,7 +725,7 @@ int TAP_Main(void)
     OSDMenuInfoBoxShow(PROGRAM_NAME " " VERSION, LangGetString(LS_UnknownSystemType), 500);
     do
     {
-      OSDMenuEvent(NULL, NULL, NULL);
+      OSDMessageEvent(NULL, NULL, NULL);
     } while(OSDMenuInfoBoxIsVisible());
 
     #ifdef MC_MULTILANG
@@ -809,7 +809,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       #ifdef __ALTEFBLIB__
         OSDMenuMessageBoxDoScrollOver(&event, &param1);
       #endif
-      OSDMenuEvent(&event, &param1, &param2);
+      OSDMessageEvent(&event, &param1, &param2);
       param1 = 0;
     }
 //    if(!OSDMenuMessageBoxIsVisible())
@@ -1652,6 +1652,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
           case RKEY_Menu:
           case FKEY_Ok:
+          case RKEY_TvSat:  // enspricht 'M' auf der USB-Tastatur
           {
             if (JumpRequestedSegment != 0xFFFF)
               break;
@@ -2422,7 +2423,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         {
           word p_Event = EVT_KEY;
           dword p_Key = RKEY_Exit;
-          OSDMenuEvent(&p_Event, &p_Key, NULL);
+          OSDMessageEvent(&p_Event, &p_Key, NULL);
         }
 
         // END: Ausgabe
@@ -2574,6 +2575,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     TAP_MemFree(UndoStack);
     TAP_MemFree(Bookmarks);
     TAP_MemFree(SegmentMarker);
+    OSDMenuKeyboard_Free();
     #ifdef MC_MULTILANG
       LangUnloadStrings();
     #endif
@@ -3412,7 +3414,7 @@ void ChangeSegmentText(void)
   }
 
   // OSD-Tastatur anzeigen
-  OSDMenuKeyboard_Setup(LangGetString(LS_EnterText), pNewCaption, MAXCAPTIONLENGTH-1, TRUE);
+  OSDMenuKeyboard_Setup(LangGetString(LS_EnterText), pNewCaption, MAXCAPTIONLENGTH-1, TRUE, TRUE);
   #ifdef MC_MULTILANG
     if (LangStrings)
       OSDMenuKeyboard_SetLegendStrings(LangGetString(LS_KeybSpace), LangGetString(LS_KeybDelete1), LangGetString(LS_KeybDelete2), LangGetString(LS_KeybOriginal), LangGetString(LS_KeybClearAll), LangGetString(LS_KeybCopy), LangGetString(LS_KeybPaste), LangGetString(LS_KeybCancel), LangGetString(LS_KeybSave));
@@ -4999,7 +5001,7 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
 // ------------
 void OSDInfoDrawBackground(void)
 {
-  TYPE_GrData*          ColorButtons[]       = {&_Button_red_Gd,          &_Button_Green_Gd,     &_Button_Yellow_Gd,     &_Button_Blue_Gd};
+  TYPE_GrData*          ColorButtons[]       = {&_Button_Red_Gd,          &_Button_Green_Gd,     &_Button_Yellow_Gd,     &_Button_Blue_Gd};
   char*                 ColorButtonStrings[] = {LangGetString(LS_Delete), LangGetString(LS_Add), LangGetString(LS_Move), LangGetString(LS_Select)};
   int                   ColorButtonLengths[4];
   TYPE_GrData*          BelowButtons[]       = {&_Button_recall_Gd,     &_Button_vf_Gd,               &_Button_ProgPlusMinus_Gd,  &_Button_menu_Gd,            &_Button_Exit_Gd,       &_Button_white_Gd};
@@ -5040,7 +5042,7 @@ void OSDInfoDrawBackground(void)
     for (i = 0; i < 4; i++)
     {
       TAP_Osd_PutGd(rgnInfoBar, PosX, PosY + 1, ColorButtons[i], TRUE);
-      PosX += _Button_red_Gd.width + 3;
+      PosX += _Button_Red_Gd.width + 3;
       FM_PutString(rgnInfoBar, PosX, PosY, PosX + max(ColorButtonLengths[i] + ButtonDist, 0), ColorButtonStrings[i], COLOR_White, ColorInfoBarDarkSub, &Calibri_12_FontData, TRUE, ALIGN_LEFT);
       PosX += max(ColorButtonLengths[i] + ButtonDist, 0);
     }
@@ -6753,7 +6755,7 @@ void MovieCutterChangeOutDir(void)
     strcpy(TempDirISO, CopyOutDir);
 
   // OSD-Tastatur anzeigen   ACHTUNG!!! ToDo: UTF-8 Support testen!
-  OSDMenuKeyboard_Setup(LangGetString(LS_EnterText), TempDirISO, sizeof(TempDirISO)-1, TRUE);
+  OSDMenuKeyboard_Setup(LangGetString(LS_EnterText), TempDirISO, sizeof(TempDirISO)-1, TRUE, TRUE);
   #ifdef MC_MULTILANG
     if (LangStrings)
       OSDMenuKeyboard_SetLegendStrings(LangGetString(LS_KeybSpace), LangGetString(LS_KeybDelete1), LangGetString(LS_KeybDelete2), LangGetString(LS_KeybOriginal), LangGetString(LS_KeybClearAll), LangGetString(LS_KeybCopy), LangGetString(LS_KeybPaste), LangGetString(LS_KeybCancel), LangGetString(LS_KeybSave));
@@ -6812,7 +6814,7 @@ bool MovieCutterRenameFile(void)
   while (!ret)
   {
     // OSD-Tastatur anzeigen
-    OSDMenuKeyboard_Setup(LangGetString(LS_RenameMovie), TempNameISO, sizeof(TempNameISO) - strlen(ExtensionStart) - 4 - 1, FALSE);
+    OSDMenuKeyboard_Setup(LangGetString(LS_RenameMovie), TempNameISO, sizeof(TempNameISO) - strlen(ExtensionStart) - 4 - 1, FALSE, TRUE);
     #ifdef MC_MULTILANG
       if (LangStrings)
         OSDMenuKeyboard_SetLegendStrings(LangGetString(LS_KeybSpace), LangGetString(LS_KeybDelete1), LangGetString(LS_KeybDelete2), LangGetString(LS_KeybOriginal), LangGetString(LS_KeybClearAll), LangGetString(LS_KeybCopy), LangGetString(LS_KeybPaste), LangGetString(LS_KeybCancel), LangGetString(LS_KeybSave));

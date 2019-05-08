@@ -612,7 +612,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
     // Display information message box
     if(!fsck_Errors && (NrDefectFiles == 0))
     {
-      WriteLogMCf("HddToolsLib", "CheckFileSystem: File system seems valid. Monitored files: %u", NrMarkedFiles);
+      WriteLogMCf("HddToolsLib", "CheckFileSystem: File system seems valid. Monitored files: %d", NrMarkedFiles);
       if (!NoOkInfo)
       {
         TAP_SPrint(MessageString, sizeof(MessageString), SuccessString, NrMarkedFiles);
@@ -625,13 +625,19 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
       WriteLogMC("HddToolsLib", "CheckFileSystem: WARNING! File system is inconsistent...");
 
       // Detaillierten Fehler-String in die Message schreiben
-      if (FirstErrorFile[0] && (NrDefectFiles > 1))
-        TAP_SPrint(&FirstErrorFile[strlen(FirstErrorFile)], sizeof(FirstErrorFile)-strlen(FirstErrorFile), ", + %u", NrDefectFiles-1);
-//      StrMkISO(FirstErrorFile);
+      if (FirstErrorFile[0])
+      {
+        #ifndef MC_UNICODE
+          if (isUTFToppy())
+          {
+            StrToISO(FirstErrorFile, MessageString);
+            strncpy(FirstErrorFile, MessageString, sizeof(FirstErrorFile));
+          }
+        #endif
+        if (NrDefectFiles > 1)
+          TAP_SPrint(&FirstErrorFile[strlen(FirstErrorFile)], sizeof(FirstErrorFile)-strlen(FirstErrorFile), ", + %d", NrDefectFiles-1);
+      }
       TAP_SPrint(MessageString, sizeof(MessageString), ErrorStrFmt, ((InodeMonitoring) ? min(NrNewMarkedFiles, NrRepairedFiles) : NrRepairedFiles), NrDefectFiles, ((fsck_Errors) ? "??" : "ok"), ((FirstErrorFile[0]) ? FirstErrorFile : ""), NrMarkedFiles);
-      #ifndef MC_UNICODE
-        if (isUTFToppy()) StrMkISO(MessageString);
-      #endif
       WriteLogMC("HddToolsLib", MessageString);
       ShowErrorMessage(MessageString, LS_Warning);
     }
