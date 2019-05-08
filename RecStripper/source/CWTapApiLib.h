@@ -59,7 +59,10 @@ typedef struct
   word                  PMTPID;
   word                  PCRPID;
   word                  VideoPID;
-  word                  AudioPID;
+//  word                  AudioPID;
+  word                  AudioPID:13;
+  word                  AudioTypeFlag:2;  // 0=MPEG1/2, 1=AC3 (Dolby Digital), 2=AAC, 3=unknown
+  word                  AudioAutoSelect:1;
 
   char                  ServiceName[24];
 

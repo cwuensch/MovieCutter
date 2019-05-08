@@ -123,7 +123,7 @@ int TAP_Main(void)
     OSDMenuInfoBoxShow(PROGRAM_NAME " " VERSION, LangGetString(LS_ErrorReading), 500);
     do
     {
-      OSDMenuEvent(NULL, NULL, NULL);
+      OSDMessageEvent(NULL, NULL, NULL);
     } while(OSDMenuInfoBoxIsVisible());
     TRACEEXIT();
     return 0;
@@ -147,7 +147,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         OSDMenuMessageBoxDoScrollOver(&event, &param1);
       #endif
     }
-    OSDMenuEvent(&event, &param1, &param2);
+    OSDMessageEvent(&event, &param1, &param2);
     param1 = 0;
   }
 

@@ -81,7 +81,7 @@ int TAP_Main(void)
       do
       {
         TAP_SystemProc();
-        OSDMenuEvent(NULL, NULL, NULL);
+        OSDMessageEvent(NULL, NULL, NULL);
       } while(OSDMenuInfoBoxIsVisible());
       OSDMenuInfoBoxDestroy();
     }
@@ -108,7 +108,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
   if(HIShowMessageBox)
   {
     if(OSDMenuMessageBoxIsVisible())
-      OSDMenuEvent(&event, &param1, &param2);
+      OSDMessageEvent(&event, &param1, &param2);
     if(!OSDMenuMessageBoxIsVisible())
       HIShowMessageBox = FALSE;
     param1 = 0;
