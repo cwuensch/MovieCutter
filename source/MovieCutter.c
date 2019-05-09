@@ -88,7 +88,7 @@
 #include                "Graphics/Checkbox.gd"
 #include                "Graphics/Checkbox_checked.gd"
 #include                "TMSCommander.h"
-extern TYPE_GrData      _Button_Red_Gd, _Button_Green_Gd, _Button_Yellow_Gd, _Button_Blue_Gd;
+extern TYPE_GrData      _Button_Red_Gd, _Button_Green_Gd, _Button_Yellow_Gd, _Button_Blue_Gd;  //, _Button_Recall_Gd
 extern TYPE_GrData      _Keyb_ScrollLeft_Gd, _Keyb_ScrollRight_Gd;
 //extern TYPE_GrData      _Button_red_Gd, _Button_green_Gd, _Button_yellow_Gd, _Button_blue_Gd, _Button_white_Gd;
 //extern TYPE_GrData      _Button_recall_Gd, _Button_menu_Gd, _Button_vf_Gd;
@@ -817,9 +817,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 //  }
 
   // Behandlung der OSD-Tastatur, falls offen (auch bei DoNotReenter?)
-  if(OSDMenuKeyboard_isVisible())
+  if(OSDKeyboard_isVisible())
   {
-    OSDMenuKeyboard_EventHandler(&event, &param1, &param2);
+    OSDKeyboard_EventHandler(&event, &param1, &param2);
     param1 = 0;
   }
 
@@ -2575,7 +2575,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
     TAP_MemFree(UndoStack);
     TAP_MemFree(Bookmarks);
     TAP_MemFree(SegmentMarker);
-    OSDMenuKeyboard_Free();
+    OSDKeyboard_Free();
     #ifdef MC_MULTILANG
       LangUnloadStrings();
     #endif
@@ -3414,20 +3414,20 @@ void ChangeSegmentText(void)
   }
 
   // OSD-Tastatur anzeigen
-  OSDMenuKeyboard_Setup(LangGetString(LS_EnterText), pNewCaption, MAXCAPTIONLENGTH-1, TRUE, TRUE);
+  OSDKeyboard_Setup(LangGetString(LS_EnterText), pNewCaption, MAXCAPTIONLENGTH-1, TRUE, TRUE);
   #ifdef MC_MULTILANG
     if (LangStrings)
-      OSDMenuKeyboard_SetLegendStrings(LangGetString(LS_KeybSpace), LangGetString(LS_KeybDelete1), LangGetString(LS_KeybDelete2), LangGetString(LS_KeybOriginal), LangGetString(LS_KeybClearAll), LangGetString(LS_KeybCopy), LangGetString(LS_KeybPaste), LangGetString(LS_KeybCancel), LangGetString(LS_KeybSave));
+      OSDKeyboard_SetLegendStrings(LangGetString(LS_KeybSpace), LangGetString(LS_KeybDelete1), LangGetString(LS_KeybDelete2), LangGetString(LS_KeybOriginal), LangGetString(LS_KeybClearAll), LangGetString(LS_KeybCopy), LangGetString(LS_KeybPaste), LangGetString(LS_KeybCancel), LangGetString(LS_KeybSave));
   #endif
-  OSDMenuKeyboard_Show();
-  while (OSDMenuKeyboard_isVisible())
+  OSDKeyboard_Show();
+  while (OSDKeyboard_isVisible())
   {
     TAP_SystemProc();
     TAP_Sleep(1);
   }
   
   // pCaption auf den neuen Puffer verlinken
-  if (OSDMenuKeyboard_Saved())
+  if (OSDKeyboard_Saved())
   {
     UndoAddEvent(TRUE, SegmentMarker[CurrentSegment].Block, SegmentMarker[CurrentSegment].Block, SegmentMarker[CurrentSegment].Selected, SegmentMarker[CurrentSegment].pCaption);
     if (*pNewCaption)
@@ -6755,19 +6755,19 @@ void MovieCutterChangeOutDir(void)
     strcpy(TempDirISO, CopyOutDir);
 
   // OSD-Tastatur anzeigen   ACHTUNG!!! ToDo: UTF-8 Support testen!
-  OSDMenuKeyboard_Setup(LangGetString(LS_EnterText), TempDirISO, sizeof(TempDirISO)-1, TRUE, TRUE);
+  OSDKeyboard_Setup(LangGetString(LS_EnterText), TempDirISO, sizeof(TempDirISO)-1, TRUE, TRUE);
   #ifdef MC_MULTILANG
     if (LangStrings)
-      OSDMenuKeyboard_SetLegendStrings(LangGetString(LS_KeybSpace), LangGetString(LS_KeybDelete1), LangGetString(LS_KeybDelete2), LangGetString(LS_KeybOriginal), LangGetString(LS_KeybClearAll), LangGetString(LS_KeybCopy), LangGetString(LS_KeybPaste), LangGetString(LS_KeybCancel), LangGetString(LS_KeybSave));
+      OSDKeyboard_SetLegendStrings(LangGetString(LS_KeybSpace), LangGetString(LS_KeybDelete1), LangGetString(LS_KeybDelete2), LangGetString(LS_KeybOriginal), LangGetString(LS_KeybClearAll), LangGetString(LS_KeybCopy), LangGetString(LS_KeybPaste), LangGetString(LS_KeybCancel), LangGetString(LS_KeybSave));
   #endif
-  OSDMenuKeyboard_Show();
-  while (OSDMenuKeyboard_isVisible())
+  OSDKeyboard_Show();
+  while (OSDKeyboard_isVisible())
   {
     TAP_SystemProc();
     TAP_Sleep(1);
   }
 
-  if (OSDMenuKeyboard_Saved())
+  if (OSDKeyboard_Saved())
   {
     if (*TempDirISO)
     {
@@ -6814,13 +6814,13 @@ bool MovieCutterRenameFile(void)
   while (!ret)
   {
     // OSD-Tastatur anzeigen
-    OSDMenuKeyboard_Setup(LangGetString(LS_RenameMovie), TempNameISO, sizeof(TempNameISO) - strlen(ExtensionStart) - 4 - 1, FALSE, TRUE);
+    OSDKeyboard_Setup(LangGetString(LS_RenameMovie), TempNameISO, sizeof(TempNameISO) - strlen(ExtensionStart) - 4 - 1, FALSE, TRUE);
     #ifdef MC_MULTILANG
       if (LangStrings)
-        OSDMenuKeyboard_SetLegendStrings(LangGetString(LS_KeybSpace), LangGetString(LS_KeybDelete1), LangGetString(LS_KeybDelete2), LangGetString(LS_KeybOriginal), LangGetString(LS_KeybClearAll), LangGetString(LS_KeybCopy), LangGetString(LS_KeybPaste), LangGetString(LS_KeybCancel), LangGetString(LS_KeybSave));
+        OSDKeyboard_SetLegendStrings(LangGetString(LS_KeybSpace), LangGetString(LS_KeybDelete1), LangGetString(LS_KeybDelete2), LangGetString(LS_KeybOriginal), LangGetString(LS_KeybClearAll), LangGetString(LS_KeybCopy), LangGetString(LS_KeybPaste), LangGetString(LS_KeybCancel), LangGetString(LS_KeybSave));
     #endif
-    OSDMenuKeyboard_Show();
-    while (OSDMenuKeyboard_isVisible())
+    OSDKeyboard_Show();
+    while (OSDKeyboard_isVisible())
     {
       TAP_SystemProc();
       TAP_Sleep(1);
