@@ -1,3 +1,19 @@
+2019-05-01 v3.6d NEUES OSDKeyboard:
+                   - übersichtlicheres Layout (weniger Tasten, nur noch 2 Seiten, dauerhafte Anzeige aller Funktionen)
+                   - langes Drücken auf 'OK' zeigt eine Auswahl für alternative Zeichen (Umlaute, Accents, etc.)
+                   - Auto-Vervollständigung für bereits eingegebene Wörter
+                   - Bugfix: Crash, wenn OSDKeyboard mittels USB-Tastatur beendet wurde
+
+                 INTERNALS:
+                   - StrMkISO in HddToolsLib ersetzt
+                   - Anpassung an neue FireBirdLib (OSDMessageEvent, AudioAutoSelect, OSDKeyboard)
+
+                 RecStrip 2.4
+                   - Bugfix: PMT bei Pro7HD wird jetzt korrekt geparsed (ProgramInfo wird übersprungen)
+                   - Bugfix: Teletext-Descriptoren werden jetzt korrekt ausgewertet
+                   - Neu: Bei Humax-Import wird AC3-Descriptor in der PMT gesetzt (experimentell)
+                   - Internals: konsequentere Verwendung von benannten structs und enums anstatt Bitshift-Operationen und Konstanten
+
 2018-06-30 v3.6c RecStrip 2.3:
                    - auch Filler-NALUs am Dateianfang und nach Bruchstellen werden entfernt
                    - erweiterter Continuity-Check: bis zu 8 PIDs werden geprüft (alle Audio und ggf. Teletext/EPG)

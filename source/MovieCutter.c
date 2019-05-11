@@ -106,10 +106,10 @@ extern char            *LangStrings;
 //                              Definitionen
 // ============================================================================
 #ifdef MC_UNICODE
-  tFontDataUC           Calibri_10_FontData;
-  tFontDataUC           Calibri_12_FontData;
-  tFontDataUC           Calibri_14_FontData;
-  tFontDataUC           Courier_New_13_FontData;
+  tFontDataUC           Font_Calibri_10;
+  tFontDataUC           Font_Calibri_12;
+  tFontDataUC           Font_Calibri_14;
+  tFontDataUC           Font_Courier_New_13;
   #define FM_GetStringHeight(...)   FMUC_GetStringHeight( __VA_ARGS__ )
   #define FM_GetStringWidth(...)    FMUC_GetStringWidth( __VA_ARGS__ )
   #define FM_PutString(...)         FMUC_PutString( __VA_ARGS__ )
@@ -118,6 +118,9 @@ extern char            *LangStrings;
   extern tFontData      Calibri_10_FontData;
   extern tFontData      Calibri_12_FontData;
   extern tFontData      Calibri_14_FontData;
+  #define Font_Calibri_10           Calibri_10_FontData
+  #define Font_Calibri_12           Calibri_12_FontData
+  #define Font_Calibri_14           Calibri_14_FontData
 #endif
 
 typedef struct
@@ -673,16 +676,16 @@ int TAP_Main(void)
 
   // Load Fonts
   #ifdef MC_UNICODE
-    if (!(FMUC_LoadFontFile("Calibri_10.ufnt", &Calibri_10_FontData)
-       && FMUC_LoadFontFile("Calibri_12.ufnt", &Calibri_12_FontData)
-       && FMUC_LoadFontFile("Calibri_14.ufnt", &Calibri_14_FontData)
-       && FMUC_LoadFontFile("Courier_New_13.ufnt", &Courier_New_13_FontData)))
+    if (!(FMUC_LoadFontFile("Calibri_10.ufnt", &Font_Calibri_10)
+       && FMUC_LoadFontFile("Calibri_12.ufnt", &Font_Calibri_12)
+       && FMUC_LoadFontFile("Calibri_14.ufnt", &Font_Calibri_14)
+       && FMUC_LoadFontFile("Courier_New_13.ufnt", &Font_Courier_New_13)))
     {
       WriteLogMC(PROGRAM_NAME, "Loading fonts failed!\r\n");
-      FMUC_FreeFontFile(&Calibri_10_FontData);
-      FMUC_FreeFontFile(&Calibri_12_FontData);
-      FMUC_FreeFontFile(&Calibri_14_FontData);
-      FMUC_FreeFontFile(&Courier_New_13_FontData);
+      FMUC_FreeFontFile(&Font_Calibri_10);
+      FMUC_FreeFontFile(&Font_Calibri_12);
+      FMUC_FreeFontFile(&Font_Calibri_14);
+      FMUC_FreeFontFile(&Font_Courier_New_13);
 
       CloseLogMC();
       TRACEEXIT();
@@ -705,11 +708,11 @@ int TAP_Main(void)
         } while(OSDMenuInfoBoxIsVisible());
 
         #ifdef MC_UNICODE
-          FMUC_FreeFontFile(&Calibri_10_FontData);
-          FMUC_FreeFontFile(&Calibri_12_FontData);
-          FMUC_FreeFontFile(&Calibri_14_FontData);
-          FMUC_FreeFontFile(&Courier_New_13_FontData);
-          OSDMenuFreeStdFonts();
+          FMUC_FreeFontFile(&Font_Calibri_10);
+          FMUC_FreeFontFile(&Font_Calibri_12);
+          FMUC_FreeFontFile(&Font_Calibri_14);
+          FMUC_FreeFontFile(&Font_Courier_New_13);
+//          OSDMenuFreeStdFonts();
         #endif
 
         CloseLogMC();
@@ -732,11 +735,11 @@ int TAP_Main(void)
       LangUnloadStrings();
     #endif
     #ifdef MC_UNICODE
-      FMUC_FreeFontFile(&Calibri_10_FontData);
-      FMUC_FreeFontFile(&Calibri_12_FontData);
-      FMUC_FreeFontFile(&Calibri_14_FontData);
-      FMUC_FreeFontFile(&Courier_New_13_FontData);
-      OSDMenuFreeStdFonts();
+      FMUC_FreeFontFile(&Font_Calibri_10);
+      FMUC_FreeFontFile(&Font_Calibri_12);
+      FMUC_FreeFontFile(&Font_Calibri_14);
+      FMUC_FreeFontFile(&Font_Courier_New_13);
+//      OSDMenuFreeStdFonts();
     #endif
 
     CloseLogMC();
@@ -761,10 +764,10 @@ int TAP_Main(void)
       LangUnloadStrings();
     #endif
     #ifdef MC_UNICODE
-      FMUC_FreeFontFile(&Calibri_10_FontData);
-      FMUC_FreeFontFile(&Calibri_12_FontData);
-      FMUC_FreeFontFile(&Calibri_14_FontData);
-      FMUC_FreeFontFile(&Courier_New_13_FontData);
+      FMUC_FreeFontFile(&Font_Calibri_10);
+      FMUC_FreeFontFile(&Font_Calibri_12);
+      FMUC_FreeFontFile(&Font_Calibri_14);
+      FMUC_FreeFontFile(&Font_Courier_New_13);
     #endif
 
     CloseLogMC();
@@ -2580,11 +2583,11 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       LangUnloadStrings();
     #endif
     #ifdef MC_UNICODE
-      FMUC_FreeFontFile(&Calibri_10_FontData);
-      FMUC_FreeFontFile(&Calibri_12_FontData);
-      FMUC_FreeFontFile(&Calibri_14_FontData);
-      FMUC_FreeFontFile(&Courier_New_13_FontData);
-      OSDMenuFreeStdFonts();
+      FMUC_FreeFontFile(&Font_Calibri_10);
+      FMUC_FreeFontFile(&Font_Calibri_12);
+      FMUC_FreeFontFile(&Font_Calibri_14);
+      FMUC_FreeFontFile(&Font_Courier_New_13);
+//      OSDMenuFreeStdFonts();
     #endif
     WriteLogMC(PROGRAM_NAME, "MovieCutter Exit.\r\n");
     CloseLogMC();
@@ -4639,9 +4642,9 @@ void OSDSegmentListDrawList(bool DoSync)
   const int             TextFieldStart_Y   =   29,   TextFieldHeight =  26,   TextFieldDist = 2;
   const int             Scrollbar_X        =  154,   Scrollbar_Y     =  40,  /*ScrollbarWidth = 10,*/    ScrollbarHeight = 256;
   const int             BelowTextArea_Y    =  307;
-  const int             NrWidth     =  FM_GetStringWidth("99.", &Calibri_12_FontData);
-  const int             DashWidth   =  FM_GetStringWidth(" - ", &Calibri_12_FontData);
-  const int             TimeWidth   =  FM_GetStringWidth("99:99:99", &Calibri_12_FontData);
+  const int             NrWidth     =  FM_GetStringWidth("99.", &Font_Calibri_12);
+  const int             DashWidth   =  FM_GetStringWidth(" - ", &Font_Calibri_12);
+  const int             TimeWidth   =  FM_GetStringWidth("99:99:99", &Font_Calibri_12);
 
   int                   CurrentSegment;
   int                   ScrollButtonHeight, ScrollButtonPos;
@@ -4670,7 +4673,7 @@ void OSDSegmentListDrawList(bool DoSync)
     for (i = 0; i < 10; i++)
       TAP_Osd_FillBox(rgnSegmentList, TextFieldStart_X, TextFieldStart_Y + (TextFieldHeight+TextFieldDist) * i, SegmentListWidth-(2*TextFieldStart_X), TextFieldHeight, ColorInfoBarDarkSub);
 
-    FM_PutString(rgnSegmentList, 2, 2, SegmentListWidth-3, LangGetString(LS_SegmentList), COLOR_White, ColorLightBackground, &Calibri_14_FontData, TRUE, ALIGN_CENTER);
+    FM_PutString(rgnSegmentList, 2, 2, SegmentListWidth-3, LangGetString(LS_SegmentList), COLOR_White, ColorLightBackground, &Font_Calibri_14, TRUE, ALIGN_CENTER);
     TAP_Osd_PutGd(rgnSegmentList, EndTextField_X - 2*19 - 3, BelowTextArea_Y + 6, &_Button_Up_small_Gd, TRUE);
     TAP_Osd_PutGd(rgnSegmentList, EndTextField_X - 19,       BelowTextArea_Y + 6, &_Button_Down_small_Gd, TRUE);
 
@@ -4682,10 +4685,10 @@ void OSDSegmentListDrawList(bool DoSync)
 
     PosX = TextFieldStart_X + 11;
     PosY = BelowTextArea_Y + 3;
-    FM_PutString(rgnSegmentList, PosX, PosY, EndTextField_X - 2*19 - 3, PageStr,   COLOR_White, ColorLightBackground, &Calibri_10_FontData, FALSE, ALIGN_LEFT);
-    PosX += FM_GetStringWidth(PageStr, &Calibri_10_FontData) + 5;
+    FM_PutString(rgnSegmentList, PosX, PosY, EndTextField_X - 2*19 - 3, PageStr,   COLOR_White, ColorLightBackground, &Font_Calibri_10, FALSE, ALIGN_LEFT);
+    PosX += FM_GetStringWidth(PageStr, &Font_Calibri_10) + 5;
 
-    FM_PutString(rgnSegmentList, PosX, PosY, EndTextField_X - 2*19 - 3, PageNrStr, COLOR_White, ColorLightBackground, &Calibri_10_FontData, FALSE, ALIGN_LEFT);
+    FM_PutString(rgnSegmentList, PosX, PosY, EndTextField_X - 2*19 - 3, PageNrStr, COLOR_White, ColorLightBackground, &Font_Calibri_10, FALSE, ALIGN_LEFT);
 
     // Segmente
     if(NrSegmentMarker > 2)
@@ -4718,13 +4721,13 @@ void OSDSegmentListDrawList(bool DoSync)
           TAP_SPrint(OutStr, sizeof(OutStr), "%d.", Start + i + 1);
         else
           TAP_SPrint(OutStr, sizeof(OutStr), "%02d.", (Start + i + 1) % 100);
-        FM_PutString(rgnSegmentList, PosX, PosY, PosX + NrWidth,    OutStr,                                                               UseColor, COLOR_None, &Calibri_12_FontData, FALSE, ALIGN_RIGHT);
+        FM_PutString(rgnSegmentList, PosX, PosY, PosX + NrWidth,    OutStr,                                                               UseColor, COLOR_None, &Font_Calibri_12, FALSE, ALIGN_RIGHT);
         PosX += NrWidth;
-        FM_PutString(rgnSegmentList, PosX, PosY, PosX + TimeWidth,  (Start+i == 0) ? LangGetString(LS_BeginStr) : StartTime,              UseColor, COLOR_None, &Calibri_12_FontData, FALSE, ALIGN_RIGHT);
+        FM_PutString(rgnSegmentList, PosX, PosY, PosX + TimeWidth,  (Start+i == 0) ? LangGetString(LS_BeginStr) : StartTime,              UseColor, COLOR_None, &Font_Calibri_12, FALSE, ALIGN_RIGHT);
         PosX += TimeWidth;
-        FM_PutString(rgnSegmentList, PosX, PosY, PosX + DashWidth,  "-",                                                                  UseColor, COLOR_None, &Calibri_12_FontData, FALSE, ALIGN_CENTER);
+        FM_PutString(rgnSegmentList, PosX, PosY, PosX + DashWidth,  "-",                                                                  UseColor, COLOR_None, &Font_Calibri_12, FALSE, ALIGN_CENTER);
         PosX += DashWidth;
-        FM_PutString(rgnSegmentList, PosX, PosY, EndTextField_X+10, (Start+i == NrSegmentMarker-2) ? LangGetString(LS_EndStr) : EndTime,  UseColor, COLOR_None, &Calibri_12_FontData, FALSE, ALIGN_LEFT);
+        FM_PutString(rgnSegmentList, PosX, PosY, EndTextField_X+10, (Start+i == NrSegmentMarker-2) ? LangGetString(LS_EndStr) : EndTime,  UseColor, COLOR_None, &Font_Calibri_12, FALSE, ALIGN_LEFT);
 
         if (SegmentMarker[Start+i].pCaption && *SegmentMarker[Start+i].pCaption)
           TAP_Osd_PutGd(rgnSegmentList, EndTextField_X - _Icon_SegmentText_Gd.width + (NrPages>1 ? 0 : 5), PosY + 5, &_Icon_SegmentText_Gd, TRUE);
@@ -4856,7 +4859,7 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
     else if (rgnInfoBarMini)
     {
       OSDRegion     = rgnInfoBarMini;
-      int TimeWidth = FM_GetStringWidth("9:99:99", &Calibri_12_FontData) + 1;
+      int TimeWidth = FM_GetStringWidth("9:99:99", &Font_Calibri_12) + 1;
       FrameWidth    = GetOSDRegionWidth(rgnInfoBarMini) - 4 - TimeWidth;   FrameHeight   = GetOSDRegionHeight(rgnInfoBarMini) - 6;
       FrameLeft     = 2;                                                   FrameTop      =  3;
       ProgBarWidth  = FrameWidth - 15;                                     ProgBarHeight = 10;
@@ -4889,8 +4892,8 @@ void OSDInfoDrawProgressbar(bool Force, bool DoSync)
           TAP_Osd_PutPixel(OSDRegion, ProgBarLeft + ((i * (ProgBarWidth-1))/10), FrameTop + FrameHeight - j, COLOR_White);
         }
       }
-      FM_PutString (OSDRegion, FrameLeft + 1, FrameTop - 2,                                                                               ProgBarLeft, LangGetString(LS_S), ((BookmarkMode) ? COLOR_Gray : RGB(255,180,30)), COLOR_None, &Calibri_10_FontData, FALSE, ALIGN_LEFT);
-      FM_PutString (OSDRegion, FrameLeft,     FrameTop + FrameHeight + 1 - FM_GetStringHeight(LangGetString(LS_B), &Calibri_10_FontData), ProgBarLeft, LangGetString(LS_B), ((BookmarkMode) ? RGB(60,255,60) : COLOR_Gray),  COLOR_None, &Calibri_10_FontData, FALSE, ALIGN_LEFT);
+      FM_PutString (OSDRegion, FrameLeft + 1, FrameTop - 2,                                                                               ProgBarLeft, LangGetString(LS_S), ((BookmarkMode) ? COLOR_Gray : RGB(255,180,30)), COLOR_None, &Font_Calibri_10, FALSE, ALIGN_LEFT);
+      FM_PutString (OSDRegion, FrameLeft,     FrameTop + FrameHeight + 1 - FM_GetStringHeight(LangGetString(LS_B), &Font_Calibri_10), ProgBarLeft, LangGetString(LS_B), ((BookmarkMode) ? RGB(60,255,60) : COLOR_Gray),  COLOR_None, &Font_Calibri_10, FALSE, ALIGN_LEFT);
 
       NearestMarker = (BookmarkMode) ? FindNearestBookmark(VisibleBlock) : FindNearestSegmentMarker(VisibleBlock);
 
@@ -5031,7 +5034,7 @@ void OSDInfoDrawBackground(void)
     ButtonDist = 6;
     for (i = 0; i < 4; i++)
     {
-      ColorButtonLengths[i] = FM_GetStringWidth(ColorButtonStrings[i], &Calibri_12_FontData);
+      ColorButtonLengths[i] = FM_GetStringWidth(ColorButtonStrings[i], &Font_Calibri_12);
       ButtonDist += ColorButtons[i]->width + 3 + ColorButtonLengths[i];
     }
     ButtonDist = (FrameWidth - ButtonDist - 4) / 4;
@@ -5043,7 +5046,7 @@ void OSDInfoDrawBackground(void)
     {
       TAP_Osd_PutGd(rgnInfoBar, PosX, PosY + 1, ColorButtons[i], TRUE);
       PosX += _Button_Red_Gd.width + 3;
-      FM_PutString(rgnInfoBar, PosX, PosY, PosX + max(ColorButtonLengths[i] + ButtonDist, 0), ColorButtonStrings[i], COLOR_White, ColorInfoBarDarkSub, &Calibri_12_FontData, TRUE, ALIGN_LEFT);
+      FM_PutString(rgnInfoBar, PosX, PosY, PosX + max(ColorButtonLengths[i] + ButtonDist, 0), ColorButtonStrings[i], COLOR_White, ColorInfoBarDarkSub, &Font_Calibri_12, TRUE, ALIGN_LEFT);
       PosX += max(ColorButtonLengths[i] + ButtonDist, 0);
     }
 
@@ -5058,7 +5061,7 @@ void OSDInfoDrawBackground(void)
     ButtonDist = 6;
     for (i = 0; i < 6; i++)
     {
-      BelowButtonLengths[i] = FM_GetStringWidth(BelowButtonStrings[i], &Calibri_10_FontData);
+      BelowButtonLengths[i] = FM_GetStringWidth(BelowButtonStrings[i], &Font_Calibri_10);
       ButtonDist += BelowButtons[i]->width + 2 + BelowButtonLengths[i];
     }
     ButtonDist = (ScreenWidth - (int)(2*Overscan_X) - ButtonDist - 74) / 6;
@@ -5073,7 +5076,7 @@ void OSDInfoDrawBackground(void)
 //        PosX += BelowButtons[i]->width + 3;
 //      else
         PosX += BelowButtons[i]->width + 2;
-      FM_PutString(rgnInfoBar, PosX, PosY + 1, PosX + max(BelowButtonLengths[i] + ButtonDist, 0), BelowButtonStrings[i], COLOR_White, ColorDarkBackground, &Calibri_10_FontData, TRUE, ALIGN_LEFT);
+      FM_PutString(rgnInfoBar, PosX, PosY + 1, PosX + max(BelowButtonLengths[i] + ButtonDist, 0), BelowButtonStrings[i], COLOR_White, ColorDarkBackground, &Font_Calibri_10, TRUE, ALIGN_LEFT);
       PosX += BelowButtonLengths[i] + ButtonDist;
     }
 //TAP_Osd_DrawRectangle(rgnInfoBar, Overscan_X+6, InfoBarLine3_Y, PosX - Overscan_X-6, 20, 2, COLOR_Gray);
@@ -5093,7 +5096,7 @@ void OSDInfoDrawRecName(void)
 {
   const int             FrameLeft    = Overscan_X + 45,                                                    FrameTop    =  0;  // 10
   const int             FrameWidth   = ScreenWidth - Overscan_X - InfoBarRightAreaWidth - FrameLeft - 2,   FrameHeight = 45;  // 26
-  const int             TimeWidth    = FM_GetStringWidth("99:99 h", &Calibri_12_FontData) + 1,             TimeLeft    = FrameLeft + FrameWidth - TimeWidth - 2;
+  const int             TimeWidth    = FM_GetStringWidth("99:99 h", &Font_Calibri_12) + 1,             TimeLeft    = FrameLeft + FrameWidth - TimeWidth - 2;
   int                   TimeTop      = FrameTop + 13,                                                      TitleLeft   = FrameLeft + 2;
   int                   TitleWidth   = FrameWidth - TimeWidth - (TitleLeft - FrameLeft) - 12;
   int                   TitleHeight, TitleTop;
@@ -5124,10 +5127,10 @@ void OSDInfoDrawRecName(void)
     #endif
 
     // Passende Schriftgröße ermitteln
-    UseTitleFont = &Calibri_14_FontData;
+    UseTitleFont = &Font_Calibri_14;
     if(FM_GetStringWidth(TitleStr, UseTitleFont) + 10 > (dword)TitleWidth)
     {
-      UseTitleFont = &Calibri_12_FontData;
+      UseTitleFont = &Font_Calibri_12;
       TimeTop--;
       TitleLeft -= 2;
       TitleWidth += 2;
@@ -5170,7 +5173,7 @@ void OSDInfoDrawRecName(void)
 //    {
       TimeVal = PlayInfo.duration * 60 + PlayInfo.durationSec;
       SecToDurationStr(TimeVal, TimeStr);
-      FM_PutString(rgnInfoBar, TimeLeft, TimeTop, TimeLeft + TimeWidth - 1, TimeStr, COLOR_White, ColorInfoBarTitle, &Calibri_12_FontData, FALSE, ALIGN_CENTER);
+      FM_PutString(rgnInfoBar, TimeLeft, TimeTop, TimeLeft + TimeWidth - 1, TimeStr, COLOR_White, ColorInfoBarTitle, &Font_Calibri_12, FALSE, ALIGN_CENTER);
 //    }
   }
   TRACEEXIT();
@@ -5218,7 +5221,7 @@ void OSDInfoDrawPlayIcons(bool Force, bool DoSync)
       if (TrickMode == TRICKMODE_Rewind || TrickMode == TRICKMODE_Forward || TrickMode == TRICKMODE_Slow)
       {
         TAP_SPrint(SpeedText, sizeof(SpeedText), ((TrickMode == TRICKMODE_Slow) ? "1/%dx" : "%dx"), (1 << TrickModeSpeed));
-        FM_PutString(rgnInfoBar, TextPosX - 7, FrameTop, TextPosX + ButtonWidth + 6 , SpeedText, COLOR_White, COLOR_None, &Calibri_12_FontData, FALSE, ALIGN_CENTER);
+        FM_PutString(rgnInfoBar, TextPosX - 7, FrameTop, TextPosX + ButtonWidth + 6 , SpeedText, COLOR_White, COLOR_None, &Font_Calibri_12, FALSE, ALIGN_CENTER);
       }
     }
     else
@@ -5259,17 +5262,17 @@ void OSDInfoDrawPlayIcons(bool Force, bool DoSync)
         if (TrickMode == TRICKMODE_Slow)
         {
           PosX  = IconLeft + 6;
-          PosX2 = PosX + FM_GetStringWidth("1", &Calibri_10_FontData);
-          FM_PutString(rgnPlayState, PosX, IconTop + 5, PosX2, "1",       COLOR_White, COLOR_None, &Calibri_10_FontData, FALSE, ALIGN_LEFT);
+          PosX2 = PosX + FM_GetStringWidth("1", &Font_Calibri_10);
+          FM_PutString(rgnPlayState, PosX, IconTop + 5, PosX2, "1",       COLOR_White, COLOR_None, &Font_Calibri_10, FALSE, ALIGN_LEFT);
           PosX  = PosX2 - 1;
-          PosX2 = PosX + FM_GetStringWidth("/", &Calibri_10_FontData);
-          FM_PutString(rgnPlayState, PosX, IconTop + 6, PosX2, "/",       COLOR_White, COLOR_None, &Calibri_10_FontData, FALSE, ALIGN_LEFT);
+          PosX2 = PosX + FM_GetStringWidth("/", &Font_Calibri_10);
+          FM_PutString(rgnPlayState, PosX, IconTop + 6, PosX2, "/",       COLOR_White, COLOR_None, &Font_Calibri_10, FALSE, ALIGN_LEFT);
           PosX  = PosX2;
-          PosX2 = PosX + FM_GetStringWidth(SpeedText, &Calibri_12_FontData);
-          FM_PutString(rgnPlayState, PosX, IconTop + 7, PosX2, SpeedText, COLOR_White, COLOR_None, &Calibri_12_FontData, FALSE, ALIGN_LEFT);
+          PosX2 = PosX + FM_GetStringWidth(SpeedText, &Font_Calibri_12);
+          FM_PutString(rgnPlayState, PosX, IconTop + 7, PosX2, SpeedText, COLOR_White, COLOR_None, &Font_Calibri_12, FALSE, ALIGN_LEFT);
         }
         else
-          FM_PutString(rgnPlayState, IconLeft + 7, IconTop + 8, RegionWidth - 1, SpeedText,  COLOR_White, COLOR_None, &Calibri_12_FontData, FALSE, ALIGN_LEFT);
+          FM_PutString(rgnPlayState, IconLeft + 7, IconTop + 8, RegionWidth - 1, SpeedText,  COLOR_White, COLOR_None, &Font_Calibri_12, FALSE, ALIGN_LEFT);
       }
 //      TAP_Osd_Sync();
       OSDInfoDrawCurrentPlayTime(TRUE);
@@ -5328,30 +5331,30 @@ void OSDInfoDrawCurrentPlayTime(bool Force)
       TAP_Osd_DrawRectangle(rgnInfoBar, Frame1Left + Frame1Width, InfoBarLine1_Y + 6, 1, 17, 1, RGB(92,93,93));
 
       TAP_Osd_FillBox      (rgnInfoBar, Frame1Left,   InfoBarLine1_Y + InfoBarLine1Height - 2, PercentWidth, 2, COLOR_Gray);
-      FM_PutString         (rgnInfoBar, Frame1Left+1, InfoBarLine1_Y + 5, Frame1Left + Frame1Width - 1, PercentString, COLOR_White, ColorInfoBarDarkSub, &Calibri_12_FontData,     FALSE, ALIGN_CENTER);
+      FM_PutString         (rgnInfoBar, Frame1Left+1, InfoBarLine1_Y + 5, Frame1Left + Frame1Width - 1, PercentString, COLOR_White, ColorInfoBarDarkSub, &Font_Calibri_12,     FALSE, ALIGN_CENTER);
       #ifdef MC_UNICODE
-        FM_PutString       (rgnInfoBar, Frame2Left,   InfoBarLine1_Y + 5, Frame2Left + Frame2Width - 1, TimeString,    COLOR_White, ColorInfoBarDarkSub, &Courier_New_13_FontData, FALSE, ALIGN_CENTER);
+        FM_PutString       (rgnInfoBar, Frame2Left,   InfoBarLine1_Y + 5, Frame2Left + Frame2Width - 1, TimeString,    COLOR_White, ColorInfoBarDarkSub, &Font_Courier_New_13, FALSE, ALIGN_CENTER);
       #else
-        FM_PutString       (rgnInfoBar, Frame2Left,   InfoBarLine1_Y + 5, Frame2Left + Frame2Width - 1, TimeString,    COLOR_White, ColorInfoBarDarkSub, &Calibri_12_FontData,     FALSE, ALIGN_CENTER);
+        FM_PutString       (rgnInfoBar, Frame2Left,   InfoBarLine1_Y + 5, Frame2Left + Frame2Width - 1, TimeString,    COLOR_White, ColorInfoBarDarkSub, &Font_Calibri_12,     FALSE, ALIGN_CENTER);
       #endif
     }
     if(rgnInfoBarMini)
     {
-      const int FrameWidth = FM_GetStringWidth("9:99:99", &Calibri_12_FontData) + 1,   FrameHeight = GetOSDRegionHeight(rgnInfoBarMini) - 6;
+      const int FrameWidth = FM_GetStringWidth("9:99:99", &Font_Calibri_12) + 1,   FrameHeight = GetOSDRegionHeight(rgnInfoBarMini) - 6;
       const int FrameLeft  = GetOSDRegionWidth(rgnInfoBarMini) - 2 - FrameWidth,           FrameTop = 3;
 
       TAP_Osd_FillBox(rgnInfoBarMini, FrameLeft, FrameTop, FrameWidth, FrameHeight, ColorLightBackground);
-      FM_PutString(rgnInfoBarMini, FrameLeft, FrameTop + 6, FrameLeft + FrameWidth - 1, TimeString, COLOR_White, ColorLightBackground, &Calibri_12_FontData, FALSE, ALIGN_RIGHT);
+      FM_PutString(rgnInfoBarMini, FrameLeft, FrameTop + 6, FrameLeft + FrameWidth - 1, TimeString, COLOR_White, ColorLightBackground, &Font_Calibri_12, FALSE, ALIGN_RIGHT);
     }
     if(rgnPlayState)
     {
       const int ProgBarWidth  = _PlayState_Background_Gd.width - 10,   ProgBarHeight = 3;
       const int ProgBarLeft   = 5,                                     ProgBarTop    = _PlayState_Background_Gd.height - ProgBarHeight - 5;
 
-      const int PlayTimeWidth = FM_GetStringWidth("9:99:99", &Calibri_10_FontData) + 1,        PlayTimeHeight = FM_GetStringHeight("9:99:99", &Calibri_10_FontData);
+      const int PlayTimeWidth = FM_GetStringWidth("9:99:99", &Font_Calibri_10) + 1,        PlayTimeHeight = FM_GetStringHeight("9:99:99", &Font_Calibri_10);
       const int PlayTimeLeft  = _PlayState_Background_Gd.width - PlayTimeWidth - ProgBarLeft + 1,  PlayTimeTop    = ProgBarTop - PlayTimeHeight - 1;
 
-      FM_PutString(rgnPlayState, PlayTimeLeft, PlayTimeTop, PlayTimeLeft + PlayTimeWidth - 1, TimeString, COLOR_White, ColorDarkBackground, &Calibri_10_FontData, FALSE, ALIGN_RIGHT);
+      FM_PutString(rgnPlayState, PlayTimeLeft, PlayTimeTop, PlayTimeLeft + PlayTimeWidth - 1, TimeString, COLOR_White, ColorDarkBackground, &Font_Calibri_10, FALSE, ALIGN_RIGHT);
 
       PercentWidth = (dword)(((float)PlayInfo.currentBlock / PlayInfo.totalBlock) * ProgBarWidth);
       PercentWidth = min(PercentWidth, (dword)ProgBarWidth + 1);
@@ -5373,7 +5376,7 @@ void OSDInfoDrawBookmarkMode(bool DoSync)
   if(rgnInfoBar)
   {
     TAP_Osd_FillBox(rgnInfoBar, FrameLeft, InfoBarLine1_Y, FrameWidth, InfoBarLine1Height, ColorInfoBarLightSub);
-    FM_PutString (rgnInfoBar, FrameLeft, InfoBarLine1_Y + 7, FrameLeft + FrameWidth-1, ((BookmarkMode ? LangGetString(LS_Bookmarks) : LangGetString(LS_Segments))), ((BookmarkMode) ? RGB(60,255,60) : RGB(250,139,18)), ColorInfoBarLightSub, &Calibri_10_FontData, FALSE, ALIGN_CENTER);
+    FM_PutString (rgnInfoBar, FrameLeft, InfoBarLine1_Y + 7, FrameLeft + FrameWidth-1, ((BookmarkMode ? LangGetString(LS_Bookmarks) : LangGetString(LS_Segments))), ((BookmarkMode) ? RGB(60,255,60) : RGB(250,139,18)), ColorInfoBarLightSub, &Font_Calibri_10, FALSE, ALIGN_CENTER);
     if(DoSync) TAP_Osd_Sync();
   }
 
@@ -5382,7 +5385,7 @@ void OSDInfoDrawBookmarkMode(bool DoSync)
 
 void OSDInfoDrawClock(bool Force)
 {
-  const int             FrameWidth  = FM_GetStringWidth("99:99", &Calibri_14_FontData) + 1;
+  const int             FrameWidth  = FM_GetStringWidth("99:99", &Font_Calibri_14) + 1;
   const int             FrameLeft   = ScreenWidth - FrameWidth - Overscan_X + 1 - 6;
   const int             FrameTop    = InfoBarLine3_Y - 3;
 
@@ -5399,7 +5402,7 @@ void OSDInfoDrawClock(bool Force)
     if((min != LastMin) || Force)
     {
       TAP_SPrint(Time, sizeof(Time), "%02d:%02d", hour, min);
-      FM_PutString (rgnInfoBar, FrameLeft, FrameTop, FrameLeft + FrameWidth - 1, Time, COLOR_White, ColorDarkBackground, &Calibri_14_FontData, FALSE, ALIGN_RIGHT);
+      FM_PutString (rgnInfoBar, FrameLeft, FrameTop, FrameLeft + FrameWidth - 1, Time, COLOR_White, ColorDarkBackground, &Font_Calibri_14, FALSE, ALIGN_RIGHT);
       LastMin = min;
     }
   }
@@ -5428,7 +5431,7 @@ void OSDInfoDrawMinuteJump(bool DoSync)
         TAP_SPrint(InfoStr, sizeof(InfoStr), "%d'", MinuteJump);
       else
         TAP_SPrint(InfoStr, sizeof(InfoStr), LangGetString(LS_BM));
-      FM_PutString(rgnInfoBar, FrameLeft + 1, FrameTop, FrameLeft + FrameWidth - 1, InfoStr, COLOR_White, COLOR_None, &Calibri_10_FontData, FALSE, ALIGN_CENTER);
+      FM_PutString(rgnInfoBar, FrameLeft + 1, FrameTop, FrameLeft + FrameWidth - 1, InfoStr, COLOR_White, COLOR_None, &Font_Calibri_10, FALSE, ALIGN_CENTER);
     }
     if(DoSync) TAP_Osd_Sync();
   }
@@ -5487,7 +5490,7 @@ void OSDTextStateWindow(int MessageID)
         break;
       }  
     }
-    FM_PutString(rgnTextState, 2, TextPositionY, RegionWidth-3, pMessageStr, RGB(255, 255, 224), ColorLightBackground, &Calibri_12_FontData, TRUE, ALIGN_CENTER);
+    FM_PutString(rgnTextState, 2, TextPositionY, RegionWidth-3, pMessageStr, RGB(255, 255, 224), ColorLightBackground, &Font_Calibri_12, TRUE, ALIGN_CENTER);
     TAP_Osd_Sync();
 
     if (OSDMode == MD_NoOSD && !NoMiniOSD)
@@ -5507,7 +5510,7 @@ void OSDSegmentTextDraw(bool Force)
   const int             RegionWidth = (rgnSegmentList) ? (ScreenWidth - Overscan_X - SegmentList_X - SegmentListWidth - 15) : (ScreenWidth - 2*Overscan_X - 100);
   const int             RegionLeft  = (rgnSegmentList) ? (ScreenWidth - RegionWidth - (int)Overscan_X) : ((ScreenWidth-RegionWidth) / 2);
   const int             RegionTop   = (rgnInfoBar) ? (ScreenHeight - 160 - RegionHeight - 2) : (ScreenHeight - Overscan_Y - 38 - 32 - RegionHeight - 8);
-  const int             SpaceWidth  = FM_GetStringWidth(" ", &Calibri_12_FontData);
+  const int             SpaceWidth  = FM_GetStringWidth(" ", &Font_Calibri_12);
   static word           LastCurSegment = 0;
   char                  curLine[512], StartTime[12], EndTime[12];
   word                  CurrentSegment;
@@ -5530,14 +5533,14 @@ void OSDSegmentTextDraw(bool Force)
     {
       TAP_Osd_DrawRectangle(rgnSegmentText, 0, 0, RegionWidth, RegionHeight, 2, ColorInfoBarLightSub);
       TAP_Osd_FillBox(rgnSegmentText, 2, 2, RegionWidth-4, RegionHeight-4, ColorDarkBackground);
-      TAP_Osd_FillBox(rgnSegmentText, 2, 2, RegionWidth-4, FM_GetStringHeight(LangGetString(LS_SegmentNr), &Calibri_14_FontData)+2, ColorInfoBarLightSub);
+      TAP_Osd_FillBox(rgnSegmentText, 2, 2, RegionWidth-4, FM_GetStringHeight(LangGetString(LS_SegmentNr), &Font_Calibri_14)+2, ColorInfoBarLightSub);
 
       TAP_SPrint(curLine, sizeof(curLine), LangGetString(LS_SegmentNr), CurrentSegment+1);
-      FM_PutString(rgnSegmentText, 10, 1, RegionWidth-10, curLine, RGB(216, 137, 18), ColorInfoBarLightSub, &Calibri_14_FontData, TRUE, ALIGN_LEFT);
+      FM_PutString(rgnSegmentText, 10, 1, RegionWidth-10, curLine, RGB(216, 137, 18), ColorInfoBarLightSub, &Font_Calibri_14, TRUE, ALIGN_LEFT);
       SecToTimeString((SegmentMarker[CurrentSegment].Timems) / 1000, StartTime);
       SecToTimeString((SegmentMarker[CurrentSegment + 1].Timems) / 1000, EndTime);
       TAP_SPrint(curLine, sizeof(curLine), "%s - %s", StartTime, EndTime);
-      FM_PutString(rgnSegmentText, RegionWidth/2-80, 4, RegionWidth/2+80, curLine, COLOR_White, ColorInfoBarLightSub, &Calibri_12_FontData, TRUE, ALIGN_CENTER);
+      FM_PutString(rgnSegmentText, RegionWidth/2-80, 4, RegionWidth/2+80, curLine, COLOR_White, ColorInfoBarLightSub, &Font_Calibri_12, TRUE, ALIGN_CENTER);
 /*      SecToTimeString((SegmentMarker[CurrentSegment + 1].Timems - SegmentMarker[CurrentSegment].Timems) / 1000, EndTime);
       if ((SegmentMarker[CurrentSegment + 1].Timems - SegmentMarker[CurrentSegment].Timems) / 1000 < 3600)
         TAP_SPrint(curLine, sizeof(curLine), "%s min", (EndTime[2]=='0') ? &EndTime[3] : &EndTime[2]);
@@ -5547,7 +5550,7 @@ void OSDSegmentTextDraw(bool Force)
         TAP_SPrint(curLine, sizeof(curLine), "%s h", EndTime);
       } */
       SecToDurationStr((SegmentMarker[CurrentSegment + 1].Timems - SegmentMarker[CurrentSegment].Timems) / 1000, curLine);
-      FM_PutString(rgnSegmentText, RegionWidth-100, 4, RegionWidth-15-_Icon_SegmentText_Gd.width, curLine, COLOR_White, ColorInfoBarLightSub, &Calibri_12_FontData, TRUE, ALIGN_RIGHT);
+      FM_PutString(rgnSegmentText, RegionWidth-100, 4, RegionWidth-15-_Icon_SegmentText_Gd.width, curLine, COLOR_White, ColorInfoBarLightSub, &Font_Calibri_12, TRUE, ALIGN_RIGHT);
       TAP_Osd_PutGd(rgnSegmentText, RegionWidth-_Icon_SegmentText_Gd.width-5, 9, &_Icon_SegmentText_Gd, TRUE);
 
       if (CurrentSegment != LastCurSegment)
@@ -5563,7 +5566,7 @@ void OSDSegmentTextDraw(bool Force)
         while (i < SegmentTextStartLine+3)
         {
           if (curToken)
-            TokenWidth = FM_GetStringWidth(curToken, &Calibri_12_FontData);
+            TokenWidth = FM_GetStringWidth(curToken, &Font_Calibri_12);
           if (!curToken || ((curWidth + (TokenWidth + ((curWidth>0) ? SpaceWidth : 0))) >= RegionWidth-15))
           {
             // Zeile ausgeben und zurücksetzen
@@ -5571,7 +5574,7 @@ void OSDSegmentTextDraw(bool Force)
             {
               if (!*curLine && curToken)
                 TAP_SPrint(curLine, sizeof(curLine), "%s", curToken); 
-              FM_PutString(rgnSegmentText, 10, 31+(i-SegmentTextStartLine)*21, RegionWidth-5, curLine, RGB(192, 192, 192), ColorDarkBackground, &Calibri_12_FontData, TRUE, ALIGN_LEFT);
+              FM_PutString(rgnSegmentText, 10, 31+(i-SegmentTextStartLine)*21, RegionWidth-5, curLine, RGB(192, 192, 192), ColorDarkBackground, &Font_Calibri_12, TRUE, ALIGN_LEFT);
             }
             curWidth = 0;
             curLine[0] = '\0';
@@ -5644,7 +5647,7 @@ void OSDRecStripProgressBar(void)
     rgnStripProgBar = TAP_Osd_Create(Overscan_X, Overscan_Y + 16, RegionWidth, RegionHeight, 0, 0);
     TAP_Osd_FillBox(rgnStripProgBar, 0, 0, RegionWidth, RegionHeight, ColorLightBackground);
     TAP_Osd_DrawRectangle(rgnStripProgBar, 0, 0, RegionWidth, RegionHeight, 2, COLOR_Gray);
-    FM_PutString(rgnStripProgBar, 5, 2, RegionWidth-3, LangGetString(LS_StrippingMsg), RGB(255, 255, 224), ColorLightBackground, &Calibri_10_FontData, TRUE, ALIGN_LEFT);
+    FM_PutString(rgnStripProgBar, 5, 2, RegionWidth-3, LangGetString(LS_StrippingMsg), RGB(255, 255, 224), ColorLightBackground, &Font_Calibri_10, TRUE, ALIGN_LEFT);
     TAP_Osd_FillBox(rgnStripProgBar, 5, RegionHeight-10, 100, 5, COLOR_Gray);
     TAP_Osd_Sync();
   }
@@ -5653,7 +5656,7 @@ void OSDRecStripProgressBar(void)
   {
     TAP_Osd_FillBox(rgnStripProgBar, 5, RegionHeight-10, min(RecStrip_Percent, 100), 5, COLOR_Red);
     TAP_SPrint(ProgressStr, sizeof(ProgressStr), "%3d %%", RecStrip_Percent);
-    FM_PutString(rgnStripProgBar, 108, 12, RegionWidth-5, ProgressStr, RGB(255, 255, 224), ColorLightBackground, &Calibri_10_FontData, FALSE, ALIGN_RIGHT);
+    FM_PutString(rgnStripProgBar, 108, 12, RegionWidth-5, ProgressStr, RGB(255, 255, 224), ColorLightBackground, &Font_Calibri_10, FALSE, ALIGN_RIGHT);
     TAP_Osd_Sync();
   }
 
@@ -5886,7 +5889,7 @@ void ActionMenuDraw(void)
     if (DisplayColor == Color_Inactive)
       TAP_Osd_FillBox(rgnActionMenu, ShortButtonLeft,    TextFieldStart_Y + (TextFieldHeight + TextFieldDist) * i + 4, _Button_Sleep_small_Gd.width, _Button_Sleep_small_Gd.height, ColorInfoBarDarkSub);
     if (DisplayStr && (i < MI_NrMenuItems))
-      FM_PutString(rgnActionMenu, TextFieldStart_X + 10, TextFieldStart_Y + (TextFieldHeight + TextFieldDist) * i + 1, ShortButtonLeft, DisplayStr, DisplayColor, COLOR_None, &Calibri_14_FontData, TRUE, ((i==0) ? ALIGN_CENTER : ALIGN_LEFT));
+      FM_PutString(rgnActionMenu, TextFieldStart_X + 10, TextFieldStart_Y + (TextFieldHeight + TextFieldDist) * i + 1, ShortButtonLeft, DisplayStr, DisplayColor, COLOR_None, &Font_Calibri_14, TRUE, ((i==0) ? ALIGN_CENTER : ALIGN_LEFT));
   }
 
   TAP_Osd_Sync();
@@ -5900,7 +5903,7 @@ void ActionSubMenuDraw(void)
   const int             SubMenuHeight     =  2*TextFieldStart_Y + SI_NrMenuItems*(TextFieldHeight+TextFieldDist);
   const int             SubMenuWidth      =  2*TextFieldStart_X + _SubMenu_Bar_Gd.width;
   const int             ShortButtonLeft   =  TextFieldStart_X + _SubMenu_Bar_Gd.width - _Button_Sleep_small_Gd.width - 5;
-  const int             CopyOutDirWidth   =  FM_GetStringWidth(LangGetString(LS_CopySetOutDir), &Calibri_14_FontData);
+  const int             CopyOutDirWidth   =  FM_GetStringWidth(LangGetString(LS_CopySetOutDir), &Font_Calibri_14);
   const dword           Color_Inactive    =  RGB(120, 120, 120);
   char                  TempDirISO[FBLIB_DIR_SIZE];
   int                   i;
@@ -5941,7 +5944,7 @@ void ActionSubMenuDraw(void)
     dword TextOffset_X = (i == SI_CopyDoStrip) ? _CheckBox_Gd.width + 12 : 5;
     if (i == SI_CopyDoStrip)
       TAP_Osd_PutGd(rgnActionSubMenu, TextFieldStart_X + 5,            TextFieldStart_Y + (TextFieldHeight+TextFieldDist) * i + 5, (CopyDoStrip ? &_CheckBox_checked_Gd : &_CheckBox_Gd), FALSE);
-    FM_PutString(rgnActionSubMenu,    TextFieldStart_X + TextOffset_X, TextFieldStart_Y + (TextFieldHeight+TextFieldDist) * i + 1, ShortButtonLeft, LangGetString(LS_CopySeparate+i), DisplayColor, COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT);
+    FM_PutString(rgnActionSubMenu,    TextFieldStart_X + TextOffset_X, TextFieldStart_Y + (TextFieldHeight+TextFieldDist) * i + 1, ShortButtonLeft, LangGetString(LS_CopySeparate+i), DisplayColor, COLOR_None, &Font_Calibri_14, TRUE, ALIGN_LEFT);
   }
 
   // OutDir ausgeben
@@ -5954,7 +5957,7 @@ void ActionSubMenuDraw(void)
   }
   TAP_Osd_PutGd(rgnActionSubMenu, TextFieldStart_X + CopyOutDirWidth + 10,                             TextFieldStart_Y + (TextFieldHeight+TextFieldDist) * SI_CopySetOutDir + (TextFieldHeight-_Keyb_ScrollLeft_Gd.height)/2 + 1,  &_Keyb_ScrollLeft_Gd,  TRUE);
   TAP_Osd_PutGd(rgnActionSubMenu, ShortButtonLeft - _Keyb_ScrollRight_Gd.width - 5,                    TextFieldStart_Y + (TextFieldHeight+TextFieldDist) * SI_CopySetOutDir + (TextFieldHeight-_Keyb_ScrollRight_Gd.height)/2 + 1, &_Keyb_ScrollRight_Gd, TRUE);
-  FM_PutString(rgnActionSubMenu,  TextFieldStart_X + CopyOutDirWidth + _Keyb_ScrollLeft_Gd.width + 15, TextFieldStart_Y + (TextFieldHeight+TextFieldDist) * SI_CopySetOutDir + 1, ShortButtonLeft - _Keyb_ScrollRight_Gd.width - 5, (RecStrip_UseOutDir ? TempDirISO : LangGetString(LS_CopyOriginalDir)), ((ActionSubMenuItem==SI_CopySetOutDir) ? COLOR_DarkGray : COLOR_Gray), COLOR_None, &Calibri_14_FontData, TRUE, ALIGN_LEFT);
+  FM_PutString(rgnActionSubMenu,  TextFieldStart_X + CopyOutDirWidth + _Keyb_ScrollLeft_Gd.width + 15, TextFieldStart_Y + (TextFieldHeight+TextFieldDist) * SI_CopySetOutDir + 1, ShortButtonLeft - _Keyb_ScrollRight_Gd.width - 5, (RecStrip_UseOutDir ? TempDirISO : LangGetString(LS_CopyOriginalDir)), ((ActionSubMenuItem==SI_CopySetOutDir) ? COLOR_DarkGray : COLOR_Gray), COLOR_None, &Font_Calibri_14, TRUE, ALIGN_LEFT);
 
   TAP_Osd_Sync();
   TRACEEXIT();

@@ -130,6 +130,6 @@ static bool  UndoLastAction(void);
 static void  UndoResetStack(void);
 static bool  PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isHD);
 
-extern void  OSDMenuFreeStdFonts(void);
+//extern void  OSDMenuFreeStdFonts(void);
 
 #endif
