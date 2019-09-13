@@ -3,3 +3,6 @@ v0.1          First release
 
 v0.2          - "EPG-Daten auf Festplatte speichern" einstellbar
 (2019-01-01)  - EEPROM-Dump kann erzeugt werden
+
+v0.3          Ermöglicht Anzeige und Ändern der MAC-Adresse
+(2019-09-13)
