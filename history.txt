@@ -8,9 +8,10 @@
                    - StrMkISO in HddToolsLib ersetzt
                    - Anpassung an neue FireBirdLib (OSDMessageEvent, AudioAutoSelect, OSDKeyboard)
 
-                 RecStrip 2.4
+                 RecStrip 2.4a (01.03.2020)
                    - Bugfix: PMT bei Pro7HD wird jetzt korrekt geparsed (ProgramInfo wird übersprungen)
                    - Bugfix: Teletext-Descriptoren werden jetzt korrekt ausgewertet
+                   - Bugfix: SD nav-Erzeugung: Bei paketübergreifendem Startcode konnten Frames übersprungen werden
                    - Neu: Bei Humax-Import wird AC3-Descriptor in der PMT gesetzt (experimentell)
                    - Internals: konsequentere Verwendung von benannten structs und enums anstatt Bitshift-Operationen und Konstanten
 
