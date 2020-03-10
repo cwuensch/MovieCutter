@@ -38,7 +38,6 @@ bool       HDD_GetFileSizeAndInode2(const char *FileName, const char *AbsDirecto
 bool       HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, tPVRTime NewDateTime, byte NewDateSec);
 __off64_t  HDD_GetFreeDiscSpace(char *AnyFileName, char *AbsDirectory);
 bool       HDD_TAP_CheckCollisionByID(dword MyTapID);
-void       HDPlusRecordingHook(bool Activate);
 bool       HDD_StartPlayback2(char *FileName, char *AbsDirectory, bool MediaFileMode);
 bool       ReadBookmarks(dword *const Bookmarks, int *const NrBookmarks);
 bool       SaveBookmarks(dword Bookmarks[], int NrBookmarks, bool OverwriteAll);

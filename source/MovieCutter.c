@@ -914,9 +914,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
       // Set the system time to current time
 //      /*if (InodeMonitoring)*/ SetSystemTimeToCurrent();
 
-      // Hook Appl_WriteRecInfo to prevent deletion of CI+ recordings
-      HDPlusRecordingHook(TRUE);
-
       State = AutoOSDPolicy ? ST_WaitForPlayback : ST_InactiveMode;
 
       // Fix list of defect inodes
@@ -2553,8 +2550,6 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         CutFileSave();
       }
     }  // fortsetzen mit ST_ExitNoSave ...
-
-    HDPlusRecordingHook(FALSE);
 
     // wenn nötig, beim Beenden HDDCheck und/oder Inode-Fix durchführen
     if (SuspectHDDs[0])
