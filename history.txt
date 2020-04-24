@@ -1,4 +1,4 @@
-2019-05-01 v3.6d NEUES OSDKeyboard:
+2020-04-24 v3.6d NEUES OSDKeyboard:
                    - übersichtlicheres Layout (weniger Tasten, nur noch 2 Seiten, dauerhafte Anzeige aller Funktionen)
                    - langes Drücken auf 'OK' zeigt eine Auswahl für alternative Zeichen (Umlaute, Accents, etc.)
                    - Auto-Vervollständigung für bereits eingegebene Wörter
@@ -7,6 +7,16 @@
                  INTERNALS:
                    - StrMkISO in HddToolsLib ersetzt
                    - Anpassung an neue FireBirdLib (OSDMessageEvent, AudioAutoSelect, OSDKeyboard)
+                   - neu kompiliert mit sichererer GetApplVer()
+
+                 RecStrip 2.5 (24.04.2020)
+                   - Ausgabe von First und Last PCR (für mehrere zusammengehörige Teilaufnahmen)
+                   - Programme Identification (meist Sendername) aus Teletext auslesen
+                   - PESProcessor: bei Adaptation field wird 1 Byte mehr (Länge) übersprungen
+                     (bisher wohl nicht aufgefallen, da PESProcessor nur für einzelne SIT-Tables eingesetzt wurde, bei denen meist kein Adaptation Field auftritt)
+                   - PESProcessor: Buffer-Overflow-Protection
+                   - verbesserte Berechnung der M2TS Arrival Timestamps (immer den letzten PCR nehmen, dazwischen interpolieren)
+                   - anstatt PayloadStart-Pakete mit Filler-AdaptationField werden Adaptation-Only-Pakete ohne PCR gelöscht(!)
 
                  RecStrip 2.4a (01.03.2020)
                    - Bugfix: PMT bei Pro7HD wird jetzt korrekt geparsed (ProgramInfo wird übersprungen)
