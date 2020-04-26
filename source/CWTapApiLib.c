@@ -185,27 +185,25 @@ bool HDD_GetFileSizeAndInode2(const char *FileName, const char *AbsDirectory, __
 } */
 
 
-/*bool HDD_GetFileDateTime(char const *FileName, char const *AbsDirectory, dword *OutDateTime)
+bool HDD_GetFileDateTime(char const *FileName, char const *AbsDirectory, tPVRTime *const OutDateTime, byte *const OutDateSec)
 {
   char                  AbsFileName[FBLIB_DIR_SIZE];
   struct stat64         statbuf;
-  struct utimbuf        utimebuf;
 
   TRACEENTER();
-
   if(FileName && AbsDirectory && OutDateTime)
   {
     TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s", AbsDirectory, FileName);
     if(lstat64(AbsFileName, &statbuf) == 0)
     {
-      *OutDateTime = Unix2TFTime(statbuf.st_mtime);
+      *OutDateTime = Unix2TFTimeSec(statbuf.st_mtime, OutDateSec);
       TRACEEXIT();
       return TRUE;
     }
   }
   TRACEEXIT();
   return FALSE;
-} */
+}
 bool HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, tPVRTime NewDateTime, byte NewDateSec)
 {
   char                  AbsFileName[FBLIB_DIR_SIZE];
@@ -284,6 +282,13 @@ bool HDD_TAP_CheckCollisionByID(dword MyTapID)
 time_t TF2UnixTimeSec(tPVRTime TFTimeStamp, byte TFTimeSec)
 { 
   return (MJD(TFTimeStamp) - 0x9e8b) * 86400 + HOUR(TFTimeStamp) * 3600 + MINUTE(TFTimeStamp) * 60 + TFTimeSec;
+}
+
+tPVRTime Unix2TFTimeSec(time_t UnixTimeStamp, byte *const outSec)
+{
+  if (outSec)
+    *outSec = UnixTimeStamp % 60;
+  return (DATE ( (UnixTimeStamp / 86400) + 0x9e8b, (UnixTimeStamp / 3600) % 24, (UnixTimeStamp / 60) % 60 ));
 }
 
 tPVRTime TFNow(byte *const outSec)
@@ -382,6 +387,36 @@ bool GetRecInfosFromInf(const char *RecFileName, const char *AbsDirectory, bool 
   TRACEEXIT();
   return ret;
 }
+
+/*bool SaveRecDateToInf(const char* RecFileName, char const *AbsDirectory, tPVRTime NewTime, byte NewSec)
+{
+  FILE                 *fInf = NULL;
+  char                  AbsInfName[FBLIB_DIR_SIZE];
+  TYPE_RecHeader_Info   RecHeaderInfo;
+  bool                  ret = FALSE;
+
+  TRACEENTER();
+
+  TAP_SPrint(AbsInfName, sizeof(AbsInfName), "%s/%s.inf", AbsDirectory, RecFileName);
+
+  if ((fInf = fopen(AbsInfName, "r+b")))
+  {
+    fread(&RecHeaderInfo, 1, 12, fInf);
+    rewind(fInf);
+    if ((strncmp(RecHeaderInfo.Magic, "TFrc", 4) == 0) && (RecHeaderInfo.Version == 0x8000))
+    {
+      RecHeaderInfo.StartTime = NewTime;
+      RecHeaderInfo.StartTimeSec = NewSec;
+      ret = (fwrite(&RecHeaderInfo, 1, 12, fInf) == 12);
+      ret = fclose(fInf) && ret;
+    }
+  }
+  else
+    WriteLogMC(PROGRAM_NAME, "SaveRecDateToInf: Failed to open the inf file!");
+
+  TRACEEXIT();
+  return ret;
+}*/
 
 
 // ----------------------------------------------------------------------------
@@ -704,6 +739,7 @@ void CloseLogMC(void)
 void WriteLogMC(char *ProgramName, char *Text)
 {
   tPVRTime              Time;
+  char                  TS[20];
   word                  Year = 0;
   byte                  Month = 0, Day = 0, WeekDay = 0, Sec;
 
@@ -716,15 +752,17 @@ void WriteLogMC(char *ProgramName, char *Text)
     fLogMC = fopen(TAPFSROOT LOGDIR "/" LOGFILENAME, "ab");
     setvbuf(fLogMC, NULL, _IOLBF, 4096);  // zeilenweises Buffering
   }
+
+  TAP_SPrint(TS, sizeof(TS), "%04d-%02d-%02d %02d:%02d:%02d", Year, Month, Day, HOUR(Time), MINUTE(Time), Sec);
   if (fLogMC)
   {
-    fprintf(fLogMC, "%04d-%02d-%02d %02d:%02d:%02d %s\r\n", Year, Month, Day, HOUR(Time), MINUTE(Time), Sec, Text);
+    fprintf(fLogMC, "%s %s\r\n", TS, Text);
 //    close(fLogMC);
   }
 
 //  if (Console)
   {
-    TAP_PrintNet("%04d-%02d-%02d %02d:%02d:%02d %s: %s\n", Year, Month, Day, HOUR(Time), MINUTE(Time), Sec, ((ProgramName && ProgramName[0]) ? ProgramName : ""), Text);
+    TAP_PrintNet("%s %s: %s\n", TS, ((ProgramName && ProgramName[0]) ? ProgramName : ""), Text);
   }
 }
 

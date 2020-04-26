@@ -1022,6 +1022,24 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         HDVideo = FALSE; isStripped = FALSE; RecDateTime = 0;
         infDetected = GetRecInfosFromInf(PlaybackName, AbsPlaybackDir, &isCrypted, &HDVideo, &isStripped, &RecDateTime, &RecDateSec);
         
+        //Get recording date more precisely from file timestamp
+/*        if (infDetected)
+        {
+          tPVRTime FileTimeStamp; byte FileTimeSec; time_t DisplayTime;
+          DisplayTime = TF2UnixTimeSec(RecDateTime, RecDateSec) - 3600;
+          WriteLogMCf(PROGRAM_NAME, "Date of recording (inf): %s", (ctime(&DisplayTime)));
+
+          if (HDD_GetFileDateTime(PlaybackName, AbsPlaybackDir, &FileTimeStamp, &FileTimeSec))
+          {
+            if (MJD(FileTimeStamp) - MJD(RecDateTime) <= 1)
+            {
+              RecDateTime = AddTimeSec(FileTimeStamp, FileTimeSec, &RecDateSec, -1 * (int)(60*PlayInfo.duration + PlayInfo.durationSec));
+              DisplayTime = TF2UnixTimeSec(RecDateTime, RecDateSec) - 3600;
+              WriteLogMCf(PROGRAM_NAME, "Date of recording (rec): %s", (ctime(&DisplayTime)));
+            }
+          }
+        }*/
+
         //Check if file is crypted
         if (infDetected && isCrypted)
         {
@@ -4292,7 +4310,7 @@ bool CutFileLoad(void)
   TRACEEXIT();
   return ret;
 }
-  
+
 bool CutFileSave(void)
 {
   return CutFileSave2(SegmentMarker, NrSegmentMarker, PlaybackName);
