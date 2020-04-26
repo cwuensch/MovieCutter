@@ -1,3 +1,17 @@
+2020-04-26 v3.6e NEU:
+                   - alle Topfield TimeStamps werden sekundengenau berechnet
+                   - StartTime-Sekundenangabe wird beim Schneiden in der inf (Byte 0x06) gespeichert(!)
+
+                 RecStrip 2.5b (26.04.2020)
+                   - alle Topfield TimeStamps werden sekundengenau berechnet
+                   - StartTime-Sekundenangabe wird in der inf (Byte 0x06) gespeichert(!)
+
+                 BUGFIXES:
+                   - aus Teletext ermittelte Programme Identification wurde nicht in inf eingetragen
+                   - End-Meldung: Anzahl der geschriebenen Pakete korrekt berechnet (OutPacketSize)
+                   - Medion-Mode: fehlerhafte Nullbyte-Entfernung durch zu späte Prüfung auf Video-PES
+                   - Medion-Mode: weitere kleine Bugfixes
+
 2020-04-24 v3.6d NEUES OSDKeyboard:
                    - übersichtlicheres Layout (weniger Tasten, nur noch 2 Seiten, dauerhafte Anzeige aller Funktionen)
                    - langes Drücken auf 'OK' zeigt eine Auswahl für alternative Zeichen (Umlaute, Accents, etc.)

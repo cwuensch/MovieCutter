@@ -181,6 +181,7 @@ static bool WriteListFile(const char *AbsListFileName, const tInodeData InodeLis
 {
   tInodeListHeader      InodeListHeader;
   FILE                 *fInodeList = NULL;
+  tPVRTime              NullTime;
   bool                  ret = FALSE;
 
   TRACEENTER();
@@ -202,7 +203,7 @@ static bool WriteListFile(const char *AbsListFileName, const tInodeData InodeLis
     }
 //    ret = (fflush(fInodeList) == 0) && ret;
     ret = (fclose(fInodeList) == 0) && ret;
-    HDD_SetFileDateTime(&AbsListFileName[1], "", 0);
+    HDD_SetFileDateTime(&AbsListFileName[1], "", NullTime, 0);
   }
   TRACEEXIT();
   return ret;
@@ -308,6 +309,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
   long                  StartTime;  byte sec = 0;
   int                   NrDefectFiles = 0, NrRepairedFiles = 0, NrMarkedFiles = 0, NrNewMarkedFiles = 0, ActivePhase = 0;
   bool                  fsck_Errors = FALSE;
+  tPVRTime              NullTime;
   int                   i;
 
   TRACEENTER();
@@ -365,7 +367,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
 
   // --- 4.) Run fsck and create a log file ---
 //  if(DoFix) SetSystemTimeToCurrent();
-  StartTime = PvrTimeToLinux(Now(&sec)) + sec;
+  StartTime = TF2UnixTimeSec(TFNow(&sec), sec);
   if (DeviceUnmounted || (DoFix != 2))
   {
     pid_t CurPid;
@@ -584,7 +586,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
   else
     WriteLogMC("HddToolsLib", "CheckFileSystem() E1c01.");
   if(fLogFileOut) fclose(fLogFileOut);
-  HDD_SetFileDateTime("fsck.log", ABSLOGDIR, 0);
+  HDD_SetFileDateTime("fsck.log", ABSLOGDIR, NullTime, 0);
 
   // Copy the log to MovieCutter folder
   #ifdef FULLDEBUG
@@ -1005,7 +1007,7 @@ bool HDD_FixInodeList(const char *AbsMountPath, bool DeleteOldEntries)
   time(&CurTime);
   if (CurTime <= UNIXTIME2010)
   {
-    RealTime = TF2UnixTime(Now(&sec)) + sec;
+    RealTime = TF2UnixTimeSec(TFNow(&sec), sec);
     ret = stime(&RealTime);
   }
 

@@ -206,26 +206,24 @@ bool HDD_GetFileSizeAndInode2(const char *FileName, const char *AbsDirectory, __
   TRACEEXIT();
   return FALSE;
 } */
-bool HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, dword NewDateTime)
+bool HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, tPVRTime NewDateTime, byte NewDateSec)
 {
   char                  AbsFileName[FBLIB_DIR_SIZE];
   struct stat64         statbuf;
   struct utimbuf        utimebuf;
 
-  if(NewDateTime == 0)
+  if(NewDateTime.Mjd == 0)
   {
-    byte Sec;
-    NewDateTime = Now(&Sec);
-    NewDateTime += Sec;
+    TAP_GetTime(&NewDateTime.Mjd, &NewDateTime.Hour, &NewDateTime.Minute, &NewDateSec);
   }
 
-  if(FileName && AbsDirectory && (NewDateTime > 0xd0790000))
+  if(FileName && AbsDirectory && (NewDateTime.Mjd > 0xd079))
   {
     TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s", AbsDirectory, FileName);
     if(lstat64(AbsFileName, &statbuf) == 0)
     {
       utimebuf.actime = statbuf.st_atime;
-      utimebuf.modtime = PvrTimeToLinux(NewDateTime);
+      utimebuf.modtime = TF2UnixTimeSec(NewDateTime, NewDateSec);
       utime(AbsFileName, &utimebuf);
       TRACEEXIT();
       return TRUE;
@@ -280,9 +278,68 @@ bool HDD_TAP_CheckCollisionByID(dword MyTapID)
 
 
 // ----------------------------------------------------------------------------
+//                             Time-Funktionen
+// ----------------------------------------------------------------------------
+
+time_t TF2UnixTimeSec(tPVRTime TFTimeStamp, byte TFTimeSec)
+{ 
+  return (TFTimeStamp.Mjd - 0x9e8b) * 86400 + TFTimeStamp.Hour * 3600 + TFTimeStamp.Minute * 60 + TFTimeSec;
+}
+
+tPVRTime TFNow(byte *const outSec)
+{
+  tPVRTime ret;
+  byte sec;
+  TAP_GetTime(&ret.Mjd, &ret.Hour, &ret.Minute, (outSec ? outSec : &sec));
+  return ret;
+}
+
+tPVRTime AddTimeSec(tPVRTime pvrTime, byte pvrTimeSec, byte *const outSec, int addSeconds)
+{
+  int Day = pvrTime.Mjd, Hour = pvrTime.Hour, Min = pvrTime.Minute, Sec = pvrTimeSec;
+  TRACEENTER();
+
+  Sec += addSeconds % 60;
+  if(Sec < 0)       { Min--; Sec += 60; }
+  else if(Sec > 59) { Min++; Sec -= 60; }
+
+  Min += (addSeconds / 60) % 60;
+  if(Min < 0)       { Hour--; Min += 60; }
+  else if(Min > 59) { Hour++; Min -= 60; }
+
+  Hour += (addSeconds / 3600) % 24;
+  if(Hour < 0)      { Day--; Hour += 24; }
+  else if(Hour >23) { Day++; Hour -= 24; }
+
+  Day += (addSeconds / 86400);
+
+  pvrTime.Mjd = Day;
+  pvrTime.Hour = Hour;
+  pvrTime.Minute = Min;
+  if(outSec) *outSec = Sec;
+
+  TRACEEXIT();
+  return (pvrTime);
+}
+
+int TimeDiffSec(tPVRTime FromTime, byte FromTimeSec, tPVRTime ToTime, byte ToTimeSec)
+{
+  dword             From, To;
+  TRACEENTER();
+
+  From = FromTimeSec + 60 * (FromTime.Minute + 60 * (FromTime.Hour + 24 * (dword)(FromTime.Mjd - 0x9e8b)));
+  To   = ToTimeSec   + 60 * (ToTime.Minute   + 60 * (ToTime.Hour   + 24 * (dword)(FromTime.Mjd - 0x9e8b)));
+
+  TRACEEXIT();
+  return (int)(To - From);
+}
+
+
+// ----------------------------------------------------------------------------
 //                              INF-Funktionen
 // ----------------------------------------------------------------------------
-bool GetRecInfosFromInf(const char *RecFileName, const char *AbsDirectory, bool *const isCrypted, bool *const isHDVideo, bool *const isStripped, dword *const DateTime)
+
+bool GetRecInfosFromInf(const char *RecFileName, const char *AbsDirectory, bool *const isCrypted, bool *const isHDVideo, bool *const isStripped, tPVRTime *const DateTime, byte *const DateSec)
 {
   char                  AbsInfName[FBLIB_DIR_SIZE];
   TYPE_RecHeader_Info   RecHeaderInfo;
@@ -301,7 +358,8 @@ bool GetRecInfosFromInf(const char *RecFileName, const char *AbsDirectory, bool 
     {
       if (isCrypted)  *isCrypted  = ((RecHeaderInfo.CryptFlag & 1) != 0);
       if (isStripped) *isStripped = RecHeaderInfo.rs_HasBeenStripped;
-      if (DateTime)   *DateTime   = RecHeaderInfo.StartTime;
+      if (DateTime)   *DateTime   = RecHeaderInfo.tStartTime.StartTime2;
+      if (DateSec)    *DateSec    = RecHeaderInfo.StartTimeSec;
 
       if (isHDVideo)
       {
@@ -634,7 +692,8 @@ void CloseLogMC(void)
 
     //As the log would receive the Linux time stamp (01.01.2000), adjust to the PVR's time
     struct utimbuf      times;
-    times.actime = PvrTimeToLinux(Now(NULL));
+    byte Sec;
+    times.actime = TF2UnixTimeSec(TFNow(&Sec), Sec);
     times.modtime = times.actime;
     utime(TAPFSROOT LOGDIR "/" LOGFILENAME, &times);
   }
@@ -643,10 +702,13 @@ void CloseLogMC(void)
 
 void WriteLogMC(char *ProgramName, char *Text)
 {
-  char                 *TS = NULL;
-  byte                  Sec;
+  tPVRTime              Time;
+  word                  Year = 0;
+  byte                  Month = 0, Day = 0, WeekDay = 0, Sec;
 
-  TS = TimeFormat(Now(&Sec), Sec, TIMESTAMP_YMDHMS);
+  Time = TFNow(&Sec);
+  if (Time.Mjd)
+    TAP_ExtractMjd (Time.Mjd, &Year, &Month, &Day, &WeekDay);
 
   if (!fLogMC)
   {
@@ -655,13 +717,13 @@ void WriteLogMC(char *ProgramName, char *Text)
   }
   if (fLogMC)
   {
-    fprintf(fLogMC, "%s %s\r\n", TS, Text);
+    fprintf(fLogMC, "%04d-%02d-%02d %02d:%02d:%02d %s\r\n", Year, Month, Day, Time.Hour, Time.Minute, Sec, Text);
 //    close(fLogMC);
   }
 
 //  if (Console)
   {
-    TAP_PrintNet("%s %s: %s\n", TS, ((ProgramName && ProgramName[0]) ? ProgramName : ""), Text);
+    TAP_PrintNet("%04d-%02d-%02d %02d:%02d:%02d %s: %s\n", Year, Month, Day, Time.Hour, Time.Minute, Sec, ((ProgramName && ProgramName[0]) ? ProgramName : ""), Text);
   }
 }
 

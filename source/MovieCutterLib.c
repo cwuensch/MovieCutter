@@ -147,7 +147,8 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
   dword                 SourcePlayTime = 0;
   bool                  TruncateEnding = FALSE;
   bool                  SuppressNavGeneration = FALSE;
-  dword                 RecDate = 0;
+  tPVRTime              RecDate;
+  byte                  RecDateSec = 0;
 //  char                  TimeStr[16];
 
   TRACEENTER();
@@ -385,32 +386,32 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
     WriteLogMC("MovieCutterLib", "MovieCutter() W0010: inf creation failed.");
 
   // Fix the date info of all involved files
-  if (GetRecInfosFromInf(SourceFileName, AbsDirectory, NULL, NULL, NULL, &RecDate)) {
+  if (GetRecInfosFromInf(SourceFileName, AbsDirectory, NULL, NULL, NULL, &RecDate, &RecDateSec)) {
     //Source
     char LogString[512];
     LogString[0] = '\0';
-    if (!HDD_SetFileDateTime(SourceFileName, AbsDirectory, RecDate))
+    if (!HDD_SetFileDateTime(SourceFileName, AbsDirectory, RecDate, RecDateSec))
       TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "HDD_SetFileDateTime(%s) failed. ", SourceFileName);
     TAP_SPrint(FileName, sizeof(FileName), "%s.inf", SourceFileName);
-    if (!HDD_SetFileDateTime(FileName, AbsDirectory, RecDate))
+    if (!HDD_SetFileDateTime(FileName, AbsDirectory, RecDate, RecDateSec))
       TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "HDD_SetFileDateTime(%s) failed. ", FileName);
     TAP_SPrint(FileName, sizeof(FileName), "%s.nav", SourceFileName);
-    if (!HDD_SetFileDateTime(FileName, AbsDirectory, RecDate))
+    if (!HDD_SetFileDateTime(FileName, AbsDirectory, RecDate, RecDateSec))
       TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "HDD_SetFileDateTime(%s) failed. ", FileName);
     if(LogString[0])
       WriteLogMC("MovieCutterLib", LogString);
   }
-  if (KeepCut && GetRecInfosFromInf(CutFileName, AbsDirectory, NULL, NULL, NULL, &RecDate)) {
+  if (KeepCut && GetRecInfosFromInf(CutFileName, AbsDirectory, NULL, NULL, NULL, &RecDate, &RecDateSec)) {
     //Cut
     char LogString[512];
     LogString[0] = '\0';
-    if (!HDD_SetFileDateTime(CutFileName, AbsDirectory, RecDate))
+    if (!HDD_SetFileDateTime(CutFileName, AbsDirectory, RecDate, RecDateSec))
       TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "HDD_SetFileDateTime(%s) failed. ", CutFileName);
     TAP_SPrint(FileName, sizeof(FileName), "%s.inf", CutFileName);
-    if (!HDD_SetFileDateTime(FileName, AbsDirectory, RecDate))
+    if (!HDD_SetFileDateTime(FileName, AbsDirectory, RecDate, RecDateSec))
       TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "HDD_SetFileDateTime(%s) failed. ", FileName);
     TAP_SPrint(FileName, sizeof(FileName), "%s.nav", CutFileName);
-    if (!HDD_SetFileDateTime(FileName, AbsDirectory, RecDate))
+    if (!HDD_SetFileDateTime(FileName, AbsDirectory, RecDate, RecDateSec))
       TAP_SPrint(&LogString[strlen(LogString)], sizeof(LogString)-strlen(LogString), "HDD_SetFileDateTime(%s) failed. ", FileName);
     if(LogString[0])
       WriteLogMC("MovieCutterLib", LogString);
@@ -1236,7 +1237,8 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   dword                 Bookmarks[NRBOOKMARKS];
   dword                 NrBookmarks;
   dword                 CutPlayTime;
-  dword                 OrigHeaderStartTime;
+  tPVRTime              OrigHdrStartTime;
+  byte                  OrigHdrStartSec;
   dword                 i;
   bool                  SetCutBookmark;
   bool                  Result = FALSE;
@@ -1374,9 +1376,10 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   RecHeaderInfo->DurationSec = SourcePlayTime % 60;
 
   //Set recording time of the source file
-  OrigHeaderStartTime = RecHeaderInfo->StartTime;
+  OrigHdrStartTime = RecHeaderInfo->tStartTime.StartTime2;
+  OrigHdrStartSec  = RecHeaderInfo->StartTimeSec;
   if (CutStartPoint->BlockNr == 0)
-    RecHeaderInfo->StartTime = AddTime(OrigHeaderStartTime, BehindCutPoint->Timems / 60000);
+    RecHeaderInfo->tStartTime.StartTime2 = AddTimeSec(OrigHdrStartTime, OrigHdrStartSec, &RecHeaderInfo->StartTimeSec, BehindCutPoint->Timems / 1000);
 
   //Save all bookmarks to a temporary array
   memcpy(Bookmarks, BookmarkInfo->Bookmarks, NRBOOKMARKS * sizeof(dword));
@@ -1490,7 +1493,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   RecHeaderInfo->DurationSec = CutPlayTime % 60;
 
   //Set recording time of the cut file
-  RecHeaderInfo->StartTime = AddTime(OrigHeaderStartTime, CutStartPoint->Timems / 60000);
+  RecHeaderInfo->tStartTime.StartTime2 = AddTimeSec(OrigHdrStartTime, OrigHdrStartSec, &RecHeaderInfo->StartTimeSec, CutStartPoint->Timems / 1000);
 
   //Clear all source Bookmarks
 //  memset(BookmarkInfo, 0, sizeof(TYPE_Bookmark_Info));

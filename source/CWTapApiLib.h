@@ -1,6 +1,8 @@
 #ifndef __CWTAPAPILIB__
 #define __CWTAPAPILIB__
 
+#include                "RecHeader.h"
+
 // ============================================================================
 //                               TAP-API-Lib
 // ============================================================================
@@ -18,8 +20,12 @@
 #define NRBOOKMARKS     177   // eigentlich werden nur 48 Bookmarks unterstützt!! (SRP2401)
 
 
+time_t     TF2UnixTimeSec(tPVRTime TFTimeStamp, byte TFTimeSec);
+tPVRTime   TFNow(byte *const outSec);
+tPVRTime   AddTimeSec(tPVRTime pvrTime, byte pvrTimeSec, byte *const outSec, int addSeconds);
+int        TimeDiffSec(tPVRTime FromTime, byte FromTimeSec, tPVRTime ToTime, byte ToTimeSec);
 void       GetFileNameFromRec(const char *RecFileName, const char *AbsDirectory, const char *NewExt, char *const OutCutFileName);
-bool       GetRecInfosFromInf(const char *RecFileName, const char *AbsDirectory, bool *const isCrypted, bool *const isHDVideo, bool *const isStripped, dword *const DateTime);
+bool       GetRecInfosFromInf(const char *RecFileName, const char *AbsDirectory, bool *const isCrypted, bool *const isHDVideo, bool *const isStripped, tPVRTime *const DateTime, byte *const DateSec);
 void       HDD_Rename2(const char *FileName, const char *NewFileName, const char *AbsDirectory, bool RenameInfNav, bool RenameCutSRT);
 void       HDD_Delete2(const char *FileName, const char *AbsDirectory, bool DeleteInfNavCut, bool DeleteSRT);
 bool       HDD_Exist2(const char *FileName, const char *AbsDirectory);
@@ -27,7 +33,7 @@ bool       HDD_TruncateFile(const char *FileName, const char *AbsDirectory, off_
 bool       HDD_GetAbsolutePathByTypeFile2(TYPE_File *File, char *OutAbsFileName);    // OutAbsFileName: mind. FBLIB_DIR_SIZE Zeichen (inkl. Nullchar)
 bool       HDD_GetFileSizeAndInode2(const char *FileName, const char *AbsDirectory, __ino64_t *OutCInode, __off64_t *OutFileSize);
 //bool       HDD_GetFileDateTime(char const *FileName, char const *AbsDirectory, dword *OutDateTime);
-bool       HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, dword NewDateTime);
+bool       HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, tPVRTime NewDateTime, byte NewDateSec);
 __off64_t  HDD_GetFreeDiscSpace(char *AnyFileName, char *AbsDirectory);
 bool       HDD_TAP_CheckCollisionByID(dword MyTapID);
 bool       HDD_StartPlayback2(char *FileName, char *AbsDirectory, bool MediaFileMode);
