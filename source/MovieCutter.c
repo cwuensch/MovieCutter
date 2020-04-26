@@ -585,7 +585,7 @@ static TYPE_PlayInfo    PlayInfo;
 static char             PlaybackName[MAX_FILE_NAME_SIZE + 1];
 static char             AbsPlaybackDir[FBLIB_DIR_SIZE];
 static __off64_t        RecFileSize = 0;
-static tPVRTime         RecDateTime;
+static tPVRTime         RecDateTime = 0;
 static byte             RecDateSec = 0;
 static dword            LastTotalBlocks = 0;
 static dword            BlocksOneSecond;
@@ -1019,8 +1019,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
         //Read video information from inf
         bool infDetected, isCrypted;
-        HDVideo = FALSE; isStripped = FALSE;
-        memset(&RecDateTime, 0, sizeof(tPVRTime));
+        HDVideo = FALSE; isStripped = FALSE; RecDateTime = 0;
         infDetected = GetRecInfosFromInf(PlaybackName, AbsPlaybackDir, &isCrypted, &HDVideo, &isStripped, &RecDateTime, &RecDateSec);
         
         //Check if file is crypted
@@ -1140,7 +1139,7 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         }
 
         // Check if receiver has been rebooted since the recording
-        if (RecDateTime.Mjd)
+        if (RecDateTime)
         {
           byte sec;
           dword TimeSinceRec = TimeDiffSec(RecDateTime, RecDateSec, TFNow(&sec), sec);
@@ -2994,7 +2993,6 @@ void LoadINI(void)
 void SaveINI(void)
 {
   FILE *f = NULL;
-  tPVRTime NullTime;
   TRACEENTER();
 
   if ((f = fopen(TAPFSROOT LOGDIR "/" INIFILENAME, "wb")) != NULL)
@@ -3024,7 +3022,7 @@ void SaveINI(void)
     fprintf(f, "%s=%d\r\n",  "DirectSegmentsCut",   DirectSegmentsCut   ?  1  :  0);
     fprintf(f, "%s=%d\r\n",  "DisableSleepKey",     DisableSleepKey     ?  1  :  0);
     fclose(f);
-    HDD_SetFileDateTime(INIFILENAME, TAPFSROOT LOGDIR, NullTime, 0);
+    HDD_SetFileDateTime(INIFILENAME, TAPFSROOT LOGDIR, 0, 0);
   }
   TRACEEXIT();
 }
@@ -4303,7 +4301,6 @@ bool CutFileSave2(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
 {
   FILE                 *fCut = NULL;
   char                  AbsCutName[FBLIB_DIR_SIZE], TimeStamp[16];
-  tPVRTime              NullTime;
   int                   i;
   bool                  ret = TRUE;
 
@@ -4332,7 +4329,7 @@ bool CutFileSave2(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
       }
 //      ret = (fflush(fCut) == 0) && ret;
       ret = (fclose(fCut) == 0) && ret;
-      HDD_SetFileDateTime(&AbsCutName[1], "", NullTime, 0);
+      HDD_SetFileDateTime(&AbsCutName[1], "", 0, 0);
     }
     else
     {
@@ -4414,7 +4411,6 @@ bool CutSaveToInf(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
   byte                 *Buffer = NULL;
   TYPE_Bookmark_Info   *BookmarkInfo = NULL;
   size_t                InfSize, BytesRead;
-  tPVRTime              NullTime;
   bool                  ret = FALSE;
   
   TRACEENTER();
@@ -4476,7 +4472,7 @@ bool CutSaveToInf(tSegmentMarker SegmentMarker[], int NrSegmentMarker, const cha
 //    ret = (fflush(fInf) == 0) && ret;
     ret = (fclose(fInf) == 0) && ret;
     TAP_MemFree(Buffer);
-    HDD_SetFileDateTime(&AbsInfName[1], "", NullTime, 0);
+    HDD_SetFileDateTime(&AbsInfName[1], "", 0, 0);
 
     if (!ret)
       WriteLogMC(PROGRAM_NAME, "CutSaveToInf: Failed to write the new inf file!");
@@ -7673,7 +7669,6 @@ bool PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isH
   char                  BakFileName[MAX_FILE_NAME_SIZE];
   tnavSD                NavBuffer[2], *CurNavRec = &NavBuffer[0];
   char                  AbsFileName[FBLIB_DIR_SIZE];
-  tPVRTime              NullTime;
   bool                  ret = FALSE;
 
   TRACEENTER();
@@ -7746,7 +7741,7 @@ bool PatchOldNavFile(const char *RecFileName, const char *AbsDirectory, bool isH
 //  ret = (fflush(fNewNav) == 0) && ret;
   ret = (fclose(fNewNav) == 0) && ret;
   fclose(fSourceNav);
-  HDD_SetFileDateTime(&AbsFileName[1], "", NullTime, 0);
+  HDD_SetFileDateTime(&AbsFileName[1], "", 0, 0);
 
   //On error rename the bak file back to original
   if (!ret)

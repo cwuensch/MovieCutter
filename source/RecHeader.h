@@ -3,12 +3,13 @@
 
 //#include                "../../../../../Topfield/FireBirdLib/flash/FBLib_flash.h"
 
-typedef struct
+typedef dword           tPVRTime;
+/*typedef struct
 {
   byte                  Minute;
   byte                  Hour;
   word                  Mjd;
-} __attribute__((packed)) tPVRTime;
+} __attribute__((packed)) tPVRTime; */
 
 typedef struct
 {
@@ -21,11 +22,7 @@ typedef struct
   byte                  rs_ToBeStripped:1;
   byte                  rs_ScrambledPackets:1;
   byte                  Reserved:3;
-  union
-  {
-    dword               StartTime;
-    tPVRTime            StartTime2;
-  } tStartTime;
+  tPVRTime              StartTime;
   word                  DurationMin;
   word                  DurationSec;
 
@@ -74,16 +71,8 @@ typedef struct
   byte                  DurationMin;
   byte                  DurationHour;
   dword                 EventID;
-  union
-  {
-    dword               StartTime;
-    tPVRTime            StartTime2;
-  } tStartTime;
-  union
-  {
-    dword               EndTime;
-    tPVRTime            EndTime2;
-  } tEndTime;
+  tPVRTime              StartTime;
+  tPVRTime              EndTime;
   byte                  RunningStatus;
   byte                  EventNameLength;
   byte                  ParentalRate;

@@ -147,7 +147,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
   dword                 SourcePlayTime = 0;
   bool                  TruncateEnding = FALSE;
   bool                  SuppressNavGeneration = FALSE;
-  tPVRTime              RecDate;
+  tPVRTime              RecDate = 0;
   byte                  RecDateSec = 0;
 //  char                  TimeStr[16];
 
@@ -1376,10 +1376,10 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   RecHeaderInfo->DurationSec = SourcePlayTime % 60;
 
   //Set recording time of the source file
-  OrigHdrStartTime = RecHeaderInfo->tStartTime.StartTime2;
+  OrigHdrStartTime = RecHeaderInfo->StartTime;
   OrigHdrStartSec  = RecHeaderInfo->StartTimeSec;
   if (CutStartPoint->BlockNr == 0)
-    RecHeaderInfo->tStartTime.StartTime2 = AddTimeSec(OrigHdrStartTime, OrigHdrStartSec, &RecHeaderInfo->StartTimeSec, BehindCutPoint->Timems / 1000);
+    RecHeaderInfo->StartTime = AddTimeSec(OrigHdrStartTime, OrigHdrStartSec, &RecHeaderInfo->StartTimeSec, BehindCutPoint->Timems / 1000);
 
   //Save all bookmarks to a temporary array
   memcpy(Bookmarks, BookmarkInfo->Bookmarks, NRBOOKMARKS * sizeof(dword));
@@ -1493,7 +1493,7 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   RecHeaderInfo->DurationSec = CutPlayTime % 60;
 
   //Set recording time of the cut file
-  RecHeaderInfo->tStartTime.StartTime2 = AddTimeSec(OrigHdrStartTime, OrigHdrStartSec, &RecHeaderInfo->StartTimeSec, CutStartPoint->Timems / 1000);
+  RecHeaderInfo->StartTime = AddTimeSec(OrigHdrStartTime, OrigHdrStartSec, &RecHeaderInfo->StartTimeSec, CutStartPoint->Timems / 1000);
 
   //Clear all source Bookmarks
 //  memset(BookmarkInfo, 0, sizeof(TYPE_Bookmark_Info));
