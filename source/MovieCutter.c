@@ -1023,22 +1023,13 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         infDetected = GetRecInfosFromInf(PlaybackName, AbsPlaybackDir, &isCrypted, &HDVideo, &isStripped, &RecDateTime, &RecDateSec);
         
         //Get recording date more precisely from file timestamp
-/*        if (infDetected)
+        if (infDetected)
         {
-          tPVRTime FileTimeStamp; byte FileTimeSec; time_t DisplayTime;
-          DisplayTime = TF2UnixTimeSec(RecDateTime, RecDateSec) - 3600;
-          WriteLogMCf(PROGRAM_NAME, "Date of recording (inf): %s", (ctime(&DisplayTime)));
-
-          if (HDD_GetFileDateTime(PlaybackName, AbsPlaybackDir, &FileTimeStamp, &FileTimeSec))
-          {
-            if (MJD(FileTimeStamp) - MJD(RecDateTime) <= 1)
-            {
-              RecDateTime = AddTimeSec(FileTimeStamp, FileTimeSec, &RecDateSec, -1 * (int)(60*PlayInfo.duration + PlayInfo.durationSec));
-              DisplayTime = TF2UnixTimeSec(RecDateTime, RecDateSec) - 3600;
-              WriteLogMCf(PROGRAM_NAME, "Date of recording (rec): %s", (ctime(&DisplayTime)));
-            }
-          }
-        }*/
+          char TS[22];
+          time_t DisplayTime = TF2UnixTimeSec(RecDateTime, RecDateSec);  // - 3600 ?
+          strftime(TS, sizeof(TS), "%d %b %Y %H:%M:%S", localtime(&DisplayTime));
+          WriteLogMCf(PROGRAM_NAME, "Date of rec (inf): %s", TS);
+        }
 
         //Check if file is crypted
         if (infDetected && isCrypted)

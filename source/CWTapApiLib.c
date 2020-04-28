@@ -185,7 +185,7 @@ bool HDD_GetFileSizeAndInode2(const char *FileName, const char *AbsDirectory, __
 } */
 
 
-bool HDD_GetFileDateTime(char const *FileName, char const *AbsDirectory, tPVRTime *const OutDateTime, byte *const OutDateSec)
+/* bool HDD_GetFileDateTime(char const *FileName, char const *AbsDirectory, tPVRTime *const OutDateTime, byte *const OutDateSec)
 {
   char                  AbsFileName[FBLIB_DIR_SIZE];
   struct stat64         statbuf;
@@ -203,7 +203,7 @@ bool HDD_GetFileDateTime(char const *FileName, char const *AbsDirectory, tPVRTim
   }
   TRACEEXIT();
   return FALSE;
-}
+} */
 bool HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, tPVRTime NewDateTime, byte NewDateSec)
 {
   char                  AbsFileName[FBLIB_DIR_SIZE];
@@ -284,12 +284,12 @@ time_t TF2UnixTimeSec(tPVRTime TFTimeStamp, byte TFTimeSec)
   return (MJD(TFTimeStamp) - 0x9e8b) * 86400 + HOUR(TFTimeStamp) * 3600 + MINUTE(TFTimeStamp) * 60 + TFTimeSec;
 }
 
-tPVRTime Unix2TFTimeSec(time_t UnixTimeStamp, byte *const outSec)
+/* tPVRTime Unix2TFTimeSec(time_t UnixTimeStamp, byte *const outSec)
 {
   if (outSec)
     *outSec = UnixTimeStamp % 60;
   return (DATE ( (UnixTimeStamp / 86400) + 0x9e8b, (UnixTimeStamp / 3600) % 24, (UnixTimeStamp / 60) % 60 ));
-}
+} */
 
 tPVRTime TFNow(byte *const outSec)
 {

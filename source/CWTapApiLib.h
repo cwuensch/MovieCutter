@@ -21,7 +21,7 @@
 
 
 time_t     TF2UnixTimeSec(tPVRTime TFTimeStamp, byte TFTimeSec);
-tPVRTime   Unix2TFTimeSec(time_t UnixTimeStamp, byte *const outSec);
+//tPVRTime   Unix2TFTimeSec(time_t UnixTimeStamp, byte *const outSec);
 tPVRTime   TFNow(byte *const outSec);
 tPVRTime   AddTimeSec(tPVRTime pvrTime, byte pvrTimeSec, byte *const outSec, int addSeconds);
 int        TimeDiffSec(tPVRTime FromTime, byte FromTimeSec, tPVRTime ToTime, byte ToTimeSec);
@@ -34,7 +34,7 @@ bool       HDD_Exist2(const char *FileName, const char *AbsDirectory);
 bool       HDD_TruncateFile(const char *FileName, const char *AbsDirectory, off_t NewFileSize);
 bool       HDD_GetAbsolutePathByTypeFile2(TYPE_File *File, char *OutAbsFileName);    // OutAbsFileName: mind. FBLIB_DIR_SIZE Zeichen (inkl. Nullchar)
 bool       HDD_GetFileSizeAndInode2(const char *FileName, const char *AbsDirectory, __ino64_t *OutCInode, __off64_t *OutFileSize);
-bool       HDD_GetFileDateTime(char const *FileName, char const *AbsDirectory, tPVRTime *const OutDateTime, byte *const OutDateSec);
+//bool       HDD_GetFileDateTime(char const *FileName, char const *AbsDirectory, tPVRTime *const OutDateTime, byte *const OutDateSec);
 bool       HDD_SetFileDateTime(char const *FileName, char const *AbsDirectory, tPVRTime NewDateTime, byte NewDateSec);
 __off64_t  HDD_GetFreeDiscSpace(char *AnyFileName, char *AbsDirectory);
 bool       HDD_TAP_CheckCollisionByID(dword MyTapID);

@@ -470,8 +470,10 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
 
   if(fLogFileOut)
   {
+    char TS[22];
+    strftime(TS, sizeof(TS), "%d %b %Y %H:%M:%S", localtime(&StartTime));
     fprintf(fLogFileOut, "\r\n=========================================================\r\n");
-    fprintf(fLogFileOut, "*** File system check started %s\r\n", ctime(&StartTime));
+    fprintf(fLogFileOut, "*** File system check started %s\r\n", TS);
   }
 
   fLogFileIn = fopen("/tmp/fsck.log", "rb");
