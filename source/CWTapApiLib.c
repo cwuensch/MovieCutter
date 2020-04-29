@@ -279,17 +279,17 @@ bool HDD_TAP_CheckCollisionByID(dword MyTapID)
 //                             Time-Funktionen
 // ----------------------------------------------------------------------------
 
-time_t TF2UnixTimeSec(tPVRTime TFTimeStamp, byte TFTimeSec)
-{ 
-  return (MJD(TFTimeStamp) - 0x9e8b) * 86400 + HOUR(TFTimeStamp) * 3600 + MINUTE(TFTimeStamp) * 60 + TFTimeSec;
-}
-
 /* tPVRTime Unix2TFTimeSec(time_t UnixTimeStamp, byte *const outSec)
 {
   if (outSec)
     *outSec = UnixTimeStamp % 60;
   return (DATE ( (UnixTimeStamp / 86400) + 0x9e8b, (UnixTimeStamp / 3600) % 24, (UnixTimeStamp / 60) % 60 ));
 } */
+
+time_t TF2UnixTimeSec(tPVRTime TFTimeStamp, byte TFTimeSec)
+{ 
+  return (MJD(TFTimeStamp) - 0x9e8b) * 86400 + HOUR(TFTimeStamp) * 3600 + MINUTE(TFTimeStamp) * 60 + TFTimeSec;
+}
 
 tPVRTime TFNow(byte *const outSec)
 {

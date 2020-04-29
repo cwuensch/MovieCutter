@@ -20,8 +20,8 @@
 #define NRBOOKMARKS     177   // eigentlich werden nur 48 Bookmarks unterstützt!! (SRP2401)
 
 
-time_t     TF2UnixTimeSec(tPVRTime TFTimeStamp, byte TFTimeSec);
 //tPVRTime   Unix2TFTimeSec(time_t UnixTimeStamp, byte *const outSec);
+time_t     TF2UnixTimeSec(tPVRTime TFTimeStamp, byte TFTimeSec);
 tPVRTime   TFNow(byte *const outSec);
 tPVRTime   AddTimeSec(tPVRTime pvrTime, byte pvrTimeSec, byte *const outSec, int addSeconds);
 int        TimeDiffSec(tPVRTime FromTime, byte FromTimeSec, tPVRTime ToTime, byte ToTimeSec);
