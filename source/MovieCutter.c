@@ -1026,8 +1026,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         if (infDetected)
         {
           char TS[22];
-          time_t DisplayTime = TF2UnixTimeSec(RecDateTime, RecDateSec);  // - 3600 ?
-          strftime(TS, sizeof(TS), "%d %b %Y %H:%M:%S", localtime(&DisplayTime));
+          time_t DisplayTime = TF2UnixTimeSec(RecDateTime, RecDateSec);
+          strftime(TS, sizeof(TS), "%d %b %Y %H:%M:%S", gmtime(&DisplayTime));
           WriteLogMCf(PROGRAM_NAME, "Date of rec (inf): %s", TS);
         }
 

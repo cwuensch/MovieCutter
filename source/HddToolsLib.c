@@ -471,7 +471,7 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
   if(fLogFileOut)
   {
     char TS[22];
-    strftime(TS, sizeof(TS), "%d %b %Y %H:%M:%S", localtime(&StartTime));
+    strftime(TS, sizeof(TS), "%d %b %Y %H:%M:%S", gmtime(&StartTime));
     fprintf(fLogFileOut, "\r\n=========================================================\r\n");
     fprintf(fLogFileOut, "*** File system check started %s\r\n", TS);
   }
