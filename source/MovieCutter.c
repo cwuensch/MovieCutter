@@ -677,10 +677,11 @@ int TAP_Main(void)
 
   // Load Fonts
   #ifdef MC_UNICODE
+//    OSDMenuLoadStdFonts();   // wird beim Schließen einer MessageBox freigegeben
     if (!(FMUC_LoadFontFile("Calibri_10.ufnt", &Font_Calibri_10)
        && FMUC_LoadFontFile("Calibri_12.ufnt", &Font_Calibri_12)
        && FMUC_LoadFontFile("Calibri_14.ufnt", &Font_Calibri_14)
-       && FMUC_LoadFontFile("Courier_New_13.ufnt", &Font_Courier_New_13)))
+       && FMUC_LoadFontFile("Courier_New_13.ufnt", &Font_Courier_New_13)))  // stattdessen extern tFontDataUC OSDMenuFont_10/12/14 nehmen?
     {
       WriteLogMC(PROGRAM_NAME, "Loading fonts failed!\r\n");
       FMUC_FreeFontFile(&Font_Calibri_10);
@@ -912,6 +913,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
 
       // Set the system time to current time
 //      /*if (InodeMonitoring)*/ SetSystemTimeToCurrent();
+
+      // Hook Appl_WriteRecInfo to prevent deletion of CI+ recordings
+      HDPlusRecordingHook(TRUE);
 
       State = AutoOSDPolicy ? ST_WaitForPlayback : ST_InactiveMode;
 
@@ -2549,6 +2553,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         CutFileSave();
       }
     }  // fortsetzen mit ST_ExitNoSave ...
+
+    HDPlusRecordingHook(FALSE);
 
     // wenn nötig, beim Beenden HDDCheck und/oder Inode-Fix durchführen
     if (SuspectHDDs[0])

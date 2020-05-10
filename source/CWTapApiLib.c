@@ -420,6 +420,42 @@ bool GetRecInfosFromInf(const char *RecFileName, const char *AbsDirectory, bool 
 
 
 // ----------------------------------------------------------------------------
+//                        Recording-Operationen
+// ----------------------------------------------------------------------------
+static void (*Appl_WriteRecInfo_orig)(dword Slot) = NULL;
+
+void Appl_WriteRecInfo_hooked(dword Slot)
+{
+  byte *x;
+
+  x = HDD_GetPvrRecTsInfoPointer(Slot);
+  if(x) memset(x + 0x12, 0, 10);
+
+  Appl_WriteRecInfo_orig(Slot);
+}
+
+void HDPlusRecordingHook(bool Activate)
+{
+  TRACEENTER();
+
+  if(Activate)
+  {
+    if (HookFirmware("_Z17Appl_WriteRecInfoj", Appl_WriteRecInfo_hooked, (dword*)&Appl_WriteRecInfo_orig))
+      WriteLogMC(PROGRAM_NAME, "Hook of Appl_WriteRecInfo ok.");
+    else
+      WriteLogMC(PROGRAM_NAME, "Hook of Appl_WriteRecInfo failed.");
+  }
+  else
+  {
+    if (!UnhookFirmware("_Z17Appl_WriteRecInfoj", Appl_WriteRecInfo_hooked, (dword*)&Appl_WriteRecInfo_orig))
+      WriteLogMC(PROGRAM_NAME, "Unhook of Appl_WriteRecInfo failed.");
+  }
+
+  TRACEEXIT();
+}
+
+
+// ----------------------------------------------------------------------------
 //                        Playback-Operationen
 // ----------------------------------------------------------------------------
 bool HDD_StartPlayback2(char *FileName, char *AbsDirectory, bool MediaFileMode)
