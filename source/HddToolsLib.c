@@ -324,7 +324,8 @@ bool HDD_CheckFileSystem(const char *AbsMountPath, TProgBarHandler pRefreshProgB
   if (PlayInfo.playMode == PLAYMODE_Playing || PlayInfo.playMode == 8)
   {
     // Get infos about the playback file
-    TAP_SPrint(PlaybackName, sizeof(PlaybackName), PlayInfo.file->name);
+    strncpy(PlaybackName, PlayInfo.file->name, sizeof(PlaybackName)-1);
+    PlaybackName[sizeof(PlaybackName)-1] = '\0';
     if (strcmp(&PlaybackName[strlen(PlaybackName) - 4], ".inf") == 0)
       PlaybackName[strlen(PlaybackName) - 4] = '\0';
     else
@@ -786,8 +787,8 @@ static tReturnCode RunIcheckWithLog(char *const args[], char *const OutLastLine)
           FullLog[len+1] = '\n';
           FullLog[len+2] = '\0';
         }
-  //      if (strlen(FullLog) < sizeof(FullLog) - 1)
-          TAP_SPrint(&FullLog[strlen(FullLog)], sizeof(FullLog) - strlen(FullLog) - 1, LastLine);
+//        if (strlen(FullLog) < sizeof(FullLog) - 1)
+          TAP_SPrint(&FullLog[strlen(FullLog)], sizeof(FullLog) - strlen(FullLog) - 1, "%s", LastLine);
         FullLog[sizeof(FullLog) - 1] = '\0';
         RemoveEndLineBreak(CurLine);
         strcpy(LastLine, CurLine);

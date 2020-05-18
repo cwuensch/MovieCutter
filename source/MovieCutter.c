@@ -962,7 +962,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         WriteLogMC(PROGRAM_NAME, "========================================\r\n");
 
         //Identify the file name (.rec or .mpg)
-        TAP_SPrint(PlaybackName, sizeof(PlaybackName), PlayInfo.file->name);
+        strncpy(PlaybackName, PlayInfo.file->name, sizeof(PlaybackName)-1);
+        PlaybackName[sizeof(PlaybackName)-1] = '\0';
         if (strcmp(&PlaybackName[strlen(PlaybackName) - 4], ".inf") == 0)
           PlaybackName[strlen(PlaybackName) - 4] = '\0';
         else
@@ -5137,11 +5138,11 @@ void OSDInfoDrawRecName(void)
 //    TAP_Osd_FillBox(rgnInfoBar, FrameLeft, FrameTop, FrameWidth, FrameHeight, COLOR_Blue);
 
     // Dateiname in neuen String kopieren
-    TAP_SPrint(TitleStr, sizeof(TitleStr), PlaybackName);
+    strncpy(TitleStr, PlaybackName, sizeof(TitleStr)-1);
     #ifndef MC_UNICODE
       if(isUTFToppy()) StrToISO(PlaybackName, TitleStr);
-      TitleStr[sizeof(TitleStr)-1] = '\0';
     #endif
+    TitleStr[sizeof(TitleStr)-1] = '\0';
 
     // Passende Schriftgröße ermitteln
     UseTitleFont = &Font_Calibri_14;
@@ -5803,7 +5804,10 @@ void ActionMenuDraw(void)
           if (RecStrip_active && RecStrip_DoCut)
           {
             char *p;
-            TAP_SPrint(TempStr, sizeof(TempStr), DisplayStr);
+//            TAP_SPrint(TempStr, sizeof(TempStr), DisplayStr);
+            strncpy(TempStr, DisplayStr, sizeof(TempStr)-1);
+            TempStr[sizeof(TempStr)-1] = '\0';
+
             p = strchr(TempStr, '.');
             if (p) *p = '\0';
             TAP_SPrint(&TempStr[strlen(TempStr)], sizeof(TempStr)-strlen(TempStr), " (%d %%)", RecStrip_Percent);
@@ -7122,7 +7126,8 @@ if (HDD_GetFileSizeAndInode2(PlaybackName, AbsPlaybackDir, &InodeNr, NULL))
       GetNextFreeCutName(PlaybackName, CutFileName, AbsPlaybackDir, NrSelectedSegments - 1);
       if (CutEnding)
       {
-        TAP_SPrint(TempFileName, sizeof(TempFileName), PlaybackName);
+        strncpy(TempFileName, PlaybackName, sizeof(TempFileName)-1);
+        TempFileName[sizeof(TempFileName)-1] = '\0';
         char *p = strrchr(TempFileName, '.');
         TAP_SPrint(((p) ? p : &TempFileName[strlen(TempFileName)]), 10, "_temp%s", ((p) ? &PlaybackName[p-TempFileName] : ""));
         HDD_Delete2(TempFileName, AbsPlaybackDir, TRUE, TRUE);
@@ -7451,7 +7456,7 @@ CutDumpList();
     HDD_FindMountPointDev2(AbsPlaybackDir, MountPoint, NULL);
     strcat(MountPoint, ";");
     if (strstr(SuspectHDDs, MountPoint) == 0)
-      TAP_SPrint(&SuspectHDDs[strlen(SuspectHDDs)], SIZESUSPECTHDDS-strlen(SuspectHDDs), MountPoint);
+      TAP_SPrint(&SuspectHDDs[strlen(SuspectHDDs)], SIZESUSPECTHDDS-strlen(SuspectHDDs), "%s", MountPoint);
     NrAllSuspectInodes += max(icheckErrors, 0);
     #ifdef FULLDEBUG
       WriteLogMCf(PROGRAM_NAME, "NrAllSuspectInodes=%d, SuspectHDDs='%s'", NrAllSuspectInodes, SuspectHDDs);

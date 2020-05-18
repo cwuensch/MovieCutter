@@ -1,3 +1,10 @@
+2020-05-18 v3.6f NEU:
+                   - Wenn MC während einer Aufnahme läuft, wird die CI+ Verschlüsselung verhindert (experimentell)
+
+                 Bugfixes:
+                   - Unterstützung von Aufnahmen mit "%" im Dateinamen
+                   - OSDKeyboard: Del-Taste löschte ein Zeichen zu weit rechts
+
 2020-04-30 v3.6e NEU:
                    - alle Topfield TimeStamps werden sekundengenau berechnet
                    - StartTime-Sekundenangabe wird beim Schneiden in der inf (Byte 0x06) gespeichert(!)
