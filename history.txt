@@ -1,20 +1,33 @@
-2020-05-18 v3.6f NEU:
+2020-05-31 v3.6f beta
+                 NEU:
                    - Wenn MC während einer Aufnahme läuft, wird die CI+ Verschlüsselung verhindert (experimentell)
 
-                 Bugfixes:
-                   - Unterstützung von Aufnahmen mit "%" im Dateinamen
-                   - OSDKeyboard: Del-Taste löschte ein Zeichen zu weit rechts
+                 RecStrip 3.0 (31.05.2020)
+                   - PES-basiertes Stripping! (Demultiplex - Strip - Remultiplex)
+                   - PCRs werden auf DTS-Basis neu berechnet
+                   - bekannte Einschränkung: PCR muss auf der Video-PID übertragen werden! (sonst müsste die PMT neu codiert werden)
 
-2020-04-30 v3.6e NEU:
+2020-05-30 v3.6e NEU:
                    - alle Topfield TimeStamps werden sekundengenau berechnet
                    - StartTime-Sekundenangabe wird beim Schneiden in der inf (Byte 0x06) gespeichert(!)
 
-                 RecStrip 2.5b (30.04.2020)
+                 BUGFIXES:
+                   - Unterstützung von Aufnahmen mit "%" im Dateinamen
+
+                 RecStrip 2.6 (30.05.2020)
+                   - Merge (-m) kann auch mit Schnitt (-r) kombiniert werden, um nur einzelne Segmente zusammenzufügen
                    - alle Topfield TimeStamps werden sekundengenau berechnet
                    - StartTime-Sekundenangabe wird in der inf (Byte 0x06) gespeichert(!)
+                   - korrekte(re) Zeitzonen-Behandlung (UnixTime=UTC, TFTime=lokale Zeitzone)
+                   - EPG-Zeitversatz wird aus Teletext-Zeitzone berechnet
                    - Humax-Mode: Ermittlung von Startzeit und Program Identification aus Teletext
+                   - verbesserte Behandlung von Buffer Overflows in PESProcessor und PESFileLoader
                   Bugfixes:
+                   - PESProcessor hatte nach Continuity-Error das erste Packet des neuen PES-Pakets verworfen
                    - aus Teletext ermittelte Programme Identification wurde nicht in inf eingetragen
+                   - DoCut: wenn kein Segment markiert, wurde grundlos das letzte Segment ausgegeben
+                   - Merge: auch bei Merge neues Bookmark an Schnittstelle setzen
+                   - Append: vorhandene Source-inf wurde nicht beibehalten
                    - End-Meldung: Anzahl der geschriebenen Pakete korrekt berechnet (OutPacketSize)
                    - Medion-Mode: fehlerhafte Nullbyte-Entfernung durch zu späte Prüfung auf Video-PES
                    - Medion-Mode: weitere kleine Bugfixes
@@ -36,7 +49,7 @@
                    - PESProcessor: bei Adaptation field wird 1 Byte mehr (Länge) übersprungen
                      (bisher wohl nicht aufgefallen, da PESProcessor nur für einzelne SIT-Tables eingesetzt wurde, bei denen meist kein Adaptation Field auftritt)
                    - PESProcessor: Buffer-Overflow-Protection
-                   - verbesserte Berechnung der M2TS Arrival Timestamps (immer den letzten PCR nehmen, dazwischen interpolieren)
+                   - neue Berechnung der M2TS Arrival Timestamps (immer den letzten PCR nehmen, dazwischen interpolieren)
                    - anstatt PayloadStart-Pakete mit Filler-AdaptationField werden Adaptation-Only-Pakete ohne PCR gelöscht(!)
 
                  RecStrip 2.4a (01.03.2020)
