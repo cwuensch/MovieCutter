@@ -1,32 +1,37 @@
-2020-05-31 v3.6f beta
+2020-07-01 v3.6f beta
                  NEU:
                    - Wenn MC während einer Aufnahme läuft, wird die CI+ Verschlüsselung verhindert (experimentell)
 
-                 RecStrip 3.0 (31.05.2020)
+                 RecStrip 3.0 (01.07.2020)
                    - PES-basiertes Stripping! (Demultiplex - Strip - Remultiplex)
                    - PCRs werden auf DTS-Basis neu berechnet
                    - bekannte Einschränkung: PCR muss auf der Video-PID übertragen werden! (sonst müsste die PMT neu codiert werden)
 
-2020-05-30 v3.6e NEU:
+2020-06-30 v3.6e NEU:
                    - alle Topfield TimeStamps werden sekundengenau berechnet
                    - StartTime-Sekundenangabe wird beim Schneiden in der inf (Byte 0x06) gespeichert(!)
 
                  BUGFIXES:
                    - Unterstützung von Aufnahmen mit "%" im Dateinamen
 
-                 RecStrip 2.6 (30.05.2020)
+                 RecStrip 2.6 (30.06.2020)
+                   - Vertauschung der Ausgabe-Paketgröße (o1 = 188 Bytes, o2 = 192 Bytes)
                    - Merge (-m) kann auch mit Schnitt (-r) kombiniert werden, um nur einzelne Segmente zusammenzufügen
                    - alle Topfield TimeStamps werden sekundengenau berechnet
+                   - NALUDump löscht auch Filler-NALUs ohne Startcode (mehr als 10 mal 0xff, gefolgt von 0x80 - experimentell!)
                    - StartTime-Sekundenangabe wird in der inf (Byte 0x06) gespeichert(!)
                    - korrekte(re) Zeitzonen-Behandlung (UnixTime=UTC, TFTime=lokale Zeitzone)
                    - EPG-Zeitversatz wird aus Teletext-Zeitzone berechnet
                    - Humax-Mode: Ermittlung von Startzeit und Program Identification aus Teletext
+                   - Humax-Mode: Original-Header wird in eine .humax-Datei ausgegeben
                    - verbesserte Behandlung von Buffer Overflows in PESProcessor und PESFileLoader
                   Bugfixes:
-                   - PESProcessor hatte nach Continuity-Error das erste Packet des neuen PES-Pakets verworfen
+                   - PESProcessor: nach Continuity-Error wurde das erste Packet des neuen PES-Pakets verworfen
+                   - PESProcessor: verbesserte Berechnung der RemainingBytes
+                   - Arrival Timestamps: zu große Zeitsprünge werden verhindert
                    - aus Teletext ermittelte Programme Identification wurde nicht in inf eingetragen
                    - DoCut: wenn kein Segment markiert, wurde grundlos das letzte Segment ausgegeben
-                   - Merge: auch bei Merge neues Bookmark an Schnittstelle setzen
+                   - Merge: auch bei Merge neues Bookmark an Schnittstelle setzen und Stripped-Flag setzen
                    - Append: vorhandene Source-inf wurde nicht beibehalten
                    - End-Meldung: Anzahl der geschriebenen Pakete korrekt berechnet (OutPacketSize)
                    - Medion-Mode: fehlerhafte Nullbyte-Entfernung durch zu späte Prüfung auf Video-PES
