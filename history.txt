@@ -35,6 +35,7 @@
                    - Append: vorhandene Source-inf wurde nicht beibehalten
                    - End-Meldung: Anzahl der geschriebenen Pakete korrekt berechnet (OutPacketSize)
                    - Medion-Mode: fehlerhafte Nullbyte-Entfernung durch zu späte Prüfung auf Video-PES
+                   - Medion-Mode: korrekte Behandlung von DTS-Überlauf in Eingabe-PES
                    - Medion-Mode: weitere kleine Bugfixes
 
 2020-04-24 v3.6d NEUES OSDKeyboard:
