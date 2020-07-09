@@ -110,7 +110,7 @@ Options in the MovieCutter.ini
 [since V. 3.6c]
   - CopyOutDir=...		Alternative output directory for function "Copy parts" (default: source folder of recording)
 [since V. 3.6]
-  - StripMode:			0: Remove only filler data when stripping. - 1: also the EPG-track. - 2: also the die teletext track. - 3: both
+  - StripMode:			0: Remove only filler data when stripping. - 1: also EPG data. - 2: also teletext. - 3: EPG and teletext. [since V. 3.6e]: add 4 to extract teletext subtitles.
 [since V. 3.3]
   - CutFileMode:		0: Save the cut markers in cut- and inf-file. - 1: cut-file only. - 2: inf-file only.
   - DeleteCutFiles:		0: Never delete orphaned cut files. - 1: only in /DataFiles. - 2: recursively in subdirectories.
@@ -129,7 +129,7 @@ Options in the MovieCutter.ini
 [since V. 2.1]
   - DefaultOSDMode:		0: Show full OSD. - 1: Hide the segment list. - 2: Display OSD in minimal mode.
   - MinuteJump:			0: Minute jump mode is disabled at startup. - 1-99: Default value for the minute jump mode.
-  - AskBeforeEdit:		1: Ask before performing an irreversible cutting operation . - 0: Do not ask.
+  - AskBeforeEdit:		1: Ask before performing an irreversible cutting operation. - 0: Do not ask.
   - Overscan_X:			Distance of the OSD from left/right screen border. Possible values: 0-100 (recommended: 30-60)
   - Overscan_Y:			Distance of the OSD from upper/lower screen border. Possible values: 0-100 (recommended: 25)
   - SegmentList_X:		Display position of the segment list (x-coordinate, possible values: 0-719)

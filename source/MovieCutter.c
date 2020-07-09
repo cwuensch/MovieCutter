@@ -2305,7 +2305,8 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             {
               args[i++] = "-s";
               if (StripMode & 0x1) args[i++] = "-e";
-              if (StripMode & 0x2) args[i++] = "-tt";
+              if (StripMode & 0x2) args[i++] = "-t";
+              if (StripMode & 0x6) args[i++] = "-tt";
             }
 
             if (RecStrip_DoCut <= SO_CopyCommon)
