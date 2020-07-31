@@ -2,7 +2,7 @@
                  NEU:
                    - Wenn MC während einer Aufnahme läuft, wird die CI+ Verschlüsselung verhindert (experimentell)
 
-                 RecStrip 3.0 (25.07.2020)
+                 RecStrip 3.0 (31.07.2020)
                    - PES-basiertes Stripping! (Demultiplex - Strip - Remultiplex)
                    - PCRs werden auf DTS-Basis neu berechnet
                    - bekannte Einschränkung: PCR muss auf der Video-PID übertragen werden! (sonst müsste die PMT neu codiert werden)
@@ -15,13 +15,13 @@
                  BUGFIXES:
                    - Unterstützung von Aufnahmen mit "%" im Dateinamen
 
-                 RecStrip 2.6 (24.07.2020)
+                 RecStrip 2.6 (30.07.2020)
                    - Vertauschung der Ausgabe-Paketgröße (o1 = 188 Bytes, o2 = 192 Bytes)
                    - Parameter -tt extrahiert den Teletext, ohne ihn zu entfernen (dazu ist -t nötig)
                    - Merge (-m) kann auch mit Schnitt (-r) kombiniert werden, um nur einzelne Segmente zusammenzufügen
                    - alle Topfield TimeStamps werden sekundengenau berechnet
                    - NALUDump löscht auch Filler-NALUs ohne Startcode (mehr als 10 mal 0xff, gefolgt von 0x80 - experimentell!)
-                   - StartTime-Sekundenangabe wird in der inf (Byte 0x06) gespeichert(!)
+                   - StartTime-Sekundenangabe wird in der inf (Byte 0x06) gespeichert, bei Scan im Input-File (!)
                    - korrekte(re) Zeitzonen-Behandlung (UnixTime=UTC, TFTime=lokale Zeitzone)
                    - EPG-Zeitversatz wird aus Teletext-Zeitzone berechnet
                    - Humax-Mode: Ermittlung von Startzeit und Program Identification aus Teletext
