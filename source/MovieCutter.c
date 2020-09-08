@@ -2407,20 +2407,23 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
           HDD_GetFileSizeAndInode2(RS_StripName, RS_OutDir, NULL, &StripFileSize);
 
           // Set Date of Recording
-          char FileName[FBLIB_DIR_SIZE];
-/*         dword FileDate;
+          if (RecStrip_DoCut != SO_CopySeparate)
+          {
+            char FileName[FBLIB_DIR_SIZE];
+/*           dword FileDate;
 
-          TAP_SPrint(FileName, sizeof(FileName), "%s/%s", RS_OrigDir, RS_OrigName);
-          FileDate = Unix2TFTime(HDD_GetFileTimeByAbsFileName(FileName));
+            TAP_SPrint(FileName, sizeof(FileName), "%s/%s", RS_OrigDir, RS_OrigName);
+            FileDate = Unix2TFTime(HDD_GetFileTimeByAbsFileName(FileName));
 
-          TAP_SPrint(FileName, sizeof(FileName), "%s.inf", RS_OrigName);    HDD_SetFileDateTime(FileName, RS_OrigDir, FileDate); 
+            TAP_SPrint(FileName, sizeof(FileName), "%s.inf", RS_OrigName);    HDD_SetFileDateTime(FileName, RS_OrigDir, FileDate); 
 
-          if(RecDateTime)  FileDate = RecDateTime; */
+            if(RecDateTime)  FileDate = RecDateTime; */
 
-//          HDD_SetFileDateTime(RS_StripName, RS_OutDir, FileDate);
-          GetFileNameFromRec(RS_StripName, RS_OutDir, ".cut", FileName);    HDD_SetFileDateTime(FileName, RS_OutDir, 0, 0);
-//          TAP_SPrint(FileName, sizeof(FileName), "%s.nav", RS_StripName);   HDD_SetFileDateTime(FileName, RS_OutDir, FileDate);
-//          TAP_SPrint(FileName, sizeof(FileName), "%s.inf", RS_StripName);   HDD_SetFileDateTime(FileName, RS_OutDir, FileDate); 
+//            HDD_SetFileDateTime(RS_StripName, RS_OutDir, FileDate);
+            GetFileNameFromRec(RS_StripName, RS_OutDir, ".cut", FileName);    HDD_SetFileDateTime(FileName, RS_OutDir, 0, 0);
+//            TAP_SPrint(FileName, sizeof(FileName), "%s.nav", RS_StripName);   HDD_SetFileDateTime(FileName, RS_OutDir, FileDate);
+//            TAP_SPrint(FileName, sizeof(FileName), "%s.inf", RS_StripName);   HDD_SetFileDateTime(FileName, RS_OutDir, FileDate); 
+          }
 
           // Falls erfolgreich, Aufnahmen umbenennen
           if (!RecStrip_DoCut)
