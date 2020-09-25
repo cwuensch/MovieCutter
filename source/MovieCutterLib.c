@@ -1741,7 +1741,7 @@ tTimeStamp* NavLoad(const char *RecFileName, const char *AbsDirectory, int *cons
     NavSize = statbuf.st_size;
   NavRecordsNr = (NavSize / (sizeof(tnavSD) * ((isHD) ? 2 : 1))) / 4;  // höchstens jedes 4. Frame ist ein I-Frame (?)
 
-  if (!NavRecordsNr || !((TimeStampBuffer = (tTimeStamp2*) malloc(NavRecordsNr * sizeof(tTimeStamp2)))))
+  if (!NavRecordsNr || !((TimeStampBuffer = (tTimeStamp*) malloc(NavRecordsNr * sizeof(tTimeStamp)))))
   {
     fclose(fNav);
     WriteLogMC("MovieCutterLib", "NavLoad() E0b02");
