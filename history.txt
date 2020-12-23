@@ -2,7 +2,7 @@
                  NEU:
                    - Wenn MC während einer Aufnahme läuft, wird die CI+ Verschlüsselung verhindert (experimentell)
 
-                 RecStrip 3.0a (25.09.2020)
+                 RecStrip 3.0a (26.09.2020)
                    - PES-basiertes Stripping! (Demultiplex - Strip - Remultiplex)
                    - PCRs werden auf DTS-Basis neu berechnet
                    - bekannte Einschränkung: PCR muss auf der Video-PID übertragen werden! (sonst müsste die PMT neu codiert werden)
