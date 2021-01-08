@@ -2,7 +2,7 @@
                  NEU:
                    - Wenn MC während einer Aufnahme läuft, wird die CI+ Verschlüsselung verhindert (experimentell)
 
-                 RecStrip 3.0a (25.12.2020)
+                 RecStrip 3.0a (09.01.2021)
                    - PES-basiertes Stripping! (Demultiplex - Strip - Remultiplex)
                    - PCRs werden auf DTS-Basis neu berechnet
                    - bekannte Einschränkung: PCR muss auf der Video-PID übertragen werden! (sonst müsste die PMT neu codiert werden)
@@ -17,7 +17,7 @@
                  BUGFIXES:
                    - Unterstützung von Aufnahmen mit "%" im Dateinamen
 
-                 RecStrip 2.7 (24.12.2020)
+                 RecStrip 2.7 (08.01.2021)
                    - Vertauschung der Ausgabe-Paketgröße (o1 = 188 Bytes, o2 = 192 Bytes)
                    - Parameter -tt extrahiert den Teletext, ohne ihn zu entfernen (dazu ist -t nötig)
                    - StartTime-Sekundenangabe wird in der inf (Byte 0x06) gespeichert, bei Scan im Input-File (!)
@@ -38,6 +38,7 @@
                    - Arrival Timestamps: zu große Zeitsprünge werden verhindert
                    - RebuildInf: falsche Ermittlung der Länge von EventNameDescription
                    - RebuildInf: möglicher Speicherüberlauf beim Schreiben von EPG ExtEventText in die inf(!)
+                   - bei Szenen kopieren, RebuildInf und vorhandenem Szenen-Text wurde ExtEventText nicht geschrieben
                    - aus Teletext ermittelte Programme Identification wurde nicht in inf eingetragen
                    - DoCut: wenn kein Segment markiert, wurde grundlos das letzte Segment ausgegeben
                    - Merge: auch bei Merge neues Bookmark an Schnittstelle setzen und Stripped-Flag setzen
