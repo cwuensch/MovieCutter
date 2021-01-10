@@ -2,7 +2,7 @@
                  NEU:
                    - Wenn MC während einer Aufnahme läuft, wird die CI+ Verschlüsselung verhindert (experimentell)
 
-                 RecStrip 3.0a (09.01.2021)
+                 RecStrip 3.0a (11.01.2021)
                    - PES-basiertes Stripping! (Demultiplex - Strip - Remultiplex)
                    - PCRs werden auf DTS-Basis neu berechnet
                    - bekannte Einschränkung: PCR muss auf der Video-PID übertragen werden! (sonst müsste die PMT neu codiert werden)
@@ -17,10 +17,11 @@
                  BUGFIXES:
                    - Unterstützung von Aufnahmen mit "%" im Dateinamen
 
-                 RecStrip 2.7 (08.01.2021)
+                 RecStrip 2.7 (10.01.2021)
                    - Vertauschung der Ausgabe-Paketgröße (o1 = 188 Bytes, o2 = 192 Bytes)
                    - Parameter -tt extrahiert den Teletext, ohne ihn zu entfernen (dazu ist -t nötig)
                    - StartTime-Sekundenangabe wird in der inf (Byte 0x06) gespeichert, bei Scan im Input-File (!)
+                   - StartTime aus inf wird beibehalten, wenn nicht -i und TS keine Sekundenangabe aufweist
                    - Merge (-m) kann auch mit Schnitt (-r) kombiniert werden, um nur einzelne Segmente zusammenzufügen
                    - alle Topfield TimeStamps werden sekundengenau berechnet
                    - NALUDump löscht auch Filler-NALUs ohne Startcode (mehr als 10 mal 0xff, gefolgt von 0x80 - experimentell!)
