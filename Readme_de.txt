@@ -111,7 +111,7 @@ Optionen in der MovieCutter.ini
 [seit V. 3.6c]
   - CopyOutDir=...		Alternatives Ausgabeverzeichnis für die Funktion "Teile kopieren" (Standard: Verzeichnis der Aufnahme)
 [seit V. 3.6]
-  - StripMode:			Beim Strippen entfernen: [0] nur die Fülldaten, [1] auch die EPG-Spur entfernen, [2] auch die Teletext-Spur entfernen, [3] beides
+  - StripMode:			Beim Strippen entfernen: [0] nur Fülldaten, [1] auch EPG-Daten, [2] auch Teletext-Daten, [3] EPG und Teletext, [seit V. 3.6e]: Teletext Untertitel extrahieren [addiere 4]
 [seit V. 3.3]
   - CutFileMode:		Speicherung der Schnittmarker: [0] in cut- und inf-Datei, [1] nur cut-Datei, [2] nur inf-Datei.
   - DeleteCutFiles:		Löschen verwaister .cut-Files: [0] nie, [1] nur in /DataFiles, [2] rekursiv in Unterverzeichnissen.

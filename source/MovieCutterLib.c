@@ -1741,8 +1741,7 @@ tTimeStamp* NavLoad(const char *RecFileName, const char *AbsDirectory, int *cons
     NavSize = statbuf.st_size;
   NavRecordsNr = (NavSize / (sizeof(tnavSD) * ((isHD) ? 2 : 1))) / 4;  // höchstens jedes 4. Frame ist ein I-Frame (?)
 
-  TimeStampBuffer = (tTimeStamp*) TAP_MemAlloc(NavRecordsNr * sizeof(tTimeStamp));
-  if (!TimeStampBuffer)
+  if (!NavRecordsNr || !((TimeStampBuffer = (tTimeStamp*) malloc(NavRecordsNr * sizeof(tTimeStamp)))))
   {
     fclose(fNav);
     WriteLogMC("MovieCutterLib", "NavLoad() E0b02");
@@ -1794,7 +1793,8 @@ TAP_PrintNet("Achtung! I-Frame an %llu hat denselben Timestamp wie sein Vorgänge
   fclose(fNav);
 
   // Reserve a new buffer of the correct size to hold only the different time stamps
-  TimeStamps = (tTimeStamp*) TAP_MemAlloc(NrTimeStamps * sizeof(tTimeStamp));
+  if (NrTimeStamps > 0)
+    TimeStamps = (tTimeStamp*) TAP_MemAlloc(NrTimeStamps * sizeof(tTimeStamp));
   if(!TimeStamps)
   {
     TAP_MemFree(TimeStampBuffer);

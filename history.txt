@@ -1,15 +1,53 @@
-2020-04-30 v3.6e NEU:
+2020-08-31 v3.6f beta
+                 NEU:
+                   - Wenn MC während einer Aufnahme läuft, wird die CI+ Verschlüsselung verhindert (experimentell)
+
+                 RecStrip 3.0a (11.01.2021)
+                   - PES-basiertes Stripping! (Demultiplex - Strip - Remultiplex)
+                   - PCRs werden auf DTS-Basis neu berechnet
+                   - bekannte Einschränkung: PCR muss auf der Video-PID übertragen werden! (sonst müsste die PMT neu codiert werden)
+                   - Support zum Import von Aufnahmen aus Eycos S80.12HD
+
+2020-08-30 v3.6e NEU:
                    - alle Topfield TimeStamps werden sekundengenau berechnet
                    - StartTime-Sekundenangabe wird beim Schneiden in der inf (Byte 0x06) gespeichert(!)
+                   - zusätzliche StripModes: 4 (nur Fülldaten strippen und Ttx Untertitel extrahieren), 5 (auch EPG strippen und Ttx UT extrahieren)
+                   - nach Strippen wird .cut-Datei auf das aktuelle Datum gesetzt
 
-                 RecStrip 2.5b (30.04.2020)
+                 BUGFIXES:
+                   - Unterstützung von Aufnahmen mit "%" im Dateinamen
+
+                 RecStrip 2.7 (10.01.2021)
+                   - Vertauschung der Ausgabe-Paketgröße (o1 = 188 Bytes, o2 = 192 Bytes)
+                   - Parameter -tt extrahiert den Teletext, ohne ihn zu entfernen (dazu ist -t nötig)
+                   - StartTime-Sekundenangabe wird in der inf (Byte 0x06) gespeichert, bei Scan im Input-File (!)
+                   - StartTime aus inf wird beibehalten, wenn nicht -i und TS keine Sekundenangabe aufweist
+                   - Merge (-m) kann auch mit Schnitt (-r) kombiniert werden, um nur einzelne Segmente zusammenzufügen
                    - alle Topfield TimeStamps werden sekundengenau berechnet
-                   - StartTime-Sekundenangabe wird in der inf (Byte 0x06) gespeichert(!)
+                   - NALUDump löscht auch Filler-NALUs ohne Startcode (mehr als 10 mal 0xff, gefolgt von 0x80 - experimentell!)
+                   - TS Check: verbesserte Continuity-Error-Auswertung (verschiedene PIDs an gleicher Position werden zusammengefasst, Ausgabe der Einzel-Fehler erfolgt nur noch auf stderr)
+                   - EPG ExtEventText wird nun nur noch einmal und vollständig ausgegeben
+                   - korrekte(re) Zeitzonen-Behandlung, inkl. Sommerzeit (UnixTime=UTC, TFTime=lokale Zeitzone)
+                   - EPG-Zeitversatz wird aus Teletext-Zeitzone berechnet
                    - Humax-Mode: Ermittlung von Startzeit und Program Identification aus Teletext
+                   - Humax-Mode: Original-Header wird in eine .humax-Datei ausgegeben
+                   - verbesserte Behandlung von Buffer Overflows in PESProcessor und PESFileLoader
+                   - Support zum Import von Aufnahmen aus Eycos S80.12HD
                   Bugfixes:
+                   - PESProcessor: nach Continuity-Error wurde das erste Packet des neuen PES-Pakets verworfen
+                   - PESProcessor: verbesserte Berechnung der RemainingBytes
+                   - Arrival Timestamps: zu große Zeitsprünge werden verhindert
+                   - RebuildInf: falsche Ermittlung der Länge von EventNameDescription
+                   - RebuildInf: möglicher Speicherüberlauf beim Schreiben von EPG ExtEventText in die inf(!)
+                   - bei Szenen kopieren, RebuildInf und vorhandenem Szenen-Text wurde ExtEventText nicht geschrieben
                    - aus Teletext ermittelte Programme Identification wurde nicht in inf eingetragen
+                   - DoCut: wenn kein Segment markiert, wurde grundlos das letzte Segment ausgegeben
+                   - Merge: auch bei Merge neues Bookmark an Schnittstelle setzen und Stripped-Flag setzen
+                   - Append: vorhandene Source-inf wurde nicht beibehalten
                    - End-Meldung: Anzahl der geschriebenen Pakete korrekt berechnet (OutPacketSize)
                    - Medion-Mode: fehlerhafte Nullbyte-Entfernung durch zu späte Prüfung auf Video-PES
+                   - Medion-Mode: korrekte Behandlung von DTS-Überlauf in Eingabe-PES
+                   - Medion-Mode: bei EPG-Daten mit mehreren Events wird das in der Mitte der Aufnahme gewählt
                    - Medion-Mode: weitere kleine Bugfixes
 
 2020-04-24 v3.6d NEUES OSDKeyboard:
@@ -29,7 +67,7 @@
                    - PESProcessor: bei Adaptation field wird 1 Byte mehr (Länge) übersprungen
                      (bisher wohl nicht aufgefallen, da PESProcessor nur für einzelne SIT-Tables eingesetzt wurde, bei denen meist kein Adaptation Field auftritt)
                    - PESProcessor: Buffer-Overflow-Protection
-                   - verbesserte Berechnung der M2TS Arrival Timestamps (immer den letzten PCR nehmen, dazwischen interpolieren)
+                   - neue Berechnung der M2TS Arrival Timestamps (immer den letzten PCR nehmen, dazwischen interpolieren)
                    - anstatt PayloadStart-Pakete mit Filler-AdaptationField werden Adaptation-Only-Pakete ohne PCR gelöscht(!)
 
                  RecStrip 2.4a (01.03.2020)

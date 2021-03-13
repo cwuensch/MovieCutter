@@ -171,7 +171,7 @@ bool HDD_GetFileSizeAndInode2(const char *FileName, const char *AbsDirectory, __
 
     // Extract the relative path from the absolute path (for old FBLib-version)
     if (strncmp(AbsDirectory, TAPFSROOT, strlen(TAPFSROOT)) == 0)
-      TAP_SPrint(Directory, sizeof(Directory), &AbsDirectory[strlen(TAPFSROOT)]);
+      TAP_SPrint(Directory, sizeof(Directory), "%s", &AbsDirectory[strlen(TAPFSROOT)]);
     else if (strncmp(AbsDirectory, "/mnt", 4) == 0)
       TAP_SPrint(Directory, sizeof(Directory), "/..%s", &AbsDirectory[4]);
     else
@@ -614,15 +614,15 @@ bool HDD_FindMountPointDev2(const char *AbsPath, char *const OutMountPoint, char
         {
           if((strncmp(AbsPath, x, strlen(x)) == 0) && (strlen(x) > strlen(MountPoint)))
           {
-            TAP_SPrint(MountPoint, sizeof(MountPoint), x);
-            TAP_SPrint(DeviceNode, sizeof(DeviceNode), ent->mnt_fsname);
+            TAP_SPrint(MountPoint, sizeof(MountPoint), "%s", x);
+            TAP_SPrint(DeviceNode, sizeof(DeviceNode), "%s", ent->mnt_fsname);
           }
           TAP_MemFree(x);
         }
         else if((strncmp(AbsPath, ent->mnt_dir, strlen(ent->mnt_dir)) == 0) && (strlen(ent->mnt_dir) > strlen(MountPoint)))
         {
-          TAP_SPrint(MountPoint, sizeof(MountPoint), ent->mnt_dir);
-          TAP_SPrint(DeviceNode, sizeof(DeviceNode), ent->mnt_fsname);
+          TAP_SPrint(MountPoint, sizeof(MountPoint), "%s", ent->mnt_dir);
+          TAP_SPrint(DeviceNode, sizeof(DeviceNode), "%s", ent->mnt_fsname);
         }
       }
       endmntent(aFile);
