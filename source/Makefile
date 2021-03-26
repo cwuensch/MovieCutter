@@ -29,6 +29,7 @@ $(APP1).tap: $(APP1).o MovieCutterLib.o HddToolsLib.o CWTapApiLib.o
 	@echo "[Linking... $@]"
 	@$(LD) -shared --no-undefined --allow-shlib-undefined -O1 --gc-sections MovieCutterLib.o HddToolsLib.o CWTapApiLib.o -o $@ $< $(TAP_LIBS)
 	@$(JB) $@
+#	@$(STRIP) -R.comment --strip-unneeded -K TAP_Main -K TAP_EventHandler $@
 
 %.o: %.c ${BASE}/include/libFireBird.h
 	@echo "[Compiling... $@]"

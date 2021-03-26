@@ -85,8 +85,8 @@
 //#include                "Graphics/Button_9_small.gd"
 //#include                "Graphics/Keyb_ScrollLeft.gd"
 //#include                "Graphics/Keyb_ScrollRight.gd"
-#include                "Graphics/Checkbox.gd"
-#include                "Graphics/Checkbox_checked.gd"
+#include                "Graphics/CheckBox.gd"
+#include                "Graphics/CheckBox_checked.gd"
 #include                "TMSCommander.h"
 extern TYPE_GrData      _Button_Red_Gd, _Button_Green_Gd, _Button_Yellow_Gd, _Button_Blue_Gd;  //, _Button_Recall_Gd
 extern TYPE_GrData      _Keyb_ScrollLeft_Gd, _Keyb_ScrollRight_Gd;
