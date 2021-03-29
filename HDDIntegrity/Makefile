@@ -15,8 +15,8 @@ TAP_FLAGS += -g -DDEBUG
 endif
 
 #compile options
-CFLAGS += -DLINUX  -D_REENTRANT -MD -W -Wall -Os -mips32 -static -pipe
-CPPFLAGS += -DLINUX  -MD -W -Wall  -Os -mips32 -static -pipe
+CFLAGS += -DLINUX  -D_REENTRANT -MD -W -Wall -Os -static -pipe
+CPPFLAGS += -DLINUX  -MD -W -Wall  -Os -static -pipe
 
 INCLUDE_DIRS = ${BASE}/include /opt/crosstool/include/
 TAP_INCLUDE_DIRS = $(addprefix -I, $(INCLUDE_DIRS))
