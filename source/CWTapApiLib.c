@@ -708,11 +708,11 @@ bool ConvertUTFStr(char *DestStr, char *SourceStr, int MaxLen, bool ToUnicode)
   TempStr = (char*) TAP_MemAlloc(MaxLen * 2);
   if (TempStr)
   {
-    memset(TempStr, 0, sizeof(TempStr));
+    memset(TempStr, 0, MaxLen * 2);
     if (ToUnicode)
     {
       #ifdef __ALTEFBLIB__
-        if (SourceStr[0] < 0x20) SourceStr++;
+        if ((byte)SourceStr[0] < 0x20) SourceStr++;
         StrToUTF8(SourceStr, TempStr);
       #else
         StrToUTF8(SourceStr, TempStr, 9);
@@ -723,7 +723,7 @@ bool ConvertUTFStr(char *DestStr, char *SourceStr, int MaxLen, bool ToUnicode)
 
     if (!ToUnicode)
     {
-      if ((SourceStr[0] >= 0x20) && (strlen(TempStr) < strlen(SourceStr)))
+      if (((byte)SourceStr[0] >= 0x20) && (strlen(TempStr) < strlen(SourceStr)))
       {
         DestStr[0] = 0x05;
         DestStr++;
