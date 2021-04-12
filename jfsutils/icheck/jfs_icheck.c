@@ -22,8 +22,8 @@
  *   FUNCTION: Alter inodes in a mounted filesystem
  */
 
-#define _LARGEFILE64_SOURCE
-#define __USE_LARGEFILE64  1
+#define _LARGEFILE_SOURCE   1
+#define _LARGEFILE64_SOURCE 1
 #define _FILE_OFFSET_BITS  64
 #ifdef _MSC_VER
   #define __const const
@@ -59,8 +59,8 @@
 #include "jfs_imap.h"
 #include "jfs_superblock.h"
 
-#define MY_VERSION  "0.3b"
-#define MY_DATE     "2015-08-01"
+#define MY_VERSION  "0.5"
+#define MY_DATE     "2018-05-31"
 
 #define setReturnVal(x)  if (return_value <= x) return_value = x
 
@@ -129,7 +129,7 @@ static void usage()
            "           (if files to check are specified, <fn> will only by used as Log)\n"
 //           " -t        use tolerance mode when calculating size (default when not -b or -c)\n"
            " -c        calculate the real size via FIBMAP (not with -i, default: off)\n"
-           " -f        fix the inode block number value (default: off)\n"
+           " -f        fix the inode block number and tree errors (default: off)\n"
            " -n        do not clear the inode cache before fixing (default: off)\n"
            " -q        enable quiet mode (default: off)\n"
            " -h        show some help about usage\n\n");
@@ -272,18 +272,18 @@ static bool fix_inode(int64_t used_blks)
   }
 }
 
-static int64_t calc_realblocks()
+static int64_t calc_realblocks(unsigned int NrXADBlocks)
 {
   int64_t               CurrentBlocks, ExpectedBlocks, RealBlocks;
   int                   i;
 
   // RealBlocks berechnen
   CurrentBlocks = cur_inode.di_nblocks;
-  ExpectedBlocks = ((cur_inode.di_size + bsize-1) / bsize);
+  ExpectedBlocks = ((cur_inode.di_size + bsize-1) / bsize) + NrXADBlocks;
   RealBlocks = CurrentBlocks;
 
   // bei zu starker Abweichung, probiere +/- 1048576 (und Vielfache)
-  if ((RealBlocks < ExpectedBlocks) || ((RealBlocks > ExpectedBlocks + 1024) && (RealBlocks >= 0x010000000)))
+  if ((RealBlocks < ExpectedBlocks) || ((RealBlocks > ExpectedBlocks /*+ 1024*/) && (RealBlocks >= 0x010000000)))
     for (i = 1; ((RealBlocks < ExpectedBlocks) || (RealBlocks >= 0x010000000)) && (i <= 10); i++)
     {
       RealBlocks = RealBlocks + 1048576;
@@ -297,7 +297,7 @@ static int64_t calc_realblocks()
   }
 
   // wenn immernoch starke Abweichung, lieber wieder den "Original" berechneten Wert nehmen
-  if ((RealBlocks < ExpectedBlocks) || (RealBlocks > ExpectedBlocks + 1024))
+  if ((RealBlocks < ExpectedBlocks) || (RealBlocks > ExpectedBlocks /*+ 1024*/))
   {
     if(!opt_quiet) printf("~");
     RealBlocks = ExpectedBlocks;
@@ -306,9 +306,51 @@ static int64_t calc_realblocks()
 }
 
 
+static bool CheckInodeXTree(unsigned int InodeNr, unsigned int *NrXADBlocks)
+{
+  xtpage_t              xtree_area2;
+  xtpage_t             *xtree, *xtree2 = &xtree_area2;
+  bool                  ret = TRUE;
+  int                   i, xads = 0;
+
+  if ((cur_inode.di_mode & IFMT) != IFDIR)
+  {
+    xtree = (xtpage_t *) & (cur_inode.di_btroot);
+
+    if ((xtree->header.flag & BT_LEAF) == 0)
+    {
+      for (i = 2; i < xtree->header.nextindex; i++)
+      {
+        int64_t xtpage_address2 = addressXAD(&(xtree->xad[i])) * bsize;
+
+        if (xRead(xtpage_address2, sizeof (xtpage_t), (char *) xtree2) == 0)
+        {
+          /* swap if on big endian machine */
+          ujfs_swap_xtpage_t(xtree2);
+
+          if ((xtree->xad[i].off1 != xtree2->xad[2].off1) || (xtree->xad[i].off2 != xtree2->xad[2].off2))
+          {
+            printf("??: Inode[%u]: Tree Error! Internal XAD[%d], offset=%llu, should be %llu", InodeNr, i, offsetXAD(&(xtree->xad[i])), offsetXAD(&(xtree2->xad[2])));
+            xtree->xad[i].off1 = xtree2->xad[2].off1;
+            xtree->xad[i].off2 = xtree2->xad[2].off2;
+            ret = FALSE;
+          }
+        }
+        else
+          fputs("xtree: error reading xtpage\n\n", stderr);
+        xads++;
+      }
+    }
+  }
+  if (NrXADBlocks) *NrXADBlocks = xads;
+  return ret;
+}
+
 tReturnCode CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlocks, int64_t *SizeOfFile, bool DoFix)
 {
   bool                  RealBlocksProvided = (RealBlocks > 0);
+  bool                  TreeOK = TRUE;
+  unsigned int          NrXADBlocks = 0;
   tReturnCode           ret = rc_UNKNOWN;
 
   bool DeviceOpened = (!fp) ? TRUE : FALSE;
@@ -322,9 +364,11 @@ tReturnCode CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlock
       {
         if ((SizeOfFile) && (*SizeOfFile == 0)) *SizeOfFile = cur_inode.di_size;
 
+        TreeOK = CheckInodeXTree(InodeNr, &NrXADBlocks);
+
         // tatsächliche Blockanzahl berechnen
         if (!RealBlocksProvided)
-          RealBlocks = calc_realblocks();
+          RealBlocks = calc_realblocks(NrXADBlocks);
 
         // mit der eingetragenen Blockzahl vergleichen und Ergebnis ausgeben
         int64_t cur_blks = cur_inode.di_nblocks;
@@ -333,20 +377,21 @@ tReturnCode CheckInodeByNr(char *device, unsigned int InodeNr, int64_t RealBlock
         {
           /* good */
           ret = rc_ALLFILESOKAY;
-          if (!opt_quiet)
+          if (!opt_quiet && TreeOK)
             printf("ok: Inode[%u]: size=%llu blocks=%llu\n", InodeNr, cur_inode.di_size, cur_blks);  // good
         }
         else if ((opt_tolerance && !RealBlocksProvided) && (cur_blks >= RealBlocks) && (cur_blks <= RealBlocks + 100))
         {
           /* tolerance */
           ret = rc_ALLFILESOKAY;
-          if (!opt_quiet)
+          if (!opt_quiet && TreeOK)
             printf("ok?: Inode[%u]: size=%llu blocks=%llu, should be %llu (tolerated)\n", InodeNr, cur_inode.di_size, cur_blks, RealBlocks);
+          RealBlocks = cur_blks;
         }
-        else
+        if (cur_blks != RealBlocks || !TreeOK)
         {
           /* wrong */
-          if (!opt_quiet)
+          if (!opt_quiet && cur_blks != RealBlocks)
             printf("??: Inode[%u]: size=%llu blocks=%llu, should be %llu", InodeNr, cur_inode.di_size, cur_blks, RealBlocks);
 
           // now the real fixing, if needed
@@ -475,28 +520,28 @@ tInodeData* ReadListFileAlloc(const char *AbsListFileName, int *OutNrInodes, int
 {
   tInodeListHeader      InodeListHeader;
   tInodeData           *InodeList  = NULL;
-  int                   fInodeList = -1;
+  FILE                 *fInodeList = NULL;
   int                   NrInodes = 0;
   unsigned long         fs = 0;
 
   InodeListHeader.NrEntries = 0;
   
-  fInodeList = open(AbsListFileName, O_RDONLY);
-  if(fInodeList >= 0)
+  fInodeList = fopen(AbsListFileName, "rb");
+  if(fInodeList)
   {
     // Dateigröße bestimmen um Puffer zu allozieren
     struct stat statbuf;
-    if (fstat(fInodeList, &statbuf) == 0)
+    if (fstat(fileno(fInodeList), &statbuf) == 0)
       fs = statbuf.st_size;
 
     // Header prüfen
-    if (!( (read(fInodeList, &InodeListHeader, sizeof(tInodeListHeader)) == sizeof(tInodeListHeader))
+    if (!( (fread(&InodeListHeader, sizeof(tInodeListHeader), 1, fInodeList))
         && (strncmp(InodeListHeader.Magic, "TFinos", 6) == 0)
         && (InodeListHeader.Version == 1)
         && (InodeListHeader.FileSize == fs)
         && (InodeListHeader.NrEntries * sizeof(tInodeData) + sizeof(tInodeListHeader) == fs) ))
     {
-      close(fInodeList);
+      fclose(fInodeList);
       fprintf(stderr, "Invalid list file header!\n");
       return NULL;
     }
@@ -511,12 +556,12 @@ tInodeData* ReadListFileAlloc(const char *AbsListFileName, int *OutNrInodes, int
     if(InodeList)
     {
       memset(InodeList, '\0', (InodeListHeader.NrEntries + AddEntries) * sizeof(tInodeData));
-      if (fInodeList >= 0)
+      if (fInodeList)
       {
-        NrInodes = read(fInodeList, InodeList, InodeListHeader.NrEntries * sizeof(tInodeData)) / sizeof(tInodeData);
+        NrInodes = fread(InodeList, sizeof(tInodeData), InodeListHeader.NrEntries, fInodeList);
         if (NrInodes != InodeListHeader.NrEntries)
         {
-          close(fInodeList);
+          fclose(fInodeList);
           free(InodeList);
           fprintf(stderr, "Error! Unexpected end of list file.\n");
           return NULL;
@@ -526,33 +571,33 @@ tInodeData* ReadListFileAlloc(const char *AbsListFileName, int *OutNrInodes, int
     else
       fprintf(stderr, "Error! Not enough memory to store the list file.\n");
   }
-  if(fInodeList >= 0) close(fInodeList);
+  if(fInodeList) fclose(fInodeList);
   return InodeList;
 }
 
 bool WriteListFile(const char *AbsListFileName, const tInodeData InodeList[], const int NrInodes)
 {
   tInodeListHeader      InodeListHeader;
-  int                   fInodeList = -1;
+  FILE                 *fInodeList = NULL;
   bool                  ret = FALSE;
 
-  fInodeList = open(AbsListFileName, O_WRONLY | O_TRUNC | O_CREAT | O_APPEND, 0666);
-  if(fInodeList >= 0)
+  fInodeList = fopen(AbsListFileName, "wb");
+  if(fInodeList)
   {
     strncpy(InodeListHeader.Magic, "TFinos", 6);
     InodeListHeader.Version   = 1;
     InodeListHeader.NrEntries = NrInodes;
     InodeListHeader.FileSize  = (NrInodes * sizeof(tInodeData)) + sizeof(tInodeListHeader);
 
-    if (write(fInodeList, &InodeListHeader, sizeof(tInodeListHeader)) == sizeof(tInodeListHeader))
+    if (fwrite(&InodeListHeader, sizeof(tInodeListHeader), 1, fInodeList))
     {
       if (NrInodes == 0)
         ret = TRUE;
-      else if (InodeList && (write(fInodeList, InodeList, NrInodes * sizeof(tInodeData)) == NrInodes * (int)sizeof(tInodeData)))
+      else if (InodeList && (fwrite(InodeList, sizeof(tInodeData), NrInodes, fInodeList) == (size_t)NrInodes))
         ret = TRUE;
     }
-    ret = (fsync(fInodeList) == 0) && ret;
-    ret = (close(fInodeList) == 0) && ret;
+//    ret = (fflush(fInodeList) == 0) && ret;
+    ret = (fclose(fInodeList) == 0) && ret;
   }
   return ret;
 }
@@ -731,6 +776,8 @@ int ick_MAINFUNC(int argc, char *argv[])
   char                  opt_listfile[512];     opt_listfile[0] = '\0';
   bool                  opt_deleteoldentries = FALSE;
   tReturnCode           return_value         = rc_UNKNOWN;
+
+  setvbuf(stdout, NULL, _IOLBF, 4096);  // zeilenweises Buffering, auch bei Ausgabe in Datei
 
   while ((opt = getopt(argc, argv, "ib:l:L:tcfnqh?")) != -1) {
     switch (opt) {
