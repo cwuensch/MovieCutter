@@ -21,7 +21,7 @@ jobs:
 
     - name: Compile code in container
       run: |
-        docker run --rm -v ${{ github.workspace }}:/tap --env FBLib="FBLib_MC" cwuensch/tmsbuild:FBLib "cd /tap/source && make --makefile=Makedebug"
+        docker run --rm -v ${{ github.workspace }}:/tap --env FBLib="MergeIntoMC" cwuensch/tmsbuild:FBLib "cd /tap/source && make --makefile=Makedebug"
 
     - name: Prepare download archive
       run: |
@@ -31,7 +31,7 @@ jobs:
         cp DeleteCuts.sh MovieCutter.lng MovieCutter.ini MovieCutter_ohne.ini target/Settings/MovieCutter/
         cp history.txt Readme_de.txt Readme_en.txt target/docs/
         wget https://github.com/cwuensch/jfsutils/releases/download/05-May-2014%2B/jfsutils_TMS.zip && unzip jfsutils_TMS.zip jfs_fsck -d target/
-        wget https://github.com/cwuensch/RecStrip/releases/download/RS_27_2/RecStrip_TMS.zip && unzip RecStrip_TMS.zip -d target/
+        wget https://github.com/cwuensch/RecStrip/releases/download/RS_27b/RecStrip_TMS.zip && unzip RecStrip_TMS.zip -d target/
         wget https://github.com/cwuensch/FireBirdLib/raw/MergeIntoMC/FirmwareTMS.dat -P target/
 
     - name: Copy build artefact

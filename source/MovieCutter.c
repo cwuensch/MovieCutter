@@ -57,7 +57,7 @@
 #include                "Graphics/Button_vf.gd"
 #include                "Graphics/Button_menu.gd"
 #include                "Graphics/Button_ProgPlusMinus.gd"
-#include                "Graphics/Button_Exit.gd"
+//#include                "Graphics/Button_Exit.gd"
 #include                "Graphics/Button_Ok.gd"
 #include                "Graphics/BookmarkMarker.gd"
 #include                "Graphics/BookmarkMarker_current.gd"
@@ -88,7 +88,7 @@
 #include                "Graphics/CheckBox.gd"
 #include                "Graphics/CheckBox_checked.gd"
 #include                "TMSCommander.h"
-extern TYPE_GrData      _Button_Red_Gd, _Button_Green_Gd, _Button_Yellow_Gd, _Button_Blue_Gd;  //, _Button_Recall_Gd
+extern TYPE_GrData      _Button_Red_Gd, _Button_Green_Gd, _Button_Yellow_Gd, _Button_Blue_Gd, _Button_exit_Gd;  //, _Button_Recall_Gd
 extern TYPE_GrData      _Keyb_ScrollLeft_Gd, _Keyb_ScrollRight_Gd;
 //extern TYPE_GrData      _Button_red_Gd, _Button_green_Gd, _Button_yellow_Gd, _Button_blue_Gd, _Button_white_Gd;
 //extern TYPE_GrData      _Button_recall_Gd, _Button_menu_Gd, _Button_vf_Gd;
@@ -5030,7 +5030,7 @@ void OSDInfoDrawBackground(void)
   TYPE_GrData*          ColorButtons[]       = {&_Button_Red_Gd,          &_Button_Green_Gd,     &_Button_Yellow_Gd,     &_Button_Blue_Gd};
   char*                 ColorButtonStrings[] = {LangGetString(LS_Delete), LangGetString(LS_Add), LangGetString(LS_Move), LangGetString(LS_Select)};
   int                   ColorButtonLengths[4];
-  TYPE_GrData*          BelowButtons[]       = {&_Button_recall_Gd,     &_Button_vf_Gd,               &_Button_ProgPlusMinus_Gd,  &_Button_menu_Gd,            &_Button_Exit_Gd,       &_Button_white_Gd};
+  TYPE_GrData*          BelowButtons[]       = {&_Button_recall_Gd,     &_Button_vf_Gd,               &_Button_ProgPlusMinus_Gd,  &_Button_menu_Gd,            &_Button_exit_Gd,       &_Button_white_Gd};
   char*                 BelowButtonStrings[] = {LangGetString(LS_Undo), LangGetString(LS_ChangeMode), LangGetString(LS_FastNav),  LangGetString(LS_PauseMenu), LangGetString(LS_Exit), LangGetString(LS_OSD)};
   int                   BelowButtonLengths[6];
 
@@ -5095,7 +5095,7 @@ void OSDInfoDrawBackground(void)
     for (i = 0; i < 5 /*6*/; i++)
     {
       TAP_Osd_PutGd(rgnInfoBar, PosX, PosY, BelowButtons[i], TRUE);
-//      if (BelowButtons[i] == &_Button_Exit_Gd)
+//      if (BelowButtons[i] == &_Button_exit_Gd)
 //        PosX += BelowButtons[i]->width + 3;
 //      else
         PosX += BelowButtons[i]->width + 2;
@@ -5697,7 +5697,7 @@ void ActionMenuDraw(void)
   const int             ShortButtonLeft   =  _ActionMenu9_Gd.width - TextFieldStart_X - _Button_Sleep_small_Gd.width - 5;
   const dword           Color_Inactive    =  RGB(120, 120, 120);
   const dword           Color_Warning     =  RGB(250, 139, 18);
-  TYPE_GrData*          LowerButtons[]    =  {&_Button_Down_Gd, &_Button_Up_Gd, &_Button_vf_Gd, &_Button_Ok_Gd, &_Button_Exit_Gd};
+  TYPE_GrData*          LowerButtons[]    =  {&_Button_Down_Gd, &_Button_Up_Gd, &_Button_vf_Gd, &_Button_Ok_Gd, &_Button_exit_Gd};
 
   char                  TempStr[128];
   char                 *DisplayStr;
