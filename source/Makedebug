@@ -1,12 +1,12 @@
 APP1 = MovieCutter
-BASE = $(shell cd /tapapi/TMS; pwd)
-CUR_DIR = $(shell pwd)
-
-# include default settings
-include ${BASE}/include/tool.mk
 
 # output object directory
+CUR_DIR = $(shell pwd)
 SRC_DIR = ${CUR_DIR}
+
+# include default settings
+BASE = $(shell cd /tapapi/TMS; pwd)
+include ${BASE}/include/tool.mk
 
 TAP_FLAGS += -fPIC -fno-strict-aliasing
 
@@ -15,13 +15,13 @@ TAP_FLAGS += -g -DDEBUG
 endif
 
 #compile options
-CFLAGS += -DLINUX -D_REENTRANT -DFULLDEBUG  -MD  -W -Wall  -O2 -static -pipe -D_FORTIFY_SOURCE=1
-CPPFLAGS += -DLINUX -DFULLDEBUG  -MD  -W -Wall  -O2 -static -pipe -D_FORTIFY_SOURCE=1
+CFLAGS += -DLINUX -D_REENTRANT -DFULLDEBUG  -MD  -W -Wall  -O2 -static -funsigned-char -D_FORTIFY_SOURCE=1
+CPPFLAGS += -DLINUX -DFULLDEBUG  -MD  -W -Wall  -O2 -static -funsigned-char -D_FORTIFY_SOURCE=1
 
-INCLUDE_DIRS = ${BASE}/include /opt/crosstool/include/
+INCLUDE_DIRS = ${BASE}/include /opt/crosstool/include
 TAP_INCLUDE_DIRS = $(addprefix -I, $(INCLUDE_DIRS))
 TAP_FLAGS += $(TAP_INCLUDE_DIRS)
-TAP_LIBS = ${BASE}/tapinit.o ${BASE}/libtap.so -lFireBird -ldl -lpthread -lc
+TAP_LIBS = ${BASE}/tapinit.o -L ${BASE} -ltap -L /opt/crosstool/lib -lFireBird -ldl -lpthread -lc
 
 all: $(APP1).tap clean
 
@@ -29,8 +29,9 @@ $(APP1).tap: $(APP1).o MovieCutterLib.o HddToolsLib.o CWTapApiLib.o
 	@echo "[Linking... $@]"
 	@$(LD) -shared --no-undefined --allow-shlib-undefined -O1 --gc-sections MovieCutterLib.o HddToolsLib.o CWTapApiLib.o -o $@ $< $(TAP_LIBS)
 	@$(JB) $@
+#	@$(STRIP) -R.comment --strip-unneeded -K TAP_Main -K TAP_EventHandler $@
 
-%.o: %.c ${BASE}/include/libFireBird.h
+%.o: %.c
 	@echo "[Compiling... $@]"
 	@$(CC) $(CFLAGS) $(TAP_FLAGS) -c $< -o $@
 
