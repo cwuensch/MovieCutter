@@ -85,8 +85,8 @@
 //#include                "Graphics/Button_9_small.gd"
 //#include                "Graphics/Keyb_ScrollLeft.gd"
 //#include                "Graphics/Keyb_ScrollRight.gd"
-#include                "Graphics/Checkbox.gd"
-#include                "Graphics/Checkbox_checked.gd"
+#include                "Graphics/CheckBox.gd"
+#include                "Graphics/CheckBox_checked.gd"
 #include                "TMSCommander.h"
 extern TYPE_GrData      _Button_Red_Gd, _Button_Green_Gd, _Button_Yellow_Gd, _Button_Blue_Gd;  //, _Button_Recall_Gd
 extern TYPE_GrData      _Keyb_ScrollLeft_Gd, _Keyb_ScrollRight_Gd;
@@ -1028,8 +1028,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         if (infDetected)
         {
           char TS[22];
+          struct tm timestruct;
           time_t DisplayTime = TF2UnixTimeSec(RecDateTime, RecDateSec);
-          strftime(TS, sizeof(TS), "%d %b %Y %H:%M:%S", gmtime(&DisplayTime));
+          strftime(TS, sizeof(TS), "%d %b %Y %H:%M:%S", gmtime_r(&DisplayTime, &timestruct));
           WriteLogMCf(PROGRAM_NAME, "Date of rec (inf): %s", TS);
         }
 
@@ -2277,10 +2278,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             int fd = open(TAPFSROOT LOGDIR "/RecStrip.log", O_WRONLY | O_APPEND | O_CREAT);
             if (fd >= 0)
             {
-              char LogString[128];
+              char LogString[128], TimeStr[25];
               time_t StartTime; byte sec;
               StartTime = TF2UnixTimeSec(TFNow(&sec), sec);
-              TAP_SPrint(LogString, sizeof(LogString), "\r\n=========================================================\r\n*** RecStrip started %s \r\n", ctime(&StartTime));
+              TAP_SPrint(LogString, sizeof(LogString), "\r\n=========================================================\r\n*** RecStrip started %s \r\n", ctime_r(&StartTime, TimeStr));
               write(fd, LogString, strlen(LogString));
             }
 
@@ -6817,7 +6818,7 @@ bool MovieCutterRenameFile(void)
 
 #if STACKTRACE == TRUE
   TAP_PrintNet("DEBUG: VOR der Umwandlung in ISO:\n");
-  TAP_PrintNet("DEBUG: PlaybackName = [%x] '%s'\n", (PlaybackName[0] >= 0x20 ? 0 : PlaybackName[0]), PlaybackName);
+  TAP_PrintNet("DEBUG: PlaybackName = [%x] '%s'\n", ((byte)PlaybackName[0] >= 0x20 ? 0 : PlaybackName[0]), PlaybackName);
 #endif
 
   ExtensionStart = strrchr(PlaybackName, '.');
@@ -6831,7 +6832,7 @@ bool MovieCutterRenameFile(void)
 
 #if STACKTRACE == TRUE
   TAP_PrintNet("DEBUG: NACH der Umwandlung in ISO:\n");
-  TAP_PrintNet("DEBUG: TempNameISO  = [%x] '%s'\n", (TempNameISO[0] >= 0x20 ? 0 : TempNameISO[0]), TempNameISO);
+  TAP_PrintNet("DEBUG: TempNameISO  = [%x] '%s'\n", ((byte)TempNameISO[0] >= 0x20 ? 0 : TempNameISO[0]), TempNameISO);
 #endif
 
   while (!ret)
@@ -6851,7 +6852,7 @@ bool MovieCutterRenameFile(void)
     OSDRedrawEverything();
 
     // Eingabe überprüfen und ggf. wieder in UTF-8 umwandeln
-    if ((TempNameISO[0] >= 0x20) || (TempNameISO[0] && TempNameISO[1]))
+    if (((byte)TempNameISO[0] >= 0x20) || (TempNameISO[0] && TempNameISO[1]))
     {
       // Wenn Name ungültig, Meldung anzeigen
       if (strchr(TempNameISO, '/'))
@@ -6864,10 +6865,10 @@ bool MovieCutterRenameFile(void)
 
 #if STACKTRACE == TRUE
   TAP_PrintNet("DEBUG: VOR Rück-Umwandlung in UTF-8:\n");
-  TAP_PrintNet("DEBUG: TempNameISO  = [%x] '%s'\n", (TempNameISO[0] >= 0x20 ? 0 : TempNameISO[0]), TempNameISO);
+  TAP_PrintNet("DEBUG: TempNameISO  = [%x] '%s'\n", ((byte)TempNameISO[0] >= 0x20 ? 0 : TempNameISO[0]), TempNameISO);
 #endif
 
-        TempNameFull = (TempNameISO[0] >= 0x20) ? &TempNameBuffer[1] : TempNameBuffer;
+        TempNameFull = ((byte)TempNameISO[0] >= 0x20) ? &TempNameBuffer[1] : TempNameBuffer;
         strcpy(TempNameFull, TempNameISO);
         if (isUTFToppy() && TempNameISO[0] >= 0x15)
           ConvertUTFStr(NewName, TempNameFull, sizeof(NewName) - strlen(ExtensionStart) - 4, TRUE);
@@ -6876,15 +6877,15 @@ bool MovieCutterRenameFile(void)
         strcat(NewName, ExtensionStart);
         strcat(TempNameFull, ExtensionStart);
 
-        PlayNameNoTypeChar = (PlaybackName[0] >= 0x20) ? PlaybackName : &PlaybackName[1];
-        TempNameNoTypeChar = &TempNameBuffer[1];  // (TempNameFull[0] >= 0x20) ? TempNameFull : &TempNameFull[1];
-//        TempNameWithTypeChar = (TempNameFull[0] >= 0x20) ? TempNameBuffer : TempNameFull;
+        PlayNameNoTypeChar = ((byte)PlaybackName[0] >= 0x20) ? PlaybackName : &PlaybackName[1];
+        TempNameNoTypeChar = &TempNameBuffer[1];  // ((byte)TempNameFull[0] >= 0x20) ? TempNameFull : &TempNameFull[1];
+//        TempNameWithTypeChar = ((byte)TempNameFull[0] >= 0x20) ? TempNameBuffer : TempNameFull;
 
 #if STACKTRACE == TRUE
   TAP_PrintNet("DEBUG: NACH der Rück-Umwandlung in UTF-8:\n");
-  TAP_PrintNet("DEBUG: TempNameBuf  = [%x] '%s'\n", (TempNameBuffer[0] >= 0x20 ? 0 : TempNameBuffer[0]), TempNameBuffer);
-  TAP_PrintNet("DEBUG: TempNameFull = [%x] '%s'\n", (TempNameFull[0]   >= 0x20 ? 0 : TempNameFull[0]),   TempNameFull);
-  TAP_PrintNet("DEBUG: NewName      = [%x] '%s'\n", (NewName[0]        >= 0x20 ? 0 : NewName[0]),        NewName);
+  TAP_PrintNet("DEBUG: TempNameBuf  = [%x] '%s'\n", ((byte)TempNameBuffer[0] >= 0x20 ? 0 : TempNameBuffer[0]), TempNameBuffer);
+  TAP_PrintNet("DEBUG: TempNameFull = [%x] '%s'\n", ((byte)TempNameFull[0]   >= 0x20 ? 0 : TempNameFull[0]),   TempNameFull);
+  TAP_PrintNet("DEBUG: NewName      = [%x] '%s'\n", ((byte)NewName[0]        >= 0x20 ? 0 : NewName[0]),        NewName);
 #endif
 
         // Wenn neuer Name nicht leer, aber verändert

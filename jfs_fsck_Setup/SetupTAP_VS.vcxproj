@@ -48,7 +48,7 @@
     <NMakeReBuildCommandLine>build_TMS.bat /debug /quiet</NMakeReBuildCommandLine>
     <NMakePreprocessorDefinitions>__GNUC__;FULLDEBUG;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
     <ExecutablePath />
-    <IncludePath>$(TFRoot)\API\TMS\include;$(TFRoot)\gccForTMS\crosstool\include;$(TFRoot)\Cygwin_mini\lib\gcc\i686-pc-cygwin\3.4.4\include;$(TFRoot)\gccForTMS\crosstool\lib\gcc\mipsel-linux-uclibc\3.4.6\include</IncludePath>
+    <IncludePath>$(TFRoot)\API\TMS\include;$(TFRoot)\gccForTMS\crosstool\include;$(TFRoot)\Cygwin\lib\gcc\i686-pc-cygwin\3.4.4\include;$(TFRoot)\gccForTMS\crosstool\lib\gcc\mipsel-linux-uclibc\3.4.6\include</IncludePath>
     <ReferencePath />
     <LibraryPath>$(TFRoot)\gccForTMS\crosstool\lib</LibraryPath>
     <SourcePath />
@@ -61,7 +61,7 @@
     <NMakeReBuildCommandLine>build_TMS.bat /quiet</NMakeReBuildCommandLine>
     <NMakePreprocessorDefinitions>__GNUC__;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
     <ExecutablePath />
-    <IncludePath>$(TFRoot)\API\TMS\include;$(TFRoot)\gccForTMS\crosstool\include;$(TFRoot)\Cygwin_mini\lib\gcc\i686-pc-cygwin\3.4.4\include;$(TFRoot)\gccForTMS\crosstool\lib\gcc\mipsel-linux-uclibc\3.4.6\include</IncludePath>
+    <IncludePath>$(TFRoot)\API\TMS\include;$(TFRoot)\gccForTMS\crosstool\include;$(TFRoot)\Cygwin\lib\gcc\i686-pc-cygwin\3.4.4\include;$(TFRoot)\gccForTMS\crosstool\lib\gcc\mipsel-linux-uclibc\3.4.6\include</IncludePath>
     <ReferencePath />
     <LibraryPath>$(TFRoot)\gccForTMS\crosstool\lib</LibraryPath>
     <SourcePath />

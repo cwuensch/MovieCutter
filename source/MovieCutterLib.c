@@ -869,8 +869,7 @@ bool PatchRecFile(const char *SourceFileName, const char *AbsDirectory, off_t Re
 bool UnpatchRecFile(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, off_t CutStartPos, off_t BehindCutPos, off_t PatchedBytes[], int NrPatchedBytes)
 {
   char                  LogString[512];
-  word                  i;
-  int                   ret = 0;
+  int                   ret = 0, i;
 
   TRACEENTER();
 
@@ -1320,8 +1319,8 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
       p = 0;
       for (k = 0; k < j; k++)
       {
-        if(RecHeader->ExtEventInfo.Text[p] < 0x20)  p++;
-        TAP_SPrint(&OldEventText[strlen(OldEventText)], sizeof(OldEventText)-strlen(OldEventText), ((k % 2 == 0) ? ((isUTFToppy() && OldEventText[0]>=0x15) ? "\xC2\x8A%s: " : "\x8A%s: ") : "%s"), &RecHeader->ExtEventInfo.Text[p]);
+        if((byte)(RecHeader->ExtEventInfo.Text[p]) < 0x20)  p++;
+        TAP_SPrint(&OldEventText[strlen(OldEventText)], sizeof(OldEventText)-strlen(OldEventText), ((k % 2 == 0) ? ((isUTFToppy() && (byte)OldEventText[0] >= 0x15) ? "\xC2\x8A%s: " : "\x8A%s: ") : "%s"), &RecHeader->ExtEventInfo.Text[p]);
         p += strlen(&RecHeader->ExtEventInfo.Text[p]) + 1;
       }
     }
@@ -1333,14 +1332,14 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
   {
     if ((NewEventText = (char*)TAP_MemAlloc(2 * strlen(pSourceCaption) + strlen(OldEventText) + 5)))
     {
-      if (isUTFToppy() && OldEventText[0]>=0x15)
+      if (isUTFToppy() && (byte)OldEventText[0] >= 0x15)
       {
         StrToUTF8(pSourceCaption, NewEventText, 9);
         if (*OldEventText)
-          sprintf(&NewEventText[strlen(NewEventText)], "\xC2\x8A\xC2\x8A%s", &OldEventText[(OldEventText[0]<0x20) ? 1 : 0]);
+          sprintf(&NewEventText[strlen(NewEventText)], "\xC2\x8A\xC2\x8A%s", &OldEventText[((byte)OldEventText[0] < 0x20) ? 1 : 0]);
       }
       else
-        sprintf(NewEventText, "\5%s\x8A\x8A%s", pSourceCaption, &OldEventText[(OldEventText[0]<0x20) ? 1 : 0]);
+        sprintf(NewEventText, "\5%s\x8A\x8A%s", pSourceCaption, &OldEventText[((byte)OldEventText[0] < 0x20) ? 1 : 0]);
       strncpy(RecHeader->ExtEventInfo.Text, NewEventText, sizeof(RecHeader->ExtEventInfo.Text) - 1);
       if (RecHeader->ExtEventInfo.Text[sizeof(RecHeader->ExtEventInfo.Text) - 2] != 0)
         TAP_SPrint(&RecHeader->ExtEventInfo.Text[sizeof(RecHeader->ExtEventInfo.Text) - 4], 4, "...");
@@ -1468,14 +1467,14 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
     {
       if ((NewEventText = (char*)TAP_MemAlloc(2 * strlen(pCutCaption) + strlen(OldEventText) + 5)))
       {
-        if (isUTFToppy() && OldEventText[0]>=0x15)
+        if (isUTFToppy() && (byte)OldEventText[0] >= 0x15)
         {
           StrToUTF8(pCutCaption, NewEventText, 9);
           if (*OldEventText)
-            sprintf(&NewEventText[strlen(NewEventText)], "\xC2\x8A\xC2\x8A%s", &OldEventText[(OldEventText[0]<0x20) ? 1 : 0]);
+            sprintf(&NewEventText[strlen(NewEventText)], "\xC2\x8A\xC2\x8A%s", &OldEventText[((byte)OldEventText[0] < 0x20) ? 1 : 0]);
         }
         else
-          sprintf(NewEventText, "\5%s\x8A\x8A%s", pCutCaption, &OldEventText[(OldEventText[0]<0x20) ? 1 : 0]);
+          sprintf(NewEventText, "\5%s\x8A\x8A%s", pCutCaption, &OldEventText[((byte)OldEventText[0] < 0x20) ? 1 : 0]);
         strncpy(RecHeader->ExtEventInfo.Text, NewEventText, sizeof(RecHeader->ExtEventInfo.Text) - 1);
         if (RecHeader->ExtEventInfo.Text[sizeof(RecHeader->ExtEventInfo.Text) - 2] != 0)
           TAP_SPrint(&RecHeader->ExtEventInfo.Text[sizeof(RecHeader->ExtEventInfo.Text) - 4], 4, "...");

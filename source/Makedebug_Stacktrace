@@ -1,4 +1,4 @@
-APP1 = HDDSpindown
+APP1 = MovieCutter
 BASE = $(shell cd /tapapi/TMS; pwd)
 CUR_DIR = $(shell pwd)
 
@@ -15,19 +15,19 @@ TAP_FLAGS += -g -DDEBUG
 endif
 
 #compile options
-CFLAGS += -DLINUX -D_REENTRANT  -DFULLDEBUG  -MD  -W -Wall  -O2 -static -pipe -ffunction-sections -fdata-sections -D_FORTIFY_SOURCE=1
-CPPFLAGS += -DLINUX  -DFULLDEBUG  -MD  -W -Wall  -O2 -static -pipe -ffunction-sections -fdata-sections -D_FORTIFY_SOURCE=1
+CFLAGS += -DLINUX -D_REENTRANT -DFULLDEBUG -DSTACKTRACE  -MD  -W -Wall  -O2 -static -pipe -D_FORTIFY_SOURCE=1
+CPPFLAGS += -DLINUX -DFULLDEBUG -DSTACKTRACE  -MD  -W -Wall  -O2 -static -pipe -D_FORTIFY_SOURCE=1
 
 INCLUDE_DIRS = ${BASE}/include /opt/crosstool/include/
 TAP_INCLUDE_DIRS = $(addprefix -I, $(INCLUDE_DIRS))
 TAP_FLAGS += $(TAP_INCLUDE_DIRS)
-TAP_LIBS = ${BASE}/tapinit.o ${BASE}/libtap.so -lFireBird -ldl -lc
+TAP_LIBS = ${BASE}/tapinit.o ${BASE}/libtap.so -lFireBird -ldl -lpthread -lc
 
 all: $(APP1).tap clean
 
-$(APP1).tap: $(APP1).o sgio.o sysfs.o apt.o
+$(APP1).tap: $(APP1).o MovieCutterLib.o HddToolsLib.o CWTapApiLib.o
 	@echo "[Linking... $@]"
-	@$(LD) -shared --no-undefined --allow-shlib-undefined -O1 --gc-sections sgio.o sysfs.o apt.o -o $@ $< $(TAP_LIBS)
+	@$(LD) -shared --no-undefined --allow-shlib-undefined -O1 --gc-sections MovieCutterLib.o HddToolsLib.o CWTapApiLib.o -o $@ $< $(TAP_LIBS)
 	@$(JB) $@
 
 %.o: %.c ${BASE}/include/libFireBird.h
