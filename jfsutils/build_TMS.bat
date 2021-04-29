@@ -4,9 +4,10 @@ rem if exist build rmdir /s /q build
 mkdir build
 cd build
 set PATH=%TFROOT%\gccForTMS\crosstool\bin;%TFROOT%\gccForTMS\crosstool\mipsel-linux-uclibc\bin;%TFROOT%\Cygwin\bin;C:\Programme\Cygwin\bin
-set CFLAGS=-pipe -Os -static -W -Wall
+set CFLAGS=-pipe -Os -static -W -Wall -fno-strict-aliasing -funsigned-char
 set LDFLAGS=-static
 rem bash ../configure --host=mipsel-linux-uclibc
+rem sed -i 's/^DEFS =/DEFS = -Dfsck_BUILD/' fsck/Makefile
 copy /y ..\fsck_Makefile fsck\Makefile
 copy /y ..\icheck\*.h ..\fsck\
 copy /y ..\icheck\*.c ..\fsck\
