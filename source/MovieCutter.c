@@ -1031,8 +1031,9 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
         if (infDetected)
         {
           char TS[22];
+          struct tm timestruct;
           time_t DisplayTime = TF2UnixTimeSec(RecDateTime, RecDateSec);
-          strftime(TS, sizeof(TS), "%d %b %Y %H:%M:%S", gmtime(&DisplayTime));
+          strftime(TS, sizeof(TS), "%d %b %Y %H:%M:%S", gmtime_r(&DisplayTime, &timestruct));
           WriteLogMCf(PROGRAM_NAME, "Date of rec (inf): %s", TS);
         }
 
@@ -2280,10 +2281,10 @@ dword TAP_EventHandler(word event, dword param1, dword param2)
             int fd = open(TAPFSROOT LOGDIR "/RecStrip.log", O_WRONLY | O_APPEND | O_CREAT);
             if (fd >= 0)
             {
-              char LogString[128];
+              char LogString[128], TimeStr[25];
               time_t StartTime; byte sec;
               StartTime = TF2UnixTimeSec(TFNow(&sec), sec);
-              TAP_SPrint(LogString, sizeof(LogString), "\r\n=========================================================\r\n*** RecStrip started %s \r\n", ctime(&StartTime));
+              TAP_SPrint(LogString, sizeof(LogString), "\r\n=========================================================\r\n*** RecStrip started %s \r\n", ctime_r(&StartTime, TimeStr));
               write(fd, LogString, strlen(LogString));
             }
 

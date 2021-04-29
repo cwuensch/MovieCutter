@@ -869,8 +869,7 @@ bool PatchRecFile(const char *SourceFileName, const char *AbsDirectory, off_t Re
 bool UnpatchRecFile(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, off_t CutStartPos, off_t BehindCutPos, off_t PatchedBytes[], int NrPatchedBytes)
 {
   char                  LogString[512];
-  word                  i;
-  int                   ret = 0;
+  int                   ret = 0, i;
 
   TRACEENTER();
 
