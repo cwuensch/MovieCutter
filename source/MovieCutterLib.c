@@ -32,6 +32,7 @@ static bool  FindCutPointOffset(const byte CutPacket[], const byte CutPointArray
 static bool  FindCutPointOffset2(const byte CutPointArray[], off_t RequestedCutPosition, bool CheckPacketStart, long *const OutOffset);
 static bool  PatchInfFiles(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, dword SourcePlayTime, const tTimeStamp *CutStartPoint, const tTimeStamp *BehindCutPoint, char *pCutCaption, char *pSourceCaption);
 static bool  PatchNavFiles(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, off_t CutStartPos, off_t BehindCutPos, bool isHD, bool IgnoreRecordsAfterCut, dword *const OutCutStartTime, dword *const OutBehindCutTime, dword *const OutSourcePlayTime);
+static bool  PatchSrtFiles(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, dword CutStartTime, dword BehindCutTime);
 
 static int              PACKETSIZE = 192;
 static int              SYNCBYTEPOS = 4;
@@ -360,8 +361,7 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
   TAP_SPrint(BakFileName, sizeof(BakFileName), "%s.nav.bak", SourceFileName);
   if (HDD_Exist2(FileName, AbsDirectory))
   {
-    if (HDD_Exist2(BakFileName, AbsDirectory))
-      HDD_Delete2(BakFileName, AbsDirectory, FALSE, FALSE);
+    if(HDD_Exist2(BakFileName, AbsDirectory))  HDD_Delete2(BakFileName, AbsDirectory, FALSE, FALSE);
     HDD_Rename2(FileName, BakFileName, AbsDirectory, FALSE, FALSE);
   }
 
@@ -378,6 +378,23 @@ tResultCode MovieCutter(char *SourceFileName, char *CutFileName, char *AbsDirect
       HDD_Delete2(FileName, AbsDirectory, FALSE, FALSE);
       TAP_SPrint(FileName, sizeof(FileName), "%s.nav", CutFileName);
       HDD_Delete2(FileName, AbsDirectory, FALSE, FALSE);
+    }
+  }
+
+  // Patch the srt files
+  GetFileNameFromRec(FileName, AbsDirectory, ".srt", SourceFileName);
+  if (HDD_Exist2(FileName, AbsDirectory))
+  {
+    TAP_SPrint(BakFileName, sizeof(BakFileName), "%s.bak", FileName);
+    if(HDD_Exist2(BakFileName, AbsDirectory))  HDD_Delete2(BakFileName, AbsDirectory, FALSE, FALSE);
+    HDD_Rename2(FileName, BakFileName, AbsDirectory, FALSE, FALSE);
+
+    if(!SuppressNavGeneration)
+    {
+      if(PatchSrtFiles(SourceFileName, CutFileName, AbsDirectory, CutStartPoint->Timems, BehindCutPoint->Timems))
+        HDD_Delete2(BakFileName, AbsDirectory, FALSE, FALSE);
+      else
+        WriteLogMC("MovieCutterLib", "MovieCutter() W0011: srt creation failed.");
     }
   }
 
@@ -1707,6 +1724,174 @@ bool PatchNavFiles(const char *SourceFileName, const char *CutFileName, const ch
 
 
 // ----------------------------------------------------------------------------
+//                              SRT-Patchen
+// ----------------------------------------------------------------------------
+bool PatchSrtFiles(const char *SourceFileName, const char *CutFileName, const char *AbsDirectory, dword CutStartTime, dword BehindCutTime)
+{
+  char                  AbsFileName[FBLIB_DIR_SIZE];
+  FILE                 *fOldSrt = NULL, *fSourceSrt = NULL, *fCutSrt = NULL, *fOut = NULL, *fOut2 = NULL;
+  char                 *Buffer = NULL;
+  char                  Number[12];
+  size_t                BufSize = 256;
+  int                   ReadBytes, NrSource = 1, NrCut = 1, Nr = 1;
+  unsigned int          hour1, minute1, second1, millisec1, hour2, minute2, second2, millisec2;
+  dword                 SubtStart = 0, SubtEnd = 0, TimeDiff = 0;
+  bool                  inCaption = FALSE, ret = TRUE;
+
+  TRACEENTER();
+  #ifdef FULLDEBUG
+    WriteLogMC("MovieCutterLib", "PatchSrtFiles()");
+  #endif
+
+  //Allocate memory
+  Buffer = (char*) malloc(BufSize);
+  if(!Buffer)
+  {
+    WriteLogMC("MovieCutterLib", "PatchSrtFiles() E0801.");
+    TRACEEXIT();
+    return FALSE;
+  }
+  Buffer[0] = '\0';
+
+  //Open the original srt
+  TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.srt.bak", AbsDirectory, SourceFileName);
+  fOldSrt = fopen(AbsFileName, "rb");
+  if(!fOldSrt)
+  {
+    TRACEEXIT();
+    return TRUE;
+  }
+
+  //Create and open the new source srt
+  TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.srt", AbsDirectory, SourceFileName);
+  fSourceSrt = fopen(AbsFileName, "wb");
+  if(!fSourceSrt)
+  {
+    fclose(fOldSrt);
+    WriteLogMC("MovieCutterLib", "PatchSrtFiles() E0802.");
+    TRACEEXIT();
+    return FALSE;
+  }
+
+  //Create and open the cut srt
+  TAP_SPrint(AbsFileName, sizeof(AbsFileName), "%s/%s.srt", AbsDirectory, CutFileName);
+  fCutSrt = fopen(AbsFileName, "wb");
+  if(!fCutSrt)
+  {
+    fclose(fOldSrt);
+    fclose(fSourceSrt);
+    WriteLogMC("MovieCutterLib", "PatchSrtFiles() E0803.");
+    TRACEEXIT();
+    return FALSE;
+  }
+  Number[0] = '\0';
+
+  //Walk through srt file and copy relevant parts to output files
+  while (ret && ((ReadBytes = getline(&Buffer, &BufSize, fOldSrt)) >= 0))
+  {
+    // in Caption -> Zeile ausgeben
+    if (inCaption)
+    {
+      ret = fwrite(Buffer, 1, ReadBytes, fOut) && ret;
+      if(fOut2)
+        ret = fwrite(Buffer, 1, ReadBytes, fOut2) && ret;
+
+      // leere Zeile -> Caption beendet
+      if (!*Buffer || Buffer[0] == '\r' || Buffer[0] == '\n')
+      {  
+        inCaption = FALSE;
+        fOut2 = NULL;
+        continue;
+      }
+    }
+
+    // aktuell keine Caption
+    if (!inCaption)
+    {
+      if (sscanf(Buffer, "%2u:%2u:%2u,%3u --> %2u:%2u:%2u,%3u", &hour1, &minute1, &second1, &millisec1, &hour2, &minute2, &second2, &millisec2) == 8)
+      {
+        SubtStart = 3600000*hour1 + 60000*minute1 + 1000*second1 + millisec1;
+        SubtEnd   = 3600000*hour2 + 60000*minute2 + 1000*second2 + millisec2;
+
+        // Untertitel überlappt den Cut-Bereich
+        if((SubtStart >= CutStartTime && SubtStart < BehindCutTime) || (SubtEnd >= CutStartTime && SubtEnd < BehindCutTime))
+        {
+          // erstmalig
+          if (fOut != fCutSrt)
+          {
+            if ((fOut == fSourceSrt) && (SubtStart < CutStartTime))
+            {
+              hour2 = CutStartTime / 3600000;  minute2 = (CutStartTime / 60000) % 60;  second2 = (CutStartTime / 1000) % 60;  millisec2 = CutStartTime % 1000;
+//              fprintf(fOut, "%d\r\n", Nr++);
+              if(*Number) fprintf(fOut, "%s", Number);
+              fprintf(fOut, "%02hu:%02hhu:%02hhu,%03hu --> %02hu:%02hhu:%02hhu,%03hu\r\n", hour1, minute1, second1, millisec1, hour2, minute2, second2, millisec2);
+              fOut2 = fSourceSrt;
+              SubtStart = CutStartTime;
+            }
+//            NrSource = Nr; Nr = NrCut;
+            TimeDiff = CutStartTime;
+            fOut = fCutSrt;
+          }
+        }
+        
+        // Untertitel-Ende ist nach Cut-Bereich
+        if (SubtEnd >= BehindCutTime)
+        {
+          // erstmalig
+          if (!TimeDiff || (fOut != fSourceSrt))
+          {
+            if ((fOut == fCutSrt) && (SubtStart < BehindCutTime))
+            {
+              hour1 = (SubtStart-TimeDiff) / 3600000;  minute1 = ((SubtStart-TimeDiff) / 60000) % 60;  second1 = ((SubtStart-TimeDiff) / 1000) % 60;  millisec1 = (SubtStart-TimeDiff) % 1000;
+              hour2 =  BehindCutTime / 3600000;  minute2 = (BehindCutTime / 60000) % 60;  second2 = (BehindCutTime / 1000) % 60;  millisec2 = BehindCutTime % 1000;
+//              fprintf(fOut, "%d\r\n", Nr++);
+              if(*Number) fprintf(fOut, "%s", Number);
+              fprintf(fOut, "%02hu:%02hhu:%02hhu,%03hu --> %02hu:%02hhu:%02hhu,%03hu\r\n", hour1, minute1, second1, millisec1, hour2, minute2, second2, millisec2);
+              fOut2 = fCutSrt;
+              SubtStart = BehindCutTime + (BehindCutTime - CutStartTime);
+            }
+//            NrCut = Nr; Nr = NrSource;
+            TimeDiff = (BehindCutTime - CutStartTime);
+            fOut = fSourceSrt;
+          }
+        }
+
+        if (TimeDiff)
+        {
+          SubtStart -= TimeDiff;
+          SubtEnd -= TimeDiff;
+        }
+        hour1 = SubtStart / 3600000;  minute1 = (SubtStart / 60000) % 60;  second1 = (SubtStart / 1000) % 60;  millisec1 = SubtStart % 1000;
+        hour2 =  SubtEnd / 3600000;   minute2 =  (SubtEnd / 60000) % 60;   second2 =  (SubtEnd / 1000) % 60;   millisec2 = SubtEnd % 1000;
+
+//        fprintf(fOut, "%d\r\n", Nr++);
+        if(*Number) fprintf(fOut, "%s", Number);
+        fprintf(fOut, "%02hu:%02hhu:%02hhu,%03hu --> %02hu:%02hhu:%02hhu,%03hu\r\n", hour1, minute1, second1, millisec1, hour2, minute2, second2, millisec2);
+        Number[0] = '\0';
+        inCaption = TRUE;
+      }
+      else if (!*Number)
+        strncpy(Number, Buffer, sizeof(Number));
+      else
+      {
+        WriteLogMC("MovieCutterLib", "PatchSrtFiles() E0804.");
+        ret = FALSE;
+      }
+    }
+  }
+
+//  ret = (fflush(fSourceSrt) == 0) && ret;
+  ret = (fclose(fSourceSrt) == 0) && ret;
+//  ret = (fflush(fCutSrt) == 0) && ret;
+  ret = (fclose(fCutSrt) == 0) && ret;
+  fclose(fOldSrt);
+
+  TRACEEXIT();
+  return ret;
+}
+
+
+// ----------------------------------------------------------------------------
 //                               NAV-Einlesen
 // ----------------------------------------------------------------------------
 tTimeStamp* NavLoad(const char *RecFileName, const char *AbsDirectory, int *const OutNrTimeStamps, bool isHD)
@@ -1717,7 +1902,7 @@ tTimeStamp* NavLoad(const char *RecFileName, const char *AbsDirectory, int *cons
   tTimeStamp           *TimeStampBuffer = NULL;
   tTimeStamp           *TimeStamps = NULL;
   int                   NavRecordsNr, NrTimeStamps = 0;
-  dword                 FirstTime, LastTime;
+//  dword                 FirstPTS = 0xffffffff;  // FirstTime = 0xffffffff, LastTime = 0xffffffff;
   ulong64               AbsPos;
   dword                 NavSize = 0;
 
@@ -1757,15 +1942,13 @@ tTimeStamp* NavLoad(const char *RecFileName, const char *AbsDirectory, int *cons
     rewind(fNav);
 
   //Count and save all the _different_ time stamps in the .nav
-  LastTime = 0xFFFFFFFF;
-  FirstTime = 0xFFFFFFFF;
-
   while (fread(CurNavRec, sizeof(tnavSD) * (isHD ? 2 : 1), 1, fNav) && (NrTimeStamps < NavRecordsNr))
   {
-    if(FirstTime == 0xFFFFFFFF) FirstTime = CurNavRec->Timems;
+//    if(FirstTime == 0xFFFFFFFF) FirstTime = CurNavRec->Timems;
     if(CurNavRec->FrameType == 1)  // erfasse nur noch I-Frames
     {
       AbsPos = ((ulong64)(CurNavRec->PHOffsetHigh) << 32) | CurNavRec->PHOffset;
+//      if(FirstPTS == 0xffffffff) FirstPTS = CurNavRec->PTS2;
 /*      if(CurNavRec->Timems == LastTime)
       {
 TAP_PrintNet("Achtung! I-Frame an %llu hat denselben Timestamp wie sein Vorgänger!\n", AbsPos);
@@ -1784,7 +1967,7 @@ TAP_PrintNet("Achtung! I-Frame an %llu hat denselben Timestamp wie sein Vorgänge
         TimeStampBuffer[*NrTimeStamps].Timems = (0xffffffff - FirstTime) + CurNavRec->Timems + 1;
 */
       NrTimeStamps++;
-      LastTime = CurNavRec->Timems;
+//      LastTime = CurNavRec->Timems;
     }
   }
 
