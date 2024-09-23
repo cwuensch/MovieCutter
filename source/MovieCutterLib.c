@@ -1312,14 +1312,9 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
       return FALSE;
   }
 
-  //Captions in den ExtEventText einfügen und Event-Strings von Datenmüll reinigen
+  //Captions in den ExtEventText einfügen
   TYPE_RecHeader_TMSC *RecHeader = (TYPE_RecHeader_TMSC*)Buffer;
-  dword p = strlen(RecHeader->EventInfo.EventNameDescription);
-  if (p < sizeof(RecHeader->EventInfo.EventNameDescription))
-    memset(&RecHeader->EventInfo.EventNameDescription[p], 0, sizeof(RecHeader->EventInfo.EventNameDescription) - p);
-  p = RecHeader->ExtEventInfo.TextLength;
-  if (p < sizeof(RecHeader->ExtEventInfo.Text))
-    memset(&RecHeader->ExtEventInfo.Text[p], 0, sizeof(RecHeader->ExtEventInfo.Text) - p);
+  dword p;
 
   // ggf. Itemized Items in ExtEventText entfernen
   memset(OldEventText, 0, sizeof(OldEventText));
@@ -1344,6 +1339,15 @@ bool PatchInfFiles(const char *SourceFileName, const char *CutFileName, const ch
     else
       strncpy(OldEventText, RecHeader->ExtEventInfo.Text, min(RecHeader->ExtEventInfo.TextLength, (int)sizeof(OldEventText)-1));
   }
+
+  // Event-Strings von Datenmüll reinigen
+  p = RecHeader->EventInfo.EventNameLength + strlen(&RecHeader->EventInfo.EventNameDescription[RecHeader->EventInfo.EventNameLength]);
+  if (p < sizeof(RecHeader->EventInfo.EventNameDescription))
+    memset(&RecHeader->EventInfo.EventNameDescription[p], 0, sizeof(RecHeader->EventInfo.EventNameDescription) - p);
+  p = strlen(RecHeader->ExtEventInfo.Text);
+  if (p < sizeof(RecHeader->ExtEventInfo.Text))
+    memset(&RecHeader->ExtEventInfo.Text[p], 0, sizeof(RecHeader->ExtEventInfo.Text) - p);
+
 
   if (pSourceCaption)
   {
